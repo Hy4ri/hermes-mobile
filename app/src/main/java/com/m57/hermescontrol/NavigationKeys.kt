@@ -30,3 +30,15 @@ import kotlinx.serialization.Serializable
 @Serializable data object WebhooksScreen : NavKey
 
 @Serializable data object ModelScreen : NavKey
+
+@Serializable data object LogsScreen : NavKey
+
+@Serializable data object PluginsScreen : NavKey
+
+@Serializable data object ChannelsScreen : NavKey
+
+@Serializable data object KeysScreen : NavKey
+
+@Serializable data object SystemScreen : NavKey
+
+@Serializable data object KanbanScreen : NavKey

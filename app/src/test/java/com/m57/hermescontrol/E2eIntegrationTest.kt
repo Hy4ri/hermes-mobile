@@ -3,15 +3,32 @@ package com.m57.hermescontrol
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.CreateTaskRequest
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.DoctorReport
+import com.m57.hermescontrol.data.model.DoctorResponse
+import com.m57.hermescontrol.data.model.KanbanBoard
+import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.LogResponse
+import com.m57.hermescontrol.data.model.MessagingPlatform
+import com.m57.hermescontrol.data.model.MoveTaskRequest
+import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.StatusResponse
+import com.m57.hermescontrol.data.model.SystemStatsResponse
+import com.m57.hermescontrol.data.model.TogglePluginRequest
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.ui.channels.ChannelsViewModel
 import com.m57.hermescontrol.ui.connect.ConnectViewModel
 import com.m57.hermescontrol.ui.cron.CronJobsViewModel
+import com.m57.hermescontrol.ui.kanban.KanbanViewModel
+import com.m57.hermescontrol.ui.keys.KeysViewModel
+import com.m57.hermescontrol.ui.logs.LogsViewModel
+import com.m57.hermescontrol.ui.plugins.PluginsViewModel
 import com.m57.hermescontrol.ui.skills.SkillsViewModel
+import com.m57.hermescontrol.ui.system.SystemViewModel
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -753,5 +770,164 @@ class E2eIntegrationTest {
             advanceUntilIdle()
 
             assertEquals("Job triggered successfully", cronViewModel.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testLogsListing_success() =
+        runTest {
+            coEvery { mockApiService.getLogs() } returns
+                Response.success(LogResponse(listOf("Log line 1", "Log line 2")))
+
+            val viewModel = LogsViewModel()
+            viewModel.loadLogs()
+            assertTrue(viewModel.uiState.value.isLoading)
+
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertEquals(2, viewModel.uiState.value.logs.size)
+            assertEquals("Log line 1", viewModel.uiState.value.logs[0])
+            assertEquals("Log line 2", viewModel.uiState.value.logs[1])
+        }
+
+    @Test
+    fun testPluginsManagement_success() =
+        runTest {
+            val plugin = PluginInfo("plugin-1", "Desc", "1.0", false, true)
+            coEvery { mockApiService.getPlugins() } returns Response.success(listOf(plugin))
+            coEvery { mockApiService.togglePlugin("plugin-1", TogglePluginRequest(true)) } returns
+                Response.success(Unit)
+
+            val viewModel = PluginsViewModel()
+            viewModel.loadPlugins()
+            advanceUntilIdle()
+
+            assertEquals(1, viewModel.uiState.value.plugins.size)
+            assertFalse(
+                viewModel.uiState.value.plugins[0]
+                    .enabled,
+            )
+
+            viewModel.togglePlugin(viewModel.uiState.value.plugins[0])
+            // Optimistic toggle check
+            assertTrue(
+                viewModel.uiState.value.plugins[0]
+                    .enabled,
+            )
+
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.uiState.value.plugins[0]
+                    .enabled,
+            )
+        }
+
+    @Test
+    fun testChannelsConfiguration_success() =
+        runTest {
+            val platform = MessagingPlatform("telegram", false, false, null)
+            coEvery { mockApiService.getMessagingPlatforms() } returns Response.success(listOf(platform))
+            coEvery { mockApiService.configurePlatform("telegram", any()) } returns Response.success(Unit)
+
+            val viewModel = ChannelsViewModel()
+            viewModel.loadPlatforms()
+            advanceUntilIdle()
+
+            assertEquals(1, viewModel.uiState.value.platforms.size)
+
+            viewModel.configurePlatform("telegram", mapOf("bot_token" to "xyz"))
+            advanceUntilIdle()
+
+            assertEquals("telegram configured successfully", viewModel.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testKeysManagement_success() =
+        runTest {
+            coEvery { mockApiService.getEnvVars() } returns Response.success(mapOf("KEY1" to "value1"))
+            coEvery { mockApiService.updateEnvVar(any()) } returns Response.success(Unit)
+
+            val viewModel = KeysViewModel()
+            viewModel.loadKeys(reveal = false)
+            advanceUntilIdle()
+
+            assertEquals("value1", viewModel.uiState.value.envVars["KEY1"])
+
+            viewModel.updateKey("KEY1", "newValue")
+            advanceUntilIdle()
+
+            assertEquals("Key updated successfully", viewModel.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testSystemDiagnostics_success() =
+        runTest {
+            val stats = SystemStatsResponse(cpu = mapOf("percent" to 50.0), memory = mapOf("percent" to 60.0))
+            val doctor = DoctorResponse("ok", listOf(DoctorReport("networking", "ok", "all good")))
+            coEvery { mockApiService.getSystemStats() } returns Response.success(stats)
+            coEvery { mockApiService.runDoctor() } returns Response.success(doctor)
+            coEvery { mockApiService.triggerBackup() } returns Response.success(Unit)
+
+            val viewModel = SystemViewModel()
+            viewModel.loadSystemData()
+            advanceUntilIdle()
+
+            assertEquals(
+                50.0,
+                viewModel.uiState.value.stats
+                    ?.cpuPercent,
+            )
+            assertEquals(
+                "ok",
+                viewModel.uiState.value.doctorReport
+                    ?.status,
+            )
+
+            viewModel.triggerBackup()
+            advanceUntilIdle()
+
+            assertEquals("Backup triggered successfully", viewModel.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testKanbanBoardAndTasks_success() =
+        runTest {
+            val board = KanbanBoard("board-1", "Backlog", null)
+            val task = KanbanTask("task-1", "board-1", "Do laundry", null, "todo", null)
+            coEvery { mockApiService.getKanbanBoards() } returns Response.success(listOf(board))
+            coEvery { mockApiService.getKanbanTasks("board-1") } returns Response.success(listOf(task))
+            coEvery { mockApiService.moveKanbanTask("task-1", MoveTaskRequest("in_progress")) } returns
+                Response.success(Unit)
+
+            val viewModel = KanbanViewModel()
+            viewModel.loadBoards()
+            advanceUntilIdle()
+
+            assertEquals(
+                "board-1",
+                viewModel.uiState.value.selectedBoard
+                    ?.id,
+            )
+            assertEquals(1, viewModel.uiState.value.tasks.size)
+            assertEquals(
+                "todo",
+                viewModel.uiState.value.tasks[0]
+                    .status,
+            )
+
+            viewModel.moveTask(viewModel.uiState.value.tasks[0], "in_progress")
+            // Optimistic move check
+            assertEquals(
+                "in_progress",
+                viewModel.uiState.value.tasks[0]
+                    .status,
+            )
+
+            advanceUntilIdle()
+            assertEquals(
+                "in_progress",
+                viewModel.uiState.value.tasks[0]
+                    .status,
+            )
         }
 }

@@ -21,17 +21,23 @@ import androidx.navigation3.ui.NavDisplay
 import com.m57.hermescontrol.data.local.AuthManager
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
+import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
 import com.m57.hermescontrol.ui.connect.ConnectScreen as ConnectScreenContent
 import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
+import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
+import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
+import com.m57.hermescontrol.ui.logs.LogsScreen as LogsScreenContent
 import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
+import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
 import com.m57.hermescontrol.ui.skills.SkillsScreen as SkillsScreenContent
+import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
 import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
 import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
@@ -53,7 +59,10 @@ fun MainNavigation() {
             currentScreen == ToolsetsScreen || currentScreen == AchievementsScreen ||
             currentScreen == PairingScreen || currentScreen == ConfigScreen ||
             currentScreen == McpServersScreen || currentScreen == WebhooksScreen ||
-            currentScreen == ModelScreen
+            currentScreen == ModelScreen || currentScreen == LogsScreen ||
+            currentScreen == PluginsScreen || currentScreen == ChannelsScreen ||
+            currentScreen == KeysScreen || currentScreen == SystemScreen ||
+            currentScreen == KanbanScreen
     val openDrawer = { scope.launch { drawerState.open() } }
 
     ModalNavigationDrawer(
@@ -176,6 +185,60 @@ fun MainNavigation() {
                         },
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
+                    NavigationDrawerItem(
+                        label = { Text("Logs") },
+                        selected = currentScreen == LogsScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(LogsScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Plugins") },
+                        selected = currentScreen == PluginsScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(PluginsScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Channels") },
+                        selected = currentScreen == ChannelsScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(ChannelsScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Keys") },
+                        selected = currentScreen == KeysScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(KeysScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("System") },
+                        selected = currentScreen == SystemScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(SystemScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Kanban") },
+                        selected = currentScreen == KanbanScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(KanbanScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
                 }
             }
         },
@@ -274,6 +337,42 @@ fun MainNavigation() {
 
                     entry<GatewayScreen> {
                         GatewayScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<LogsScreen> {
+                        LogsScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<PluginsScreen> {
+                        PluginsScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<ChannelsScreen> {
+                        ChannelsScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<KeysScreen> {
+                        KeysScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<SystemScreen> {
+                        SystemScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<KanbanScreen> {
+                        KanbanScreenContent(
                             onOpenDrawer = { openDrawer() },
                         )
                     }

@@ -2,13 +2,21 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
+import com.m57.hermescontrol.data.model.CreateTaskRequest
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.DoctorResponse
+import com.m57.hermescontrol.data.model.KanbanBoard
+import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
+import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
+import com.m57.hermescontrol.data.model.MoveTaskRequest
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
+import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RawConfigResponse
@@ -18,6 +26,7 @@ import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
+import com.m57.hermescontrol.data.model.TogglePluginRequest
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
@@ -192,4 +201,76 @@ interface HermesApiService {
 
     @GET("api/model/options")
     suspend fun getModelOptions(): Response<ModelOptionsResponse>
+
+    @GET("api/logs")
+    suspend fun getLogs(): Response<LogResponse>
+
+    @GET("api/plugins")
+    suspend fun getPlugins(): Response<List<PluginInfo>>
+
+    @POST("api/plugins/{name}/install")
+    suspend fun installPlugin(
+        @Path("name") name: String,
+    ): Response<Unit>
+
+    @POST("api/plugins/{name}/uninstall")
+    suspend fun uninstallPlugin(
+        @Path("name") name: String,
+    ): Response<Unit>
+
+    @POST("api/plugins/{name}/update")
+    suspend fun updatePlugin(
+        @Path("name") name: String,
+    ): Response<Unit>
+
+    @PUT("api/plugins/{name}/toggle")
+    suspend fun togglePlugin(
+        @Path("name") name: String,
+        @Body body: TogglePluginRequest,
+    ): Response<Unit>
+
+    @GET("api/messaging/platforms")
+    suspend fun getMessagingPlatforms(): Response<List<MessagingPlatform>>
+
+    @POST("api/messaging/platforms/{name}/configure")
+    suspend fun configurePlatform(
+        @Path("name") name: String,
+        @Body config: Map<String, String>,
+    ): Response<Unit>
+
+    @GET("api/env")
+    suspend fun getEnvVars(): Response<Map<String, String>>
+
+    @PUT("api/env")
+    suspend fun updateEnvVar(
+        @Body vars: Map<String, String>,
+    ): Response<Unit>
+
+    @POST("api/env/reveal")
+    suspend fun revealEnvVars(): Response<Map<String, String>>
+
+    @POST("api/ops/backup")
+    suspend fun triggerBackup(): Response<Unit>
+
+    @GET("api/ops/doctor")
+    suspend fun runDoctor(): Response<DoctorResponse>
+
+    @GET("api/plugins/kanban/boards")
+    suspend fun getKanbanBoards(): Response<List<KanbanBoard>>
+
+    @GET("api/plugins/kanban/boards/{id}/tasks")
+    suspend fun getKanbanTasks(
+        @Path("id") boardId: String,
+    ): Response<List<KanbanTask>>
+
+    @POST("api/plugins/kanban/tasks/{id}/move")
+    suspend fun moveKanbanTask(
+        @Path("id") taskId: String,
+        @Body body: MoveTaskRequest,
+    ): Response<Unit>
+
+    @POST("api/plugins/kanban/tasks")
+    suspend fun createKanbanTask(
+        @Body task: CreateTaskRequest,
+    ): Response<KanbanTask>
 }

@@ -108,14 +108,17 @@ fun CronJobsScreen(
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(text = job.name, style = MaterialTheme.typography.titleMedium)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(text = "Schedule: ${job.schedule}", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    text = "Schedule: ${job.scheduleText}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
                                 Text(text = "Status: ${job.state}", style = MaterialTheme.typography.bodyMedium)
                                 Text(
-                                    text = "Last Run: ${job.last_run_status ?: "Never"}",
+                                    text = "Last Run: ${job.lastRunStatus.ifBlank { "Never" }}",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Text(
-                                    text = "Next Run: ${job.next_run ?: "N/A"}",
+                                    text = "Next Run: ${job.nextRunTime.ifBlank { "N/A" }}",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
 

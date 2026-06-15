@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -65,6 +66,8 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var passwordVisible by remember { mutableStateOf(false) }
+
+    BackHandler(onBack = onBack)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

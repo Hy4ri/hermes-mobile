@@ -34,6 +34,8 @@ This document tracks the completed features and the pending backlog for the Herm
 * **System View (`SystemScreen`)**: Diagnostics doctor reports (`GET /api/ops/doctor`) and backups trigger (`POST /api/ops/backup`).
 * **Kanban View (`KanbanScreen`)**: Full task boards, task columns (To Do, In Progress, Done), new tasks dialog, and task movement with optimistic updates.
 * **Navigation Drawer**: Material3 navigation drawer using Navigation3 keys to switch between all screens.
+* **Chat Slash Commands**: Local interception and execution of custom commands (`/help`, `/status`, `/sessions`, `/stats` / `/system`, `/new`, `/stop` / `/interrupt`) displaying results inline.
+
 
 ---
 

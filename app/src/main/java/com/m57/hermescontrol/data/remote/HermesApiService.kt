@@ -3,6 +3,9 @@ package com.m57.hermescontrol.data.remote
 import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.McpServerToggleRequest
+import com.m57.hermescontrol.data.model.McpServersResponse
+import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
@@ -22,6 +25,8 @@ import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
+import com.m57.hermescontrol.data.model.WebhooksResponse
+import com.m57.hermescontrol.data.model.WebhooksToggleRequest
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -157,4 +162,34 @@ interface HermesApiService {
     suspend fun updateRawConfig(
         @Body body: UpdateRawConfigRequest,
     ): Response<Unit>
+
+    @GET("api/mcp/servers")
+    suspend fun getMcpServers(): Response<McpServersResponse>
+
+    @PUT("api/mcp/servers/{name}/enabled")
+    suspend fun toggleMcpServer(
+        @Path("name") name: String,
+        @Body body: McpServerToggleRequest,
+    ): Response<Unit>
+
+    @POST("api/mcp/servers/{name}/test")
+    suspend fun testMcpServer(
+        @Path("name") name: String,
+    ): Response<Unit>
+
+    @DELETE("api/mcp/servers/{name}")
+    suspend fun deleteMcpServer(
+        @Path("name") name: String,
+    ): Response<Unit>
+
+    @GET("api/webhooks")
+    suspend fun getWebhooks(): Response<WebhooksResponse>
+
+    @POST("api/webhooks/enable")
+    suspend fun toggleWebhooks(
+        @Body body: WebhooksToggleRequest,
+    ): Response<Unit>
+
+    @GET("api/model/options")
+    suspend fun getModelOptions(): Response<ModelOptionsResponse>
 }

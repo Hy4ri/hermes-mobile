@@ -24,3 +24,9 @@ import kotlinx.serialization.Serializable
 @Serializable data object PairingScreen : NavKey
 
 @Serializable data object ConfigScreen : NavKey
+
+@Serializable data object McpServersScreen : NavKey
+
+@Serializable data object WebhooksScreen : NavKey
+
+@Serializable data object ModelScreen : NavKey

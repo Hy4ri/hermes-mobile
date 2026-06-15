@@ -26,11 +26,14 @@ import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
 import com.m57.hermescontrol.ui.connect.ConnectScreen as ConnectScreenContent
 import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
+import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
+import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
 import com.m57.hermescontrol.ui.skills.SkillsScreen as SkillsScreenContent
 import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
+import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
 @Composable
 fun MainNavigation() {
@@ -48,7 +51,9 @@ fun MainNavigation() {
         currentScreen == ChatScreen || currentScreen == SkillsScreen || currentScreen == CronJobsScreen ||
             currentScreen == GatewayScreen || currentScreen == ProfilesScreen ||
             currentScreen == ToolsetsScreen || currentScreen == AchievementsScreen ||
-            currentScreen == PairingScreen || currentScreen == ConfigScreen
+            currentScreen == PairingScreen || currentScreen == ConfigScreen ||
+            currentScreen == McpServersScreen || currentScreen == WebhooksScreen ||
+            currentScreen == ModelScreen
     val openDrawer = { scope.launch { drawerState.open() } }
 
     ModalNavigationDrawer(
@@ -136,6 +141,33 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        label = { Text("MCP Servers") },
+                        selected = currentScreen == McpServersScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(McpServersScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Webhooks") },
+                        selected = currentScreen == WebhooksScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(WebhooksScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
+                        label = { Text("Models") },
+                        selected = currentScreen == ModelScreen,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            NavigationController.navigateTo(ModelScreen)
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                    NavigationDrawerItem(
                         label = { Text("Gateway") },
                         selected = currentScreen == GatewayScreen,
                         onClick = {
@@ -218,6 +250,24 @@ fun MainNavigation() {
 
                     entry<ConfigScreen> {
                         ConfigScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<McpServersScreen> {
+                        McpServersScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<WebhooksScreen> {
+                        WebhooksScreenContent(
+                            onOpenDrawer = { openDrawer() },
+                        )
+                    }
+
+                    entry<ModelScreen> {
+                        ModelScreenContent(
                             onOpenDrawer = { openDrawer() },
                         )
                     }

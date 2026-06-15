@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -88,7 +89,10 @@ fun KanbanScreen(
                 title = { Text(state.selectedBoard?.name ?: "Kanban Boards") },
                 actions = {
                     IconButton(onClick = { viewModel.loadBoards() }) {
-                        Text("Refresh", style = MaterialTheme.typography.bodyMedium)
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Refresh",
+                        )
                     }
                 },
             )

@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -75,7 +76,10 @@ fun PluginsScreen(
                 title = { Text("Plugins Hub") },
                 actions = {
                     IconButton(onClick = { viewModel.loadPlugins() }) {
-                        Text("Refresh", style = MaterialTheme.typography.bodyMedium)
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Refresh",
+                        )
                     }
                 },
             )

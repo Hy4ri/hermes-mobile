@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -73,7 +74,10 @@ fun CronJobsScreen(
                 title = { Text("Cron Jobs") },
                 actions = {
                     IconButton(onClick = { viewModel.loadCronJobs() }) {
-                        Text("Refresh")
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Refresh",
+                        )
                     }
                 },
             )

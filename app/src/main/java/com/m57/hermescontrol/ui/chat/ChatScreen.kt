@@ -156,6 +156,13 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.createNewSession() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "New Chat",
+                        )
+                    }
+
                     // Session picker
                     Box {
                         IconButton(onClick = {

@@ -1,0 +1,287 @@
+package com.m57.hermescontrol.ui.connect
+
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.StatusResponse
+import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
+import io.mockk.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import retrofit2.Response
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class ConnectViewModelTest {
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var mockApiService: HermesApiService
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        val testMainDispatcher = Dispatchers.Main
+        mockkStatic(Dispatchers::class)
+        every { Dispatchers.IO } returns testDispatcher
+        every { Dispatchers.Main } returns testMainDispatcher
+
+        mockkObject(AuthManager)
+        mockkObject(ApiClient)
+
+        mockApiService = mockk()
+        every { ApiClient.hermesApi } returns mockApiService
+        every { ApiClient.rebuild() } returns Unit
+
+        // Default AuthManager stubs
+        every { AuthManager.getToken() } returns ""
+        every { AuthManager.getHost() } returns "127.0.0.1"
+        every { AuthManager.getPort() } returns 9119
+        every { AuthManager.setToken(any()) } returns Unit
+        every { AuthManager.setHost(any()) } returns Unit
+        every { AuthManager.setPort(any()) } returns Unit
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+        unmockkAll()
+    }
+
+    @Test
+    fun testInitialLoadingFromAuthManager() {
+        every { AuthManager.getToken() } returns "saved-token"
+        every { AuthManager.getHost() } returns "hermes.local"
+        every { AuthManager.getPort() } returns 8888
+
+        val viewModel = ConnectViewModel()
+        val state = viewModel.uiState.value
+
+        assertEquals("saved-token", state.token)
+        assertEquals("hermes.local", state.host)
+        assertEquals("8888", state.port)
+        assertFalse(state.isConnecting)
+        assertFalse(state.connectionSuccess)
+        assertNull(state.errorMessage)
+    }
+
+    @Test
+    fun testOnTokenChange() {
+        val viewModel = ConnectViewModel()
+        viewModel.onTokenChange("  new-token  ")
+        assertEquals("new-token", viewModel.uiState.value.token)
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testOnHostChange() {
+        val viewModel = ConnectViewModel()
+        viewModel.onHostChange("  192.168.1.50  ")
+        assertEquals("192.168.1.50", viewModel.uiState.value.host)
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testOnPortChange() {
+        val viewModel = ConnectViewModel()
+        viewModel.onPortChange("90abc90")
+        assertEquals("9090", viewModel.uiState.value.port)
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testConnect_blankToken_showsError() {
+        val viewModel = ConnectViewModel()
+        viewModel.onTokenChange("")
+        viewModel.connect()
+        assertEquals("Token is required", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testConnect_blankHost_showsError() {
+        val viewModel = ConnectViewModel()
+        viewModel.onTokenChange("valid-token")
+        viewModel.onHostChange("")
+        viewModel.connect()
+        assertEquals("Host is required", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testConnect_invalidPortBounds_showsError() {
+        val viewModel = ConnectViewModel()
+        viewModel.onTokenChange("valid-token")
+        viewModel.onHostChange("127.0.0.1")
+
+        viewModel.onPortChange("0")
+        viewModel.connect()
+        assertEquals("Port must be between 1 and 65535", viewModel.uiState.value.errorMessage)
+
+        viewModel.onPortChange("65536")
+        viewModel.connect()
+        assertEquals("Port must be between 1 and 65535", viewModel.uiState.value.errorMessage)
+
+        viewModel.onPortChange("")
+        viewModel.connect()
+        assertEquals("Port must be between 1 and 65535", viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun testConnect_success() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("valid-token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns true
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            viewModel.connect()
+
+            assertTrue(viewModel.uiState.value.isConnecting)
+
+            advanceUntilIdle()
+
+            verify { AuthManager.setToken("valid-token") }
+            verify { AuthManager.setHost("127.0.0.1") }
+            verify { AuthManager.setPort(9119) }
+            verify { ApiClient.rebuild() }
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertTrue(state.connectionSuccess)
+            assertNull(state.errorMessage)
+        }
+
+    @Test
+    fun testConnect_failure_unauthorized() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("invalid-token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns false
+            every { mockResponse.code() } returns 401
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertFalse(state.connectionSuccess)
+            assertEquals("Invalid token (401 Unauthorized)", state.errorMessage)
+        }
+
+    @Test
+    fun testConnect_failure_forbidden() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("invalid-token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns false
+            every { mockResponse.code() } returns 403
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertFalse(state.connectionSuccess)
+            assertEquals("Access denied (403 Forbidden)", state.errorMessage)
+        }
+
+    @Test
+    fun testConnect_failure_otherHttpCode() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns false
+            every { mockResponse.code() } returns 500
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertFalse(state.connectionSuccess)
+            assertEquals("Server returned HTTP 500", state.errorMessage)
+        }
+
+    @Test
+    fun testConnect_exception_connectionRefused() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            coEvery { mockApiService.getStatus() } throws Exception("Connection refused")
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertFalse(state.connectionSuccess)
+            assertEquals("Connection refused – is Hermes running?", state.errorMessage)
+        }
+
+    @Test
+    fun testConnect_exception_timeout() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            coEvery { mockApiService.getStatus() } throws Exception("timeout exception")
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertFalse(state.connectionSuccess)
+            assertEquals("Connection timed out", state.errorMessage)
+        }
+
+    @Test
+    fun testConnect_exception_unknown() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            coEvery { mockApiService.getStatus() } throws Exception("Something went wrong")
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertFalse(state.connectionSuccess)
+            assertEquals("Connection failed: Something went wrong", state.errorMessage)
+        }
+}

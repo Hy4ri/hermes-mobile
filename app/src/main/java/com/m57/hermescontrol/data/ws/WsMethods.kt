@@ -1,0 +1,17 @@
+package com.m57.hermescontrol.data.ws
+
+/** JSON-RPC method name constants used with [HermesWsClient.send]. */
+object WsMethods {
+    const val SESSION_LIST = "session.list"
+    const val SESSION_ACTIVE_LIST = "session.active_list"
+    const val SESSION_STATUS = "session.status"
+    const val SESSION_HISTORY = "session.history"
+    const val SESSION_RESUME = "session.resume"
+    const val SESSION_CREATE = "session.create"
+    const val PROMPT_SUBMIT = "prompt.submit"
+    const val SESSION_INTERRUPT = "session.interrupt"
+    const val SESSION_DELETE = "session.delete"
+    const val SESSION_TITLE = "session.title"
+    const val CLARIFY_RESPOND = "clarify.respond"
+    const val APPROVAL_RESPOND = "approval.respond"
+}

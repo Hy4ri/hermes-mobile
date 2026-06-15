@@ -83,8 +83,8 @@ class HermesApiServiceTest {
                 MockResponse()
                     .setResponseCode(200)
                     .setBody(
-                        """[{"id":"job_1","name":"backup","schedule":"* * * * *",\"""" +
-                            """"state":"active","last_run_status":null,"next_run":null}]""",
+                        "[{\"id\":\"job_1\",\"name\":\"backup\",\"schedule\":\"* * * * *\"," +
+                            "\"state\":\"active\",\"last_run_status\":null,\"next_run\":null}]",
                     ),
             )
 

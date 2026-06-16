@@ -22,7 +22,7 @@ import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
-import com.m57.hermescontrol.data.model.PluginInfo
+import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RawConfigResponse
@@ -212,8 +212,8 @@ interface HermesApiService {
     @GET("api/logs")
     suspend fun getLogs(): Response<LogResponse>
 
-    @GET("api/dashboard/plugins")
-    suspend fun getPlugins(): Response<List<PluginInfo>>
+    @GET("api/dashboard/plugins/hub")
+    suspend fun getPlugins(): Response<PluginsHubResponse>
 
     @POST("api/dashboard/agent-plugins/install")
     suspend fun installPlugin(
@@ -222,22 +222,22 @@ interface HermesApiService {
 
     @DELETE("api/dashboard/agent-plugins/{name}")
     suspend fun uninstallPlugin(
-        @Path("name") name: String,
+        @Path("name", encoded = true) name: String,
     ): Response<Unit>
 
     @POST("api/dashboard/agent-plugins/{name}/update")
     suspend fun updatePlugin(
-        @Path("name") name: String,
+        @Path("name", encoded = true) name: String,
     ): Response<Unit>
 
     @POST("api/dashboard/agent-plugins/{name}/enable")
     suspend fun enablePlugin(
-        @Path("name") name: String,
+        @Path("name", encoded = true) name: String,
     ): Response<Unit>
 
     @POST("api/dashboard/agent-plugins/{name}/disable")
     suspend fun disablePlugin(
-        @Path("name") name: String,
+        @Path("name", encoded = true) name: String,
     ): Response<Unit>
 
     @GET("api/messaging/platforms")

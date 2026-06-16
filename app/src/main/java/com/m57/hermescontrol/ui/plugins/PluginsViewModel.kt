@@ -32,7 +32,8 @@ class PluginsViewModel : ViewModel() {
                         ApiClient.hermesApi.getPlugins()
                     }
                 if (response.isSuccessful) {
-                    _uiState.update { it.copy(isLoading = false, plugins = response.body().orEmpty()) }
+                    val plugins = response.body()?.plugins.orEmpty()
+                    _uiState.update { it.copy(isLoading = false, plugins = plugins) }
                 } else {
                     _uiState.update {
                         it.copy(

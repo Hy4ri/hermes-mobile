@@ -57,7 +57,11 @@ class PluginsViewModel : ViewModel() {
             state.copy(
                 plugins =
                     state.plugins.map {
-                        if (it.name == plugin.name) it.copy(enabled = targetEnabled) else it
+                        if (it.name == plugin.name) {
+                            it.copy(runtimeStatus = if (targetEnabled) "enabled" else "disabled")
+                        } else {
+                            it
+                        }
                     },
             )
         }
@@ -150,7 +154,11 @@ class PluginsViewModel : ViewModel() {
             state.copy(
                 plugins =
                     state.plugins.map {
-                        if (it.name == name) it.copy(enabled = originalEnabled) else it
+                        if (it.name == name) {
+                            it.copy(runtimeStatus = if (originalEnabled) "enabled" else "disabled")
+                        } else {
+                            it
+                        }
                     },
                 toastMessage = errorMsg,
             )

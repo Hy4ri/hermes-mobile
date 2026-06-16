@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.PluginInfo
+import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
@@ -793,8 +794,8 @@ class E2eIntegrationTest {
     @Test
     fun testPluginsManagement_success() =
         runTest {
-            val plugin = PluginInfo("plugin-1", "Desc", "1.0", false, true)
-            coEvery { mockApiService.getPlugins() } returns Response.success(listOf(plugin))
+            val plugin = PluginInfo("plugin-1", "Desc", "1.0", null, "disabled")
+            coEvery { mockApiService.getPlugins() } returns Response.success(PluginsHubResponse(listOf(plugin)))
             coEvery { mockApiService.enablePlugin("plugin-1") } returns Response.success(Unit)
 
             val viewModel = PluginsViewModel()

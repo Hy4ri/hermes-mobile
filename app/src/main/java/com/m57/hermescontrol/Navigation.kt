@@ -4,8 +4,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -82,6 +100,7 @@ fun MainNavigation() {
                     )
                     HorizontalDivider()
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Chat, contentDescription = null) },
                         label = { Text("Chat") },
                         selected = currentScreen == ChatScreen,
                         onClick = {
@@ -91,6 +110,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Extension, contentDescription = null) },
                         label = { Text("Skills") },
                         selected = currentScreen == SkillsScreen,
                         onClick = {
@@ -100,6 +120,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Schedule, contentDescription = null) },
                         label = { Text("Cron Jobs") },
                         selected = currentScreen == CronJobsScreen,
                         onClick = {
@@ -109,6 +130,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.AccountCircle, contentDescription = null) },
                         label = { Text("Profiles") },
                         selected = currentScreen == ProfilesScreen,
                         onClick = {
@@ -118,6 +140,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Build, contentDescription = null) },
                         label = { Text("Toolsets") },
                         selected = currentScreen == ToolsetsScreen,
                         onClick = {
@@ -127,6 +150,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Star, contentDescription = null) },
                         label = { Text("Achievements") },
                         selected = currentScreen == AchievementsScreen,
                         onClick = {
@@ -136,6 +160,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Devices, contentDescription = null) },
                         label = { Text("Pairing") },
                         selected = currentScreen == PairingScreen,
                         onClick = {
@@ -145,6 +170,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Code, contentDescription = null) },
                         label = { Text("Config") },
                         selected = currentScreen == ConfigScreen,
                         onClick = {
@@ -154,6 +180,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Dns, contentDescription = null) },
                         label = { Text("MCP Servers") },
                         selected = currentScreen == McpServersScreen,
                         onClick = {
@@ -163,6 +190,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.CallSplit, contentDescription = null) },
                         label = { Text("Webhooks") },
                         selected = currentScreen == WebhooksScreen,
                         onClick = {
@@ -172,6 +200,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                         label = { Text("Models") },
                         selected = currentScreen == ModelScreen,
                         onClick = {
@@ -181,6 +210,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
                         label = { Text("Gateway") },
                         selected = currentScreen == GatewayScreen,
                         onClick = {
@@ -190,6 +220,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.List, contentDescription = null) },
                         label = { Text("Logs") },
                         selected = currentScreen == LogsScreen,
                         onClick = {
@@ -199,6 +230,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Extension, contentDescription = null) },
                         label = { Text("Plugins") },
                         selected = currentScreen == PluginsScreen,
                         onClick = {
@@ -208,6 +240,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Chat, contentDescription = null) },
                         label = { Text("Channels") },
                         selected = currentScreen == ChannelsScreen,
                         onClick = {
@@ -217,6 +250,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Key, contentDescription = null) },
                         label = { Text("Keys") },
                         selected = currentScreen == KeysScreen,
                         onClick = {
@@ -226,6 +260,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Info, contentDescription = null) },
                         label = { Text("System") },
                         selected = currentScreen == SystemScreen,
                         onClick = {
@@ -235,6 +270,7 @@ fun MainNavigation() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
                         label = { Text("Kanban") },
                         selected = currentScreen == KanbanScreen,
                         onClick = {

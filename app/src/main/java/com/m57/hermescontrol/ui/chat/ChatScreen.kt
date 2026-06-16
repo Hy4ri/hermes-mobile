@@ -468,71 +468,146 @@ private fun ChatInputBar(
                 ),
             elevation = CardDefaults.cardElevation(8.dp),
         ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = onInputChange,
+            Column {
+                val commands =
+                    listOf(
+                        "/help",
+                        "/status",
+                        "/sessions",
+                        "/stats",
+                        "/system",
+                        "/new",
+                        "/stop",
+                        "/interrupt",
+                    )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = inputText.startsWith("/") && !inputText.contains(" "),
+                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+                ) {
+                    val filteredCommands = commands.filter { it.startsWith(inputText, ignoreCase = true) }
+                    if (filteredCommands.isNotEmpty()) {
+                        androidx.compose.material3.Surface(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border =
+                                androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                ),
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier.heightIn(max = 200.dp),
+                            ) {
+                                items(filteredCommands) { cmd ->
+                                    val description =
+                                        when (cmd) {
+                                            "/help" -> "Show help menu"
+                                            "/status" -> "Check gateway and platform status"
+                                            "/sessions" -> "List all chat sessions"
+                                            "/stats" -> "Check system resource usage (stats)"
+                                            "/system" -> "Check system resource usage (system)"
+                                            "/new" -> "Create a new chat session"
+                                            "/stop" -> "Interrupt the active run"
+                                            "/interrupt" -> "Interrupt the active run"
+                                            else -> ""
+                                        }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    cmd,
+                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                                Text(
+                                                    description,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        },
+                                        onClick = { onInputChange(cmd) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
                     modifier =
                         Modifier
-                            .weight(1f)
-                            .heightIn(max = 140.dp),
-                    placeholder = {
-                        Text(
-                            if (!isConnected) {
-                                "Not connected…"
-                            } else if (isAgentTyping) {
-                                "Waiting for response…"
-                            } else {
-                                "Type a message…"
-                            },
-                        )
-                    },
-                    enabled = isConnected,
-                    maxLines = 5,
-                    shape = RoundedCornerShape(20.dp),
-                    colors =
-                        OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                            cursorColor = MaterialTheme.colorScheme.primary,
-                        ),
-                )
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = onInputChange,
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .heightIn(max = 140.dp),
+                        placeholder = {
+                            Text(
+                                if (!isConnected) {
+                                    "Not connected…"
+                                } else if (isAgentTyping) {
+                                    "Waiting for response…"
+                                } else {
+                                    "Type a message…"
+                                },
+                            )
+                        },
+                        enabled = isConnected,
+                        maxLines = 5,
+                        shape = RoundedCornerShape(20.dp),
+                        colors =
+                            OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                            ),
+                    )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                if (isAgentTyping) {
-                    // Interrupt button
-                    FilledTonalButton(
-                        onClick = onInterrupt,
-                        modifier = Modifier.size(48.dp),
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(0.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Stop,
-                            contentDescription = "Interrupt",
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                } else {
-                    // Send button
-                    FilledTonalButton(
-                        onClick = onSend,
-                        enabled = canSend,
-                        modifier = Modifier.size(48.dp),
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(0.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                        )
+                    if (isAgentTyping) {
+                        // Interrupt button
+                        FilledTonalButton(
+                            onClick = onInterrupt,
+                            modifier = Modifier.size(48.dp),
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = "Interrupt",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    } else {
+                        // Send button
+                        FilledTonalButton(
+                            onClick = onSend,
+                            enabled = canSend,
+                            modifier = Modifier.size(48.dp),
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                            )
+                        }
                     }
                 }
             }

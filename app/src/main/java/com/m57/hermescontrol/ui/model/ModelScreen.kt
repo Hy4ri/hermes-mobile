@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.model
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
@@ -196,11 +198,68 @@ fun ModelScreen(
                                             )
                                         } else {
                                             models.forEach { model ->
-                                                Text(
-                                                    text = "• $model",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    modifier = Modifier.padding(vertical = 4.dp),
-                                                )
+                                                val isActive =
+                                                    state.activeProfile?.provider == provider.slug &&
+                                                        state.activeProfile?.model == model
+                                                Card(
+                                                    onClick = {
+                                                        viewModel.selectModel(provider.slug, model)
+                                                    },
+                                                    modifier =
+                                                        Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 4.dp),
+                                                    colors =
+                                                        CardDefaults.cardColors(
+                                                            containerColor =
+                                                                if (isActive) {
+                                                                    MaterialTheme.colorScheme.primaryContainer.copy(
+                                                                        alpha = 0.3f,
+                                                                    )
+                                                                } else {
+                                                                    MaterialTheme.colorScheme.surface
+                                                                },
+                                                        ),
+                                                    border =
+                                                        BorderStroke(
+                                                            width = 1.dp,
+                                                            color =
+                                                                if (isActive) {
+                                                                    MaterialTheme.colorScheme.primary
+                                                                } else {
+                                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                                                },
+                                                        ),
+                                                ) {
+                                                    Row(
+                                                        modifier =
+                                                            Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                    ) {
+                                                        Text(
+                                                            text = model,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            fontWeight =
+                                                                if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                                            color =
+                                                                if (isActive) {
+                                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                                } else {
+                                                                    MaterialTheme.colorScheme.onSurface
+                                                                },
+                                                        )
+                                                        if (isActive) {
+                                                            Icon(
+                                                                imageVector = Icons.Filled.Check,
+                                                                contentDescription = "Active Model",
+                                                                tint = MaterialTheme.colorScheme.primary,
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

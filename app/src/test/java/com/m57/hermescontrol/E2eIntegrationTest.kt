@@ -3,6 +3,7 @@ package com.m57.hermescontrol
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
@@ -13,8 +14,12 @@ import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.MessagingPlatform
+import com.m57.hermescontrol.data.model.ModelOptionsResponse
+import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginsHubResponse
+import com.m57.hermescontrol.data.model.ProfileInfo
+import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
@@ -27,6 +32,7 @@ import com.m57.hermescontrol.ui.cron.CronJobsViewModel
 import com.m57.hermescontrol.ui.kanban.KanbanViewModel
 import com.m57.hermescontrol.ui.keys.KeysViewModel
 import com.m57.hermescontrol.ui.logs.LogsViewModel
+import com.m57.hermescontrol.ui.model.ModelViewModel
 import com.m57.hermescontrol.ui.plugins.PluginsViewModel
 import com.m57.hermescontrol.ui.skills.SkillsViewModel
 import com.m57.hermescontrol.ui.system.SystemViewModel
@@ -937,5 +943,41 @@ class E2eIntegrationTest {
                 viewModel.uiState.value.tasks[0]
                     .status,
             )
+        }
+
+    @Test
+    fun testModelOptionsSelection_success() =
+        runTest {
+            val provider = ModelProvider("ollama", "Ollama", false, true, listOf("llama3"), 1, null, true, null, null)
+            val profile = ProfileInfo("default", null, true, "llama3", "ollama", null, null, null, null)
+
+            coEvery { mockApiService.getModelOptions() } returns
+                Response.success(ModelOptionsResponse(listOf(provider)))
+            coEvery { mockApiService.getActiveProfile() } returns
+                Response.success(ActiveProfileResponse("default", null))
+            coEvery { mockApiService.getProfiles() } returns Response.success(ProfilesResponse(listOf(profile)))
+            coEvery { mockApiService.updateProfileModel("default", any()) } returns Response.success(Unit)
+
+            val viewModel = ModelViewModel()
+            viewModel.loadModelOptions()
+            advanceUntilIdle()
+
+            assertEquals(1, viewModel.uiState.value.providers.size)
+            assertEquals(
+                "default",
+                viewModel.uiState.value.activeProfile
+                    ?.name,
+            )
+            assertEquals(
+                "llama3",
+                viewModel.uiState.value.activeProfile
+                    ?.model,
+            )
+
+            viewModel.selectModel("ollama", "llama3")
+            advanceUntilIdle()
+
+            coVerify { mockApiService.updateProfileModel("default", any()) }
+            assertEquals("Successfully set model to llama3", viewModel.uiState.value.toastMessage)
         }
 }

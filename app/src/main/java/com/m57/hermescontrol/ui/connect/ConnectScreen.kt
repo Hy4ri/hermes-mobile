@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.connect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,22 +15,22 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,14 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -66,22 +64,13 @@ fun ConnectScreen(
     }
 
     var passwordVisible by remember { mutableStateOf(false) }
-
-    val backgroundGradient =
-        Brush.verticalGradient(
-            colors =
-                listOf(
-                    MaterialTheme.colorScheme.background,
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                ),
-        )
+    var showManualFields by remember { mutableStateOf(false) }
 
     Box(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(backgroundGradient)
+                .background(MaterialTheme.colorScheme.background)
                 .imePadding(),
         contentAlignment = Alignment.Center,
     ) {
@@ -90,204 +79,165 @@ fun ConnectScreen(
                 Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
+                    .padding(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Branding
-            Text(
-                text = "⚡",
-                fontSize = 64.sp,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            // Hero brand
+            Box(
+                modifier =
+                    Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Bolt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(44.dp),
+                )
+            }
+
             Text(
                 text = "Hermes",
                 style =
-                    MaterialTheme.typography.headlineLarge.copy(
+                    MaterialTheme.typography.displayMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onBackground,
                     ),
             )
             Text(
                 text = "AI Agent Control",
                 style =
-                    MaterialTheme.typography.titleMedium.copy(
+                    MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Connection Card
-            Card(
+            // Pairing (primary path)
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                    ),
-                border =
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                    ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Column(
+                Text(
+                    text = "Pairing string",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                var pairingString by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = pairingString,
+                    onValueChange = {
+                        pairingString = it
+                        if (it.isNotBlank()) viewModel.onPairingString(it)
+                    },
+                    placeholder = { Text("Paste hermes://… or Base64 config") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // Error message
+                AnimatedVisibility(
+                    visible = state.errorMessage != null,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                ) {
+                    state.errorMessage?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Start,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = viewModel::connect,
+                    enabled = !state.isConnecting,
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                            .height(52.dp),
+                ) {
+                    if (state.isConnecting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Connect", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+
+                TextButton(
+                    onClick = { showManualFields = !showManualFields },
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = "Connect to Hermes",
-                        style =
-                            MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                            ),
+                        text = if (showManualFields) "Hide manual entry" else "Enter manually instead",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
                     )
+                }
 
-                    var pairingString by remember { mutableStateOf("") }
-
-                    OutlinedTextField(
-                        value = pairingString,
-                        onValueChange = {
-                            pairingString = it
-                            if (it.isNotBlank()) {
-                                viewModel.onPairingString(it)
-                            }
-                        },
-                        label = { Text("Pairing Link / Connection String") },
-                        placeholder = { Text("Paste hermes://... or Base64 config") },
-                        singleLine = true,
+                AnimatedVisibility(visible = showManualFields) {
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        colors =
-                            OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.secondary,
-                                cursorColor = MaterialTheme.colorScheme.secondary,
-                            ),
-                    )
-
-                    // Token field
-                    OutlinedTextField(
-                        value = state.token,
-                        onValueChange = viewModel::onTokenChange,
-                        label = { Text("Auth Token") },
-                        placeholder = { Text("Enter your API token") },
-                        singleLine = true,
-                        visualTransformation =
-                            if (passwordVisible) {
-                                VisualTransformation.None
-                            } else {
-                                PasswordVisualTransformation()
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        HorizontalDivider()
+                        OutlinedTextField(
+                            value = state.token,
+                            onValueChange = viewModel::onTokenChange,
+                            label = { Text("Auth Token") },
+                            placeholder = { Text("API token") },
+                            singleLine = true,
+                            visualTransformation =
+                                if (passwordVisible) {
+                                    VisualTransformation.None
+                                } else {
+                                    PasswordVisualTransformation()
+                                },
+                            trailingIcon = {
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        imageVector =
+                                            if (passwordVisible) {
+                                                Icons.Filled.Visibility
+                                            } else {
+                                                Icons.Filled.VisibilityOff
+                                            },
+                                        contentDescription =
+                                            if (passwordVisible) "Hide token" else "Show token",
+                                    )
+                                }
                             },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector =
-                                        if (passwordVisible) {
-                                            Icons.Filled.Visibility
-                                        } else {
-                                            Icons.Filled.VisibilityOff
-                                        },
-                                    contentDescription =
-                                        if (passwordVisible) {
-                                            "Hide token"
-                                        } else {
-                                            "Show token"
-                                        },
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors =
-                            OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                cursorColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    )
-
-                    // Host field
-                    OutlinedTextField(
-                        value = state.host,
-                        onValueChange = viewModel::onHostChange,
-                        label = { Text("Host") },
-                        placeholder = { Text("127.0.0.1") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors =
-                            OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                cursorColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    )
-
-                    // Port field
-                    OutlinedTextField(
-                        value = state.port,
-                        onValueChange = viewModel::onPortChange,
-                        label = { Text("Port") },
-                        placeholder = { Text("9119") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors =
-                            OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                cursorColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    )
-
-                    // Error message
-                    AnimatedVisibility(
-                        visible = state.errorMessage != null,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        state.errorMessage?.let { error ->
-                            Card(
-                                colors =
-                                    CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    ),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    text = error,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(12.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    // Connect button
-                    Button(
-                        onClick = viewModel::connect,
-                        enabled = !state.isConnecting,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(52.dp),
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    ) {
-                        if (state.isConnecting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Text(
-                                text = "Connect",
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = state.host,
+                            onValueChange = viewModel::onHostChange,
+                            label = { Text("Host") },
+                            placeholder = { Text("127.0.0.1") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = state.port,
+                            onValueChange = viewModel::onPortChange,
+                            label = { Text("Port") },
+                            placeholder = { Text("9119") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
             }

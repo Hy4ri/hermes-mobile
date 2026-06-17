@@ -2,26 +2,36 @@ name: Android CI/CD
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  GRADLE_CACHE_ENCRYPTED_KEY: ${{ secrets.GRADLE_ENCRYPTED_KEY }}
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel in-progress runs on the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build & Test Android App
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 1: ktlint (code style) — fastest feedback, runs in parallel.
+  # ─────────────────────────────────────────────────────────────────────
+  ktlint:
+    name: ktlint — Code Style
     runs-on: ubuntu-latest
-
+    timeout-minutes: 5
     steps:
-      - name: Checkout Source Code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
       - name: Setup Gradle
@@ -36,34 +46,146 @@ jobs:
           chmod +x ktlint
           sudo mv ktlint /usr/local/bin/
 
-      - name: Run Code Style Check (ktlint)
+      - name: Run ktlintCheck
         run: ./gradlew ktlintCheck
 
-      - name: Run Android Lint (Static Analysis)
-        run: ./gradlew lintDebug
-
-      - name: Run Unit & Integration Tests
-        run: ./gradlew test
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Upload Test & Lint Reports
-        uses: actions/upload-artifact@v4
+      - name: Upload ktlint reports
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: verification-reports
+          name: ktlint-reports
           path: |
-            app/build/reports/tests/
-            app/build/reports/lint-results-debug.html
             app/build/reports/ktlint/
+            build/reports/ktlint/
+          if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload Debug APK Artifact
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 2: Android Lint (static analysis) — runs in parallel with ktlint.
+  # Depends on compileDebugKotlin, so it also catches unresolved refs.
+  # ─────────────────────────────────────────────────────────────────────
+  android-lint:
+    name: Android Lint — Static Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Run lintDebug
+        run: ./gradlew lintDebug
+
+      - name: Upload lint reports
+        if: always()
         uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: app/build/reports/lint-results-debug.*
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 3: Unit tests — runs in parallel with ktlint & android-lint.
+  # ─────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Run test
+        run: ./gradlew test
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 4: Build Debug APK — depends on all three above passing.
+  # ─────────────────────────────────────────────────────────────────────
+  build:
+    name: Build Debug APK
+    needs: [ktlint, android-lint, unit-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Build assembleDebug
+        run: ./gradlew assembleDebug
+
+      - name: Upload Debug APK Artifact
         if: success()
+        uses: actions/upload-artifact@v4
         with:
           name: hermescontrol-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 5: PR status summary — posts a single check that aggregates the
+  # others, so GitHub branch protection only needs one status check.
+  # ─────────────────────────────────────────────────────────────────────
+  ci-summary:
+    name: CI Summary
+    needs: [ktlint, android-lint, unit-tests, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: always()
+    steps:
+      - name: Check job results
+        env:
+          KTLINT_RESULT: ${{ needs.ktlint.result }}
+          LINT_RESULT: ${{ needs.android-lint.result }}
+          TEST_RESULT: ${{ needs.unit-tests.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          echo "::notice::ktlint=$KTLINT_RESULT, android-lint=$LINT_RESULT, tests=$TEST_RESULT, build=$BUILD_RESULT"
+          if [[ "$KTLINT_RESULT" != "success" || "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$BUILD_RESULT" != "success" ]]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi
+          echo "All CI jobs passed ✅"

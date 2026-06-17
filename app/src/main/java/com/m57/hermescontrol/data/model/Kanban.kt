@@ -34,5 +34,5 @@ data class KanbanBoardResponse(
 
 data class KanbanBoardsResponse(
     val boards: List<KanbanBoard>,
-    val current: String,
+    val current: String? = null,
 )

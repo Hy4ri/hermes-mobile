@@ -16,16 +16,22 @@ enum class ThemePreference { SYSTEM, LIGHT, DARK }
 
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 
+/**
+ * Set to true to opt into Material You dynamic color (Android 12+).
+ * Off by default — brand identity (Voltage Purple) is the priority.
+ */
+private const val ENABLE_DYNAMIC_COLOR = false
+
 private val HermesDarkColorScheme =
     darkColorScheme(
         primary = HermesPurple,
         onPrimary = Color.White,
-        primaryContainer = HermesPurpleDark,
-        onPrimaryContainer = HermesPurple80,
+        primaryContainer = HermesPurpleContainer,
+        onPrimaryContainer = HermesPurpleOnContainer,
         secondary = HermesAmber,
         onSecondary = Color.Black,
-        secondaryContainer = HermesAmberDark,
-        onSecondaryContainer = HermesAmber80,
+        secondaryContainer = Color(0xFF3D2F0F),
+        onSecondaryContainer = HermesAmberLight,
         tertiary = HermesAmberLight,
         background = DarkBackground,
         onBackground = DarkOnSurface,
@@ -33,21 +39,30 @@ private val HermesDarkColorScheme =
         onSurface = DarkOnSurface,
         surfaceVariant = DarkSurfaceVariant,
         onSurfaceVariant = DarkOnSurfaceVariant,
-        error = Color(0xFFCF6679),
-        onError = Color.Black,
-        outline = Color(0xFF938F99),
+        surfaceTint = HermesPurple,
+        surfaceContainer = DarkSurfaceVariant,
+        surfaceContainerHigh = DarkSurfaceHigh,
+        surfaceContainerHighest = DarkSurfaceHigh,
+        inverseSurface = Color(0xFFE8E6EE),
+        inverseOnSurface = Color(0xFF1A1A24),
+        error = StatusRed,
+        onError = Color.White,
+        errorContainer = StatusRedContainer,
+        onErrorContainer = Color(0xFFFFB4B4),
+        outline = DarkOutline,
+        outlineVariant = DarkOutlineVariant,
     )
 
 private val HermesLightColorScheme =
     lightColorScheme(
-        primary = HermesPurple,
+        primary = HermesPurpleDark,
         onPrimary = Color.White,
-        primaryContainer = HermesPurple80,
-        onPrimaryContainer = HermesPurpleDark,
-        secondary = HermesAmber,
-        onSecondary = Color.Black,
-        secondaryContainer = HermesAmber80,
-        onSecondaryContainer = HermesAmberDark,
+        primaryContainer = HermesPurpleLight,
+        onPrimaryContainer = Color(0xFF1E0F66),
+        secondary = HermesAmberDark,
+        onSecondary = Color.White,
+        secondaryContainer = HermesAmberLight,
+        onSecondaryContainer = Color(0xFF3D2F0F),
         tertiary = HermesAmberDark,
         background = LightBackground,
         onBackground = LightOnSurface,
@@ -55,14 +70,24 @@ private val HermesLightColorScheme =
         onSurface = LightOnSurface,
         surfaceVariant = LightSurfaceVariant,
         onSurfaceVariant = LightOnSurfaceVariant,
-        error = Color(0xFFB00020),
+        surfaceTint = HermesPurple,
+        surfaceContainer = LightSurfaceVariant,
+        surfaceContainerHigh = LightSurfaceHigh,
+        surfaceContainerHighest = LightSurfaceHigh,
+        inverseSurface = Color(0xFF1A1A24),
+        inverseOnSurface = Color(0xFFE8E6EE),
+        error = Color(0xFFB3261E),
         onError = Color.White,
-        outline = Color(0xFF79747E),
+        errorContainer = Color(0xFFF9DEDC),
+        onErrorContainer = Color(0xFF410E0B),
+        outline = LightOutline,
+        outlineVariant = LightOutlineVariant,
     )
 
 @Composable
 fun HermesControlTheme(
     themePreference: ThemePreference = LocalThemePreference.current,
+    enableDynamicColor: Boolean = ENABLE_DYNAMIC_COLOR,
     content: @Composable () -> Unit,
 ) {
     val darkTheme =
@@ -73,11 +98,11 @@ fun HermesControlTheme(
         }
 
     val context = LocalContext.current
-    val dynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val dynamicAvailable = enableDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme =
         when {
-            dynamicColor && darkTheme -> dynamicDarkColorScheme(context)
-            dynamicColor && !darkTheme -> dynamicLightColorScheme(context)
+            dynamicAvailable && darkTheme -> dynamicDarkColorScheme(context)
+            dynamicAvailable && !darkTheme -> dynamicLightColorScheme(context)
             darkTheme -> HermesDarkColorScheme
             else -> HermesLightColorScheme
         }
@@ -85,6 +110,7 @@ fun HermesControlTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = HermesShapes,
         content = content,
     )
 }

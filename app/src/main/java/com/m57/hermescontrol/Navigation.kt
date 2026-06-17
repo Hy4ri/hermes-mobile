@@ -1,26 +1,27 @@
 package com.m57.hermescontrol
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CallSplit
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Webhook
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,11 +29,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -61,6 +65,64 @@ import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
 import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
 import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
+/**
+ * Drawer sections — the navigation soul of the app.
+ *
+ * Each section reflects how the user actually thinks about Hermes:
+ *   CONVERSE  → talking to the agent
+ *   AUTOMATE  → scheduled + push-driven actions
+ *   CONFIGURE → settings, capabilities, integrations
+ *   INSPECT   → observability, ops, achievements
+ */
+private enum class DrawerSection(val title: String) {
+    CONVERSE("Converse"),
+    AUTOMATE("Automate"),
+    CONFIGURE("Configure"),
+    INSPECT("Inspect"),
+}
+
+private data class DrawerEntry(
+    val key: NavKey,
+    val label: String,
+    val icon: ImageVector,
+    val section: DrawerSection,
+)
+
+private val DRAWER_ENTRIES =
+    listOf(
+        // Converse
+        DrawerEntry(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
+        DrawerEntry(ProfilesScreen, "Profiles", Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
+        // Automate
+        DrawerEntry(CronJobsScreen, "Cron Jobs", Icons.Filled.Schedule, DrawerSection.AUTOMATE),
+        DrawerEntry(WebhooksScreen, "Webhooks", Icons.Filled.Webhook, DrawerSection.AUTOMATE),
+        DrawerEntry(GatewayScreen, "Gateway", Icons.Filled.Bolt, DrawerSection.AUTOMATE),
+        // Configure
+        DrawerEntry(SkillsScreen, "Skills", Icons.Filled.Extension, DrawerSection.CONFIGURE),
+        DrawerEntry(ToolsetsScreen, "Toolsets", Icons.Filled.Build, DrawerSection.CONFIGURE),
+        DrawerEntry(PluginsScreen, "Plugins", Icons.Filled.Memory, DrawerSection.CONFIGURE),
+        DrawerEntry(ConfigScreen, "Config", Icons.Filled.Code, DrawerSection.CONFIGURE),
+        DrawerEntry(McpServersScreen, "MCP Servers", Icons.Filled.Dashboard, DrawerSection.CONFIGURE),
+        DrawerEntry(ModelScreen, "Models", Icons.Filled.Settings, DrawerSection.CONFIGURE),
+        DrawerEntry(PairingScreen, "Pairing", Icons.Filled.Devices, DrawerSection.CONFIGURE),
+        DrawerEntry(KeysScreen, "Keys", Icons.Filled.Key, DrawerSection.CONFIGURE),
+        DrawerEntry(ChannelsScreen, "Channels", Icons.Filled.ListAlt, DrawerSection.CONFIGURE),
+        // Inspect
+        DrawerEntry(SystemScreen, "System", Icons.Filled.Info, DrawerSection.INSPECT),
+        DrawerEntry(LogsScreen, "Logs", Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
+        DrawerEntry(KanbanScreen, "Kanban", Icons.Filled.Dashboard, DrawerSection.INSPECT),
+        DrawerEntry(AchievementsScreen, "Achievements", Icons.Filled.Info, DrawerSection.INSPECT),
+    )
+
+/**
+ * Screens where swipe-to-open-drawer is allowed.
+ *
+ * Settings is intentionally excluded because it's pushed onto the stack
+ * (uses Back, not drawer); Connect is the entry gate and has no drawer.
+ */
+private val DRAWER_GESTURE_SCREENS: Set<NavKey> =
+    DRAWER_ENTRIES.map { it.key }.toSet()
+
 @Composable
 fun MainNavigation() {
     val hasToken = !AuthManager.getToken().isNullOrBlank()
@@ -73,16 +135,7 @@ fun MainNavigation() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val gesturesEnabled =
-        currentScreen == ChatScreen || currentScreen == SkillsScreen || currentScreen == CronJobsScreen ||
-            currentScreen == GatewayScreen || currentScreen == ProfilesScreen ||
-            currentScreen == ToolsetsScreen || currentScreen == AchievementsScreen ||
-            currentScreen == PairingScreen || currentScreen == ConfigScreen ||
-            currentScreen == McpServersScreen || currentScreen == WebhooksScreen ||
-            currentScreen == ModelScreen || currentScreen == LogsScreen ||
-            currentScreen == PluginsScreen || currentScreen == ChannelsScreen ||
-            currentScreen == KeysScreen || currentScreen == SystemScreen ||
-            currentScreen == KanbanScreen
+    val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer = { scope.launch { drawerState.open() } }
 
     ModalNavigationDrawer(
@@ -93,192 +146,81 @@ fun MainNavigation() {
                 ModalDrawerSheet(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 ) {
+                    // Brand header
                     Text(
-                        text = "Hermes Control",
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.titleLarge,
+                        text = "⚡ Hermes",
+                        modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 4.dp),
+                        style =
+                            MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                            ),
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                    HorizontalDivider()
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Chat, contentDescription = null) },
-                        label = { Text("Chat") },
-                        selected = currentScreen == ChatScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(ChatScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    Text(
+                        text = "AI Agent Control",
+                        modifier = Modifier.padding(start = 20.dp, bottom = 12.dp, end = 16.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Extension, contentDescription = null) },
-                        label = { Text("Skills") },
-                        selected = currentScreen == SkillsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(SkillsScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Schedule, contentDescription = null) },
-                        label = { Text("Cron Jobs") },
-                        selected = currentScreen == CronJobsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(CronJobsScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.AccountCircle, contentDescription = null) },
-                        label = { Text("Profiles") },
-                        selected = currentScreen == ProfilesScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(ProfilesScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Build, contentDescription = null) },
-                        label = { Text("Toolsets") },
-                        selected = currentScreen == ToolsetsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(ToolsetsScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Star, contentDescription = null) },
-                        label = { Text("Achievements") },
-                        selected = currentScreen == AchievementsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(AchievementsScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Devices, contentDescription = null) },
-                        label = { Text("Pairing") },
-                        selected = currentScreen == PairingScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(PairingScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Code, contentDescription = null) },
-                        label = { Text("Config") },
-                        selected = currentScreen == ConfigScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(ConfigScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Dns, contentDescription = null) },
-                        label = { Text("MCP Servers") },
-                        selected = currentScreen == McpServersScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(McpServersScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.CallSplit, contentDescription = null) },
-                        label = { Text("Webhooks") },
-                        selected = currentScreen == WebhooksScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(WebhooksScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    // Render grouped entries
+                    for (section in DrawerSection.entries) {
+                        Text(
+                            text = section.title.uppercase(),
+                            modifier =
+                                Modifier.padding(
+                                    start = 20.dp,
+                                    top = 16.dp,
+                                    bottom = 6.dp,
+                                    end = 16.dp,
+                                ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        DRAWER_ENTRIES
+                            .filter { it.section == section }
+                            .forEach { entry ->
+                                NavigationDrawerItem(
+                                    icon = { Icon(entry.icon, contentDescription = null) },
+                                    label = { Text(entry.label) },
+                                    selected = currentScreen == entry.key,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        NavigationController.navigateTo(entry.key)
+                                    },
+                                    colors =
+                                        NavigationDrawerItemDefaults.colors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        ),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                                )
+                            }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    // Settings is always at the bottom — not a section sibling
                     NavigationDrawerItem(
                         icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                        label = { Text("Models") },
-                        selected = currentScreen == ModelScreen,
+                        label = { Text("Settings") },
+                        selected = currentScreen == SettingsScreen,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(ModelScreen)
+                            NavigationController.navigateTo(SettingsScreen)
                         },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        colors =
+                            NavigationDrawerItemDefaults.colors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-                        label = { Text("Gateway") },
-                        selected = currentScreen == GatewayScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(GatewayScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.List, contentDescription = null) },
-                        label = { Text("Logs") },
-                        selected = currentScreen == LogsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(LogsScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Extension, contentDescription = null) },
-                        label = { Text("Plugins") },
-                        selected = currentScreen == PluginsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(PluginsScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Chat, contentDescription = null) },
-                        label = { Text("Channels") },
-                        selected = currentScreen == ChannelsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(ChannelsScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Key, contentDescription = null) },
-                        label = { Text("Keys") },
-                        selected = currentScreen == KeysScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(KeysScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Info, contentDescription = null) },
-                        label = { Text("System") },
-                        selected = currentScreen == SystemScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(SystemScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
-                        label = { Text("Kanban") },
-                        selected = currentScreen == KanbanScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(KanbanScreen)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                    )
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
         },

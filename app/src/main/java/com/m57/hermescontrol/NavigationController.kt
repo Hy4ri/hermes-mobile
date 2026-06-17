@@ -21,6 +21,7 @@ object NavigationController {
     }
 
     fun goBack() {
-        backStack?.removeLastOrNull()
+        val stack = backStack ?: return
+        if (stack.size > 1) stack.removeLastOrNull()
     }
 }

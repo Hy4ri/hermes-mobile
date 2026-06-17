@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -316,8 +317,15 @@ class ChatViewModelTest {
 
             val state = viewModel.uiState.value
             assertEquals("session-456", state.currentSessionId)
-            assertTrue(state.isLoading)
-            assertTrue(state.messages.isEmpty())
+            // B3 (Jun 18 2026, kanban t_33da8a97): loadSessionMessages now
+            // sets isLoading=false on its error/success branches (previously
+            // never reset on error, leaving isLoading stuck at true). Since
+            // ApiClient.hermesApi is not mocked in this test suite, the real
+            // Retrofit call fails → catch branch sets isLoading=false and
+            // records errorMessage. Assert the new correct behavior.
+            assertFalse("isLoading should be false once loadSessionMessages settles", state.isLoading)
+            assertTrue("messages should be cleared by switchSession", state.messages.isEmpty())
+            assertNotNull("errorMessage should be set on load failure", state.errorMessage)
 
             verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456")) }
         }

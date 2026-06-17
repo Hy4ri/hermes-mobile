@@ -114,7 +114,7 @@ fun ChannelsScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    items(state.platforms) { platform ->
+                    items(state.platforms, key = { it.id }) { platform ->
                         var showConfigureForm by remember { mutableStateOf(false) }
 
                         Card(modifier = Modifier.fillMaxWidth()) {

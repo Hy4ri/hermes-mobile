@@ -87,6 +87,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusGreen
 import com.m57.hermescontrol.theme.StatusRed
+import com.m57.hermescontrol.ui.common.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -316,8 +317,10 @@ fun ChatScreen(
                         .fillMaxWidth(),
             ) {
                 if (state.messages.isEmpty() && !state.isLoading) {
-                    // Empty state
-                    EmptyState()
+                    EmptyState(
+                        title = "Ready to chat",
+                        subtitle = "Send a message to start a conversation",
+                    )
                 }
 
                 LazyColumn(
@@ -392,38 +395,6 @@ fun ChatScreen(
                 onInterrupt = viewModel::interruptSession,
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyState() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "⚡",
-                fontSize = 48.sp,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Ready to chat",
-                style =
-                    MaterialTheme.typography.titleMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    ),
-            )
-            Text(
-                text = "Send a message to start a conversation",
-                style =
-                    MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    ),
             )
         }
     }

@@ -79,6 +79,7 @@ class ChatNotificationService : Service() {
                             is WsEvent.ClarifyRequest -> {
                                 showReplyNotification("Hermes needs a clarification")
                             }
+                            else -> {}
                         }
                     }
                 }

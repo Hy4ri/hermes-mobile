@@ -59,10 +59,11 @@ fun ConfigScreen(
     HermesScaffold(
         title = { Text("Configuration") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadRawConfig() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.yamlText == null -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

@@ -61,10 +61,11 @@ fun McpServersScreen(
     HermesScaffold(
         title = { Text("MCP Servers") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadServers() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.servers.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

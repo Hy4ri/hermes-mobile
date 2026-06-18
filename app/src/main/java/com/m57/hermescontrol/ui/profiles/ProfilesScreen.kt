@@ -72,10 +72,11 @@ fun ProfilesScreen(
     HermesScaffold(
         title = { Text("Profiles") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadProfiles() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.profiles.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

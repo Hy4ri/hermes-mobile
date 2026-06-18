@@ -64,10 +64,11 @@ fun GatewayScreen(
     HermesScaffold(
         title = { Text("Gateway Control") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadStatus() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.status == null -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

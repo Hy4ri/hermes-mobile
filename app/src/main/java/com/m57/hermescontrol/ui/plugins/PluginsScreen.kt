@@ -59,10 +59,11 @@ fun PluginsScreen(
     HermesScaffold(
         title = { Text("Plugins") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlugins() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.plugins.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

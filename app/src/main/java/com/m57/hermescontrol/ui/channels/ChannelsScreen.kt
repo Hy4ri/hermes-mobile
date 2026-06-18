@@ -61,10 +61,11 @@ fun ChannelsScreen(
     HermesScaffold(
         title = { Text("Messaging Channels") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlatforms() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.platforms.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

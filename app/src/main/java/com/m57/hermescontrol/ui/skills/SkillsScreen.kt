@@ -74,10 +74,11 @@ fun SkillsScreen(
     HermesScaffold(
         title = { Text("Skills") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSkills() },
     ) {
         when {
-            state.isLoading -> LoadingState()
+            state.isLoading && state.skills.isEmpty() -> LoadingState()
             state.errorMessage != null ->
                 ErrorState(
                     message = state.errorMessage ?: "Unknown error",

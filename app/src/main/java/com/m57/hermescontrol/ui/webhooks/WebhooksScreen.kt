@@ -62,10 +62,11 @@ fun WebhooksScreen(
     HermesScaffold(
         title = { Text("Webhooks") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadWebhooks() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.baseUrl == null -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

@@ -64,10 +64,11 @@ fun ToolsetsScreen(
     HermesScaffold(
         title = { Text("Toolsets") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadToolsets() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.toolsets.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

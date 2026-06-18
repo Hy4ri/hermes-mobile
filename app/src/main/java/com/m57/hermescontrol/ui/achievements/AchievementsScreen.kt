@@ -47,6 +47,7 @@ fun AchievementsScreen(
     HermesScaffold(
         title = { Text("Agent Achievements") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadAchievements() },
     ) { paddingValues ->
         when {

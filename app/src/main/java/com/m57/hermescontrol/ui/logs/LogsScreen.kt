@@ -61,10 +61,11 @@ fun LogsScreen(
     HermesScaffold(
         title = { Text("Logs") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadLogs() },
     ) {
         when {
-            state.isLoading -> LoadingState()
+            state.isLoading && state.logs.isEmpty() -> LoadingState()
             state.errorMessage != null ->
                 ErrorState(
                     message = state.errorMessage ?: "Unknown error",

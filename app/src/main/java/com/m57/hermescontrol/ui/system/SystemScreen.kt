@@ -67,10 +67,11 @@ fun SystemScreen(
     HermesScaffold(
         title = { Text("System") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSystemData() },
     ) {
         when {
-            state.isLoading -> LoadingState()
+            state.isLoading && state.stats == null && state.doctorReport == null -> LoadingState()
             state.errorMessage != null ->
                 ErrorState(
                     message = state.errorMessage ?: "Unknown error",

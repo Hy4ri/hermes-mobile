@@ -73,10 +73,11 @@ fun KanbanScreen(
     HermesScaffold(
         title = { Text("Kanban Board") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.boards.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

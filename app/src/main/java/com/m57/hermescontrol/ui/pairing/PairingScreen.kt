@@ -60,10 +60,11 @@ fun PairingScreen(
     HermesScaffold(
         title = { Text("Device Pairing") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPairing() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.pairing == null -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

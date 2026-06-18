@@ -68,10 +68,11 @@ fun ModelScreen(
     HermesScaffold(
         title = { Text("Models") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadModelOptions() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.providers.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -38,6 +39,7 @@ fun HermesScaffold(
     title: @Composable () -> Unit,
     onOpenDrawer: (() -> Unit)? = null,
     onRefresh: (() -> Unit)? = null,
+    isRefreshing: Boolean = false,
     onBack: (() -> Unit)? = null,
     showBack: Boolean = false,
     snackbarHost: @Composable () -> Unit = {},
@@ -95,13 +97,27 @@ fun HermesScaffold(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            content(paddingValues)
+        val refreshContent: @Composable () -> Unit = {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+            ) {
+                content(paddingValues)
+            }
+        }
+
+        if (onRefresh != null) {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                refreshContent()
+            }
+        } else {
+            refreshContent()
         }
     }
 }

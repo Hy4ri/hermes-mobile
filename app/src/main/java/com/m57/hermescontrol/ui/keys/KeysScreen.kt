@@ -68,10 +68,11 @@ fun KeysScreen(
     HermesScaffold(
         title = { Text("Keys & Credentials") },
         onOpenDrawer = onOpenDrawer,
+        isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadKeys() },
     ) { paddingValues ->
         when {
-            state.isLoading -> {
+            state.isLoading && state.envVars.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
             state.errorMessage != null -> {

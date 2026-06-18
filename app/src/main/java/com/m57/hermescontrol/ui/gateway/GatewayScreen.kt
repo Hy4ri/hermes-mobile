@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.gateway
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -62,7 +64,6 @@ fun GatewayScreen(
         title = "Gateway Control",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadStatus() },
-        modifier = modifier,
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -75,15 +76,12 @@ fun GatewayScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading && state.status == null) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null && state.status == null) {
                     Column(
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(

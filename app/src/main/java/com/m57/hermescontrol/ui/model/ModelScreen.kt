@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -65,8 +67,7 @@ fun ModelScreen(
     HermesScaffold(
         title = "Models",
         onOpenDrawer = onOpenDrawer,
-        onRefresh = { viewModel.loadModels() },
-        modifier = modifier,
+        onRefresh = { viewModel.loadModelOptions() },
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -75,19 +76,16 @@ fun ModelScreen(
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadModels() },
+                    onRetry = { viewModel.loadModelOptions() },
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading && state.providers.isEmpty()) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null && state.providers.isEmpty()) {
                     Column(
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
@@ -231,7 +229,11 @@ fun ModelScreen(
                                                                 text = model,
                                                                 style = MaterialTheme.typography.bodyMedium,
                                                                 fontWeight =
-                                                                    if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                                                    if (isActive) {
+                                                                        FontWeight.Bold
+                                                                    } else {
+                                                                        FontWeight.Normal
+                                                                    },
                                                                 color =
                                                                     if (isActive) {
                                                                         MaterialTheme.colorScheme.onPrimaryContainer

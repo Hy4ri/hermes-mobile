@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.plugins
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -59,7 +60,6 @@ fun PluginsScreen(
         title = "Plugins",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPlugins() },
-        modifier = modifier,
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -72,17 +72,14 @@ fun PluginsScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null) {
                     Text(
                         text = state.errorMessage ?: "",
                         color = MaterialTheme.colorScheme.error,
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                     )
                 } else {
                     LazyColumn(

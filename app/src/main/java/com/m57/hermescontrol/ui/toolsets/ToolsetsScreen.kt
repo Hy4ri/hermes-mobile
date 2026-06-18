@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.toolsets
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,7 +64,6 @@ fun ToolsetsScreen(
         title = "Toolsets",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadToolsets() },
-        modifier = modifier,
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -75,15 +76,12 @@ fun ToolsetsScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading && state.toolsets.isEmpty()) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null && state.toolsets.isEmpty()) {
                     Column(
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)

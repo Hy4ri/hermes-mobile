@@ -63,7 +63,6 @@ fun WebhooksScreen(
         title = "Webhooks",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadWebhooks() },
-        modifier = modifier,
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -76,15 +75,12 @@ fun WebhooksScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading && state.baseUrl == null) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null && state.baseUrl == null) {
                     Column(
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)

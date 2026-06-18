@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.keys
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -67,7 +69,6 @@ fun KeysScreen(
         title = "Keys & Credentials",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadKeys() },
-        modifier = modifier,
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -80,17 +81,14 @@ fun KeysScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null) {
                     Text(
                         text = state.errorMessage ?: "",
                         color = MaterialTheme.colorScheme.error,
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                     )
                 } else {
                     LazyColumn(

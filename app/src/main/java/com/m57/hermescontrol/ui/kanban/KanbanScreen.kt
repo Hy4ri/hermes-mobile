@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
@@ -72,8 +73,7 @@ fun KanbanScreen(
     HermesScaffold(
         title = "Kanban Board",
         onOpenDrawer = onOpenDrawer,
-        onRefresh = { viewModel.loadBoard() },
-        modifier = modifier,
+        onRefresh = { viewModel.loadBoards() },
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -82,21 +82,18 @@ fun KanbanScreen(
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadBoard() },
+                    onRetry = { viewModel.loadBoards() },
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null) {
                     Text(
                         text = state.errorMessage ?: "",
                         color = MaterialTheme.colorScheme.error,
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                     )
                 } else {
                     Column(modifier = Modifier.fillMaxSize()) {

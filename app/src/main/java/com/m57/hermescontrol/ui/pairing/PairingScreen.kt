@@ -60,8 +60,7 @@ fun PairingScreen(
     HermesScaffold(
         title = "Device Pairing",
         onOpenDrawer = onOpenDrawer,
-        onRefresh = { viewModel.loadDevices() },
-        modifier = modifier,
+        onRefresh = { viewModel.loadPairing() },
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -70,19 +69,16 @@ fun PairingScreen(
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadDevices() },
+                    onRetry = { viewModel.loadPairing() },
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading && state.pairing == null) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null && state.pairing == null) {
                     Column(
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)

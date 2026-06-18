@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.config
 
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,8 +59,7 @@ fun ConfigScreen(
     HermesScaffold(
         title = "Configuration",
         onOpenDrawer = onOpenDrawer,
-        onRefresh = { viewModel.loadConfig() },
-        modifier = modifier,
+        onRefresh = { viewModel.loadRawConfig() },
     ) { paddingValues ->
         when {
             state.isLoading -> {
@@ -68,19 +68,16 @@ fun ConfigScreen(
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadConfig() },
+                    onRetry = { viewModel.loadRawConfig() },
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> {
+            else -> Box(Modifier.fillMaxSize()) {
                 if (state.isLoading && state.yamlText == null) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    CircularProgressIndicator()
                 } else if (state.errorMessage != null && state.yamlText == null) {
                     Column(
-                        modifier =
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)

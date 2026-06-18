@@ -62,7 +62,6 @@ fun ChannelsScreen(
         title = "Messaging Channels",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPlatforms() },
-        modifier = modifier,
     ) { paddingValues ->
         when {
             state.isLoading -> {

@@ -48,7 +48,6 @@ fun AchievementsScreen(
         title = "Agent Achievements",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadAchievements() },
-        modifier = modifier,
     ) { paddingValues ->
         when {
             state.isLoading && state.achievements.isEmpty() -> {

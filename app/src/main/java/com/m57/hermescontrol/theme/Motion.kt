@@ -4,6 +4,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.staticCompositionLocalOf
 
@@ -52,21 +53,21 @@ object Motion {
     // ── Spring specs ─────────────────────────────────────────────────
 
     /** Bouncy spring for interactive elements (press, release, drag). */
-    fun <T> bouncySpring() =
+    fun <T> bouncySpring(): SpringSpec<T> =
         spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
         )
 
     /** Snappy spring for state toggles (switch, selection). */
-    fun <T> snappySpring() =
+    fun <T> snappySpring(): SpringSpec<T> =
         spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessHigh,
         )
 
     /** Gentle spring for layout animations (expand, collapse). */
-    fun <T> gentleSpring() =
+    fun <T> gentleSpring(): SpringSpec<T> =
         spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessLow,

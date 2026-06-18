@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -62,7 +63,12 @@ class ChatViewModelTest {
         every { mockDb.chatMessageDao() } returns mockDao
         every { HermesDatabase.get(any()) } returns mockDb
         every { mockDao.observeMessagesForSession(any()) } returns flowOf(emptyList())
-        every { mockDao.getMessagesForSession(any()) } returns emptyList()
+        coEvery { mockDao.getMessagesForSession(any()) } returns emptyList()
+        coEvery { mockDao.upsert(any()) } returns Unit
+        coEvery { mockDao.upsertAll(any()) } returns Unit
+        coEvery { mockDao.finalizeMessage(any(), any()) } returns Unit
+        coEvery { mockDao.deleteMessagesForSession(any()) } returns Unit
+        coEvery { mockDao.count() } returns 0
 
         // Default mock stubs for requests returning unique IDs
         var reqCount = 0

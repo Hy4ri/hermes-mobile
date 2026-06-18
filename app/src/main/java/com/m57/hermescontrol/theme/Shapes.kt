@@ -5,19 +5,21 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 /**
- * Unified shape system for Hermes Control.
+ * Unified shape system — aligned to 8 dp rhythm (4/8/12/16/28).
  *
- * - xs: chips, small badges
- * - sm: text fields, small cards
- * - md: standard cards, list rows
- * - lg: large cards, bottom sheets
- * - xl: feature cards, full-bleed surfaces
+ * | Token        | Radius | Use case                              |
+ * |--------------|--------|---------------------------------------|
+ * | extraSmall   | 4 dp   | Chips, badges, inline toggles         |
+ * | small        | 8 dp   | Text fields, small cards, small FAB   |
+ * | medium       | 12 dp  | Standard cards, list rows, dialogs    |
+ * | large        | 16 dp  | Large cards, bottom sheets, FAB       |
+ * | extraLarge   | 28 dp  | Feature cards, full-bleed surfaces   |
  */
 val HermesShapes =
     Shapes(
-        extraSmall = RoundedCornerShape(6.dp),
-        small = RoundedCornerShape(10.dp),
-        medium = RoundedCornerShape(16.dp),
-        large = RoundedCornerShape(24.dp),
-        extraLarge = RoundedCornerShape(32.dp),
+        extraSmall = RoundedCornerShape(4.dp),
+        small = RoundedCornerShape(8.dp),
+        medium = RoundedCornerShape(12.dp),
+        large = RoundedCornerShape(16.dp),
+        extraLarge = RoundedCornerShape(28.dp),
     )

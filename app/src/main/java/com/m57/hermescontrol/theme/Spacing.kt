@@ -1,24 +1,32 @@
 package com.m57.hermescontrol.theme
 
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.dp
 
 /**
- * Spacing tokens — use these instead of ad-hoc dp values so every screen
- * shares the same rhythm.
+ * Spacing tokens — the 8 dp rhythm that every screen shares.
  *
- * Convention (Material 3 spacing scale, condensed):
- *   xs  = 4   hairline / chip gaps
- *   sm  = 8   default inner padding
- *   md  = 12  card content
- *   lg  = 16  screen edge, section gaps
- *   xl  = 24  hero spacing
- *   xxl = 32  full-feature spacing
+ * | Token | Value  | Use case                                   |
+ * |-------|--------|-------------------------------------------|
+ * | xs    | 4 dp   | Hairline gaps, chip inner padding          |
+ * | sm    | 8 dp   | Default inner padding, icon-to-text gap   |
+ * | md    | 16 dp  | Card content, screen edge, section gaps   |
+ * | lg    | 24 dp  | Hero spacing, between major sections      |
+ * | xl    | 32 dp  | Full-feature spacing, large section break  |
+ * | xxl   | 48 dp  | Maximum spacing, rare                     |
+ *
+ * Access in composables via `LocalSpacing.current` or the [Spacing] object.
  */
 object Spacing {
     val xs = 4.dp
     val sm = 8.dp
-    val md = 12.dp
-    val lg = 16.dp
-    val xl = 24.dp
-    val xxl = 32.dp
+    val md = 16.dp
+    val lg = 24.dp
+    val xl = 32.dp
+    val xxl = 48.dp
 }
+
+/** Alias for backwards-compatibility — existing `Spacing.xs` calls still work. */
+val SpacingDefaults = Spacing
+
+val LocalSpacing = staticCompositionLocalOf { Spacing }

@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.common
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -17,14 +18,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 
 /**
- * Shared Scaffold wrapper that standardizes the drawer-aware TopAppBar.
+ * Shared Scaffold wrapper that standardizes the TopAppBar.
  *
- * Eliminates the per-screen duplication of:
- *   - Menu icon (drawer toggle)
- *   - Title
- *   - Optional Refresh / actions slot
+ * Improvements (v2):
+ *  - Scroll-aware top bar (pinned collapse on scroll)
+ *  - Uses Spacing tokens internally
+ *  - Simplified API: onOpenDrawer OR showBack (mutually exclusive)
+ *  - Safe-area aware via Scaffold insets
  *
  * Screens that still need a Back arrow instead of a Menu icon can set
  * `showBack = true` and pass an `onBack` lambda.
@@ -38,11 +41,15 @@ fun HermesScaffold(
     onBack: (() -> Unit)? = null,
     showBack: Boolean = false,
     actions: @Composable () -> Unit = {},
-    content: @Composable (androidx.compose.foundation.layout.PaddingValues) -> Unit,
+    content: @Composable (PaddingValues) -> Unit,
 ) {
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
+                title = { Text(title) },
                 navigationIcon = {
                     when {
                         showBack && onBack != null -> {
@@ -57,13 +64,12 @@ fun HermesScaffold(
                             IconButton(onClick = onOpenDrawer) {
                                 Icon(
                                     imageVector = Icons.Filled.Menu,
-                                    contentDescription = "Open Drawer",
+                                    contentDescription = "Open navigation drawer",
                                 )
                             }
                         }
                     }
                 },
-                title = { Text(title) },
                 actions = {
                     if (onRefresh != null) {
                         IconButton(onClick = onRefresh) {
@@ -82,6 +88,7 @@ fun HermesScaffold(
                         navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
                         actionIconContentColor = MaterialTheme.colorScheme.onSurface,
                     ),
+                scrollBehavior = scrollBehavior,
             )
         },
         containerColor = MaterialTheme.colorScheme.background,

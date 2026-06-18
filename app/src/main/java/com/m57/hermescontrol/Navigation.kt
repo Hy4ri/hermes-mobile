@@ -29,11 +29,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,15 +70,27 @@ import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
 import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
 import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
-/**
- * Drawer sections — the navigation soul of the app.
- *
- * Each section reflects how the user actually thinks about Hermes:
- *   CONVERSE  → talking to the agent
- *   AUTOMATE  → scheduled + push-driven actions
- *   CONFIGURE → settings, capabilities, integrations
- *   INSPECT   → observability, ops, achievements
- */
+// ── Bottom-nav primary screens ─────────────────────────────────────────
+
+private data class BottomNavItem(
+    val key: NavKey,
+    val label: String,
+    val icon: ImageVector,
+)
+
+private val BOTTOM_NAV_ITEMS =
+    listOf(
+        BottomNavItem(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat),
+        BottomNavItem(SkillsScreen, "Skills", Icons.Filled.Extension),
+        BottomNavItem(CronJobsScreen, "Cron", Icons.Filled.Schedule),
+        BottomNavItem(SystemScreen, "System", Icons.Filled.Info),
+        BottomNavItem(SettingsScreen, "Settings", Icons.Filled.Settings),
+    )
+
+private val BOTTOM_NAV_KEYS: Set<NavKey> = BOTTOM_NAV_ITEMS.map { it.key }.toSet()
+
+// ── Drawer sections for secondary screens ──────────────────────────────
+
 private enum class DrawerSection(val title: String) {
     CONVERSE("Converse"),
     AUTOMATE("Automate"),
@@ -92,14 +108,11 @@ private data class DrawerEntry(
 private val DRAWER_ENTRIES =
     listOf(
         // Converse
-        DrawerEntry(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
         DrawerEntry(ProfilesScreen, "Profiles", Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
         // Automate
-        DrawerEntry(CronJobsScreen, "Cron Jobs", Icons.Filled.Schedule, DrawerSection.AUTOMATE),
         DrawerEntry(WebhooksScreen, "Webhooks", Icons.Filled.Webhook, DrawerSection.AUTOMATE),
         DrawerEntry(GatewayScreen, "Gateway", Icons.Filled.Bolt, DrawerSection.AUTOMATE),
         // Configure
-        DrawerEntry(SkillsScreen, "Skills", Icons.Filled.Extension, DrawerSection.CONFIGURE),
         DrawerEntry(ToolsetsScreen, "Toolsets", Icons.Filled.Build, DrawerSection.CONFIGURE),
         DrawerEntry(PluginsScreen, "Plugins", Icons.Filled.Memory, DrawerSection.CONFIGURE),
         DrawerEntry(ConfigScreen, "Config", Icons.Filled.Code, DrawerSection.CONFIGURE),
@@ -109,20 +122,12 @@ private val DRAWER_ENTRIES =
         DrawerEntry(KeysScreen, "Keys", Icons.Filled.Key, DrawerSection.CONFIGURE),
         DrawerEntry(ChannelsScreen, "Channels", Icons.Filled.ListAlt, DrawerSection.CONFIGURE),
         // Inspect
-        DrawerEntry(SystemScreen, "System", Icons.Filled.Info, DrawerSection.INSPECT),
         DrawerEntry(LogsScreen, "Logs", Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
         DrawerEntry(KanbanScreen, "Kanban", Icons.Filled.Dashboard, DrawerSection.INSPECT),
         DrawerEntry(AchievementsScreen, "Achievements", Icons.Filled.Info, DrawerSection.INSPECT),
     )
 
-/**
- * Screens where swipe-to-open-drawer is allowed.
- *
- * Settings is intentionally excluded because it's pushed onto the stack
- * (uses Back, not drawer); Connect is the entry gate and has no drawer.
- */
-private val DRAWER_GESTURE_SCREENS: Set<NavKey> =
-    DRAWER_ENTRIES.map { it.key }.toSet()
+private val DRAWER_GESTURE_SCREENS: Set<NavKey> = BOTTOM_NAV_KEYS + DRAWER_ENTRIES.map { it.key }.toSet()
 
 @Composable
 fun MainNavigation() {
@@ -136,6 +141,7 @@ fun MainNavigation() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    val isPrimaryScreen = currentScreen in BOTTOM_NAV_KEYS
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer = { scope.launch { drawerState.open() } }
 
@@ -165,7 +171,6 @@ fun MainNavigation() {
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                    // Render grouped entries
                     for (section in DrawerSection.entries) {
                         Text(
                             text = section.title.uppercase(),
@@ -204,174 +209,170 @@ fun MainNavigation() {
 
                     Spacer(modifier = Modifier.height(8.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    // Settings is always at the bottom — not a section sibling
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                        label = { Text("Settings") },
-                        selected = currentScreen == SettingsScreen,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            NavigationController.navigateTo(SettingsScreen)
-                        },
-                        colors =
-                            NavigationDrawerItemDefaults.colors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            ),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-                    )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
         },
     ) {
-        NavDisplay(
-            backStack = backStack,
-            onBack = { backStack.removeLastOrNull() },
-            entryProvider =
-                entryProvider {
-                    entry<ConnectScreen> {
-                        ConnectScreenContent(
-                            onConnected = {
-                                backStack.clear()
-                                backStack.add(ChatScreen)
-                            },
-                            modifier = Modifier.safeDrawingPadding(),
-                        )
+        Scaffold(
+            bottomBar = {
+                if (isPrimaryScreen) {
+                    NavigationBar {
+                        BOTTOM_NAV_ITEMS.forEach { item ->
+                            NavigationBarItem(
+                                selected = currentScreen == item.key,
+                                onClick = { NavigationController.navigateTo(item.key) },
+                                icon = { Icon(item.icon, contentDescription = item.label) },
+                                label = { Text(item.label) },
+                            )
+                        }
                     }
+                }
+            },
+        ) { paddingValues ->
+            NavDisplay(
+                backStack = backStack,
+                onBack = { backStack.removeLastOrNull() },
+                entryProvider =
+                    entryProvider {
+                        entry<ConnectScreen> {
+                            ConnectScreenContent(
+                                onConnected = {
+                                    backStack.clear()
+                                    backStack.add(ChatScreen)
+                                },
+                                modifier = Modifier.safeDrawingPadding(),
+                            )
+                        }
 
-                    entry<ChatScreen> {
-                        ChatScreenContent(
-                            onNavigateToSettings = {
-                                // B7 (Jun 18 2026): previously used
-                                // `backStack.add(SettingsScreen)` directly,
-                                // which bypasses NavigationController's
-                                // navigation guard. The drawer Settings path
-                                // goes through NavigationController which
-                                // deduplicates and prevents stacking duplicate
-                                // SettingsScreen entries when user rapidly
-                                // taps the gear icon. Use the same path for
-                                // consistency and to recover if a duplicate
-                                // SettingsScreen entry was the source of the
-                                // "page unresponsive" symptom reported when
-                                // reaching Settings from the topbar.
-                                NavigationController.navigateTo(SettingsScreen)
-                            },
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<ChatScreen> {
+                            ChatScreenContent(
+                                onNavigateToSettings = {
+                                    // B7 (Jun 18 2026): route through
+                                    // NavigationController to prevent
+                                    // stacking duplicate entries.
+                                    NavigationController.navigateTo(SettingsScreen)
+                                },
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<SettingsScreen> {
-                        SettingsScreenContent(
-                            onBack = {
-                                backStack.removeLastOrNull()
-                            },
-                        )
-                    }
+                        entry<SettingsScreen> {
+                            SettingsScreenContent(
+                                onBack = { backStack.removeLastOrNull() },
+                            )
+                        }
 
-                    entry<SkillsScreen> {
-                        SkillsScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<SkillsScreen> {
+                            SkillsScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<CronJobsScreen> {
-                        CronJobsScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<CronJobsScreen> {
+                            CronJobsScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<ProfilesScreen> {
-                        ProfilesScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<ProfilesScreen> {
+                            ProfilesScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<ToolsetsScreen> {
-                        ToolsetsScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<ToolsetsScreen> {
+                            ToolsetsScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<AchievementsScreen> {
-                        AchievementsScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<AchievementsScreen> {
+                            AchievementsScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<PairingScreen> {
-                        PairingScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<PairingScreen> {
+                            PairingScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<ConfigScreen> {
-                        ConfigScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<ConfigScreen> {
+                            ConfigScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<McpServersScreen> {
-                        McpServersScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<McpServersScreen> {
+                            McpServersScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<WebhooksScreen> {
-                        WebhooksScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<WebhooksScreen> {
+                            WebhooksScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<ModelScreen> {
-                        ModelScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<ModelScreen> {
+                            ModelScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<GatewayScreen> {
-                        GatewayScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<GatewayScreen> {
+                            GatewayScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<LogsScreen> {
-                        LogsScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<LogsScreen> {
+                            LogsScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<PluginsScreen> {
-                        PluginsScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<PluginsScreen> {
+                            PluginsScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<ChannelsScreen> {
-                        ChannelsScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<ChannelsScreen> {
+                            ChannelsScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<KeysScreen> {
-                        KeysScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<KeysScreen> {
+                            KeysScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<SystemScreen> {
-                        SystemScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
+                        entry<SystemScreen> {
+                            SystemScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
 
-                    entry<KanbanScreen> {
-                        KanbanScreenContent(
-                            onOpenDrawer = { openDrawer() },
-                        )
-                    }
-                },
-        )
+                        entry<KanbanScreen> {
+                            KanbanScreenContent(
+                                onOpenDrawer = { openDrawer() },
+                            )
+                        }
+                    },
+                modifier =
+                    Modifier
+                        .padding(paddingValues)
+                        .fillMaxSizeSafeDrawing(),
+            )
+        }
     }
 }
+
+// Helper extension to apply safeDrawingPadding + fillMaxSize cleanly
+private fun Modifier.fillMaxSizeSafeDrawing(): Modifier = this.then(androidx.compose.foundation.layout.fillMaxSize())

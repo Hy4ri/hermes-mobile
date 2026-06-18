@@ -29,10 +29,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 
@@ -44,6 +46,7 @@ fun SkillsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val spacing = LocalSpacing.current
     var query by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -82,8 +85,8 @@ fun SkillsScreen(
                 )
             state.skills.isEmpty() ->
                 EmptyState(
-                    title = "No skills",
-                    subtitle = "Tap refresh to retry loading skills from Hermes.",
+                    title = "No skills found",
+                    subtitle = "Skills loaded from Hermes will appear here.",
                     icon = Icons.Filled.Extension,
                 )
             else ->
@@ -92,17 +95,13 @@ fun SkillsScreen(
                     contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {
-                    // Search field
                     item {
-                        androidx.compose.material3.OutlinedTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            placeholder = { Text("Search skills…") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
+                        SearchBar(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search skills…",
                         )
                     }
-                    // Filtered list
                     items(filtered) { skill ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -115,7 +114,7 @@ fun SkillsScreen(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp),
+                                        .padding(spacing.md),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {

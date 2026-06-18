@@ -2,40 +2,46 @@ package com.m57.hermescontrol.ui.system
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.theme.LocalSpacing
+import com.m57.hermescontrol.ui.common.EmptyState
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.InfoRow
+import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SectionHeader
+import com.m57.hermescontrol.ui.common.StatCard
+import com.m57.hermescontrol.ui.common.StatusBadge
+import com.m57.hermescontrol.ui.common.StatusBadgeType
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SystemScreen(
     modifier: Modifier = Modifier,
@@ -44,6 +50,8 @@ fun SystemScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val spacing = LocalSpacing.current
+    val statusColors = LocalHermesStatusColors.current
 
     LaunchedEffect(Unit) {
         viewModel.loadSystemData()
@@ -56,138 +64,141 @@ fun SystemScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
+    HermesScaffold(
+        title = "System",
+        onOpenDrawer = onOpenDrawer,
+        onRefresh = { viewModel.loadSystemData() },
+    ) {
+        when {
+            state.isLoading -> LoadingState()
+            state.errorMessage != null ->
+                ErrorState(
+                    message = state.errorMessage ?: "Unknown error",
+                    onRetry = { viewModel.loadSystemData() },
+                )
+            state.stats == null && state.doctorReport == null ->
+                EmptyState(
+                    title = "No system data",
+                    subtitle = "Tap refresh to load system diagnostics.",
+                )
+            else ->
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding =
+                        androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = spacing.md,
+                            vertical = spacing.sm,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                ) {
+                    // Stats row
+                    state.stats?.let { stats ->
+                        item {
+                            SectionHeader(title = "Performance")
+                        }
+                        item {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                            ) {
+                                stats.cpuPercent?.let { cpu ->
+                                    StatCard(
+                                        label = "CPU Usage",
+                                        value = "$cpu%",
+                                        icon = Icons.Filled.Speed,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                                stats.memoryPercent?.let { mem ->
+                                    StatCard(
+                                        label = "Memory",
+                                        value = "$mem%",
+                                        icon = Icons.Filled.Memory,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
                         }
                     }
-                },
-                title = { Text("System Diagnostics") },
-                actions = {
-                    IconButton(onClick = { viewModel.loadSystemData() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Refresh",
-                        )
+
+                    // Doctor diagnostics
+                    state.doctorReport?.let { report ->
+                        item {
+                            SectionHeader(title = "Doctor")
+                        }
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                    CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    ),
+                            ) {
+                                Column(modifier = Modifier.padding(spacing.md)) {
+                                    Row(
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.HealthAndSafety,
+                                            contentDescription = null,
+                                            tint =
+                                                if (report.ok) {
+                                                    statusColors.success
+                                                } else {
+                                                    statusColors.error
+                                                },
+                                        )
+                                        StatusBadge(
+                                            text = if (report.ok) "Running" else "Failed",
+                                            status =
+                                                if (report.ok) {
+                                                    StatusBadgeType.SUCCESS
+                                                } else {
+                                                    StatusBadgeType.ERROR
+                                                },
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(spacing.sm))
+                                    report.pid?.let { pid ->
+                                        InfoRow(label = "Process PID", value = pid.toString())
+                                    }
+                                    report.name?.let { name ->
+                                        InfoRow(label = "Process Name", value = name)
+                                    }
+                                }
+                            }
+                        }
                     }
-                },
-            )
-        },
-        modifier = modifier,
-    ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            if (state.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (state.errorMessage != null) {
-                Text(
-                    text = state.errorMessage ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
+
+                    // Admin actions
                     item {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "System Administration",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
+                        SectionHeader(title = "Administration")
+                    }
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors =
+                                CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                ),
+                        ) {
+                            Column(modifier = Modifier.padding(spacing.md)) {
                                 Button(
                                     onClick = { viewModel.triggerBackup() },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Backup,
+                                        contentDescription = null,
+                                        modifier = Modifier.padding(end = spacing.xs),
+                                    )
                                     Text("Trigger System Backup")
                                 }
                             }
                         }
                     }
-
-                    // System Stats (Mock structure check)
-                    state.stats?.let { stats ->
-                        item {
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "Performance Stats",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    stats.cpuPercent?.let {
-                                        Text(text = "CPU Usage: $it%", style = MaterialTheme.typography.bodyMedium)
-                                    }
-                                    stats.memoryPercent?.let {
-                                        Text(text = "Memory Usage: $it%", style = MaterialTheme.typography.bodyMedium)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Doctor status
-                    state.doctorReport?.let { report ->
-                        item {
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "Doctor Diagnostics",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Diagnostics Status: ${if (report.ok) "Running" else "Failed"}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color =
-                                            if (report.ok) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.error
-                                            },
-                                    )
-                                    report.pid?.let { pid ->
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Process PID: $pid",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                        )
-                                    }
-                                    report.name?.let { name ->
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Process Name: $name",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
-            }
         }
     }
 }

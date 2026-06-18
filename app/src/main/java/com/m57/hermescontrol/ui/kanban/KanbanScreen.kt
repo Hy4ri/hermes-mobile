@@ -71,7 +71,7 @@ fun KanbanScreen(
     }
 
     HermesScaffold(
-        title = "Kanban Board",
+        title = { Text("Kanban Board") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadBoards() },
     ) { paddingValues ->

@@ -57,7 +57,7 @@ fun PluginsScreen(
     }
 
     HermesScaffold(
-        title = "Plugins",
+        title = { Text("Plugins") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPlugins() },
     ) { paddingValues ->

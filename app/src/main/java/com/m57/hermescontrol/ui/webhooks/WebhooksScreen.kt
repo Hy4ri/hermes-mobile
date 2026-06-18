@@ -60,7 +60,7 @@ fun WebhooksScreen(
     }
 
     HermesScaffold(
-        title = "Webhooks",
+        title = { Text("Webhooks") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadWebhooks() },
     ) { paddingValues ->

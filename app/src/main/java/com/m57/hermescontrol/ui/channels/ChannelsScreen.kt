@@ -59,7 +59,7 @@ fun ChannelsScreen(
     }
 
     HermesScaffold(
-        title = "Messaging Channels",
+        title = { Text("Messaging Channels") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPlatforms() },
     ) { paddingValues ->

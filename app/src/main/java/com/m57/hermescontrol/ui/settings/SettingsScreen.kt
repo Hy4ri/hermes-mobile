@@ -67,7 +67,7 @@ fun SettingsScreen(
     BackHandler(onBack = onBack)
 
     HermesScaffold(
-        title = "Settings",
+        title = { Text("Settings") },
         showBack = true,
         onBack = onBack,
     ) {

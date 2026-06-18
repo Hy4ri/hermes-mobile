@@ -66,7 +66,7 @@ fun ModelScreen(
     }
 
     HermesScaffold(
-        title = "Models",
+        title = { Text("Models") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadModelOptions() },
     ) { paddingValues ->

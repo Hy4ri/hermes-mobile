@@ -13,7 +13,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -35,21 +34,24 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HermesScaffold(
-    title: String,
+    modifier: Modifier = Modifier,
+    title: @Composable () -> Unit,
     onOpenDrawer: (() -> Unit)? = null,
     onRefresh: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     showBack: Boolean = false,
+    snackbarHost: @Composable () -> Unit = {},
     actions: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { snackbarHost() },
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = title,
                 navigationIcon = {
                     when {
                         showBack && onBack != null -> {

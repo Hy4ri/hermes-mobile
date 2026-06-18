@@ -66,7 +66,7 @@ fun KeysScreen(
     }
 
     HermesScaffold(
-        title = "Keys & Credentials",
+        title = { Text("Keys & Credentials") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadKeys() },
     ) { paddingValues ->

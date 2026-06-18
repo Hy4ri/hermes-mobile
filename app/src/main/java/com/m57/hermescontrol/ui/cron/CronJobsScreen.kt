@@ -59,7 +59,7 @@ fun CronJobsScreen(
     }
 
     HermesScaffold(
-        title = "Cron Jobs",
+        title = { Text("Cron Jobs") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadCronJobs() },
     ) {

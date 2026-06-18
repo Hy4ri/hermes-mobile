@@ -57,7 +57,7 @@ fun ConfigScreen(
     }
 
     HermesScaffold(
-        title = "Configuration",
+        title = { Text("Configuration") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadRawConfig() },
     ) { paddingValues ->

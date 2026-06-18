@@ -58,7 +58,7 @@ fun PairingScreen(
     }
 
     HermesScaffold(
-        title = "Device Pairing",
+        title = { Text("Device Pairing") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPairing() },
     ) { paddingValues ->

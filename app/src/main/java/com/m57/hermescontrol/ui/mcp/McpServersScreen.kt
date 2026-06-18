@@ -59,7 +59,7 @@ fun McpServersScreen(
     }
 
     HermesScaffold(
-        title = "MCP Servers",
+        title = { Text("MCP Servers") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadServers() },
     ) { paddingValues ->

@@ -49,7 +49,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,14 +56,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -88,8 +84,8 @@ import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusGreen
 import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
+import com.m57.hermescontrol.ui.common.HermesScaffold
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     onNavigateToSettings: () -> Unit,
@@ -165,138 +161,121 @@ fun ChatScreen(
                 ),
         )
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
-                        }
-                    }
-                },
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Hermes",
-                            style =
-                                MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        // Connection status dot
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(if (state.isConnected) StatusGreen else StatusRed),
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.createNewSession() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = "New Chat",
-                        )
-                    }
-
-                    // Session picker
-                    Box {
-                        IconButton(onClick = {
-                            viewModel.loadSessions()
-                            viewModel.toggleSessionPicker()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Filled.History,
-                                contentDescription = "Sessions",
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = state.showSessionPicker,
-                            onDismissRequest = { viewModel.toggleSessionPicker() },
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            Icons.Filled.Add,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("New Session")
-                                    }
-                                },
-                                onClick = {
-                                    viewModel.createNewSession()
-                                    viewModel.toggleSessionPicker()
-                                },
-                            )
-                            if (state.sessions.isNotEmpty()) {
-                                HorizontalDivider()
-                            }
-                            state.sessions.forEach { session ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                text = session.title,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                maxLines = 1,
-                                            )
-                                            Text(
-                                                text = "${session.messageCount} messages",
-                                                style =
-                                                    MaterialTheme.typography.labelSmall.copy(
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    ),
-                                            )
-                                        }
-                                    },
-                                    onClick = { viewModel.switchSession(session.id) },
-                                    trailingIcon = {
-                                        if (session.id == state.currentSessionId) {
-                                            Icon(
-                                                Icons.Filled.ArrowDropDown,
-                                                contentDescription = "Current",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        }
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    // Settings
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = "Settings",
-                        )
-                    }
-                },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
-            )
+    HermesScaffold(
+        modifier = modifier,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Hermes",
+                    style =
+                        MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                        ),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                // Connection status dot
+                Box(
+                    modifier =
+                        Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(if (state.isConnected) StatusGreen else StatusRed),
+                )
+            }
         },
+        onOpenDrawer = onOpenDrawer,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
                     snackbarData = data,
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        },
+        actions = {
+            IconButton(onClick = { viewModel.createNewSession() }) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "New Chat",
+                )
+            }
+
+            // Session picker
+            Box {
+                IconButton(onClick = {
+                    viewModel.loadSessions()
+                    viewModel.toggleSessionPicker()
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.History,
+                        contentDescription = "Sessions",
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = state.showSessionPicker,
+                    onDismissRequest = { viewModel.toggleSessionPicker() },
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("New Session")
+                            }
+                        },
+                        onClick = {
+                            viewModel.createNewSession()
+                            viewModel.toggleSessionPicker()
+                        },
+                    )
+                    if (state.sessions.isNotEmpty()) {
+                        HorizontalDivider()
+                    }
+                    state.sessions.forEach { session ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = session.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                    )
+                                    Text(
+                                        text = "${session.messageCount} messages",
+                                        style =
+                                            MaterialTheme.typography.labelSmall.copy(
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            ),
+                                    )
+                                }
+                            },
+                            onClick = { viewModel.switchSession(session.id) },
+                            trailingIcon = {
+                                if (session.id == state.currentSessionId) {
+                                    Icon(
+                                        Icons.Filled.ArrowDropDown,
+                                        contentDescription = "Current",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+
+            // Settings
+            IconButton(onClick = onNavigateToSettings) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Settings",
                 )
             }
         },

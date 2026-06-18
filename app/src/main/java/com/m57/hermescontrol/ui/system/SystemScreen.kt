@@ -65,7 +65,7 @@ fun SystemScreen(
     }
 
     HermesScaffold(
-        title = "System",
+        title = { Text("System") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadSystemData() },
     ) {

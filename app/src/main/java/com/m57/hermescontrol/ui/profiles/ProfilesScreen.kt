@@ -70,7 +70,7 @@ fun ProfilesScreen(
     }
 
     HermesScaffold(
-        title = "Profiles",
+        title = { Text("Profiles") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadProfiles() },
     ) { paddingValues ->

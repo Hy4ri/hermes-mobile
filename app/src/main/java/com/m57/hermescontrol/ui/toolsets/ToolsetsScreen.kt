@@ -62,7 +62,7 @@ fun ToolsetsScreen(
     }
 
     HermesScaffold(
-        title = "Toolsets",
+        title = { Text("Toolsets") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadToolsets() },
     ) { paddingValues ->

@@ -62,7 +62,7 @@ fun GatewayScreen(
     }
 
     HermesScaffold(
-        title = "Gateway Control",
+        title = { Text("Gateway Control") },
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadStatus() },
     ) { paddingValues ->

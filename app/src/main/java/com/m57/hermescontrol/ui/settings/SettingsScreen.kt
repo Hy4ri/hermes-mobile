@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -24,6 +27,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -224,6 +229,59 @@ fun SettingsScreen(
                             )
                         }
                     }
+                }
+            }
+
+            // Navigation Bar section
+            SectionCard(title = "Navigation Bar") {
+                Text(
+                    text = "Bottom bar items (${state.selectedNavItems.size}/5)",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                state.selectedNavItems.forEach { name ->
+                    val label = viewModel.availableNavItems.firstOrNull { it.first == name }?.second ?: name
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                        IconButton(onClick = { viewModel.removeNavItem(name) }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Remove $label")
+                        }
+                    }
+                }
+
+                if (state.selectedNavItems.size < 5) {
+                    val available = viewModel.availableNavItems.filter { it.first !in state.selectedNavItems }
+                    if (available.isNotEmpty()) {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { expanded = true }) {
+                                Icon(Icons.Filled.Add, contentDescription = null)
+                                Spacer(Modifier.size(4.dp))
+                                Text("Add Item")
+                            }
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                available.forEach { (name, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            viewModel.addNavItem(name)
+                                            expanded = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Maximum of 5 items",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    )
                 }
             }
 

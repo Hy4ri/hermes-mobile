@@ -22,6 +22,7 @@ data class SettingsUiState(
     val isTesting: Boolean = false,
     val testResult: String? = null,
     val isSaved: Boolean = false,
+    val selectedNavItems: List<String> = emptyList(),
 )
 
 class SettingsViewModel : ViewModel() {
@@ -43,6 +44,7 @@ class SettingsViewModel : ViewModel() {
                 // choice from persistent storage on init. Previously this slot
                 // was missing — always defaulted to ThemePreference.SYSTEM.
                 themePreference = AuthManager.getThemePreference(),
+                selectedNavItems = AuthManager.getBottomNavItems(),
             )
         }
     }
@@ -65,6 +67,52 @@ class SettingsViewModel : ViewModel() {
 
     fun onThemeChange(theme: ThemePreference) {
         _uiState.update { it.copy(themePreference = theme, isSaved = false) }
+    }
+
+    /** All screens available for bottom-nav selection (name → display label). */
+    val availableNavItems: List<Pair<String, String>> =
+        listOf(
+            "ChatScreen" to "Chat",
+            "SkillsScreen" to "Skills",
+            "CronJobsScreen" to "Cron Jobs",
+            "SystemScreen" to "System",
+            "SettingsScreen" to "Settings",
+            "ProfilesScreen" to "Profiles",
+            "WebhooksScreen" to "Webhooks",
+            "GatewayScreen" to "Gateway",
+            "ToolsetsScreen" to "Toolsets",
+            "PluginsScreen" to "Plugins",
+            "ConfigScreen" to "Config",
+            "McpServersScreen" to "MCP Servers",
+            "ModelScreen" to "Models",
+            "PairingScreen" to "Pairing",
+            "KeysScreen" to "Keys",
+            "ChannelsScreen" to "Channels",
+            "LogsScreen" to "Logs",
+            "KanbanScreen" to "Kanban",
+            "AchievementsScreen" to "Achievements",
+        )
+
+    /** Add a nav item to the bottom bar (max 5). Auto-saves. */
+    fun addNavItem(name: String) {
+        val current = _uiState.value.selectedNavItems
+        if (name in current || current.size >= 5) return
+        val updated = current + name
+        _uiState.update { it.copy(selectedNavItems = updated) }
+        AuthManager.setBottomNavItems(updated)
+    }
+
+    /** Remove a nav item from the bottom bar. Auto-saves. */
+    fun removeNavItem(name: String) {
+        val updated = _uiState.value.selectedNavItems - name
+        _uiState.update { it.copy(selectedNavItems = updated) }
+        AuthManager.setBottomNavItems(updated)
+    }
+
+    /** Reorder the selected nav items. Auto-saves. */
+    fun reorderNavItems(items: List<String>) {
+        _uiState.update { it.copy(selectedNavItems = items) }
+        AuthManager.setBottomNavItems(items)
     }
 
     fun save() {

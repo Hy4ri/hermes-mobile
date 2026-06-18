@@ -17,9 +17,11 @@ import androidx.navigation3.runtime.NavKey
 object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
 
-    // Bottom-nav primary screens — tapping one clears the stack to root.
-    private val primaryScreens: Set<NavKey> =
-        setOf(
+    // Bottom-nav primary screens — dynamic, updated by Navigation.kt via
+    // updatePrimaryScreens() when the user customises the bottom nav bar.
+    // Default matches the default 5 bottom-nav items.
+    private val primaryScreens: MutableSet<NavKey> =
+        mutableSetOf(
             ChatScreen,
             SkillsScreen,
             CronJobsScreen,
@@ -27,11 +29,21 @@ object NavigationController {
             SettingsScreen,
         )
 
+    /** Returns whether the given key is a primary (bottom-nav) screen. */
+    fun isPrimaryScreen(key: NavKey): Boolean = key in primaryScreens
+
+    /** Replace the primary screen set. Called by Navigation.kt when the
+     *  bottom-nav item config changes. */
+    fun updatePrimaryScreens(keys: Set<NavKey>) {
+        primaryScreens.clear()
+        primaryScreens.addAll(keys)
+    }
+
     fun navigateTo(key: NavKey) {
         val stack = backStack ?: return
         if (stack.lastOrNull() == key) return
 
-        if (key in primaryScreens) {
+        if (isPrimaryScreen(key)) {
             stack.clear()
         }
         stack.add(key)

@@ -40,7 +40,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -73,7 +75,7 @@ import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
 import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
 import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
-// ── Bottom-nav primary screens ─────────────────────────────────────────
+// ── Bottom-nav item model ──────────────────────────────────────────────
 
 private data class BottomNavItem(
     val key: NavKey,
@@ -81,16 +83,37 @@ private data class BottomNavItem(
     val icon: ImageVector,
 )
 
-private val BOTTOM_NAV_ITEMS =
+/** Master list of ALL screens available for bottom-nav selection. */
+private val ALL_NAV_ITEMS: List<BottomNavItem> =
     listOf(
         BottomNavItem(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat),
         BottomNavItem(SkillsScreen, "Skills", Icons.Filled.Extension),
         BottomNavItem(CronJobsScreen, "Cron", Icons.Filled.Schedule),
         BottomNavItem(SystemScreen, "System", Icons.Filled.Info),
         BottomNavItem(SettingsScreen, "Settings", Icons.Filled.Settings),
+        BottomNavItem(ProfilesScreen, "Profiles", Icons.Filled.AccountCircle),
+        BottomNavItem(WebhooksScreen, "Webhooks", Icons.Filled.Webhook),
+        BottomNavItem(GatewayScreen, "Gateway", Icons.Filled.Bolt),
+        BottomNavItem(ToolsetsScreen, "Toolsets", Icons.Filled.Build),
+        BottomNavItem(PluginsScreen, "Plugins", Icons.Filled.Memory),
+        BottomNavItem(ConfigScreen, "Config", Icons.Filled.Code),
+        BottomNavItem(McpServersScreen, "MCP Servers", Icons.Filled.Dashboard),
+        BottomNavItem(ModelScreen, "Models", Icons.Filled.Settings),
+        BottomNavItem(PairingScreen, "Pairing", Icons.Filled.Devices),
+        BottomNavItem(KeysScreen, "Keys", Icons.Filled.Key),
+        BottomNavItem(ChannelsScreen, "Channels", Icons.Filled.ListAlt),
+        BottomNavItem(LogsScreen, "Logs", Icons.Filled.HistoryEdu),
+        BottomNavItem(KanbanScreen, "Kanban", Icons.Filled.Dashboard),
+        BottomNavItem(AchievementsScreen, "Achievements", Icons.Filled.Info),
     )
 
-private val BOTTOM_NAV_KEYS: Set<NavKey> = BOTTOM_NAV_ITEMS.map { it.key }.toSet()
+/** Lookup: data-object simple name → NavKey (used by bottom-nav config). */
+private val NAV_KEY_BY_NAME: Map<String, NavKey> =
+    ALL_NAV_ITEMS.associateBy { it.key::class.simpleName ?: error("No simpleName for ${it.key}") }
+
+/** Resolve a persisted list of nav-item names to BottomNavItem instances. */
+private fun resolveBottomNavItems(names: List<String>): List<BottomNavItem> =
+    names.mapNotNull { name -> NAV_KEY_BY_NAME[name]?.let { key -> ALL_NAV_ITEMS.first { it.key == key } } }
 
 // ── Drawer sections for secondary screens ──────────────────────────────
 
@@ -130,7 +153,7 @@ private val DRAWER_ENTRIES =
         DrawerEntry(AchievementsScreen, "Achievements", Icons.Filled.Info, DrawerSection.INSPECT),
     )
 
-private val DRAWER_GESTURE_SCREENS: Set<NavKey> = BOTTOM_NAV_KEYS + DRAWER_ENTRIES.map { it.key }.toSet()
+private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.map { it.key }.toSet()
 
 @Composable
 fun MainNavigation() {
@@ -144,7 +167,16 @@ fun MainNavigation() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val isPrimaryScreen = currentScreen in BOTTOM_NAV_KEYS
+    // Read dynamic bottom-nav config
+    val bottomNavItems = remember { resolveBottomNavItems(AuthManager.getBottomNavItems()) }
+    val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.map { it.key }.toSet() }
+
+    // Sync primary screens to NavigationController
+    LaunchedEffect(bottomNavKeys) {
+        NavigationController.updatePrimaryScreens(bottomNavKeys)
+    }
+
+    val isPrimaryScreen = currentScreen in bottomNavKeys
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer = { scope.launch { drawerState.open() } }
 
@@ -222,7 +254,7 @@ fun MainNavigation() {
             bottomBar = {
                 if (isPrimaryScreen) {
                     NavigationBar {
-                        BOTTOM_NAV_ITEMS.forEach { item ->
+                        bottomNavItems.forEach { item ->
                             NavigationBarItem(
                                 selected = currentScreen == item.key,
                                 onClick = { NavigationController.navigateTo(item.key) },

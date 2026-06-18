@@ -20,6 +20,7 @@ object AuthManager {
     private const val KEY_PORT = "port"
     private const val KEY_AUTO_RECONNECT = "auto_reconnect"
     private const val KEY_THEME_PREFERENCE = "theme_preference"
+    private const val KEY_BOTTOM_NAV_ITEMS = "bottom_nav_items"
 
     private const val DEFAULT_HOST = "127.0.0.1"
     private const val DEFAULT_PORT = 9119
@@ -117,4 +118,21 @@ object AuthManager {
     /** Convenience: build the WebSocket URL with token query param.
      *  NOTE: Token in query string — trusted local network only. */
     fun wsUrl(): String = "ws://${getHost()}:${getPort()}/api/ws?token=${getToken().orEmpty()}"
+
+    // ── Bottom nav bar items ──────────────────────────────────────────────
+
+    /** Default bottom-nav items (NavKey data-object names). */
+    private val DEFAULT_BOTTOM_NAV_ITEMS =
+        listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen")
+
+    /** Returns the list of selected bottom-nav item keys (data-object names). */
+    fun getBottomNavItems(): List<String> {
+        val raw = requirePrefs().getString(KEY_BOTTOM_NAV_ITEMS, null) ?: return DEFAULT_BOTTOM_NAV_ITEMS
+        return raw.split(",").filter { it.isNotBlank() }
+    }
+
+    /** Persist the ordered list of bottom-nav item keys (max 5, data-object names). */
+    fun setBottomNavItems(items: List<String>) {
+        requirePrefs().edit().putString(KEY_BOTTOM_NAV_ITEMS, items.joinToString(",")).apply()
+    }
 }

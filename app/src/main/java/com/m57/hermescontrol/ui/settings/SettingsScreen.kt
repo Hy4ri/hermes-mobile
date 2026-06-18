@@ -280,7 +280,8 @@ fun SettingsScreen(
                 } else {
                     Text(
                         text = "Maximum of 5 items",
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        style = MaterialTheme.typography.bodySmall
+                            .copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                     )
                 }
             }

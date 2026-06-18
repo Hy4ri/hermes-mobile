@@ -244,7 +244,19 @@ fun MainNavigation() {
                     entry<ChatScreen> {
                         ChatScreenContent(
                             onNavigateToSettings = {
-                                backStack.add(SettingsScreen)
+                                // B7 (Jun 18 2026): previously used
+                                // `backStack.add(SettingsScreen)` directly,
+                                // which bypasses NavigationController's
+                                // navigation guard. The drawer Settings path
+                                // goes through NavigationController which
+                                // deduplicates and prevents stacking duplicate
+                                // SettingsScreen entries when user rapidly
+                                // taps the gear icon. Use the same path for
+                                // consistency and to recover if a duplicate
+                                // SettingsScreen entry was the source of the
+                                // "page unresponsive" symptom reported when
+                                // reaching Settings from the topbar.
+                                NavigationController.navigateTo(SettingsScreen)
                             },
                             onOpenDrawer = { openDrawer() },
                         )

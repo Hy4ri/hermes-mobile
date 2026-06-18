@@ -175,6 +175,23 @@ fun SettingsScreen(
                             cursorColor = MaterialTheme.colorScheme.primary,
                         ),
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // B7 (Jun 18 2026): one-tap escape hatch for when the stored
+                // token is corrupted / rejected. Clears the token field and
+                // persists the empty value immediately so a stress-free
+                // re-pair is possible without manually selecting-and-deleting
+                // the masked password field character by character.
+                OutlinedButton(
+                    onClick = {
+                        viewModel.onTokenChange("")
+                        viewModel.save()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Clear Token")
+                }
             }
 
             // Behavior section

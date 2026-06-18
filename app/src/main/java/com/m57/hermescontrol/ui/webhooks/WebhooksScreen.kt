@@ -14,22 +14,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,183 +59,173 @@ fun WebhooksScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
-                        }
-                    }
-                },
-                title = { Text("Webhooks Dispatcher") },
-                actions = {
-                    IconButton(onClick = { viewModel.loadWebhooks() }) {
-                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Refresh")
-                    }
-                },
-            )
-        },
+    HermesScaffold(
+        title = "Webhooks",
+        onOpenDrawer = onOpenDrawer,
+        onRefresh = { viewModel.loadWebhooks() },
         modifier = modifier,
     ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            if (state.isLoading && state.baseUrl == null) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (state.errorMessage != null && state.baseUrl == null) {
-                Column(
-                    modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.loadWebhooks() }) {
-                        Text("Retry")
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    // Global Status Switch
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor =
-                                        if (state.enabled) {
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceVariant
-                                        },
-                                ),
-                        ) {
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Global Webhooks Status",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    state.baseUrl?.let {
-                                        Text(
-                                            text = "Local Server URL: $it",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-
-                                Switch(
-                                    checked = state.enabled,
-                                    onCheckedChange = { viewModel.toggleWebhooks(it) },
-                                )
-                            }
+        when {
+            state.isLoading -> {
+                LoadingState(modifier = Modifier.padding(paddingValues))
+            }
+            state.errorMessage != null -> {
+                ErrorState(
+                    message = state.errorMessage ?: "",
+                    onRetry = { viewModel.loadWebhooks() },
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+            else -> {
+                if (state.isLoading && state.baseUrl == null) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (state.errorMessage != null && state.baseUrl == null) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .align(Alignment.Center)
+                                .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { viewModel.loadWebhooks() }) {
+                            Text("Retry")
                         }
                     }
-
-                    // Subscriptions List Header
-                    item {
-                        Text(
-                            text = "Subscriptions",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-
-                    if (state.subscriptions.isEmpty()) {
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        // Global Status Switch
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                    CardDefaults.cardColors(
+                                        containerColor =
+                                            if (state.enabled) {
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                                            } else {
+                                                MaterialTheme.colorScheme.surfaceVariant
+                                            },
+                                    ),
                             ) {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(24.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = "No webhook subscriptions configured.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        items(state.subscriptions) { sub ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Column(
+                                Row(
                                     modifier =
                                         Modifier
                                             .fillMaxWidth()
                                             .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Text(
-                                        text = sub.name.replaceFirstChar { it.uppercase() },
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                    Text(
-                                        text = "Target URL:",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Text(
-                                        text = sub.url,
-                                        style =
-                                            MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                            ),
-                                    )
-
-                                    sub.events?.let { events ->
-                                        if (events.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.height(4.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Global Webhooks Status",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        state.baseUrl?.let {
                                             Text(
-                                                text = "Events Subscribed:",
+                                                text = "Local Server URL: $it",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
-                                            FlowRow(
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                            ) {
-                                                events.forEach { event ->
-                                                    SuggestionChip(
-                                                        onClick = {},
-                                                        label = {
-                                                            Text(
-                                                                text = event,
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                            )
-                                                        },
-                                                    )
+                                        }
+                                    }
+
+                                    Switch(
+                                        checked = state.enabled,
+                                        onCheckedChange = { viewModel.toggleWebhooks(it) },
+                                    )
+                                }
+                            }
+                        }
+
+                        // Subscriptions List Header
+                        item {
+                            Text(
+                                text = "Subscriptions",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+
+                        if (state.subscriptions.isEmpty()) {
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(24.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = "No webhook subscriptions configured.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            items(state.subscriptions) { sub ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        Text(
+                                            text = sub.name.replaceFirstChar { it.uppercase() },
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Text(
+                                            text = "Target URL:",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text(
+                                            text = sub.url,
+                                            style =
+                                                MaterialTheme.typography.bodyMedium.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                ),
+                                        )
+
+                                        sub.events?.let { events ->
+                                            if (events.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "Events Subscribed:",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                                FlowRow(
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                                ) {
+                                                    events.forEach { event ->
+                                                        SuggestionChip(
+                                                            onClick = {},
+                                                            label = {
+                                                                Text(
+                                                                    text = event,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                )
+                                                            },
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }

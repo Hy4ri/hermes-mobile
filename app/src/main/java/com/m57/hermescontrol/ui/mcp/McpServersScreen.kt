@@ -2,7 +2,6 @@ package com.m57.hermescontrol.ui.mcp
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,22 +12,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +32,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,134 +57,124 @@ fun McpServersScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
-                        }
-                    }
-                },
-                title = { Text("MCP Servers") },
-                actions = {
-                    IconButton(onClick = { viewModel.loadServers() }) {
-                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Refresh")
-                    }
-                },
-            )
-        },
+    HermesScaffold(
+        title = "MCP Servers",
+        onOpenDrawer = onOpenDrawer,
+        onRefresh = { viewModel.loadServers() },
         modifier = modifier,
     ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            if (state.isLoading && state.servers.isEmpty()) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (state.errorMessage != null && state.servers.isEmpty()) {
-                Column(
-                    modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.loadServers() }) {
-                        Text("Retry")
+        when {
+            state.isLoading -> {
+                LoadingState(modifier = Modifier.padding(paddingValues))
+            }
+            state.errorMessage != null -> {
+                ErrorState(
+                    message = state.errorMessage ?: "",
+                    onRetry = { viewModel.loadServers() },
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+            else -> {
+                if (state.isLoading && state.servers.isEmpty()) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (state.errorMessage != null && state.servers.isEmpty()) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .align(Alignment.Center)
+                                .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { viewModel.loadServers() }) {
+                            Text("Retry")
+                        }
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(state.servers) { server ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor =
-                                        if (server.enabled) {
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceVariant
-                                        },
-                                ),
-                        ) {
-                            Column(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(state.servers) { server ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                    CardDefaults.cardColors(
+                                        containerColor =
+                                            if (server.enabled) {
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                                            } else {
+                                                MaterialTheme.colorScheme.surfaceVariant
+                                            },
+                                    ),
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Column(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = server.name.replaceFirstChar { it.uppercase() },
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                            Text(
+                                                text = "Transport: ${server.transport ?: "stdio"}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+
+                                        Switch(
+                                            checked = server.enabled,
+                                            onCheckedChange = { viewModel.toggleServer(server) },
+                                        )
+                                    }
+
+                                    if (server.command != null) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        val fullCmd = "${server.command} ${server.args.orEmpty().joinToString(" ")}"
                                         Text(
-                                            text = server.name.replaceFirstChar { it.uppercase() },
-                                            style = MaterialTheme.typography.titleMedium,
+                                            text = "Command:",
+                                            style = MaterialTheme.typography.bodySmall,
                                             fontWeight = FontWeight.Bold,
                                         )
                                         Text(
-                                            text = "Transport: ${server.transport ?: "stdio"}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            text = fullCmd,
+                                            style =
+                                                MaterialTheme.typography.bodyMedium.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                ),
                                         )
                                     }
 
-                                    Switch(
-                                        checked = server.enabled,
-                                        onCheckedChange = { viewModel.toggleServer(server) },
-                                    )
-                                }
+                                    Spacer(modifier = Modifier.height(16.dp))
 
-                                if (server.command != null) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    val fullCmd = "${server.command} ${server.args.orEmpty().joinToString(" ")}"
-                                    Text(
-                                        text = "Command:",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Text(
-                                        text = fullCmd,
-                                        style =
-                                            MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                            ),
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
-                                ) {
-                                    OutlinedButton(
-                                        onClick = { viewModel.testServer(server.name) },
-                                        modifier = Modifier.padding(end = 8.dp),
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
                                     ) {
-                                        Text("Test")
-                                    }
+                                        OutlinedButton(
+                                            onClick = { viewModel.testServer(server.name) },
+                                            modifier = Modifier.padding(end = 8.dp),
+                                        ) {
+                                            Text("Test")
+                                        }
 
-                                    OutlinedButton(
-                                        onClick = { viewModel.deleteServer(server.name) },
-                                    ) {
-                                        Text("Delete")
+                                        OutlinedButton(
+                                            onClick = { viewModel.deleteServer(server.name) },
+                                        ) {
+                                            Text("Delete")
+                                        }
                                     }
                                 }
                             }

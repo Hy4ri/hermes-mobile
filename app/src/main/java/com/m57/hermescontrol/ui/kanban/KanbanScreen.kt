@@ -16,26 +16,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,6 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,127 +69,107 @@ fun KanbanScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
-                        }
-                    }
-                },
-                title = { Text(state.selectedBoard?.name ?: "Kanban Boards") },
-                actions = {
-                    IconButton(onClick = { viewModel.loadBoards() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Refresh",
-                        )
-                    }
-                },
-            )
-        },
-        floatingActionButton = {
-            if (state.selectedBoard != null) {
-                FloatingActionButton(onClick = { showAddTaskDialog = true }) {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Task")
-                }
-            }
-        },
+    HermesScaffold(
+        title = "Kanban Board",
+        onOpenDrawer = onOpenDrawer,
+        onRefresh = { viewModel.loadBoard() },
         modifier = modifier,
     ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            if (state.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (state.errorMessage != null) {
-                Text(
-                    text = state.errorMessage ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
+        when {
+            state.isLoading -> {
+                LoadingState(modifier = Modifier.padding(paddingValues))
+            }
+            state.errorMessage != null -> {
+                ErrorState(
+                    message = state.errorMessage ?: "",
+                    onRetry = { viewModel.loadBoard() },
+                    modifier = Modifier.padding(paddingValues),
                 )
-            } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Board selector tab row
-                    if (state.boards.isNotEmpty()) {
-                        ScrollableTabRow(
-                            selectedTabIndex = state.boards.indexOf(state.selectedBoard).coerceAtLeast(0),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            state.boards.forEach { board ->
-                                Tab(
-                                    selected = board == state.selectedBoard,
-                                    onClick = { viewModel.selectBoard(board) },
-                                    text = { Text(board.name) },
-                                )
+            }
+            else -> {
+                if (state.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (state.errorMessage != null) {
+                    Text(
+                        text = state.errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        modifier =
+                            Modifier
+                                .align(Alignment.Center)
+                                .padding(16.dp),
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Board selector tab row
+                        if (state.boards.isNotEmpty()) {
+                            ScrollableTabRow(
+                                selectedTabIndex = state.boards.indexOf(state.selectedBoard).coerceAtLeast(0),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                state.boards.forEach { board ->
+                                    Tab(
+                                        selected = board == state.selectedBoard,
+                                        onClick = { viewModel.selectBoard(board) },
+                                        text = { Text(board.name) },
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    if (state.selectedBoard == null) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No boards found.")
-                        }
-                    } else if (state.columns.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No columns found for this board.")
-                        }
-                    } else {
-                        LazyRow(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            items(state.columns) { column ->
-                                val colName = column.name
-                                val colTasks =
-                                    state.tasks.filter {
-                                        it.status.equals(colName, ignoreCase = true)
-                                    }
-                                val columnIndex = state.columns.indexOf(column)
-                                val prevColumn = state.columns.getOrNull(columnIndex - 1)
-                                val nextColumn = state.columns.getOrNull(columnIndex + 1)
+                        if (state.selectedBoard == null) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("No boards found.")
+                            }
+                        } else if (state.columns.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("No columns found for this board.")
+                            }
+                        } else {
+                            LazyRow(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                items(state.columns) { column ->
+                                    val colName = column.name
+                                    val colTasks =
+                                        state.tasks.filter {
+                                            it.status.equals(colName, ignoreCase = true)
+                                        }
+                                    val columnIndex = state.columns.indexOf(column)
+                                    val prevColumn = state.columns.getOrNull(columnIndex - 1)
+                                    val nextColumn = state.columns.getOrNull(columnIndex + 1)
 
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .width(280.dp)
-                                            .fillMaxSize(),
-                                ) {
-                                    Text(
-                                        text = "${colName.replaceFirstChar { it.uppercase() }} (${colTasks.size})",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(bottom = 8.dp),
-                                    )
-
-                                    LazyColumn(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    Column(
+                                        modifier =
+                                            Modifier
+                                                .width(280.dp)
+                                                .fillMaxSize(),
                                     ) {
-                                        items(colTasks) { task ->
-                                            TaskCard(
-                                                task = task,
-                                                onMoveLeft =
-                                                    prevColumn?.let {
-                                                        { viewModel.moveTask(task, it.name) }
-                                                    },
-                                                onMoveRight =
-                                                    nextColumn?.let {
-                                                        { viewModel.moveTask(task, it.name) }
-                                                    },
-                                            )
+                                        Text(
+                                            text = "${colName.replaceFirstChar { it.uppercase() }} (${colTasks.size})",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(bottom = 8.dp),
+                                        )
+
+                                        LazyColumn(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            items(colTasks) { task ->
+                                                TaskCard(
+                                                    task = task,
+                                                    onMoveLeft =
+                                                        prevColumn?.let {
+                                                            { viewModel.moveTask(task, it.name) }
+                                                        },
+                                                    onMoveRight =
+                                                        nextColumn?.let {
+                                                            { viewModel.moveTask(task, it.name) }
+                                                        },
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -201,16 +177,16 @@ fun KanbanScreen(
                         }
                     }
                 }
-            }
 
-            if (showAddTaskDialog) {
-                AddTaskDialog(
-                    onDismiss = { showAddTaskDialog = false },
-                    onConfirm = { title, desc ->
-                        viewModel.createTask(title, desc, state.columns.firstOrNull()?.name ?: "todo")
-                        showAddTaskDialog = false
-                    },
-                )
+                if (showAddTaskDialog) {
+                    AddTaskDialog(
+                        onDismiss = { showAddTaskDialog = false },
+                        onConfirm = { title, desc ->
+                            viewModel.createTask(title, desc, state.columns.firstOrNull()?.name ?: "todo")
+                            showAddTaskDialog = false
+                        },
+                    )
+                }
             }
         }
     }

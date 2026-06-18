@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.ui.config
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,20 +9,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +29,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,100 +55,90 @@ fun ConfigScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
-                        }
-                    }
-                },
-                title = { Text("Raw Configuration") },
-                actions = {
-                    IconButton(onClick = { viewModel.loadRawConfig() }) {
-                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Refresh")
-                    }
-                },
-            )
-        },
+    HermesScaffold(
+        title = "Configuration",
+        onOpenDrawer = onOpenDrawer,
+        onRefresh = { viewModel.loadConfig() },
         modifier = modifier,
     ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            if (state.isLoading && state.yamlText == null) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (state.errorMessage != null && state.yamlText == null) {
-                Column(
-                    modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.loadRawConfig() }) {
-                        Text("Retry")
-                    }
-                }
-            } else {
-                Column(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                ) {
-                    state.path?.let {
-                        Text(
-                            text = "Path: $it",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = editingText,
-                        onValueChange = { editingText = it },
+        when {
+            state.isLoading -> {
+                LoadingState(modifier = Modifier.padding(paddingValues))
+            }
+            state.errorMessage != null -> {
+                ErrorState(
+                    message = state.errorMessage ?: "",
+                    onRetry = { viewModel.loadConfig() },
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+            else -> {
+                if (state.isLoading && state.yamlText == null) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (state.errorMessage != null && state.yamlText == null) {
+                    Column(
                         modifier =
                             Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                        placeholder = { Text("YAML Config...") },
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                        maxLines = Int.MAX_VALUE,
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { editingText = state.yamlText ?: "" },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Reset")
+                                .align(Alignment.Center)
+                                .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { viewModel.loadRawConfig() }) {
+                            Text("Retry")
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                    ) {
+                        state.path?.let {
+                            Text(
+                                text = "Path: $it",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
                         }
 
-                        Spacer(modifier = Modifier.width(16.dp))
+                        OutlinedTextField(
+                            value = editingText,
+                            onValueChange = { editingText = it },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                            placeholder = { Text("YAML Config...") },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                            maxLines = Int.MAX_VALUE,
+                        )
 
-                        Button(
-                            onClick = { viewModel.saveRawConfig(editingText) },
-                            modifier = Modifier.weight(1f),
-                            enabled = !state.isSaving,
-                        ) {
-                            if (state.isSaving) {
-                                CircularProgressIndicator(modifier = Modifier.width(16.dp))
-                            } else {
-                                Text("Save Config")
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { editingText = state.yamlText ?: "" },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Reset")
+                            }
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            Button(
+                                onClick = { viewModel.saveRawConfig(editingText) },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.isSaving,
+                            ) {
+                                if (state.isSaving) {
+                                    CircularProgressIndicator(modifier = Modifier.width(16.dp))
+                                } else {
+                                    Text("Save Config")
+                                }
                             }
                         }
                     }

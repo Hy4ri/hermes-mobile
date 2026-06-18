@@ -2,7 +2,6 @@ package com.m57.hermescontrol.ui.channels
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,21 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,8 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.ui.common.EmptyState
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.LoadingState
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChannelsScreen(
     modifier: Modifier = Modifier,
@@ -65,52 +58,33 @@ fun ChannelsScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
-                        }
-                    }
-                },
-                title = { Text("Messaging Channels") },
-                actions = {
-                    IconButton(onClick = { viewModel.loadPlatforms() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Refresh",
-                        )
-                    }
-                },
-            )
-        },
+    HermesScaffold(
+        title = "Messaging Channels",
+        onOpenDrawer = onOpenDrawer,
+        onRefresh = { viewModel.loadPlatforms() },
         modifier = modifier,
     ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            if (state.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (state.errorMessage != null) {
-                Text(
-                    text = state.errorMessage ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
+        when {
+            state.isLoading -> {
+                LoadingState(modifier = Modifier.padding(paddingValues))
+            }
+            state.errorMessage != null -> {
+                ErrorState(
+                    message = state.errorMessage ?: "",
+                    onRetry = { viewModel.loadPlatforms() },
+                    modifier = Modifier.padding(paddingValues),
                 )
-            } else {
+            }
+            state.platforms.isEmpty() -> {
+                EmptyState(
+                    title = "No channels configured",
+                    subtitle = "Add messaging platforms in Hermes to see them here.",
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+            else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {

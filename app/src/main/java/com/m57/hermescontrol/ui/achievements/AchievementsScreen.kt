@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.ui.achievements
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,19 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,8 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ui.common.EmptyState
+import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.LoadingState
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AchievementsScreen(
     modifier: Modifier = Modifier,
@@ -49,54 +44,34 @@ fun AchievementsScreen(
         viewModel.loadAchievements()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    if (onOpenDrawer != null) {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(
-                                imageVector = Icons.Filled.Menu,
-                                contentDescription = "Open Drawer",
-                            )
-                        }
-                    }
-                },
-                title = { Text("Agent Achievements") },
-                actions = {
-                    IconButton(onClick = { viewModel.loadAchievements() }) {
-                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Refresh")
-                    }
-                },
-            )
-        },
+    HermesScaffold(
+        title = "Agent Achievements",
+        onOpenDrawer = onOpenDrawer,
+        onRefresh = { viewModel.loadAchievements() },
         modifier = modifier,
     ) { paddingValues ->
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-        ) {
-            if (state.isLoading && state.achievements.isEmpty()) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (state.errorMessage != null && state.achievements.isEmpty()) {
-                Column(
-                    modifier =
-                        Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    IconButton(onClick = { viewModel.loadAchievements() }) {
-                        Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Retry")
-                    }
-                }
-            } else {
+        when {
+            state.isLoading && state.achievements.isEmpty() -> {
+                LoadingState(modifier = Modifier.padding(paddingValues))
+            }
+            state.errorMessage != null && state.achievements.isEmpty() -> {
+                ErrorState(
+                    message = state.errorMessage ?: "",
+                    onRetry = { viewModel.loadAchievements() },
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+            state.achievements.isEmpty() -> {
+                EmptyState(
+                    title = "No achievements yet",
+                    subtitle = "Complete tasks to unlock achievements.",
+                    icon = Icons.Filled.Refresh,
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+            else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {

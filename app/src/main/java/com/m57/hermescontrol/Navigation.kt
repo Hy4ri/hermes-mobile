@@ -1,6 +1,7 @@
 package com.m57.hermescontrol
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -368,11 +369,8 @@ fun MainNavigation() {
                 modifier =
                     Modifier
                         .padding(paddingValues)
-                        .fillMaxSizeSafeDrawing(),
+                        .fillMaxSize(),
             )
         }
     }
 }
-
-// Helper extension to apply safeDrawingPadding + fillMaxSize cleanly
-private fun Modifier.fillMaxSizeSafeDrawing(): Modifier = this.then(androidx.compose.foundation.layout.fillMaxSize())

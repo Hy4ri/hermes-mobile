@@ -1,8 +1,12 @@
 package com.m57.hermescontrol.ui.chat
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.local.toEntity
+import com.m57.hermescontrol.data.local.toUiModel
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -42,12 +46,13 @@ data class ClarifyUi(
     val options: List<String>,
 )
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private val wsClient = HermesWsClient
     private val pendingRequests = mutableMapOf<String, String>() // requestId -> method
+    private val dao = HermesDatabase.get(application).chatMessageDao()
 
     init {
         connectWebSocket()
@@ -75,15 +80,12 @@ class ChatViewModel : ViewModel() {
                 _uiState.update { it.copy(isConnected = true, isLoading = false) }
                 addSystemMessage("Connected to Hermes")
                 loadSessions()
-                // Create a new session if none exists
                 if (_uiState.value.currentSessionId == null) {
                     createNewSession()
                 }
             }
 
-            is WsEvent.SessionInfo -> {
-                // We may receive session info after creation
-            }
+            is WsEvent.SessionInfo -> {}
 
             is WsEvent.MessageStart -> {
                 _uiState.update {
@@ -99,7 +101,6 @@ class ChatViewModel : ViewModel() {
             is WsEvent.MessageToken -> {
                 _uiState.update { state ->
                     val newText = state.currentStreamingText + event.token
-                    // Update or create the streaming message
                     val messages = state.messages.toMutableList()
                     val streamingIdx =
                         messages.indexOfLast {
@@ -115,6 +116,14 @@ class ChatViewModel : ViewModel() {
                                 isStreaming = true,
                             ),
                         )
+                    }
+                    // Persist streaming message to DB
+                    val sessionId = state.currentSessionId
+                    if (sessionId != null) {
+                        val msg = messages.last()
+                        viewModelScope.launch(Dispatchers.IO) {
+                            dao.upsert(msg.toEntity(sessionId))
+                        }
                     }
                     state.copy(
                         messages = messages,
@@ -140,19 +149,28 @@ class ChatViewModel : ViewModel() {
                         messages.indexOfLast {
                             it.role == MessageRole.ASSISTANT && it.isStreaming
                         }
+                    val finalMessage: ChatMessage
                     if (streamingIdx >= 0) {
-                        messages[streamingIdx] =
+                        finalMessage =
                             messages[streamingIdx].copy(
                                 content = event.text,
                                 isStreaming = false,
                             )
+                        messages[streamingIdx] = finalMessage
                     } else {
-                        messages.add(
+                        finalMessage =
                             ChatMessage(
                                 role = MessageRole.ASSISTANT,
                                 content = event.text,
-                            ),
-                        )
+                            )
+                        messages.add(finalMessage)
+                    }
+                    // Persist finalized message
+                    val sessionId = state.currentSessionId
+                    if (sessionId != null) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            dao.finalizeMessage(finalMessage.id, event.text)
+                        }
                     }
                     state.copy(
                         messages = messages,
@@ -179,6 +197,12 @@ class ChatViewModel : ViewModel() {
                         toolStatus = ToolStatus.RUNNING,
                     )
                 _uiState.update { state ->
+                    val sessionId = state.currentSessionId
+                    if (sessionId != null) {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            dao.upsert(toolMessage.toEntity(sessionId))
+                        }
+                    }
                     state.copy(messages = state.messages + toolMessage)
                 }
             }
@@ -198,6 +222,13 @@ class ChatViewModel : ViewModel() {
                                 toolStatus = ToolStatus.COMPLETED,
                                 content = event.data.toString(),
                             )
+                        // Persist tool completion
+                        val sessionId = state.currentSessionId
+                        if (sessionId != null) {
+                            viewModelScope.launch(Dispatchers.IO) {
+                                dao.upsert(messages[toolIdx].toEntity(sessionId))
+                            }
+                        }
                     }
                     state.copy(messages = messages)
                 }
@@ -215,12 +246,9 @@ class ChatViewModel : ViewModel() {
                 }
             }
 
-            is WsEvent.StatusUpdate -> {
-                // Can be used for general status
-            }
+            is WsEvent.StatusUpdate -> {}
 
             is WsEvent.SessionUpdated -> {
-                // Refresh sessions list
                 loadSessions()
             }
 
@@ -232,9 +260,7 @@ class ChatViewModel : ViewModel() {
                 handleRpcError(event.id, event.error)
             }
 
-            is WsEvent.Unknown -> {
-                // Handle or ignore unknown/unhandled events
-            }
+            is WsEvent.Unknown -> {}
         }
     }
 
@@ -253,10 +279,10 @@ class ChatViewModel : ViewModel() {
                     it.copy(
                         currentSessionId = sessionId,
                         isLoading = false,
-                        messages = it.messages,
+                        messages = emptyList(),
                     )
                 }
-                addSystemMessage("Session created")
+                addSystemMessage("Session created", persist = true)
                 loadSessions()
             }
 
@@ -276,6 +302,11 @@ class ChatViewModel : ViewModel() {
 
             WsMethods.SESSION_RESUME -> {
                 _uiState.update { it.copy(isLoading = false) }
+                // Load cached messages from Room before the REST call
+                val sessionId = _uiState.value.currentSessionId
+                if (sessionId != null) {
+                    loadCachedMessages(sessionId)
+                }
                 addSystemMessage("Session resumed")
             }
 
@@ -316,15 +347,18 @@ class ChatViewModel : ViewModel() {
             return
         }
 
-        // Add user message to UI
         val userMessage =
             ChatMessage(
                 role = MessageRole.USER,
                 content = text,
             )
         _uiState.update { state ->
+            val messages = state.messages + userMessage
+            viewModelScope.launch(Dispatchers.IO) {
+                dao.upsert(userMessage.toEntity(sessionId))
+            }
             state.copy(
-                messages = state.messages + userMessage,
+                messages = messages,
                 isAgentTyping = true,
             )
         }
@@ -337,7 +371,13 @@ class ChatViewModel : ViewModel() {
 
     private fun handleSlashCommand(command: String) {
         val userMsg = ChatMessage(role = MessageRole.USER, content = command)
+        val sessionId = _uiState.value.currentSessionId
         _uiState.update { it.copy(messages = it.messages + userMsg) }
+        if (sessionId != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                dao.upsert(userMsg.toEntity(sessionId))
+            }
+        }
 
         val parts = command.split(" ")
         val cmd = parts[0].lowercase()
@@ -383,7 +423,7 @@ class ChatViewModel : ViewModel() {
                                 • **Gateway Running:** ${body.gateway_running ?: false}
                                 • **Active Sessions:** ${body.active_sessions ?: 0}
                                 • **Auth Required:** ${body.auth_required ?: false}
-                                
+
                                 **Platforms:**
                                 $platformsStr
                                 """.trimIndent()
@@ -451,7 +491,13 @@ class ChatViewModel : ViewModel() {
 
     private fun addAssistantMessage(text: String) {
         val msg = ChatMessage(role = MessageRole.ASSISTANT, content = text)
+        val sessionId = _uiState.value.currentSessionId
         _uiState.update { it.copy(messages = it.messages + msg) }
+        if (sessionId != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                dao.upsert(msg.toEntity(sessionId))
+            }
+        }
     }
 
     fun interruptSession() {
@@ -491,6 +537,9 @@ class ChatViewModel : ViewModel() {
                 showSessionPicker = false,
             )
         }
+        // Load cached messages first — instant display
+        loadCachedMessages(sessionId)
+        // Then resume session on server
         viewModelScope.launch(Dispatchers.IO) {
             val requestId =
                 wsClient.send(
@@ -500,6 +549,21 @@ class ChatViewModel : ViewModel() {
             pendingRequests[requestId] = WsMethods.SESSION_RESUME
         }
         loadSessionMessages(sessionId)
+    }
+
+    private fun loadCachedMessages(sessionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = dao.getMessagesForSession(sessionId)
+            val cachedMessages = cached.map { it.toUiModel() }
+            _uiState.update { state ->
+                // Only replace if still showing this session and messages are empty/newer
+                if (state.currentSessionId == sessionId) {
+                    state.copy(messages = cachedMessages, isLoading = false)
+                } else {
+                    state
+                }
+            }
+        }
     }
 
     private fun loadSessionMessages(sessionId: String) {
@@ -526,15 +590,11 @@ class ChatViewModel : ViewModel() {
                                 isStreaming = false,
                             )
                         }
-                    // B3 (Jun 18 2026, kanban t_33da8a97): switchSession fires
-                    // SESSION_RESUME (WS) and loadSessionMessages (REST) in
-                    // parallel. While this REST call is in flight, WsEvent
-                    // .MessageToken events append streaming messages to
-                    // `state.messages` (ChatViewModel.kt:99-125). Without
-                    // preservation, the unconditional `messages = chatMessages`
-                    // below stomps the just-streamed tokens. Preserve the
-                    // in-flight tail by appending any messages marked
-                    // isStreaming=true to the freshly-loaded history.
+                    // Persist loaded messages to Room for offline access
+                    val entities = chatMessages.map { it.toEntity(sessionId) }
+                    viewModelScope.launch(Dispatchers.IO) {
+                        dao.upsertAll(entities)
+                    }
                     _uiState.update { state ->
                         val streamingTail = state.messages.filter { it.isStreaming }
                         state.copy(
@@ -595,9 +655,20 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    private fun addSystemMessage(text: String) {
+    private fun addSystemMessage(
+        text: String,
+        persist: Boolean = false,
+    ) {
         val msg = ChatMessage(role = MessageRole.SYSTEM, content = text)
         _uiState.update { it.copy(messages = it.messages + msg) }
+        if (persist) {
+            val sessionId = _uiState.value.currentSessionId
+            if (sessionId != null) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    dao.upsert(msg.toEntity(sessionId))
+                }
+            }
+        }
     }
 
     override fun onCleared() {

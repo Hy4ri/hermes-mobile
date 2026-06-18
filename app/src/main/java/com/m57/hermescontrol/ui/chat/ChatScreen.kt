@@ -66,6 +66,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,11 +78,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusGreen
 import com.m57.hermescontrol.theme.StatusRed
 
@@ -91,13 +94,41 @@ fun ChatScreen(
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
-    viewModel: ChatViewModel = viewModel { ChatViewModel() },
+    viewModel: ChatViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var inputText by rememberSaveable { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    // Manage notification foreground service lifecycle:
+    // - When app goes to background (ON_STOP), mark as not-foreground and
+    //   start the notification service so we can post reply notifications.
+    // - When app returns to foreground (ON_START), mark as foreground and
+    //   stop the notification service.
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            androidx.lifecycle.LifecycleEventObserver { _, event ->
+                when (event) {
+                    androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                        NotificationHelper.setAppForeground(context, true)
+                        NotificationHelper.stop(context)
+                    }
+                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                        NotificationHelper.setAppForeground(context, false)
+                        NotificationHelper.start(context)
+                    }
+                    else -> {}
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // Auto-scroll to bottom on new messages
     LaunchedEffect(state.messages.size, state.currentStreamingText) {

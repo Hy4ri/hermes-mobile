@@ -13,6 +13,7 @@ junit = "4.13.2"
 junit5 = "5.11.4"
 junitPlatform = "1.11.4"
 kotlin = "2.3.20"
+ksp = "2.3.20-1.0.31"
 nav3Core = "1.0.1"
 lifecycleViewmodelNav3 = "2.10.0"
 okhttp = "4.12.0"
@@ -20,6 +21,8 @@ retrofit = "2.11.0"
 gson = "2.11.0"
 securityCrypto = "1.1.0-alpha06"
 mockk = "1.13.12"
+room = "2.7.1"
+workManager = "2.10.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
@@ -61,7 +64,17 @@ gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 # Security
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 
+# Database (Room)
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+
+# Background notifications (WorkManager)
+androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "workManager" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+room = { id = "androidx.room", version.ref = "room" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

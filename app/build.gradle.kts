@@ -4,6 +4,8 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.room)
+  alias(libs.plugins.ksp)
 }
 
 android {
@@ -81,6 +83,14 @@ dependencies {
   // Encrypted storage
   implementation(libs.androidx.security.crypto)
   implementation("androidx.startup:startup-runtime:1.1.1")
+
+  // Local database (Room) — message persistence
+  implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.room.ktx)
+  ksp(libs.androidx.room.compiler)
+
+  // Background notifications (WorkManager)
+  implementation(libs.androidx.work.runtime)
 
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)

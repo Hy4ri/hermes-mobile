@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -80,173 +81,176 @@ fun ModelScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading && state.providers.isEmpty()) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null && state.providers.isEmpty()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        IconButton(onClick = { viewModel.loadModelOptions() }) {
-                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Retry")
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading && state.providers.isEmpty()) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null && state.providers.isEmpty()) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            IconButton(onClick = { viewModel.loadModelOptions() }) {
+                                Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Retry")
+                            }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(state.providers) { provider ->
-                            val isExpanded = expandedProviderSlug == provider.slug
-                            val isCurrent = provider.is_current == true
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(state.providers) { provider ->
+                                val isExpanded = expandedProviderSlug == provider.slug
+                                val isCurrent = provider.is_current == true
 
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = {
-                                    expandedProviderSlug = if (isExpanded) null else provider.slug
-                                },
-                                colors =
-                                    CardDefaults.cardColors(
-                                        containerColor =
-                                            if (isCurrent) {
-                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceVariant
-                                            },
-                                    ),
-                            ) {
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        expandedProviderSlug = if (isExpanded) null else provider.slug
+                                    },
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                                if (isCurrent) {
+                                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                },
+                                        ),
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    Column(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
                                     ) {
-                                        Column {
-                                            Text(
-                                                text = provider.name,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                            )
-                                            Text(
-                                                text = "Slug: ${provider.slug}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-
-                                        if (isCurrent) {
-                                            Text(
-                                                text = "CURRENT",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold,
-                                            )
-                                        }
-                                    }
-
-                                    provider.warning?.let {
-                                        if (it.isNotBlank()) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text(
-                                                text = it,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.error,
-                                            )
-                                        }
-                                    }
-
-                                    AnimatedVisibility(visible = isExpanded) {
-                                        Column(modifier = Modifier.padding(top = 16.dp)) {
-                                            Text(
-                                                text = "Available Models:",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(bottom = 8.dp),
-                                            )
-
-                                            val models = provider.models.orEmpty()
-                                            if (models.isEmpty()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column {
                                                 Text(
-                                                    text = "No models reported or provider needs authentication.",
-                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    text = provider.name,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                                Text(
+                                                    text = "Slug: ${provider.slug}",
+                                                    style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
-                                            } else {
-                                                models.forEach { model ->
-                                                    val isActive =
-                                                        state.activeProfile?.provider == provider.slug &&
-                                                            state.activeProfile?.model == model
-                                                    Card(
-                                                        onClick = {
-                                                            viewModel.selectModel(provider.slug, model)
-                                                        },
-                                                        modifier =
-                                                            Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(vertical = 4.dp),
-                                                        colors =
-                                                            CardDefaults.cardColors(
-                                                                containerColor =
-                                                                    if (isActive) {
-                                                                        MaterialTheme.colorScheme.primaryContainer.copy(
-                                                                            alpha = 0.3f,
-                                                                        )
-                                                                    } else {
-                                                                        MaterialTheme.colorScheme.surface
-                                                                    },
-                                                            ),
-                                                        border =
-                                                            BorderStroke(
-                                                                width = 1.dp,
-                                                                color =
-                                                                    if (isActive) {
-                                                                        MaterialTheme.colorScheme.primary
-                                                                    } else {
-                                                                        MaterialTheme.colorScheme.outline.copy(
-                                                                            alpha = 0.2f,
-                                                                        )
-                                                                    },
-                                                            ),
-                                                    ) {
-                                                        Row(
+                                            }
+
+                                            if (isCurrent) {
+                                                Text(
+                                                    text = "CURRENT",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                            }
+                                        }
+
+                                        provider.warning?.let {
+                                            if (it.isNotBlank()) {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    text = it,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.error,
+                                                )
+                                            }
+                                        }
+
+                                        AnimatedVisibility(visible = isExpanded) {
+                                            Column(modifier = Modifier.padding(top = 16.dp)) {
+                                                Text(
+                                                    text = "Available Models:",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.padding(bottom = 8.dp),
+                                                )
+
+                                                val models = provider.models.orEmpty()
+                                                if (models.isEmpty()) {
+                                                    Text(
+                                                        text = "No models reported or provider needs authentication.",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                } else {
+                                                    models.forEach { model ->
+                                                        val isActive =
+                                                            state.activeProfile?.provider == provider.slug &&
+                                                                state.activeProfile?.model == model
+                                                        Card(
+                                                            onClick = {
+                                                                viewModel.selectModel(provider.slug, model)
+                                                            },
                                                             modifier =
                                                                 Modifier
                                                                     .fillMaxWidth()
-                                                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically,
+                                                                    .padding(vertical = 4.dp),
+                                                            colors =
+                                                                CardDefaults.cardColors(
+                                                                    containerColor =
+                                                                        if (isActive) {
+                                                                            MaterialTheme.colorScheme
+                                                                                .primaryContainer.copy(
+                                                                                    alpha = 0.3f,
+                                                                                )
+                                                                        } else {
+                                                                            MaterialTheme.colorScheme.surface
+                                                                        },
+                                                                ),
+                                                            border =
+                                                                BorderStroke(
+                                                                    width = 1.dp,
+                                                                    color =
+                                                                        if (isActive) {
+                                                                            MaterialTheme.colorScheme.primary
+                                                                        } else {
+                                                                            MaterialTheme.colorScheme.outline.copy(
+                                                                                alpha = 0.2f,
+                                                                            )
+                                                                        },
+                                                                ),
                                                         ) {
-                                                            Text(
-                                                                text = model,
-                                                                style = MaterialTheme.typography.bodyMedium,
-                                                                fontWeight =
-                                                                    if (isActive) {
-                                                                        FontWeight.Bold
-                                                                    } else {
-                                                                        FontWeight.Normal
-                                                                    },
-                                                                color =
-                                                                    if (isActive) {
-                                                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                                                    } else {
-                                                                        MaterialTheme.colorScheme.onSurface
-                                                                    },
-                                                            )
-                                                            if (isActive) {
-                                                                Icon(
-                                                                    imageVector = Icons.Filled.Check,
-                                                                    contentDescription = "Active Model",
-                                                                    tint = MaterialTheme.colorScheme.primary,
+                                                            Row(
+                                                                modifier =
+                                                                    Modifier
+                                                                        .fillMaxWidth()
+                                                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                            ) {
+                                                                Text(
+                                                                    text = model,
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    fontWeight =
+                                                                        if (isActive) {
+                                                                            FontWeight.Bold
+                                                                        } else {
+                                                                            FontWeight.Normal
+                                                                        },
+                                                                    color =
+                                                                        if (isActive) {
+                                                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                                                        } else {
+                                                                            MaterialTheme.colorScheme.onSurface
+                                                                        },
                                                                 )
+                                                                if (isActive) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Filled.Check,
+                                                                        contentDescription = "Active Model",
+                                                                        tint = MaterialTheme.colorScheme.primary,
+                                                                    )
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -259,7 +263,6 @@ fun ModelScreen(
                         }
                     }
                 }
-            }
         }
     }
 }

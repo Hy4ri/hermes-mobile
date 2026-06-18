@@ -72,75 +72,76 @@ fun ConfigScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading && state.yamlText == null) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null && state.yamlText == null) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.loadRawConfig() }) {
-                            Text("Retry")
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading && state.yamlText == null) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null && state.yamlText == null) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { viewModel.loadRawConfig() }) {
+                                Text("Retry")
+                            }
                         }
-                    }
-                } else {
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                    ) {
-                        state.path?.let {
-                            Text(
-                                text = "Path: $it",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 8.dp),
-                            )
-                        }
-
-                        OutlinedTextField(
-                            value = editingText,
-                            onValueChange = { editingText = it },
+                    } else {
+                        Column(
                             modifier =
                                 Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                            placeholder = { Text("YAML Config...") },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                            maxLines = Int.MAX_VALUE,
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { editingText = state.yamlText ?: "" },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text("Reset")
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                        ) {
+                            state.path?.let {
+                                Text(
+                                    text = "Path: $it",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
                             }
 
-                            Spacer(modifier = Modifier.width(16.dp))
+                            OutlinedTextField(
+                                value = editingText,
+                                onValueChange = { editingText = it },
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                placeholder = { Text("YAML Config...") },
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                                maxLines = Int.MAX_VALUE,
+                            )
 
-                            Button(
-                                onClick = { viewModel.saveRawConfig(editingText) },
-                                modifier = Modifier.weight(1f),
-                                enabled = !state.isSaving,
-                            ) {
-                                if (state.isSaving) {
-                                    CircularProgressIndicator(modifier = Modifier.width(16.dp))
-                                } else {
-                                    Text("Save Config")
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(
+                                    onClick = { editingText = state.yamlText ?: "" },
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Text("Reset")
+                                }
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Button(
+                                    onClick = { viewModel.saveRawConfig(editingText) },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !state.isSaving,
+                                ) {
+                                    if (state.isSaving) {
+                                        CircularProgressIndicator(modifier = Modifier.width(16.dp))
+                                    } else {
+                                        Text("Save Config")
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
         }
     }
 }

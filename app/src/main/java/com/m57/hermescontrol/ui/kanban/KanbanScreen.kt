@@ -86,86 +86,90 @@ fun KanbanScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null) {
-                    Text(
-                        text = state.errorMessage ?: "",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                } else {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        // Board selector tab row
-                        if (state.boards.isNotEmpty()) {
-                            ScrollableTabRow(
-                                selectedTabIndex = state.boards.indexOf(state.selectedBoard).coerceAtLeast(0),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                state.boards.forEach { board ->
-                                    Tab(
-                                        selected = board == state.selectedBoard,
-                                        onClick = { viewModel.selectBoard(board) },
-                                        text = { Text(board.name) },
-                                    )
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null) {
+                        Text(
+                            text = state.errorMessage ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Board selector tab row
+                            if (state.boards.isNotEmpty()) {
+                                ScrollableTabRow(
+                                    selectedTabIndex = state.boards.indexOf(state.selectedBoard).coerceAtLeast(0),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    state.boards.forEach { board ->
+                                        Tab(
+                                            selected = board == state.selectedBoard,
+                                            onClick = { viewModel.selectBoard(board) },
+                                            text = { Text(board.name) },
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        if (state.selectedBoard == null) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("No boards found.")
-                            }
-                        } else if (state.columns.isEmpty()) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("No columns found for this board.")
-                            }
-                        } else {
-                            LazyRow(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            ) {
-                                items(state.columns) { column ->
-                                    val colName = column.name
-                                    val colTasks =
-                                        state.tasks.filter {
-                                            it.status.equals(colName, ignoreCase = true)
-                                        }
-                                    val columnIndex = state.columns.indexOf(column)
-                                    val prevColumn = state.columns.getOrNull(columnIndex - 1)
-                                    val nextColumn = state.columns.getOrNull(columnIndex + 1)
+                            if (state.selectedBoard == null) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text("No boards found.")
+                                }
+                            } else if (state.columns.isEmpty()) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text("No columns found for this board.")
+                                }
+                            } else {
+                                LazyRow(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                ) {
+                                    items(state.columns) { column ->
+                                        val colName = column.name
+                                        val colTasks =
+                                            state.tasks.filter {
+                                                it.status.equals(colName, ignoreCase = true)
+                                            }
+                                        val columnIndex = state.columns.indexOf(column)
+                                        val prevColumn = state.columns.getOrNull(columnIndex - 1)
+                                        val nextColumn = state.columns.getOrNull(columnIndex + 1)
 
-                                    Column(
-                                        modifier =
-                                            Modifier
-                                                .width(280.dp)
-                                                .fillMaxSize(),
-                                    ) {
-                                        Text(
-                                            text = "${colName.replaceFirstChar { it.uppercase() }} (${colTasks.size})",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(bottom = 8.dp),
-                                        )
-
-                                        LazyColumn(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        Column(
+                                            modifier =
+                                                Modifier
+                                                    .width(280.dp)
+                                                    .fillMaxSize(),
                                         ) {
-                                            items(colTasks) { task ->
-                                                TaskCard(
-                                                    task = task,
-                                                    onMoveLeft =
-                                                        prevColumn?.let {
-                                                            { viewModel.moveTask(task, it.name) }
-                                                        },
-                                                    onMoveRight =
-                                                        nextColumn?.let {
-                                                            { viewModel.moveTask(task, it.name) }
-                                                        },
-                                                )
+                                            Text(
+                                                text = "${colName.replaceFirstChar { it.uppercase() }} (${
+                                                    colTasks.size
+                                                })",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(bottom = 8.dp),
+                                            )
+
+                                            LazyColumn(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                items(colTasks) { task ->
+                                                    TaskCard(
+                                                        task = task,
+                                                        onMoveLeft =
+                                                            prevColumn?.let {
+                                                                { viewModel.moveTask(task, it.name) }
+                                                            },
+                                                        onMoveRight =
+                                                            nextColumn?.let {
+                                                                { viewModel.moveTask(task, it.name) }
+                                                            },
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -173,18 +177,17 @@ fun KanbanScreen(
                             }
                         }
                     }
-                }
 
-                if (showAddTaskDialog) {
-                    AddTaskDialog(
-                        onDismiss = { showAddTaskDialog = false },
-                        onConfirm = { title, desc ->
-                            viewModel.createTask(title, desc, state.columns.firstOrNull()?.name ?: "todo")
-                            showAddTaskDialog = false
-                        },
-                    )
+                    if (showAddTaskDialog) {
+                        AddTaskDialog(
+                            onDismiss = { showAddTaskDialog = false },
+                            onConfirm = { title, desc ->
+                                viewModel.createTask(title, desc, state.columns.firstOrNull()?.name ?: "todo")
+                                showAddTaskDialog = false
+                            },
+                        )
+                    }
                 }
-            }
         }
     }
 }

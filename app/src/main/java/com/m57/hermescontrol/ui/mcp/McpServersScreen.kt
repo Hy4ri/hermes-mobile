@@ -74,103 +74,105 @@ fun McpServersScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading && state.servers.isEmpty()) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null && state.servers.isEmpty()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.loadServers() }) {
-                            Text("Retry")
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading && state.servers.isEmpty()) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null && state.servers.isEmpty()) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { viewModel.loadServers() }) {
+                                Text("Retry")
+                            }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(state.servers) { server ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                    CardDefaults.cardColors(
-                                        containerColor =
-                                            if (server.enabled) {
-                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceVariant
-                                            },
-                                    ),
-                            ) {
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(state.servers) { server ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                                if (server.enabled) {
+                                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                },
+                                        ),
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    Column(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = server.name.replaceFirstChar { it.uppercase() },
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                                Text(
+                                                    text = "Transport: ${server.transport ?: "stdio"}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+
+                                            Switch(
+                                                checked = server.enabled,
+                                                onCheckedChange = { viewModel.toggleServer(server) },
+                                            )
+                                        }
+
+                                        if (server.command != null) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            val fullCmd = "${server.command} ${server.args.orEmpty().joinToString(" ")}"
                                             Text(
-                                                text = server.name.replaceFirstChar { it.uppercase() },
-                                                style = MaterialTheme.typography.titleMedium,
+                                                text = "Command:",
+                                                style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
                                             )
                                             Text(
-                                                text = "Transport: ${server.transport ?: "stdio"}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                text = fullCmd,
+                                                style =
+                                                    MaterialTheme.typography.bodyMedium.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                    ),
                                             )
                                         }
 
-                                        Switch(
-                                            checked = server.enabled,
-                                            onCheckedChange = { viewModel.toggleServer(server) },
-                                        )
-                                    }
+                                        Spacer(modifier = Modifier.height(16.dp))
 
-                                    if (server.command != null) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        val fullCmd = "${server.command} ${server.args.orEmpty().joinToString(" ")}"
-                                        Text(
-                                            text = "Command:",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        Text(
-                                            text = fullCmd,
-                                            style =
-                                                MaterialTheme.typography.bodyMedium.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                ),
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End,
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = { viewModel.testServer(server.name) },
-                                            modifier = Modifier.padding(end = 8.dp),
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End,
                                         ) {
-                                            Text("Test")
-                                        }
+                                            OutlinedButton(
+                                                onClick = { viewModel.testServer(server.name) },
+                                                modifier = Modifier.padding(end = 8.dp),
+                                            ) {
+                                                Text("Test")
+                                            }
 
-                                        OutlinedButton(
-                                            onClick = { viewModel.deleteServer(server.name) },
-                                        ) {
-                                            Text("Delete")
+                                            OutlinedButton(
+                                                onClick = { viewModel.deleteServer(server.name) },
+                                            ) {
+                                                Text("Delete")
+                                            }
                                         }
                                     }
                                 }
@@ -178,7 +180,6 @@ fun McpServersScreen(
                         }
                     }
                 }
-            }
         }
     }
 }

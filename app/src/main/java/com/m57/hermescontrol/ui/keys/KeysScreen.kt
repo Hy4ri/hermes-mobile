@@ -81,118 +81,120 @@ fun KeysScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null) {
-                    Text(
-                        text = state.errorMessage ?: "",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(state.envVars.toList()) { (key, config) ->
-                            var isEditing by remember { mutableStateOf(false) }
-                            val revealedVal = state.revealedValues[key]
-                            val isRevealed = revealedVal != null
-                            var editedValue by remember { mutableStateOf(revealedVal ?: "") }
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null) {
+                        Text(
+                            text = state.errorMessage ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(state.envVars.toList()) { (key, config) ->
+                                var isEditing by remember { mutableStateOf(false) }
+                                val revealedVal = state.revealedValues[key]
+                                val isRevealed = revealedVal != null
+                                var editedValue by remember { mutableStateOf(revealedVal ?: "") }
 
-                            val displayValue =
-                                if (isRevealed) {
-                                    revealedVal.orEmpty()
-                                } else if (config.isSet) {
-                                    config.redactedValue ?: "********"
-                                } else {
-                                    "Not configured"
-                                }
-
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = key,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontFamily = FontFamily.Monospace,
-                                    )
-                                    if (!config.description.isNullOrBlank()) {
-                                        Text(
-                                            text = config.description,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                            modifier = Modifier.padding(vertical = 4.dp),
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    if (isEditing) {
-                                        OutlinedTextField(
-                                            value = editedValue,
-                                            onValueChange = { editedValue = it },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true,
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.End,
-                                        ) {
-                                            Button(onClick = {
-                                                viewModel.updateKey(key, editedValue)
-                                                isEditing = false
-                                            }) {
-                                                Text("Save")
-                                            }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Button(onClick = {
-                                                isEditing = false
-                                            }) {
-                                                Text("Cancel")
-                                            }
-                                        }
+                                val displayValue =
+                                    if (isRevealed) {
+                                        revealedVal.orEmpty()
+                                    } else if (config.isSet) {
+                                        config.redactedValue ?: "********"
                                     } else {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
+                                        "Not configured"
+                                    }
+
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = key,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                        if (!config.description.isNullOrBlank()) {
                                             Text(
-                                                text = displayValue,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontFamily = FontFamily.Monospace,
-                                                modifier = Modifier.weight(1f),
+                                                text = config.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                modifier = Modifier.padding(vertical = 4.dp),
                                             )
-                                            Row {
-                                                if (config.isSet) {
-                                                    IconButton(onClick = {
-                                                        if (isRevealed) {
-                                                            viewModel.hideKey(key)
-                                                        } else {
-                                                            viewModel.revealKey(key)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        if (isEditing) {
+                                            OutlinedTextField(
+                                                value = editedValue,
+                                                onValueChange = { editedValue = it },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End,
+                                            ) {
+                                                Button(onClick = {
+                                                    viewModel.updateKey(key, editedValue)
+                                                    isEditing = false
+                                                }) {
+                                                    Text("Save")
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Button(onClick = {
+                                                    isEditing = false
+                                                }) {
+                                                    Text("Cancel")
+                                                }
+                                            }
+                                        } else {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    text = displayValue,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                                Row {
+                                                    if (config.isSet) {
+                                                        IconButton(onClick = {
+                                                            if (isRevealed) {
+                                                                viewModel.hideKey(key)
+                                                            } else {
+                                                                viewModel.revealKey(key)
+                                                            }
+                                                        }) {
+                                                            Icon(
+                                                                imageVector =
+                                                                    if (isRevealed) {
+                                                                        Icons.Filled.VisibilityOff
+                                                                    } else {
+                                                                        Icons.Filled.Visibility
+                                                                    },
+                                                                contentDescription = "Toggle Visibility",
+                                                            )
                                                         }
+                                                    }
+                                                    IconButton(onClick = {
+                                                        editedValue = if (isRevealed) revealedVal.orEmpty() else ""
+                                                        isEditing = true
                                                     }) {
                                                         Icon(
-                                                            imageVector =
-                                                                if (isRevealed) {
-                                                                    Icons.Filled.VisibilityOff
-                                                                } else {
-                                                                    Icons.Filled.Visibility
-                                                                },
-                                                            contentDescription = "Toggle Visibility",
+                                                            imageVector = Icons.Filled.Edit,
+                                                            contentDescription = "Edit",
                                                         )
                                                     }
-                                                }
-                                                IconButton(onClick = {
-                                                    editedValue = if (isRevealed) revealedVal.orEmpty() else ""
-                                                    isEditing = true
-                                                }) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Edit,
-                                                        contentDescription = "Edit",
-                                                    )
                                                 }
                                             }
                                         }
@@ -202,7 +204,6 @@ fun KeysScreen(
                         }
                     }
                 }
-            }
         }
     }
 }

@@ -85,133 +85,135 @@ fun ProfilesScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading && state.profiles.isEmpty()) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null && state.profiles.isEmpty()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.loadProfiles() }) {
-                            Text("Retry")
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading && state.profiles.isEmpty()) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null && state.profiles.isEmpty()) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { viewModel.loadProfiles() }) {
+                                Text("Retry")
+                            }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(state.profiles) { profile ->
-                            val isActive = profile.name == state.activeProfileName
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                    CardDefaults.cardColors(
-                                        containerColor =
-                                            if (isActive) {
-                                                MaterialTheme.colorScheme.primaryContainer
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceVariant
-                                            },
-                                    ),
-                                onClick = {
-                                    if (!isActive) {
-                                        viewModel.selectActiveProfile(profile.name)
-                                    }
-                                },
-                            ) {
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(state.profiles) { profile ->
+                                val isActive = profile.name == state.activeProfileName
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                                if (isActive) {
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                },
+                                        ),
+                                    onClick = {
+                                        if (!isActive) {
+                                            viewModel.selectActiveProfile(profile.name)
+                                        }
+                                    },
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    Column(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = profile.name.replaceFirstChar { it.uppercase() },
-                                                style = MaterialTheme.typography.titleLarge,
-                                                fontWeight = FontWeight.Bold,
-                                            )
-                                            profile.description?.let {
-                                                if (it.isNotBlank()) {
-                                                    Spacer(modifier = Modifier.height(4.dp))
-                                                    Text(
-                                                        text = it,
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = profile.name.replaceFirstChar { it.uppercase() },
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                                profile.description?.let {
+                                                    if (it.isNotBlank()) {
+                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                        Text(
+                                                            text = it,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        )
+                                                    }
                                                 }
                                             }
+                                            if (isActive) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Check,
+                                                    contentDescription = "Active Profile",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.padding(start = 8.dp),
+                                                )
+                                            }
                                         }
-                                        if (isActive) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Check,
-                                                contentDescription = "Active Profile",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(start = 8.dp),
-                                            )
-                                        }
-                                    }
 
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                        Spacer(modifier = Modifier.height(12.dp))
 
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = "Model: ${profile.model ?: "None"}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                            )
-                                            Text(
-                                                text = "Provider: ${profile.provider ?: "None"}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End,
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                soulEditProfileName = profile.name
-                                                viewModel.loadSoul(profile.name)
-                                            },
-                                            modifier = Modifier.padding(end = 8.dp),
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Edit,
-                                                contentDescription = null,
-                                                modifier = Modifier.width(16.dp),
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Edit Soul")
+                                            Column {
+                                                Text(
+                                                    text = "Model: ${profile.model ?: "None"}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                )
+                                                Text(
+                                                    text = "Provider: ${profile.provider ?: "None"}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
                                         }
 
-                                        Button(
-                                            onClick = {
-                                                modelEditProfileName = profile.name
-                                                tempModelProvider = profile.provider ?: ""
-                                                tempModelName = profile.model ?: ""
-                                            },
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End,
                                         ) {
-                                            Text("Set Model")
+                                            OutlinedButton(
+                                                onClick = {
+                                                    soulEditProfileName = profile.name
+                                                    viewModel.loadSoul(profile.name)
+                                                },
+                                                modifier = Modifier.padding(end = 8.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Edit,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.width(16.dp),
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Edit Soul")
+                                            }
+
+                                            Button(
+                                                onClick = {
+                                                    modelEditProfileName = profile.name
+                                                    tempModelProvider = profile.provider ?: ""
+                                                    tempModelName = profile.model ?: ""
+                                                },
+                                            ) {
+                                                Text("Set Model")
+                                            }
                                         }
                                     }
                                 }
@@ -219,7 +221,6 @@ fun ProfilesScreen(
                         }
                     }
                 }
-            }
         }
     }
 }

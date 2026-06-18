@@ -72,73 +72,75 @@ fun PluginsScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null) {
-                    Text(
-                        text = state.errorMessage ?: "",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(state.plugins) { plugin ->
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(text = plugin.name, style = MaterialTheme.typography.titleMedium)
-                                            plugin.version?.let {
-                                                Text(
-                                                    text = "v$it",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null) {
+                        Text(
+                            text = state.errorMessage ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(state.plugins) { plugin ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(text = plugin.name, style = MaterialTheme.typography.titleMedium)
+                                                plugin.version?.let {
+                                                    Text(
+                                                        text = "v$it",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
+                                            }
+                                            if (plugin.installed) {
+                                                Switch(
+                                                    checked = plugin.enabled,
+                                                    onCheckedChange = { viewModel.togglePlugin(plugin) },
                                                 )
                                             }
                                         }
-                                        if (plugin.installed) {
-                                            Switch(
-                                                checked = plugin.enabled,
-                                                onCheckedChange = { viewModel.togglePlugin(plugin) },
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = plugin.description ?: "No description provided.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End,
-                                    ) {
-                                        if (plugin.installed) {
-                                            OutlinedButton(onClick = { viewModel.updatePlugin(plugin.name) }) {
-                                                Text("Update")
-                                            }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            OutlinedButton(
-                                                onClick = { viewModel.uninstallPlugin(plugin.name) },
-                                                colors =
-                                                    androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                                        contentColor = MaterialTheme.colorScheme.error,
-                                                    ),
-                                            ) {
-                                                Text("Uninstall")
-                                            }
-                                        } else {
-                                            Button(onClick = { viewModel.installPlugin(plugin.name) }) {
-                                                Text("Install")
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = plugin.description ?: "No description provided.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End,
+                                        ) {
+                                            if (plugin.installed) {
+                                                OutlinedButton(onClick = { viewModel.updatePlugin(plugin.name) }) {
+                                                    Text("Update")
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                OutlinedButton(
+                                                    onClick = { viewModel.uninstallPlugin(plugin.name) },
+                                                    colors =
+                                                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                                            contentColor = MaterialTheme.colorScheme.error,
+                                                        ),
+                                                ) {
+                                                    Text("Uninstall")
+                                                }
+                                            } else {
+                                                Button(onClick = { viewModel.installPlugin(plugin.name) }) {
+                                                    Text("Install")
+                                                }
                                             }
                                         }
                                     }
@@ -147,7 +149,6 @@ fun PluginsScreen(
                         }
                     }
                 }
-            }
         }
     }
 }

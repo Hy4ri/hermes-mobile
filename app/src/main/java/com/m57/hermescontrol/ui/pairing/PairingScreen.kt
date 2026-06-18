@@ -73,176 +73,178 @@ fun PairingScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading && state.pairing == null) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null && state.pairing == null) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.loadPairing() }) {
-                            Text("Retry")
-                        }
-                    }
-                } else {
-                    val pairing = state.pairing
-                    val pending = pairing?.pending.orEmpty()
-                    val approved = pairing?.approved.orEmpty()
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        if (pending.isNotEmpty()) {
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "Pending Approvals",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-
-                                    OutlinedButton(
-                                        onClick = { viewModel.clearPending() },
-                                        colors =
-                                            ButtonDefaults.outlinedButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.error,
-                                            ),
-                                    ) {
-                                        Text("Clear All")
-                                    }
-                                }
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading && state.pairing == null) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null && state.pairing == null) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { viewModel.loadPairing() }) {
+                                Text("Retry")
                             }
+                        }
+                    } else {
+                        val pairing = state.pairing
+                        val pending = pairing?.pending.orEmpty()
+                        val approved = pairing?.approved.orEmpty()
 
-                            items(pending) { item ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors =
-                                        CardDefaults.cardColors(
-                                            containerColor =
-                                                MaterialTheme.colorScheme.errorContainer.copy(
-                                                    alpha = 0.2f,
-                                                ),
-                                        ),
-                                ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            if (pending.isNotEmpty()) {
+                                item {
                                     Row(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
+                                        modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Platform: ${item.platform.uppercase()}",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                            item.code?.let {
-                                                Text(
-                                                    text = "Pairing Code: $it",
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    fontWeight = FontWeight.Bold,
-                                                )
-                                            }
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                viewModel.approvePairing(item.platform, item.code ?: "")
-                                            },
-                                            colors =
-                                                ButtonDefaults.buttonColors(
-                                                    containerColor = MaterialTheme.colorScheme.primary,
-                                                ),
-                                        ) {
-                                            Text("Approve")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        item {
-                            Text(
-                                text = "Approved Devices",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-
-                        if (approved.isEmpty()) {
-                            item {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .padding(24.dp),
-                                        contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
-                                            text = "No approved devices paired yet.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            text = "Pending Approvals",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
                                         )
-                                    }
-                                }
-                            }
-                        } else {
-                            items(approved) { item ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Row(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Platform: ${item.platform.uppercase()}",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                            Text(
-                                                text = "User ID: ${item.user_id ?: "Unknown"}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                            item.username?.let {
-                                                Text(
-                                                    text = "Username: @$it",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                )
-                                            }
-                                        }
 
                                         OutlinedButton(
-                                            onClick = {
-                                                viewModel.revokePairing(item.platform, item.user_id ?: "")
-                                            },
+                                            onClick = { viewModel.clearPending() },
                                             colors =
                                                 ButtonDefaults.outlinedButtonColors(
                                                     contentColor = MaterialTheme.colorScheme.error,
                                                 ),
                                         ) {
-                                            Text("Revoke")
+                                            Text("Clear All")
+                                        }
+                                    }
+                                }
+
+                                items(pending) { item ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors =
+                                            CardDefaults.cardColors(
+                                                containerColor =
+                                                    MaterialTheme.colorScheme.errorContainer.copy(
+                                                        alpha = 0.2f,
+                                                    ),
+                                            ),
+                                    ) {
+                                        Row(
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Platform: ${item.platform.uppercase()}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                                item.code?.let {
+                                                    Text(
+                                                        text = "Pairing Code: $it",
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold,
+                                                    )
+                                                }
+                                            }
+
+                                            Button(
+                                                onClick = {
+                                                    viewModel.approvePairing(item.platform, item.code ?: "")
+                                                },
+                                                colors =
+                                                    ButtonDefaults.buttonColors(
+                                                        containerColor = MaterialTheme.colorScheme.primary,
+                                                    ),
+                                            ) {
+                                                Text("Approve")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            item {
+                                Text(
+                                    text = "Approved Devices",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+
+                            if (approved.isEmpty()) {
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Box(
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(24.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = "No approved devices paired yet.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(approved) { item ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Row(
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Platform: ${item.platform.uppercase()}",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                                Text(
+                                                    text = "User ID: ${item.user_id ?: "Unknown"}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                                item.username?.let {
+                                                    Text(
+                                                        text = "Username: @$it",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                    )
+                                                }
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    viewModel.revokePairing(item.platform, item.user_id ?: "")
+                                                },
+                                                colors =
+                                                    ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = MaterialTheme.colorScheme.error,
+                                                    ),
+                                            ) {
+                                                Text("Revoke")
+                                            }
                                         }
                                     }
                                 }
@@ -250,7 +252,6 @@ fun PairingScreen(
                         }
                     }
                 }
-            }
         }
     }
 }

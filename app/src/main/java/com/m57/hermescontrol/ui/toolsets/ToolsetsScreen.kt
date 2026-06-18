@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,96 +77,99 @@ fun ToolsetsScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
-            else -> Box(Modifier.fillMaxSize()) {
-                if (state.isLoading && state.toolsets.isEmpty()) {
-                    CircularProgressIndicator()
-                } else if (state.errorMessage != null && state.toolsets.isEmpty()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        IconButton(onClick = { viewModel.loadToolsets() }) {
-                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Retry")
+            else ->
+                Box(Modifier.fillMaxSize()) {
+                    if (state.isLoading && state.toolsets.isEmpty()) {
+                        CircularProgressIndicator()
+                    } else if (state.errorMessage != null && state.toolsets.isEmpty()) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            IconButton(onClick = { viewModel.loadToolsets() }) {
+                                Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Retry")
+                            }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(state.toolsets) { toolset ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                    CardDefaults.cardColors(
-                                        containerColor =
-                                            if (toolset.enabled) {
-                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceVariant
-                                            },
-                                    ),
-                            ) {
-                                Row(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(state.toolsets) { toolset ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                                if (toolset.enabled) {
+                                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                },
+                                        ),
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = toolset.label ?: toolset.name.replaceFirstChar { it.uppercase() },
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                        toolset.description?.let {
-                                            Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = it,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                text =
+                                                    toolset.label
+                                                        ?: toolset.name.replaceFirstChar { it.uppercase() },
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
                                             )
-                                        }
+                                            toolset.description?.let {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = it,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
 
-                                        toolset.tools?.let { tools ->
-                                            if (tools.isNotEmpty()) {
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                FlowRow(
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                                ) {
-                                                    tools.forEach { tool ->
-                                                        SuggestionChip(
-                                                            onClick = {},
-                                                            label = {
-                                                                Text(
-                                                                    text = tool,
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                )
-                                                            },
-                                                        )
+                                            toolset.tools?.let { tools ->
+                                                if (tools.isNotEmpty()) {
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    FlowRow(
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                                    ) {
+                                                        tools.forEach { tool ->
+                                                            SuggestionChip(
+                                                                onClick = {},
+                                                                label = {
+                                                                    Text(
+                                                                        text = tool,
+                                                                        style = MaterialTheme.typography.labelSmall,
+                                                                    )
+                                                                },
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    Switch(
-                                        checked = toolset.enabled,
-                                        onCheckedChange = { viewModel.toggleToolset(toolset) },
-                                        modifier = Modifier.padding(start = 16.dp),
-                                    )
+                                        Switch(
+                                            checked = toolset.enabled,
+                                            onCheckedChange = { viewModel.toggleToolset(toolset) },
+                                            modifier = Modifier.padding(start = 16.dp),
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
         }
     }
 }

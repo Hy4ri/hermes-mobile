@@ -452,9 +452,9 @@ class E2eIntegrationTest {
         assertEquals(CronJobsScreen, backStack.lastOrNull())
         assertEquals(1, backStack.size)
 
-        // Non-clearing key settings adds to stack
-        NavigationController.navigateTo(SettingsScreen)
-        assertEquals(SettingsScreen, backStack.lastOrNull())
+        // Non-clearing drawer screen adds to stack
+        NavigationController.navigateTo(ProfilesScreen)
+        assertEquals(ProfilesScreen, backStack.lastOrNull())
         assertEquals(2, backStack.size)
         assertEquals(CronJobsScreen, backStack[0])
     }

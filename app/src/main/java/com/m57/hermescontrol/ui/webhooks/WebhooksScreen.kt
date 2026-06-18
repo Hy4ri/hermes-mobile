@@ -60,6 +60,7 @@ fun WebhooksScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Webhooks",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadWebhooks() },

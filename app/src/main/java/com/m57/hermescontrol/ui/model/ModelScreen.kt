@@ -66,6 +66,7 @@ fun ModelScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Models",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadModelOptions() },

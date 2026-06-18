@@ -57,6 +57,7 @@ fun ConfigScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Configuration",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadRawConfig() },

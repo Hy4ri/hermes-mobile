@@ -57,6 +57,7 @@ fun PluginsScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Plugins",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPlugins() },

@@ -72,6 +72,7 @@ fun SkillsScreen(
         }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Skills",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadSkills() },

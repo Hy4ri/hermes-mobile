@@ -58,6 +58,7 @@ fun PairingScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Device Pairing",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPairing() },

@@ -59,6 +59,7 @@ fun McpServersScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "MCP Servers",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadServers() },

@@ -45,6 +45,7 @@ fun AchievementsScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Agent Achievements",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadAchievements() },

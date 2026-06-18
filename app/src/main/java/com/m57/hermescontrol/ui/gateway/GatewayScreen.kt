@@ -62,6 +62,7 @@ fun GatewayScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Gateway Control",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadStatus() },

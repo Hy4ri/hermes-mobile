@@ -66,6 +66,7 @@ fun KeysScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Keys & Credentials",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadKeys() },

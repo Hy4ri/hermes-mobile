@@ -59,6 +59,7 @@ fun ChannelsScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Messaging Channels",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadPlatforms() },

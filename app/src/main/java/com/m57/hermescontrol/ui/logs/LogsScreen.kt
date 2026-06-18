@@ -59,6 +59,7 @@ fun LogsScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Logs",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadLogs() },

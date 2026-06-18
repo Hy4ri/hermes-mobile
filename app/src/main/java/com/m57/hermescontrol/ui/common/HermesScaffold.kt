@@ -35,6 +35,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HermesScaffold(
+    modifier: Modifier = Modifier,
     title: String,
     onOpenDrawer: (() -> Unit)? = null,
     onRefresh: (() -> Unit)? = null,
@@ -46,7 +47,7 @@ fun HermesScaffold(
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { Text(title) },

@@ -62,6 +62,7 @@ fun ToolsetsScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Toolsets",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadToolsets() },

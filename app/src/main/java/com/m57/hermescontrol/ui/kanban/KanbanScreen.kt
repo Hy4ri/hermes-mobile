@@ -71,6 +71,7 @@ fun KanbanScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Kanban Board",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadBoards() },

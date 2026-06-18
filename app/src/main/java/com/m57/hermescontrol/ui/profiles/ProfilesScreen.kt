@@ -70,6 +70,7 @@ fun ProfilesScreen(
     }
 
     HermesScaffold(
+        modifier = modifier,
         title = "Profiles",
         onOpenDrawer = onOpenDrawer,
         onRefresh = { viewModel.loadProfiles() },

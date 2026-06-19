@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -285,6 +287,168 @@ private fun SystemBubble(
     }
 }
 
+private data class ParsedToolOutput(
+    val isTerminal: Boolean = false,
+    val stdout: String? = null,
+    val stderr: String? = null,
+    val exitCode: Int? = null,
+    val error: String? = null,
+    val mainOutput: String? = null,
+    val genericFields: Map<String, String> = emptyMap(),
+)
+
+private fun parseToolOutput(content: String): ParsedToolOutput? {
+    val trimmed = content.trim()
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
+    return try {
+        val element = com.google.gson.JsonParser.parseString(trimmed)
+        if (element.isJsonObject) {
+            val obj = element.asJsonObject
+
+            val hasStdout = obj.has("stdout")
+            val hasStderr = obj.has("stderr")
+            val hasExitCode = obj.has("exit_code") || obj.has("exitCode")
+
+            if (hasStdout || hasStderr || hasExitCode) {
+                val stdout = obj.get("stdout")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+                val stderr = obj.get("stderr")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+                val exitCode = (obj.get("exit_code") ?: obj.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
+                val error = obj.get("error")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+
+                ParsedToolOutput(
+                    isTerminal = true,
+                    stdout = stdout,
+                    stderr = stderr,
+                    exitCode = exitCode,
+                    error = error,
+                )
+            } else {
+                val mainOutput =
+                    (obj.get("output") ?: obj.get("result") ?: obj.get("content") ?: obj.get("text"))
+                        ?.takeIf { !it.isJsonNull }
+                        ?.let {
+                            if (it.isJsonPrimitive) it.asString else it.toString()
+                        }?.takeIf { it.isNotEmpty() }
+
+                val genericFields = mutableMapOf<String, String>()
+                obj.entrySet().forEach { (key, value) ->
+                    if (key != "output" && key != "result" && key != "content" && key != "text" && !value.isJsonNull) {
+                        val valStr = if (value.isJsonPrimitive) value.asString else value.toString()
+                        if (valStr.isNotEmpty() && valStr != "null") {
+                            genericFields[key] = valStr
+                        }
+                    }
+                }
+
+                ParsedToolOutput(
+                    mainOutput = mainOutput,
+                    genericFields = genericFields,
+                )
+            }
+        } else if (element.isJsonArray) {
+            val arr = element.asJsonArray
+            ParsedToolOutput(
+                mainOutput = arr.toString(),
+            )
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+@Composable
+private fun ParsedToolContent(
+    parsed: ParsedToolOutput,
+    contentColor: Color,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (parsed.isTerminal) {
+            parsed.stdout?.let {
+                Text(
+                    text = it,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = contentColor.copy(alpha = 0.9f),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                        ),
+                )
+            }
+            parsed.stderr?.let {
+                Text(
+                    text = "Error Output (stderr):\n$it",
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = StatusRed.copy(alpha = 0.9f),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                        ),
+                )
+            }
+            parsed.error?.let {
+                Text(
+                    text = "Execution Error: $it",
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = StatusRed,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                        ),
+                )
+            }
+            parsed.exitCode?.let { code ->
+                if (code != 0) {
+                    Text(
+                        text = "Exit Code: $code",
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = StatusRed,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                    )
+                }
+            }
+        } else {
+            parsed.mainOutput?.let {
+                Text(
+                    text = it,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = contentColor.copy(alpha = 0.9f),
+                            fontSize = 12.sp,
+                        ),
+                )
+            }
+            parsed.genericFields.forEach { (key, value) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "$key:",
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = contentColor.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Bold,
+                            ),
+                    )
+                    Text(
+                        text = value,
+                        style =
+                            MaterialTheme.typography.bodySmall.copy(
+                                color = contentColor.copy(alpha = 0.9f),
+                                fontSize = 11.sp,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ToolBubble(
     message: ChatMessage,
@@ -292,8 +456,11 @@ private fun ToolBubble(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showRawJson by remember { mutableStateOf(false) }
     val chipColor = if (isDarkTheme) ToolChipColor else ToolChipColorLight
     val contentColor = if (isDarkTheme) Color.White else Color.Black
+
+    val parsedOutput = remember(message.content) { parseToolOutput(message.content) }
 
     Box(
         modifier =
@@ -351,16 +518,51 @@ private fun ToolBubble(
                 }
 
                 if (expanded && message.content.isNotBlank()) {
-                    Text(
-                        text = message.content,
-                        style =
-                            MaterialTheme.typography.bodySmall.copy(
-                                color = contentColor.copy(alpha = 0.8f),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                            ),
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
+                    Column(modifier = Modifier.padding(top = 6.dp)) {
+                        if (parsedOutput != null && !showRawJson) {
+                            ParsedToolContent(parsedOutput, contentColor)
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Show Raw JSON",
+                                style =
+                                    MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textDecoration = TextDecoration.Underline,
+                                    ),
+                                modifier =
+                                    Modifier.pointerInput(Unit) {
+                                        detectTapGestures(onTap = { showRawJson = true })
+                                    },
+                            )
+                        } else {
+                            Text(
+                                text = message.content,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        color = contentColor.copy(alpha = 0.8f),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                    ),
+                            )
+
+                            if (parsedOutput != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Show Parsed Output",
+                                    style =
+                                        MaterialTheme.typography.labelSmall.copy(
+                                            color = MaterialTheme.colorScheme.primary,
+                                            textDecoration = TextDecoration.Underline,
+                                        ),
+                                    modifier =
+                                        Modifier.pointerInput(Unit) {
+                                            detectTapGestures(onTap = { showRawJson = false })
+                                        },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -54,14 +54,13 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface HermesApiService {
-    @GET("api/skills/{name}/content")
+    @GET("api/skills/content")
     suspend fun getSkillContent(
-        @Path("name") name: String,
+        @Query("name") name: String,
     ): Response<SkillContentResponse>
 
-    @PUT("api/skills/{name}/content")
+    @PUT("api/skills/content")
     suspend fun saveSkillContent(
-        @Path("name") name: String,
         @Body body: SaveSkillContentRequest,
     ): Response<Unit>
 

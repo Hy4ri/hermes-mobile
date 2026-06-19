@@ -143,9 +143,11 @@ class SkillsViewModel : ViewModel() {
                 withContext(Dispatchers.IO) {
                     safeApiCall {
                         ApiClient.hermesApi.saveSkillContent(
-                            skillName,
                             com.m57.hermescontrol.data.model
-                                .SaveSkillContentRequest(content),
+                                .SaveSkillContentRequest(
+                                    name = skillName,
+                                    content = content,
+                                ),
                         )
                     }
                 }

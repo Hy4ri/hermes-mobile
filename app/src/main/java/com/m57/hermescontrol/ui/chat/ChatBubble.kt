@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -429,10 +430,10 @@ private fun RichText(
             }
         }
 
-    Text(
+    ClickableText(
         text = annotated,
         style = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-        onClick = { offset ->
+        onClick = { offset: Int ->
             annotated.getStringAnnotations("URL", offset, offset)
                 .firstOrNull()?.let { uriHandler.openUri(it.item) }
         },

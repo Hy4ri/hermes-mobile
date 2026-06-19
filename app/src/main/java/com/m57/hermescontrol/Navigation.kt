@@ -178,8 +178,13 @@ fun MainNavigation() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Read dynamic bottom-nav config
-    val bottomNavItems = remember { resolveBottomNavItems(AuthManager.getBottomNavItems()) }
+    // Read dynamic bottom-nav config.
+    // NB: deliberately NOT wrapped in remember { … } — AuthManager values change
+    // when the user customises items in Settings (saved to SharedPreferences).
+    // Without a key that tracks prefs changes, remember would cache the stale
+    // defaults and the NavigationBar would never reflect the user's picks.
+    // Reading fresh on every recomposition is negligible (pure map over 18 items).
+    val bottomNavItems = resolveBottomNavItems(AuthManager.getBottomNavItems())
     val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.map { it.key }.toSet() }
 
     // Sync primary screens to NavigationController

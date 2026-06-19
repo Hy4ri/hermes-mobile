@@ -93,7 +93,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.notification.NotificationHelper
-import com.m57.hermescontrol.theme.StatusGreen
 import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -221,15 +220,17 @@ fun ChatScreen(
                             fontWeight = FontWeight.Bold,
                         ),
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                // Connection status dot
-                Box(
-                    modifier =
-                        Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(if (state.isConnected) StatusGreen else StatusRed),
-                )
+                // Connection status dot — red when offline, hidden when connected
+                if (!state.isConnected) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(StatusRed),
+                    )
+                }
             }
         },
         onOpenDrawer = onOpenDrawer,

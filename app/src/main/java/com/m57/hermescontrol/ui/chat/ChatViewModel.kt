@@ -27,6 +27,7 @@ data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val currentSessionId: String? = null,
     val sessions: List<SessionUi> = emptyList(),
+    val chatTitle: String = "Hermes",
     val isConnected: Boolean = false,
     val isAgentTyping: Boolean = false,
     val isThinking: Boolean = false,
@@ -316,7 +317,10 @@ class ChatViewModel(
                             messageCount = (s["message_count"] as? Double)?.toInt() ?: 0,
                         )
                     }
-                _uiState.update { it.copy(sessions = sessions) }
+                _uiState.update { state ->
+                    val title = sessions.find { s -> s.id == state.currentSessionId }?.title ?: "Hermes"
+                    state.copy(sessions = sessions, chatTitle = title)
+                }
             }
 
             WsMethods.SESSION_RESUME -> {
@@ -331,9 +335,11 @@ class ChatViewModel(
                 // overwrite any message the user sent between switchSession() and
                 // the server ack, making the chat appear to go blank.
                 _uiState.update {
+                    val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
                     it.copy(
                         isLoading = false,
                         currentSessionId = sessionId,
+                        chatTitle = title,
                     )
                 }
                 addSystemMessage("Session resumed")
@@ -574,10 +580,12 @@ class ChatViewModel(
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
         _uiState.update {
+            val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
             it.copy(
                 isLoading = true,
                 messages = emptyList(),
                 currentSessionId = sessionId,
+                chatTitle = title,
                 showSessionPicker = false,
                 isAgentTyping = false,
                 isThinking = false,

@@ -21,12 +21,21 @@ android {
         versionName = (project.findProperty("versionName") as? String) ?: "1.0-dev"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "hermes-control-release.keystore.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "hermes_release"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "hermes-control-release"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "hermes_release"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs["release"]
         }
     }
     compileOptions {

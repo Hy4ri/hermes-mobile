@@ -43,11 +43,17 @@ fun HermesScaffold(
     isRefreshing: Boolean = false,
     onBack: (() -> Unit)? = null,
     showBack: Boolean = false,
+    pinTopBar: Boolean = false,
     snackbarHost: @Composable () -> Unit = {},
     actions: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    val scrollBehavior =
+        if (pinTopBar) {
+            TopAppBarDefaults.pinnedScrollBehavior()
+        } else {
+            TopAppBarDefaults.enterAlwaysScrollBehavior()
+        }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),

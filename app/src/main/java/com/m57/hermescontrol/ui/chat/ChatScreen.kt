@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,9 +32,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -78,6 +82,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -165,55 +170,41 @@ fun ChatScreen(
                 ),
         )
 
-    // Search: filter messages to matches only
-    val filteredMessages =
-        if (state.isSearchActive && state.searchQuery.isNotBlank()) {
-            state.messages.filterIndexed { index, _ -> index in state.searchMatchIndices }
-        } else {
-            state.messages
-        }
-
     // Scroll to current search match
-    LaunchedEffect(state.isSearchActive, state.currentSearchMatchIndex) {
-        if (state.isSearchActive && state.currentSearchMatchIndex >= 0 && filteredMessages.isNotEmpty()) {
+    LaunchedEffect(state.isSearchActive, state.currentSearchMatchIndex, state.searchMatchIndices) {
+        if (state.isSearchActive &&
+            state.currentSearchMatchIndex >= 0 &&
+            state.currentSearchMatchIndex < state.searchMatchIndices.size &&
+            state.messages.isNotEmpty()
+        ) {
+            val targetIndex = state.searchMatchIndices[state.currentSearchMatchIndex]
             listState.animateScrollToItem(
-                state.currentSearchMatchIndex.coerceIn(0, filteredMessages.lastIndex),
+                targetIndex.coerceIn(0, state.messages.lastIndex),
             )
         }
     }
 
     HermesScaffold(
         modifier = modifier,
+        pinTopBar = true,
         title = {
-            if (state.isSearchActive) {
-                SearchBarRow(
-                    searchQuery = state.searchQuery,
-                    onQueryChange = { viewModel.setSearchQuery(it) },
-                    searchMatchCount = state.searchMatchIndices.size,
-                    currentMatchIndex = state.currentSearchMatchIndex,
-                    onNavigateUp = { viewModel.navigateSearchMatch(-1) },
-                    onNavigateDown = { viewModel.navigateSearchMatch(1) },
-                    onClose = { viewModel.clearSearch() },
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Hermes",
+                    style =
+                        MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                        ),
                 )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Hermes",
-                        style =
-                            MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                            ),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // Connection status dot
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(if (state.isConnected) StatusGreen else StatusRed),
-                    )
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // Connection status dot
+                Box(
+                    modifier =
+                        Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(if (state.isConnected) StatusGreen else StatusRed),
+                )
             }
         },
         onOpenDrawer = onOpenDrawer,
@@ -330,24 +321,46 @@ fun ChatScreen(
                     .background(backgroundGradient)
                     .imePadding(),
         ) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.isSearchActive,
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+            ) {
+                androidx.compose.material3.Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 2.dp,
+                    border =
+                        BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                        ),
+                ) {
+                    Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        SearchBarRow(
+                            searchQuery = state.searchQuery,
+                            onQueryChange = { viewModel.setSearchQuery(it) },
+                            searchMatchCount = state.searchMatchIndices.size,
+                            currentMatchIndex = state.currentSearchMatchIndex,
+                            onNavigateUp = { viewModel.navigateSearchMatch(-1) },
+                            onNavigateDown = { viewModel.navigateSearchMatch(1) },
+                            onClose = { viewModel.clearSearch() },
+                        )
+                    }
+                }
+            }
+
             Box(
                 modifier =
                     Modifier
                         .weight(1f)
                         .fillMaxWidth(),
             ) {
-                if (filteredMessages.isEmpty() && !state.isLoading) {
-                    if (state.isSearchActive && state.searchQuery.isNotBlank()) {
-                        EmptyState(
-                            title = "No matches",
-                            subtitle = "No messages match \"${state.searchQuery}\"",
-                        )
-                    } else {
-                        EmptyState(
-                            title = "Ready to chat",
-                            subtitle = "Send a message to start a conversation",
-                        )
-                    }
+                if (state.messages.isEmpty() && !state.isLoading) {
+                    EmptyState(
+                        title = "Ready to chat",
+                        subtitle = "Send a message to start a conversation",
+                    )
                 }
 
                 LazyColumn(
@@ -355,14 +368,21 @@ fun ChatScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp),
                 ) {
-                    items(
-                        items = filteredMessages,
-                        key = { it.id },
-                    ) { message ->
+                    itemsIndexed(
+                        items = state.messages,
+                        key = { _, message -> message.id },
+                    ) { index, message ->
+                        val isCurrentMatch =
+                            state.isSearchActive &&
+                                state.currentSearchMatchIndex >= 0 &&
+                                state.currentSearchMatchIndex < state.searchMatchIndices.size &&
+                                state.searchMatchIndices[state.currentSearchMatchIndex] == index
+
                         ChatBubble(
                             message = message,
                             isDarkTheme = isDark,
                             searchQuery = if (state.isSearchActive) state.searchQuery else "",
+                            isCurrentMatch = isCurrentMatch,
                         )
                     }
 
@@ -699,6 +719,72 @@ private fun ClarifyDialog(
 }
 
 @Composable
+private fun CompactSearchInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val errorColor = MaterialTheme.colorScheme.error
+    val outlineColor = if (isError) errorColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier =
+            modifier
+                .height(40.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(20.dp),
+                ).border(
+                    width = 1.dp,
+                    color = outlineColor,
+                    shape = RoundedCornerShape(20.dp),
+                ).padding(horizontal = 12.dp),
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        decorationBox = { innerTextField ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = "Search messages…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        )
+                    }
+                    innerTextField()
+                }
+                if (value.isNotEmpty()) {
+                    IconButton(
+                        onClick = { onValueChange("") },
+                        modifier = Modifier.size(20.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Clear",
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
+        },
+    )
+}
+
+@Composable
 private fun SearchBarRow(
     searchQuery: String,
     onQueryChange: (String) -> Unit,
@@ -708,45 +794,70 @@ private fun SearchBarRow(
     onNavigateDown: () -> Unit,
     onClose: () -> Unit,
 ) {
+    val isError = searchQuery.isNotEmpty() && searchMatchCount == 0
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        OutlinedTextField(
+        CompactSearchInput(
             value = searchQuery,
             onValueChange = onQueryChange,
             modifier = Modifier.weight(1f),
-            placeholder = { Text("Search messages…") },
-            singleLine = true,
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onQueryChange("") }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Clear")
-                    }
-                }
-            },
+            isError = isError,
         )
-        if (searchMatchCount > 0 && searchQuery.isNotEmpty()) {
+        if (searchQuery.isNotEmpty()) {
+            val countText =
+                if (searchMatchCount > 0) {
+                    "${currentMatchIndex + 1}/$searchMatchCount"
+                } else {
+                    "0/0"
+                }
             Text(
-                text = "${currentMatchIndex + 1}/$searchMatchCount",
-                style = MaterialTheme.typography.bodySmall,
+                text = countText,
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        color =
+                            if (isError) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    ),
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
-        IconButton(onClick = onNavigateUp) {
+        IconButton(
+            onClick = onNavigateUp,
+            enabled = searchMatchCount > 0,
+            modifier = Modifier.size(36.dp),
+        ) {
             Icon(
                 Icons.Filled.KeyboardArrowUp,
                 contentDescription = "Previous match",
+                modifier = Modifier.size(20.dp),
             )
         }
-        IconButton(onClick = onNavigateDown) {
+        IconButton(
+            onClick = onNavigateDown,
+            enabled = searchMatchCount > 0,
+            modifier = Modifier.size(36.dp),
+        ) {
             Icon(
                 Icons.Filled.KeyboardArrowDown,
                 contentDescription = "Next match",
+                modifier = Modifier.size(20.dp),
             )
         }
-        IconButton(onClick = onClose) {
-            Icon(Icons.Filled.Close, contentDescription = "Close search")
+        IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = "Close search",
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

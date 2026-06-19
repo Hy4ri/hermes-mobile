@@ -72,6 +72,7 @@ fun ChatBubble(
     message: ChatMessage,
     isDarkTheme: Boolean,
     searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -86,10 +87,28 @@ fun ChatBubble(
                 ),
     ) {
         when (message.role) {
-            MessageRole.USER -> UserBubble(message, maxBubbleWidth, searchQuery, modifier)
-            MessageRole.ASSISTANT -> AssistantBubble(message, maxBubbleWidth, isDarkTheme, searchQuery, modifier)
-            MessageRole.SYSTEM -> SystemBubble(message, modifier)
-            MessageRole.TOOL -> ToolBubble(message, isDarkTheme, modifier)
+            MessageRole.USER -> {
+                UserBubble(message, maxBubbleWidth, searchQuery, isCurrentMatch, modifier)
+            }
+
+            MessageRole.ASSISTANT -> {
+                AssistantBubble(
+                    message,
+                    maxBubbleWidth,
+                    isDarkTheme,
+                    searchQuery,
+                    isCurrentMatch,
+                    modifier,
+                )
+            }
+
+            MessageRole.SYSTEM -> {
+                SystemBubble(message, modifier)
+            }
+
+            MessageRole.TOOL -> {
+                ToolBubble(message, isDarkTheme, modifier)
+            }
         }
     }
 }
@@ -99,14 +118,15 @@ private fun UserBubble(
     message: ChatMessage,
     maxWidth: androidx.compose.ui.unit.Dp,
     searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val clipboardManager = LocalClipboardManager.current
 
     val highlightedText =
-        remember(message.content, searchQuery) {
+        remember(message.content, searchQuery, isCurrentMatch) {
             if (searchQuery.isNotBlank()) {
-                buildHighlightedString(message.content, searchQuery)
+                buildHighlightedString(message.content, searchQuery, isCurrentMatch)
             } else {
                 AnnotatedString(message.content)
             }
@@ -176,6 +196,7 @@ private fun AssistantBubble(
     maxWidth: androidx.compose.ui.unit.Dp,
     isDarkTheme: Boolean,
     searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
@@ -222,6 +243,7 @@ private fun AssistantBubble(
                         text = message.content,
                         textColor = textColor,
                         searchQuery = searchQuery,
+                        isCurrentMatch = isCurrentMatch,
                     )
                 }
                 if (!message.isStreaming) {
@@ -353,13 +375,14 @@ private fun RichText(
     text: String,
     textColor: Color,
     searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
 ) {
     val uriHandler = LocalUriHandler.current
     val urlPattern = remember { Regex("""https?://[^\s)>\]\u0022\u0027]+""") }
     val linkColor = MaterialTheme.colorScheme.primary
-    val searchHighlightColor = Color(0xFFFFF176).copy(alpha = 0.9f)
+    val searchHighlightColor = if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
     val annotated =
-        remember(text, searchQuery) {
+        remember(text, searchQuery, isCurrentMatch) {
             buildAnnotatedString {
                 var i = 0
                 val src = text
@@ -477,8 +500,9 @@ private fun formatTimestamp(timestamp: Long): String {
 private fun buildHighlightedString(
     text: String,
     query: String,
+    isCurrentMatch: Boolean = false,
 ): AnnotatedString {
-    val highlightColor = Color(0xFFFFF176).copy(alpha = 0.9f)
+    val highlightColor = if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
     return buildAnnotatedString {
         var i = 0
         while (i < text.length) {

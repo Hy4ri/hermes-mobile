@@ -136,8 +136,10 @@ object HermesWsClient {
     fun send(
         method: String,
         params: Map<String, Any> = emptyMap(),
+        onSent: ((String) -> Unit)? = null,
     ): String {
         val id = requestId.incrementAndGet().toString()
+        onSent?.invoke(id)
         val request = JsonRpcRequest(id = id, method = method, params = params)
         val json = gson.toJson(request)
         // B2 (Jun 18 2026, kanban t_8884db16): outgoing JSON contains user
@@ -152,10 +154,12 @@ object HermesWsClient {
     fun sendMessage(
         sessionId: String,
         text: String,
+        onSent: ((String) -> Unit)? = null,
     ): String =
         send(
             method = WsMethods.PROMPT_SUBMIT,
             params = mapOf("session_id" to sessionId, "text" to text),
+            onSent = onSent,
         )
 
     // ── Internal ─────────────────────────────────────────────────────────

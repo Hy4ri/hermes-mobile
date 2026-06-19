@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +61,7 @@ class ChatViewModel(
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private val wsClient = HermesWsClient
-    private val pendingRequests = mutableMapOf<String, String>() // requestId -> method
+    private val pendingRequests = ConcurrentHashMap<String, String>() // requestId -> method
     private val dao = HermesDatabase.get(application).chatMessageDao()
 
     init {
@@ -319,9 +320,17 @@ class ChatViewModel(
             }
 
             WsMethods.SESSION_RESUME -> {
-                _uiState.update { it.copy(isLoading = false) }
-                // Load cached messages from Room before the REST call
-                val sessionId = _uiState.value.currentSessionId
+                val resultMap = result as? Map<String, Any?>
+                val sessionId =
+                    (resultMap?.get("session_id") as? String)
+                        ?: _uiState.value.currentSessionId
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentSessionId = sessionId,
+                    )
+                }
                 if (sessionId != null) {
                     loadCachedMessages(sessionId)
                 }
@@ -382,8 +391,9 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            val requestId = wsClient.sendMessage(sessionId, text)
-            pendingRequests[requestId] = WsMethods.PROMPT_SUBMIT
+            wsClient.sendMessage(sessionId, text) { id ->
+                pendingRequests[id] = WsMethods.PROMPT_SUBMIT
+            }
         }
     }
 
@@ -530,27 +540,29 @@ class ChatViewModel(
     fun interruptSession() {
         val sessionId = _uiState.value.currentSessionId ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val requestId =
-                wsClient.send(
-                    WsMethods.SESSION_INTERRUPT,
-                    mapOf("session_id" to sessionId),
-                )
-            pendingRequests[requestId] = WsMethods.SESSION_INTERRUPT
+            wsClient.send(
+                WsMethods.SESSION_INTERRUPT,
+                mapOf("session_id" to sessionId),
+            ) { id ->
+                pendingRequests[id] = WsMethods.SESSION_INTERRUPT
+            }
         }
     }
 
     fun createNewSession() {
         _uiState.update { it.copy(isLoading = true, messages = emptyList()) }
         viewModelScope.launch(Dispatchers.IO) {
-            val requestId = wsClient.send(WsMethods.SESSION_CREATE)
-            pendingRequests[requestId] = WsMethods.SESSION_CREATE
+            wsClient.send(WsMethods.SESSION_CREATE) { id ->
+                pendingRequests[id] = WsMethods.SESSION_CREATE
+            }
         }
     }
 
     fun loadSessions() {
         viewModelScope.launch(Dispatchers.IO) {
-            val requestId = wsClient.send(WsMethods.SESSION_LIST)
-            pendingRequests[requestId] = WsMethods.SESSION_LIST
+            wsClient.send(WsMethods.SESSION_LIST) { id ->
+                pendingRequests[id] = WsMethods.SESSION_LIST
+            }
         }
     }
 
@@ -571,12 +583,12 @@ class ChatViewModel(
         loadCachedMessages(sessionId)
         // Then resume session on server
         viewModelScope.launch(Dispatchers.IO) {
-            val requestId =
-                wsClient.send(
-                    WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to sessionId),
-                )
-            pendingRequests[requestId] = WsMethods.SESSION_RESUME
+            wsClient.send(
+                WsMethods.SESSION_RESUME,
+                mapOf("session_id" to sessionId),
+            ) { id ->
+                pendingRequests[id] = WsMethods.SESSION_RESUME
+            }
         }
         loadSessionMessages(sessionId)
     }

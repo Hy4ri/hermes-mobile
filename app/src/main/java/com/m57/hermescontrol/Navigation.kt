@@ -121,7 +121,7 @@ private val ALL_NAV_ITEMS: List<BottomNavItem> =
 
 /** Lookup: data-object simple name → NavKey (used by bottom-nav config). */
 private val NAV_KEY_BY_NAME: Map<String, NavKey> =
-    ALL_NAV_ITEMS.associate { it.key::class.simpleName!! to it.key }
+    ALL_NAV_ITEMS.mapNotNull { it.key::class.simpleName?.let { name -> name to it.key } }.toMap()
 
 /** Resolve a persisted list of nav-item names to BottomNavItem instances. */
 private fun resolveBottomNavItems(names: List<String>): List<BottomNavItem> =

@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -700,6 +702,72 @@ private fun ClarifyDialog(
 }
 
 @Composable
+private fun CompactSearchInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val errorColor = MaterialTheme.colorScheme.error
+    val outlineColor = if (isError) errorColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier =
+            modifier
+                .height(40.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(20.dp),
+                ).border(
+                    width = 1.dp,
+                    color = outlineColor,
+                    shape = RoundedCornerShape(20.dp),
+                ).padding(horizontal = 12.dp),
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        decorationBox = { innerTextField ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = "Search messages…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        )
+                    }
+                    innerTextField()
+                }
+                if (value.isNotEmpty()) {
+                    IconButton(
+                        onClick = { onValueChange("") },
+                        modifier = Modifier.size(20.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Clear",
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
+        },
+    )
+}
+
+@Composable
 private fun SearchBarRow(
     searchQuery: String,
     onQueryChange: (String) -> Unit,
@@ -712,24 +780,17 @@ private fun SearchBarRow(
     val isError = searchQuery.isNotEmpty() && searchMatchCount == 0
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        OutlinedTextField(
+        CompactSearchInput(
             value = searchQuery,
             onValueChange = onQueryChange,
             modifier = Modifier.weight(1f),
-            placeholder = { Text("Search messages…") },
-            singleLine = true,
             isError = isError,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onQueryChange("") }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Clear")
-                    }
-                }
-            },
         )
         if (searchQuery.isNotEmpty()) {
             val countText =
@@ -752,20 +813,34 @@ private fun SearchBarRow(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
-        IconButton(onClick = onNavigateUp, enabled = searchMatchCount > 0) {
+        IconButton(
+            onClick = onNavigateUp,
+            enabled = searchMatchCount > 0,
+            modifier = Modifier.size(36.dp),
+        ) {
             Icon(
                 Icons.Filled.KeyboardArrowUp,
                 contentDescription = "Previous match",
+                modifier = Modifier.size(20.dp),
             )
         }
-        IconButton(onClick = onNavigateDown, enabled = searchMatchCount > 0) {
+        IconButton(
+            onClick = onNavigateDown,
+            enabled = searchMatchCount > 0,
+            modifier = Modifier.size(36.dp),
+        ) {
             Icon(
                 Icons.Filled.KeyboardArrowDown,
                 contentDescription = "Next match",
+                modifier = Modifier.size(20.dp),
             )
         }
-        IconButton(onClick = onClose) {
-            Icon(Icons.Filled.Close, contentDescription = "Close search")
+        IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = "Close search",
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

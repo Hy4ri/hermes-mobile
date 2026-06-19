@@ -79,6 +79,15 @@ class ChatViewModel(
                 handleWsEvent(event)
             }
         }
+
+        if (wsClient.isConnected) {
+            _uiState.update { it.copy(isConnected = true, isLoading = false) }
+            addSystemMessage("Connected to Hermes")
+            loadSessions()
+            if (_uiState.value.currentSessionId == null) {
+                createNewSession()
+            }
+        }
     }
 
     private fun handleWsEvent(event: WsEvent) {

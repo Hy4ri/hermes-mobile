@@ -33,6 +33,11 @@ data class ChatUiState(
     val errorMessage: String? = null,
     val clarifyRequest: ClarifyUi? = null,
     val showSessionPicker: Boolean = false,
+    // Search state
+    val isSearchActive: Boolean = false,
+    val searchQuery: String = "",
+    val searchMatchIndices: List<Int> = emptyList(),
+    val currentSearchMatchIndex: Int = -1,
 )
 
 data class SessionUi(
@@ -668,6 +673,62 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     dao.upsert(msg.toEntity(sessionId))
                 }
             }
+        }
+    }
+
+    // ── Search ────────────────────────────────────────────────────────
+
+    fun toggleSearch() {
+        val current = _uiState.value
+        if (current.isSearchActive) {
+            clearSearch()
+        } else {
+            _uiState.update { it.copy(isSearchActive = true, searchQuery = "") }
+        }
+    }
+
+    fun setSearchQuery(query: String) {
+        val messages = _uiState.value.messages
+        val indices =
+            if (query.isNotBlank()) {
+                messages.indices.filter { idx ->
+                    messages[idx].content.contains(query, ignoreCase = true)
+                }
+            } else {
+                emptyList()
+            }
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                searchMatchIndices = indices,
+                currentSearchMatchIndex = if (indices.isNotEmpty()) 0 else -1,
+            )
+        }
+    }
+
+    fun navigateSearchMatch(direction: Int) {
+        _uiState.update { state ->
+            val indices = state.searchMatchIndices
+            if (indices.isEmpty()) return@update state
+            val current = state.currentSearchMatchIndex
+            val newIdx =
+                when (direction) {
+                    1 -> if (current >= indices.lastIndex) 0 else current + 1
+                    -1 -> if (current <= 0) indices.lastIndex else current - 1
+                    else -> current
+                }
+            state.copy(currentSearchMatchIndex = newIdx)
+        }
+    }
+
+    fun clearSearch() {
+        _uiState.update {
+            it.copy(
+                isSearchActive = false,
+                searchQuery = "",
+                searchMatchIndices = emptyList(),
+                currentSearchMatchIndex = -1,
+            )
         }
     }
 

@@ -391,9 +391,11 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            wsClient.sendMessage(sessionId, text) { id ->
-                pendingRequests[id] = WsMethods.PROMPT_SUBMIT
-            }
+            wsClient.sendMessage(
+                sessionId,
+                text,
+                onSent = { id -> pendingRequests[id] = WsMethods.PROMPT_SUBMIT },
+            )
         }
     }
 
@@ -543,26 +545,27 @@ class ChatViewModel(
             wsClient.send(
                 WsMethods.SESSION_INTERRUPT,
                 mapOf("session_id" to sessionId),
-            ) { id ->
-                pendingRequests[id] = WsMethods.SESSION_INTERRUPT
-            }
+                onSent = { id -> pendingRequests[id] = WsMethods.SESSION_INTERRUPT },
+            )
         }
     }
 
     fun createNewSession() {
         _uiState.update { it.copy(isLoading = true, messages = emptyList()) }
         viewModelScope.launch(Dispatchers.IO) {
-            wsClient.send(WsMethods.SESSION_CREATE) { id ->
-                pendingRequests[id] = WsMethods.SESSION_CREATE
-            }
+            wsClient.send(
+                WsMethods.SESSION_CREATE,
+                onSent = { id -> pendingRequests[id] = WsMethods.SESSION_CREATE },
+            )
         }
     }
 
     fun loadSessions() {
         viewModelScope.launch(Dispatchers.IO) {
-            wsClient.send(WsMethods.SESSION_LIST) { id ->
-                pendingRequests[id] = WsMethods.SESSION_LIST
-            }
+            wsClient.send(
+                WsMethods.SESSION_LIST,
+                onSent = { id -> pendingRequests[id] = WsMethods.SESSION_LIST },
+            )
         }
     }
 
@@ -586,9 +589,8 @@ class ChatViewModel(
             wsClient.send(
                 WsMethods.SESSION_RESUME,
                 mapOf("session_id" to sessionId),
-            ) { id ->
-                pendingRequests[id] = WsMethods.SESSION_RESUME
-            }
+                onSent = { id -> pendingRequests[id] = WsMethods.SESSION_RESUME },
+            )
         }
         loadSessionMessages(sessionId)
     }

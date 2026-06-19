@@ -105,14 +105,13 @@ status colors (success/warning/error/info) are ALWAYS brand-defined via
 git checkout main && git pull origin main
 git checkout -b fix/issue-N-description    # or feat/...
 # make changes, run ./ktlint --format
-git -c user.name='ronia' -c user.email='ronia@m57' commit -m "fix(#N): description"
+git commit -m "fix(#N): description"
 git push -u origin HEAD
 gh pr create --title "fix(#N): description" --body "Closes #N"
 ```
 
 ### Commit Conventions
 
-- **Author:** `ronia@m57` (set via `-c user.name` / `-c user.email`).
 - **NO co-author trailer.** No `Co-Authored-By`, no `Generated with ...`. Ever.
 - **Short commits:** subject line + max 2 lines of body. Split into atomic commits
   rather than writing long bodies.

@@ -188,35 +188,23 @@ fun ChatScreen(
         modifier = modifier,
         pinTopBar = true,
         title = {
-            if (state.isSearchActive) {
-                SearchBarRow(
-                    searchQuery = state.searchQuery,
-                    onQueryChange = { viewModel.setSearchQuery(it) },
-                    searchMatchCount = state.searchMatchIndices.size,
-                    currentMatchIndex = state.currentSearchMatchIndex,
-                    onNavigateUp = { viewModel.navigateSearchMatch(-1) },
-                    onNavigateDown = { viewModel.navigateSearchMatch(1) },
-                    onClose = { viewModel.clearSearch() },
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Hermes",
+                    style =
+                        MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                        ),
                 )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Hermes",
-                        style =
-                            MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                            ),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // Connection status dot
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(if (state.isConnected) StatusGreen else StatusRed),
-                    )
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // Connection status dot
+                Box(
+                    modifier =
+                        Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(if (state.isConnected) StatusGreen else StatusRed),
+                )
             }
         },
         onOpenDrawer = onOpenDrawer,
@@ -333,6 +321,35 @@ fun ChatScreen(
                     .background(backgroundGradient)
                     .imePadding(),
         ) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.isSearchActive,
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+            ) {
+                androidx.compose.material3.Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 2.dp,
+                    border =
+                        BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                        ),
+                ) {
+                    Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        SearchBarRow(
+                            searchQuery = state.searchQuery,
+                            onQueryChange = { viewModel.setSearchQuery(it) },
+                            searchMatchCount = state.searchMatchIndices.size,
+                            currentMatchIndex = state.currentSearchMatchIndex,
+                            onNavigateUp = { viewModel.navigateSearchMatch(-1) },
+                            onNavigateDown = { viewModel.navigateSearchMatch(1) },
+                            onClose = { viewModel.clearSearch() },
+                        )
+                    }
+                }
+            }
+
             Box(
                 modifier =
                     Modifier

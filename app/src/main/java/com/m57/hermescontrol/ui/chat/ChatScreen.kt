@@ -322,12 +322,11 @@ fun ChatScreen(
                 )
             }
         },
-    ) { paddingValues ->
+    ) { _ ->
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
                     .background(backgroundGradient)
                     .imePadding(),
         ) {

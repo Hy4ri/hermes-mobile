@@ -86,6 +86,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -212,11 +213,13 @@ fun ChatScreen(
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Hermes",
+                    text = state.chatTitle,
                     style =
-                        MaterialTheme.typography.titleLarge.copy(
+                        MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                         ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 // Connection status dot — red when offline, hidden when connected
                 if (!state.isConnected) {

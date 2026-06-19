@@ -103,10 +103,21 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "Release: tag=$TAG version=$VERSION code=$CODE"
 
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > hermes-control-release.keystore.jks
+          ls -lh hermes-control-release.keystore.jks
+
       - name: Build Release APK
         env:
           VERSION_NAME: ${{ steps.version.outputs.version }}
           VERSION_CODE: ${{ steps.version.outputs.code }}
+          KEYSTORE_PATH: ${{ github.workspace }}/hermes-control-release.keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           ./gradlew assembleRelease \
             -PversionName="$VERSION_NAME" \

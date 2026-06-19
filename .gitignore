@@ -1,15 +1,14 @@
-*.iml
-.gradle
-.gradle-home
-$PWD
-.agents
-*.log
-/local.properties
-/.idea
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Release keystore (local copy — stored as GitHub secret)
+hermes-control-release.keystore.jks
+
+# Android / Gradle
+build/
+.gradle/
 local.properties
-*.apk
+*.iml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

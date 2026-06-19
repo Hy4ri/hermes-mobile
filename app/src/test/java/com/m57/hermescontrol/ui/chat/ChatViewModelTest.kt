@@ -121,8 +121,8 @@ class ChatViewModelTest {
             assertEquals(0, state.messages.size)
 
             // Verify that list sessions and create session requests are triggered
-            verify { HermesWsClient.send(WsMethods.SESSION_LIST) }
-            verify { HermesWsClient.send(WsMethods.SESSION_CREATE) }
+            verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
+            verify { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
         }
 
     @Test

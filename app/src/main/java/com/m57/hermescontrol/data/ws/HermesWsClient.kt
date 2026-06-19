@@ -253,7 +253,7 @@ object HermesWsClient {
             reason: String,
         ) {
             Log.d(TAG, "WebSocket closing: $code $reason")
-            ws.close(1000, null)
+            ws.close(code, reason)
         }
 
         override fun onClosed(

@@ -47,6 +47,7 @@ class KanbanViewModel : ViewModel() {
                         selectBoard(currentBoard)
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -92,6 +93,7 @@ class KanbanViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -129,6 +131,7 @@ class KanbanViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "Task created successfully") }
                     selectBoard(board)
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to create task: ${result.error.message}") }
                 }

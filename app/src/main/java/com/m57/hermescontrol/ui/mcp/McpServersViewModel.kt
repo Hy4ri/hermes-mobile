@@ -43,6 +43,7 @@ class McpServersViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -83,6 +84,7 @@ class McpServersViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     revertToggle(server.name, originalEnabled, "Failed to toggle server: ${result.error.message}")
                 }
@@ -106,6 +108,7 @@ class McpServersViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -135,6 +138,7 @@ class McpServersViewModel : ViewModel() {
                     }
                     loadServers()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

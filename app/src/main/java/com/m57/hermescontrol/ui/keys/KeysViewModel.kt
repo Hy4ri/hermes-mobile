@@ -44,6 +44,7 @@ class KeysViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -71,6 +72,7 @@ class KeysViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to reveal key: ${result.error.message}") }
                 }
@@ -100,6 +102,7 @@ class KeysViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "Key updated successfully") }
                     loadKeys()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to update key: ${result.error.message}") }
                 }

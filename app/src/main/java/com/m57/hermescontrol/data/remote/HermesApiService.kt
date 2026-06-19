@@ -26,10 +26,12 @@ import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RawConfigResponse
+import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
+import com.m57.hermescontrol.data.model.SkillContentResponse
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
@@ -52,6 +54,17 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface HermesApiService {
+    @GET("api/skills/{name}/content")
+    suspend fun getSkillContent(
+        @Path("name") name: String,
+    ): Response<SkillContentResponse>
+
+    @PUT("api/skills/{name}/content")
+    suspend fun saveSkillContent(
+        @Path("name") name: String,
+        @Body body: SaveSkillContentRequest,
+    ): Response<Unit>
+
     @GET("api/status")
     suspend fun getStatus(): Response<StatusResponse>
 

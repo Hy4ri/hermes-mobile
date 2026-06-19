@@ -89,6 +89,7 @@ class ConnectViewModel : ViewModel() {
                         it.copy(isConnecting = false, connectionSuccess = true, errorMessage = null)
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     val msg =
                         when (val err = result.error) {
@@ -98,10 +99,17 @@ class ConnectViewModel : ViewModel() {
                                         AuthManager.setToken(null)
                                         "Invalid token (401 Unauthorized)"
                                     }
-                                    403 -> "Access denied (403 Forbidden)"
-                                    else -> "Server returned HTTP ${err.code}"
+
+                                    403 -> {
+                                        "Access denied (403 Forbidden)"
+                                    }
+
+                                    else -> {
+                                        "Server returned HTTP ${err.code}"
+                                    }
                                 }
                             }
+
                             is NetworkError.Connection -> {
                                 val causeMessage = err.cause.message ?: ""
                                 when {
@@ -111,6 +119,7 @@ class ConnectViewModel : ViewModel() {
                                     else -> "Connection failed: ${err.cause.message}"
                                 }
                             }
+
                             is NetworkError.Unknown -> {
                                 val causeMessage = err.cause.message ?: ""
                                 when {

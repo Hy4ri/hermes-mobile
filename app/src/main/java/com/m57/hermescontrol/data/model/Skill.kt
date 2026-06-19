@@ -5,4 +5,5 @@ data class Skill(
     val description: String?,
     val category: String?,
     val enabled: Boolean,
+    val content: String? = null,
 )

@@ -48,6 +48,7 @@ class WebhooksViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -78,6 +79,7 @@ class WebhooksViewModel : ViewModel() {
                     }
                     loadWebhooks()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

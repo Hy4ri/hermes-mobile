@@ -301,7 +301,9 @@ private fun parseToolOutput(content: String): ParsedToolOutput? {
     val trimmed = content.trim()
     if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
     return try {
-        val element = com.google.gson.JsonParser.parseString(trimmed)
+        val element =
+            com.google.gson.JsonParser
+                .parseString(trimmed)
         if (element.isJsonObject) {
             val obj = element.asJsonObject
 
@@ -310,10 +312,25 @@ private fun parseToolOutput(content: String): ParsedToolOutput? {
             val hasExitCode = obj.has("exit_code") || obj.has("exitCode")
 
             if (hasStdout || hasStderr || hasExitCode) {
-                val stdout = obj.get("stdout")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
-                val stderr = obj.get("stderr")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+                val stdout =
+                    obj
+                        .get("stdout")
+                        ?.takeIf { !it.isJsonNull }
+                        ?.asString
+                        ?.takeIf { it.isNotEmpty() }
+                val stderr =
+                    obj
+                        .get("stderr")
+                        ?.takeIf { !it.isJsonNull }
+                        ?.asString
+                        ?.takeIf { it.isNotEmpty() }
                 val exitCode = (obj.get("exit_code") ?: obj.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
-                val error = obj.get("error")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+                val error =
+                    obj
+                        .get("error")
+                        ?.takeIf { !it.isJsonNull }
+                        ?.asString
+                        ?.takeIf { it.isNotEmpty() }
 
                 ParsedToolOutput(
                     isTerminal = true,

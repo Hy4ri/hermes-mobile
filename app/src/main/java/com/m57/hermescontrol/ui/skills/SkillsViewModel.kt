@@ -20,6 +20,11 @@ data class SkillsUiState(
     val skills: List<Skill> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val isLoadingContent: Boolean = false,
+    val editingSkillName: String? = null,
+    val skillContent: String? = null,
+    val isSavingContent: Boolean = false,
+    val saveContentSuccess: Boolean = false,
 )
 
 class SkillsViewModel : ViewModel() {
@@ -37,6 +42,7 @@ class SkillsViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, skills = result.data.orEmpty()) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -88,6 +94,99 @@ class SkillsViewModel : ViewModel() {
                 toastMessage = errorMsg,
             )
         }
+    }
+
+    fun loadSkillContent(skillName: String) {
+        _uiState.update {
+            it.copy(
+                isLoadingContent = true,
+                editingSkillName = skillName,
+                skillContent = null,
+                saveContentSuccess = false,
+            )
+        }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getSkillContent(skillName) }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingContent = false,
+                            skillContent = result.data?.content.orEmpty(),
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingContent = false,
+                            editingSkillName = null,
+                            toastMessage = "Failed to load skill content: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun saveSkillContent(
+        skillName: String,
+        content: String,
+    ) {
+        _uiState.update { it.copy(isSavingContent = true, saveContentSuccess = false) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.saveSkillContent(
+                            skillName,
+                            com.m57.hermescontrol.data.model
+                                .SaveSkillContentRequest(content),
+                        )
+                    }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSavingContent = false,
+                            saveContentSuccess = true,
+                            skillContent = content,
+                            toastMessage = "Skill saved successfully",
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isSavingContent = false,
+                            toastMessage = "Failed to save skill content: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearEditor() {
+        _uiState.update {
+            it.copy(
+                editingSkillName = null,
+                skillContent = null,
+                isLoadingContent = false,
+                isSavingContent = false,
+                saveContentSuccess = false,
+            )
+        }
+    }
+
+    fun clearSaveSuccess() {
+        _uiState.update { it.copy(saveContentSuccess = false) }
     }
 
     fun clearToast() {

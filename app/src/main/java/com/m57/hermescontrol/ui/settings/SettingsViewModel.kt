@@ -156,6 +156,7 @@ class SettingsViewModel : ViewModel() {
                         it.copy(isTesting = false, testResult = "✅ Connected successfully")
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

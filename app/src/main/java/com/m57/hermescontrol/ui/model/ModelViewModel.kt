@@ -67,6 +67,7 @@ class ModelViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -98,6 +99,7 @@ class ModelViewModel : ViewModel() {
                     }
                     return@launch
                 }
+
                 is NetworkResult.Success -> {
                     val activeProfileName = activeProfileNameResResult.data.active
                     val updateResResult =
@@ -114,6 +116,7 @@ class ModelViewModel : ViewModel() {
                             _uiState.update { it.copy(toastMessage = "Successfully set model to $modelName") }
                             loadModelOptions()
                         }
+
                         is NetworkResult.Failure -> {
                             _uiState.update {
                                 it.copy(

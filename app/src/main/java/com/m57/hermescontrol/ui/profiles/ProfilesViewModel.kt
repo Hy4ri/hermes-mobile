@@ -79,6 +79,7 @@ class ProfilesViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "Switched to profile $name") }
                     loadProfiles()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -107,6 +108,7 @@ class ProfilesViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -143,6 +145,7 @@ class ProfilesViewModel : ViewModel() {
                     }
                     loadProfiles()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -174,6 +177,7 @@ class ProfilesViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "Model settings updated") }
                     loadProfiles()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

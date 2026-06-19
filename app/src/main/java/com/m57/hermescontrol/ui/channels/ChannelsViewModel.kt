@@ -37,6 +37,7 @@ class ChannelsViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, platforms = result.data.orEmpty()) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -63,6 +64,7 @@ class ChannelsViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "$platformId configured successfully") }
                     loadPlatforms()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to configure platform: ${result.error.message}") }
                 }

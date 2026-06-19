@@ -37,6 +37,7 @@ class LogsViewModel : ViewModel() {
                     val logsList = body.lines ?: body.logs ?: emptyList()
                     _uiState.update { it.copy(isLoading = false, logs = logsList) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

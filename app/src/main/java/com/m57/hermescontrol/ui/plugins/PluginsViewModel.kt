@@ -37,6 +37,7 @@ class PluginsViewModel : ViewModel() {
                     val plugins = result.data.plugins.orEmpty()
                     _uiState.update { it.copy(isLoading = false, plugins = plugins) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -98,6 +99,7 @@ class PluginsViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "Plugin installed successfully") }
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to install plugin: ${result.error.message}") }
                 }
@@ -116,6 +118,7 @@ class PluginsViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "Plugin uninstalled successfully") }
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to uninstall plugin: ${result.error.message}") }
                 }
@@ -134,6 +137,7 @@ class PluginsViewModel : ViewModel() {
                     _uiState.update { it.copy(toastMessage = "Plugin updated successfully") }
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to update plugin: ${result.error.message}") }
                 }

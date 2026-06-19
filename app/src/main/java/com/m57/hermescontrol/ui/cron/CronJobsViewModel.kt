@@ -36,6 +36,7 @@ class CronJobsViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, jobs = result.data.orEmpty()) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -102,6 +103,7 @@ class CronJobsViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Job triggered successfully") }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to trigger cron job: ${result.error.message}") }
                 }

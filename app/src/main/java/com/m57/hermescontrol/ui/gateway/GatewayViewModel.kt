@@ -37,6 +37,7 @@ class GatewayViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, status = result.data) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -78,6 +79,7 @@ class GatewayViewModel : ViewModel() {
                     }
                     loadStatus()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

@@ -37,6 +37,7 @@ class ToolsetsViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, toolsets = result.data.orEmpty()) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

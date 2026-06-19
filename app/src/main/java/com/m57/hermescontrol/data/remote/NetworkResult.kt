@@ -4,19 +4,32 @@ import retrofit2.Response
 import java.io.IOException
 
 sealed interface NetworkResult<out T> {
-    data class Success<out T>(val data: T) : NetworkResult<T>
+    data class Success<out T>(
+        val data: T,
+    ) : NetworkResult<T>
 
-    data class Failure(val error: NetworkError) : NetworkResult<Nothing>
+    data class Failure(
+        val error: NetworkError,
+    ) : NetworkResult<Nothing>
 }
 
 sealed interface NetworkError {
     val message: String
 
-    data class Http(val code: Int, override val message: String) : NetworkError
+    data class Http(
+        val code: Int,
+        override val message: String,
+    ) : NetworkError
 
-    data class Connection(override val message: String, val cause: IOException) : NetworkError
+    data class Connection(
+        override val message: String,
+        val cause: IOException,
+    ) : NetworkError
 
-    data class Unknown(override val message: String, val cause: Throwable) : NetworkError
+    data class Unknown(
+        override val message: String,
+        val cause: Throwable,
+    ) : NetworkError
 }
 
 fun mapHttpError(code: Int): NetworkError {

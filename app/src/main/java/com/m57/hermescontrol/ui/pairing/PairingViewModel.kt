@@ -39,6 +39,7 @@ class PairingViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, pairing = result.data) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -92,6 +93,7 @@ class PairingViewModel : ViewModel() {
                     }
                     loadPairing()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

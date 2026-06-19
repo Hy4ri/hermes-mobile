@@ -51,6 +51,7 @@ class SystemViewModel : ViewModel() {
                     // Doctor is optional; many servers do not expose it.
                     loadDoctorReport()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -87,6 +88,7 @@ class SystemViewModel : ViewModel() {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Backup triggered successfully") }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to trigger backup: ${result.error.message}") }
                 }

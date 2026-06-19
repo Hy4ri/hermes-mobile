@@ -450,6 +450,7 @@ class ChatViewModel(
                                 """.trimIndent()
                             addAssistantMessage(statusText)
                         }
+
                         is NetworkResult.Failure -> {
                             addAssistantMessage("Failed to retrieve status: ${result.error.message}")
                         }
@@ -472,6 +473,7 @@ class ChatViewModel(
                                 }
                             addAssistantMessage("**Sessions List:**\n$sessionsStr")
                         }
+
                         is NetworkResult.Failure -> {
                             addAssistantMessage("Failed to list sessions: ${result.error.message}")
                         }
@@ -500,6 +502,7 @@ class ChatViewModel(
                                 """.trimIndent()
                             addAssistantMessage(statsText)
                         }
+
                         is NetworkResult.Failure -> {
                             addAssistantMessage("Failed to retrieve system stats: ${result.error.message}")
                         }
@@ -627,6 +630,7 @@ class ChatViewModel(
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

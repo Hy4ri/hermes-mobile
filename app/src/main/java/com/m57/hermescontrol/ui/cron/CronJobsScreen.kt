@@ -36,6 +36,7 @@ import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.util.CronExpressionFormatter
 
 @Composable
 fun CronJobsScreen(
@@ -122,9 +123,15 @@ fun CronJobsScreen(
                                 }
                                 Spacer(modifier = Modifier.height(spacing.xs))
                                 Text(
-                                    text = job.scheduleText,
+                                    text = CronExpressionFormatter.cronToHumanReadable(job.scheduleText),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(modifier = Modifier.height(spacing.xs))
+                                Text(
+                                    text = job.scheduleText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 )
                                 Spacer(modifier = Modifier.height(spacing.sm))
                                 Row(

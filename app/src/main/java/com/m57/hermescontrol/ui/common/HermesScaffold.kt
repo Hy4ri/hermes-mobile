@@ -20,6 +20,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 
 /**
  * Shared Scaffold wrapper that standardizes the TopAppBar.
@@ -69,6 +70,7 @@ fun HermesScaffold(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
+                                    modifier = Modifier.testTag("back_button"),
                                 )
                             }
                         }
@@ -78,6 +80,7 @@ fun HermesScaffold(
                                 Icon(
                                     imageVector = Icons.Filled.Menu,
                                     contentDescription = "Open navigation drawer",
+                                    modifier = Modifier.testTag("menu_button"),
                                 )
                             }
                         }
@@ -89,6 +92,7 @@ fun HermesScaffold(
                             Icon(
                                 imageVector = Icons.Filled.Refresh,
                                 contentDescription = "Refresh",
+                                modifier = Modifier.testTag("refresh_button"),
                             )
                         }
                     }

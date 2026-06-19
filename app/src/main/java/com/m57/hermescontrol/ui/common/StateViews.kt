@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.theme.LocalSpacing
@@ -34,13 +35,19 @@ import com.m57.hermescontrol.theme.LocalSpacing
 @Composable
 fun LoadingState(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .testTag("loading_state"),
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(
             color = MaterialTheme.colorScheme.primary,
             strokeWidth = 3.dp,
-            modifier = Modifier.size(40.dp),
+            modifier =
+                Modifier
+                    .size(40.dp)
+                    .testTag("loading_spinner"),
         )
     }
 }
@@ -77,7 +84,10 @@ fun ErrorState(
         )
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(spacing.md))
-            Button(onClick = onRetry) {
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.testTag("error_retry_button"),
+            ) {
                 Icon(
                     imageVector = Icons.Filled.Refresh,
                     contentDescription = null,
@@ -133,7 +143,10 @@ fun EmptyState(
         }
         if (actionLabel != null && onAction != null) {
             Spacer(modifier = Modifier.height(spacing.md))
-            OutlinedButton(onClick = onAction) {
+            OutlinedButton(
+                onClick = onAction,
+                modifier = Modifier.testTag("empty_state_action"),
+            ) {
                 Text(actionLabel)
             }
         }

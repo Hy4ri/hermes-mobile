@@ -165,12 +165,37 @@ class ConnectViewModel : ViewModel() {
                         connect()
                         return
                     }
+                    // Decoded valid JSON but missing required fields
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = "Malformed pairing string — missing host, port, or token",
+                        )
+                    }
+                    return
                 }
+                // Decoded to valid string but not JSON shape — not a pairing string
+                _uiState.update {
+                    it.copy(
+                        errorMessage = "Malformed pairing string — expected URL or Base64-encoded JSON",
+                    )
+                }
+                return
+            } catch (e: IllegalArgumentException) {
+                // Not valid Base64 — check if input looks like a raw token
+                if (trimmed.length >= 32 && trimmed.matches(Regex("[A-Za-z0-9_\\-]+"))) {
+                    _uiState.update { it.copy(token = trimmed, errorMessage = null) }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = "Malformed pairing string — expected URL or Base64-encoded JSON",
+                        )
+                    }
+                }
+                return
             } catch (e: Exception) {
-                // Ignore base64 decode failures, fallback to setting raw token
+                _uiState.update { it.copy(errorMessage = "Failed to parse pairing string: ${e.message}") }
+                return
             }
-
-            _uiState.update { it.copy(token = trimmed, errorMessage = null) }
         } catch (e: Exception) {
             _uiState.update { it.copy(errorMessage = "Failed to parse pairing string: ${e.message}") }
         }

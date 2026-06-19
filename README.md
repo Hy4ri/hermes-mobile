@@ -141,43 +141,52 @@ hermes-mobile/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── java/com/m57/hermescontrol/
-│   │   │   │   ├── Navigation.kt              # NavHost + screen routing
-│   │   │   │   ├── NavigationController.kt    # Drawer + bottom nav controller
-│   │   │   │   ├── NavigationKeys.kt          # Route constants
+│   │   │   │   ├── Navigation.kt              # Drawer + NavDisplay + entry wiring
+│   │   │   │   ├── NavigationController.kt    # Central navigation guard (dedup)
+│   │   │   │   ├── NavigationKeys.kt          # Screen key definitions
 │   │   │   │   ├── MainActivity.kt            # Single activity entry point
-│   │   │   │   ├── HermesControlApp.kt        # App-level composable root
 │   │   │   │   ├── data/
-│   │   │   │   │   ├── model/                 # API models (DTOs)
-│   │   │   │   │   ├── remote/                # Retrofit API client
-│   │   │   │   │   └── local/                 # Room database
+│   │   │   │   │   ├── model/                 # API models / DTOs (20+ files)
+│   │   │   │   │   ├── remote/                # Retrofit + OkHttp API client
+│   │   │   │   │   ├── local/                 # Room DB (Dao, Entity, Mapper)
+│   │   │   │   │   └── ws/                    # WebSocket TUI Gateway (JSON-RPC 2.0)
+│   │   │   │   ├── notification/
+│   │   │   │   │   └── ChatNotificationService.kt  # Foreground service for reply alerts
 │   │   │   │   ├── theme/
 │   │   │   │   │   ├── Theme.kt               # Material You dynamic theming
 │   │   │   │   │   ├── Color.kt               # Color palette definitions
+│   │   │   │   │   ├── HermesStatusColors.kt  # Semantic status colours (CompositionLocal)
 │   │   │   │   │   ├── Type.kt                # Typography scale
-│   │   │   │   │   └── Motion.kt              # Shared transition animations
-│   │   │   │   └── ui/
-│   │   │   │       ├── common/                # Shared components
-│   │   │   │       │   ├── HermesScaffold.kt  # Standardized screen layout
-│   │   │   │       │   ├── EmptyState.kt      # Empty list placeholder
-│   │   │   │       │   └── LoadingState.kt    # Loading spinner component
-│   │   │   │       ├── chat/                  # Chat screen
-│   │   │   │       ├── config/                # Raw config viewer
-│   │   │   │       ├── profiles/              # Profile management
-│   │   │   │       ├── skills/                # Skills browser
-│   │   │   │       ├── plugins/               # Plugin management
-│   │   │   │       ├── toolsets/              # Toolset viewer
-│   │   │   │       ├── cron/                  # Cron job viewer
-│   │   │   │       ├── webhooks/              # Webhook management
-│   │   │   │       ├── logs/                  # Log stream viewer
-│   │   │   │       ├── keys/                  # Environment variable manager
-│   │   │   │       ├── gateway/               # Gateway health monitor
-│   │   │   │       ├── mcp/                   # MCP server manager
-│   │   │   │       ├── channels/              # Messaging channels
-│   │   │   │       ├── pairing/               # Device pairing
-│   │   │   │       ├── kanban/                # Kanban board viewer
-│   │   │   │       ├── model/                 # LLM model selector
-│   │   │   │       ├── system/                # System info screen
-│   │   │   │       └── achievements/          # Agent achievements
+│   │   │   │   │   ├── Motion.kt              # Shared transition animations
+│   │   │   │   │   ├── Spacing.kt             # Spacing tokens (CompositionLocal)
+│   │   │   │   │   └── Shapes.kt              # Shape tokens
+│   │   │   │   ├── ui/
+│   │   │   │   │   ├── common/                # Shared components
+│   │   │   │   │   │   ├── HermesScaffold.kt  # Standardised screen layout
+│   │   │   │   │   │   ├── StateViews.kt      # Loading, error, empty placeholders
+│   │   │   │   │   │   └── SharedComponents.kt # SearchBar, FilterChips, ToggleRow, etc.
+│   │   │   │   │   ├── chat/                  # Chat screen + view model
+│   │   │   │   │   ├── settings/              # Settings screen + view model
+│   │   │   │   │   ├── connect/               # Connect / pairing screen
+│   │   │   │   │   ├── profiles/              # Profile management
+│   │   │   │   │   ├── skills/                # Skills browser
+│   │   │   │   │   ├── plugins/               # Plugin management
+│   │   │   │   │   ├── toolsets/              # Toolset viewer
+│   │   │   │   │   ├── cron/                  # Cron job viewer
+│   │   │   │   │   ├── webhooks/              # Webhook management
+│   │   │   │   │   ├── logs/                  # Log stream viewer
+│   │   │   │   │   ├── keys/                  # Environment variable manager
+│   │   │   │   │   ├── gateway/               # Gateway health monitor
+│   │   │   │   │   ├── mcp/                   # MCP server manager
+│   │   │   │   │   ├── model/                 # LLM model selector
+│   │   │   │   │   ├── channels/              # Messaging channels
+│   │   │   │   │   ├── pairing/               # Device pairing
+│   │   │   │   │   ├── config/                # Raw config viewer
+│   │   │   │   │   ├── system/                # System info screen
+│   │   │   │   │   ├── kanban/                # Kanban board viewer
+│   │   │   │   │   └── achievements/          # Agent achievements
+│   │   │   │   └── util/                      # Utility classes
+│   │   │   │       └── CronExpressionFormatter.kt
 │   │   │   ├── res/
 │   │   │   │   ├── values/
 │   │   │   │   │   └── strings.xml            # String resources
@@ -197,8 +206,7 @@ hermes-mobile/
 ├── settings.gradle.kts                        # Project settings
 └── gradlew                                    # Gradle wrapper
 ```
-
----
+\n---
 
 ## Tech Stack
 

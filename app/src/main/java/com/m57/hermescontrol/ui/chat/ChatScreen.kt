@@ -81,6 +81,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -626,7 +627,8 @@ private fun ChatInputBar(
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .heightIn(max = 140.dp),
+                                .heightIn(max = 140.dp)
+                                .testTag("chat_input"),
                         placeholder = {
                             Text(
                                 if (!isConnected) {
@@ -655,7 +657,10 @@ private fun ChatInputBar(
                         // Interrupt button
                         FilledTonalButton(
                             onClick = onInterrupt,
-                            modifier = Modifier.size(48.dp),
+                            modifier =
+                                Modifier
+                                    .size(48.dp)
+                                    .testTag("interrupt_button"),
                             shape = CircleShape,
                             contentPadding = PaddingValues(0.dp),
                         ) {
@@ -670,7 +675,10 @@ private fun ChatInputBar(
                         FilledTonalButton(
                             onClick = onSend,
                             enabled = canSend,
-                            modifier = Modifier.size(48.dp),
+                            modifier =
+                                Modifier
+                                    .size(48.dp)
+                                    .testTag("send_button"),
                             shape = CircleShape,
                             contentPadding = PaddingValues(0.dp),
                         ) {

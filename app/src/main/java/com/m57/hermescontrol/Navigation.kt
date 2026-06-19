@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
@@ -279,7 +280,10 @@ fun MainNavigation() {
                                             selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                             selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                         ),
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                                    modifier =
+                                        Modifier
+                                            .padding(horizontal = 12.dp, vertical = 2.dp)
+                                            .testTag("drawer_${entry.label.lowercase().replace(' ', '_')}"),
                                 )
                             }
                     }
@@ -302,6 +306,7 @@ fun MainNavigation() {
                                 onClick = { NavigationController.navigateTo(item.key) },
                                 icon = { Icon(item.icon, contentDescription = item.label) },
                                 label = { Text(item.label) },
+                                modifier = Modifier.testTag("nav_${item.label.lowercase().replace(' ', '_')}"),
                             )
                         }
                     }

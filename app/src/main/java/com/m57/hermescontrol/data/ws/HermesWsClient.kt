@@ -10,8 +10,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -21,6 +24,16 @@ import okhttp3.WebSocketListener
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+
+/**
+ * Connection status for the WebSocket client.
+ */
+enum class ConnectionStatus {
+    DISCONNECTED,
+    CONNECTING,
+    CONNECTED,
+    RECONNECTING,
+}
 
 /**
  * WebSocket client for the Hermes Dashboard JSON-RPC 2.0 interface.
@@ -74,6 +87,12 @@ object HermesWsClient {
     /** Collect this from ViewModels to receive all parsed [WsEvent]s. */
     val events: SharedFlow<WsEvent> = _events.asSharedFlow()
 
+    // ── Connection status flow ──────────────────────────────────────────
+    private val _connectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
+
+    /** Observable connection status: DISCONNECTED / CONNECTING / CONNECTED / RECONNECTING */
+    val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
+
     // ── Callbacks (legacy / convenience) ─────────────────────────────────
 
     var onMessage: ((WsEvent) -> Unit)? = null
@@ -93,20 +112,19 @@ object HermesWsClient {
         }
         intentionalClose.set(false)
         currentBackoff = INITIAL_BACKOFF_MS
+        _connectionStatus.value = ConnectionStatus.CONNECTING
         openSocket()
     }
 
     /** Cleanly close the WebSocket and stop auto-reconnect. */
     fun disconnect() {
         intentionalClose.set(true)
-        // B4 (Jun 18 2026, kanban t_2b834d90): also cancel any pending
-        // reconnect coroutine so a scheduled openSocket() can't fire after
-        // the user explicitly disconnected.
         reconnectJob?.cancel()
         reconnectJob = null
         webSocket?.close(1000, "Client closed")
         webSocket = null
         connected.set(false)
+        _connectionStatus.value = ConnectionStatus.DISCONNECTED
     }
 
     // ── Send helpers ─────────────────────────────────────────────────────
@@ -156,6 +174,7 @@ object HermesWsClient {
         if (intentionalClose.get()) return
         if (!AuthManager.isAutoReconnect()) {
             if (BuildConfig.DEBUG) Log.d(TAG, "Auto-reconnect disabled")
+            _connectionStatus.value = ConnectionStatus.DISCONNECTED
             return
         }
         val delay = currentBackoff
@@ -205,6 +224,7 @@ object HermesWsClient {
         ) {
             Log.i(TAG, "WebSocket opened")
             connected.set(true)
+            _connectionStatus.value = ConnectionStatus.CONNECTED
             currentBackoff = INITIAL_BACKOFF_MS
             onConnected?.invoke()
         }
@@ -244,6 +264,7 @@ object HermesWsClient {
             Log.i(TAG, "WebSocket closed: $code $reason")
             connected.set(false)
             onDisconnected?.invoke(reason)
+            _connectionStatus.value = ConnectionStatus.RECONNECTING
             scheduleReconnect()
         }
 
@@ -256,6 +277,7 @@ object HermesWsClient {
             connected.set(false)
             onError?.invoke(t)
             onDisconnected?.invoke(t.message)
+            _connectionStatus.value = ConnectionStatus.RECONNECTING
             scheduleReconnect()
         }
     }

@@ -41,7 +41,8 @@ import kotlinx.coroutines.launch
  */
 class ChatNotificationService : Service() {
     companion object {
-        private const val CHANNEL_ID = "hermes_chat"
+        private const val SERVICE_CHANNEL_ID = "hermes_service"
+        private const val CHAT_CHANNEL_ID = "hermes_chat"
         private const val NOTIFICATION_ID = 1
         private const val PENDING_NOTIFICATION_ID = 2
 
@@ -57,8 +58,8 @@ class ChatNotificationService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildForegroundNotification("Hermes connected"))
+        createNotificationChannels()
+        startForeground(NOTIFICATION_ID, buildForegroundNotification("Waiting for Hermes replies"))
         startEventCollection()
     }
 
@@ -91,7 +92,7 @@ class ChatNotificationService : Service() {
     private fun showReplyNotification(text: String) {
         val notification =
             NotificationCompat
-                .Builder(this, CHANNEL_ID)
+                .Builder(this, CHAT_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Hermes")
                 .setContentText(text)
@@ -115,26 +116,37 @@ class ChatNotificationService : Service() {
 
     private fun buildForegroundNotification(text: String): Notification =
         NotificationCompat
-            .Builder(this, CHANNEL_ID)
+            .Builder(this, SERVICE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Hermes")
             .setContentText(text)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .build()
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel =
+            val serviceChannel =
                 NotificationChannel(
-                    CHANNEL_ID,
-                    "Hermes Chat",
+                    SERVICE_CHANNEL_ID,
+                    "Hermes Background Service",
+                    NotificationManager.IMPORTANCE_MIN,
+                ).apply {
+                    description = "Keeps connection alive in the background"
+                }
+
+            val chatChannel =
+                NotificationChannel(
+                    CHAT_CHANNEL_ID,
+                    "Hermes Chat Replies",
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
-                    description = "Notifications for new Hermes replies"
+                    description = "Alerts for new replies from Hermes"
                 }
+
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            manager.createNotificationChannel(serviceChannel)
+            manager.createNotificationChannel(chatChannel)
         }
     }
 

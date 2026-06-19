@@ -89,8 +89,8 @@ fun SessionsScreen(
                         modifier
                             .fillMaxSize()
                             .padding(paddingValues),
-                    contentPadding = listContentPadding(),
-                    verticalArrangement = listItemSpacing(),
+                    contentPadding = listContentPadding,
+                    verticalArrangement = listItemSpacing,
                 ) {
                     items(state.sessions, key = { it.id }) { session ->
                         SessionCard(
@@ -155,7 +155,7 @@ private fun SessionCard(
                                 when (status.lowercase()) {
                                     "active" -> StatusBadgeType.SUCCESS
                                     "paused" -> StatusBadgeType.WARNING
-                                    else -> StatusBadgeType.DEFAULT
+                                    else -> StatusBadgeType.NEUTRAL
                                 },
                         )
                     }

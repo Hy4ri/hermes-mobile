@@ -343,6 +343,7 @@ private fun RichText(
 ) {
     val uriHandler = LocalUriHandler.current
     val urlPattern = remember { Regex("""https?://[^\s)>\]\u0022\u0027]+""") }
+    val linkColor = MaterialTheme.colorScheme.primary
     val annotated =
         remember(text) {
             buildAnnotatedString {
@@ -411,7 +412,7 @@ private fun RichText(
                             pushStringAnnotation(tag = "URL", annotation = match.value)
                             withStyle(
                                 SpanStyle(
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = linkColor,
                                     textDecoration = TextDecoration.Underline,
                                 ),
                             ) {

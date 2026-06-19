@@ -56,6 +56,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 
@@ -360,6 +361,16 @@ fun SettingsScreen(
                     Text("Save")
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // App version info
+            Text(
+                text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
         }

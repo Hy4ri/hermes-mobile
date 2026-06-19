@@ -330,12 +330,6 @@ fun MainNavigation() {
 
                         entry<ChatScreen> {
                             ChatScreenContent(
-                                onNavigateToSettings = {
-                                    // B7 (Jun 18 2026): route through
-                                    // NavigationController to prevent
-                                    // stacking duplicate entries.
-                                    NavigationController.navigateTo(SettingsScreen)
-                                },
                                 onOpenDrawer = { openDrawer() },
                             )
                         }

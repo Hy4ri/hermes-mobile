@@ -50,7 +50,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -100,7 +99,6 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 
 @Composable
 fun ChatScreen(
-    onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
     viewModel: ChatViewModel = viewModel(),
@@ -327,14 +325,6 @@ fun ChatScreen(
                         if (state.isSearchActive) Icons.Filled.Close else Icons.Filled.Search,
                     contentDescription =
                         if (state.isSearchActive) "Close search" else "Search",
-                )
-            }
-
-            // Settings
-            IconButton(onClick = onNavigateToSettings) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "Settings",
                 )
             }
         },

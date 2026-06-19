@@ -745,8 +745,6 @@ class ChatViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        viewModelScope.launch(Dispatchers.IO) {
-            wsClient.disconnect()
-        }
+        wsClient.disconnect()
     }
 }

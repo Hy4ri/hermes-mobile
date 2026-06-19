@@ -21,7 +21,7 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
@@ -101,7 +101,7 @@ private val ALL_NAV_ITEMS: List<BottomNavItem> =
         BottomNavItem(ModelScreen, "Models", Icons.Filled.Settings),
         BottomNavItem(PairingScreen, "Pairing", Icons.Filled.Devices),
         BottomNavItem(KeysScreen, "Keys", Icons.Filled.Key),
-        BottomNavItem(ChannelsScreen, "Channels", Icons.Filled.ListAlt),
+        BottomNavItem(ChannelsScreen, "Channels", Icons.AutoMirrored.Filled.ListAlt),
         BottomNavItem(LogsScreen, "Logs", Icons.Filled.HistoryEdu),
         BottomNavItem(KanbanScreen, "Kanban", Icons.Filled.Dashboard),
         BottomNavItem(AchievementsScreen, "Achievements", Icons.Filled.Info),
@@ -146,7 +146,7 @@ private val DRAWER_ENTRIES =
         DrawerEntry(ModelScreen, "Models", Icons.Filled.Settings, DrawerSection.CONFIGURE),
         DrawerEntry(PairingScreen, "Pairing", Icons.Filled.Devices, DrawerSection.CONFIGURE),
         DrawerEntry(KeysScreen, "Keys", Icons.Filled.Key, DrawerSection.CONFIGURE),
-        DrawerEntry(ChannelsScreen, "Channels", Icons.Filled.ListAlt, DrawerSection.CONFIGURE),
+        DrawerEntry(ChannelsScreen, "Channels", Icons.AutoMirrored.Filled.ListAlt, DrawerSection.CONFIGURE),
         // Inspect
         DrawerEntry(LogsScreen, "Logs", Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
         DrawerEntry(KanbanScreen, "Kanban", Icons.Filled.Dashboard, DrawerSection.INSPECT),

@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,7 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -101,7 +101,7 @@ fun KanbanScreen(
                         Column(modifier = Modifier.fillMaxSize()) {
                             // Board selector tab row
                             if (state.boards.isNotEmpty()) {
-                                ScrollableTabRow(
+                                PrimaryScrollableTabRow(
                                     selectedTabIndex = state.boards.indexOf(state.selectedBoard).coerceAtLeast(0),
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
@@ -214,7 +214,7 @@ fun TaskCard(
             ) {
                 if (onMoveLeft != null) {
                     IconButton(onClick = onMoveLeft) {
-                        Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Move Left")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Move Left")
                     }
                 } else {
                     Spacer(modifier = Modifier.size(48.dp))

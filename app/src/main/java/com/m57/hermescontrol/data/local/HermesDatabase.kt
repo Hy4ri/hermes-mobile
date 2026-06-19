@@ -24,7 +24,7 @@ abstract class HermesDatabase : RoomDatabase() {
                         context.applicationContext,
                         HermesDatabase::class.java,
                         "hermes_control.db",
-                    ).fallbackToDestructiveMigration()
+                    ).fallbackToDestructiveMigration(false)
                     .build()
                     .also { instance = it }
             }

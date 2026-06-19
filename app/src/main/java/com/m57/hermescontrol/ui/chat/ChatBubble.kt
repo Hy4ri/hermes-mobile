@@ -71,6 +71,7 @@ import java.util.Locale
 fun ChatBubble(
     message: ChatMessage,
     isDarkTheme: Boolean,
+    searchQuery: String = "",
     modifier: Modifier = Modifier,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -85,8 +86,8 @@ fun ChatBubble(
                 ),
     ) {
         when (message.role) {
-            MessageRole.USER -> UserBubble(message, maxBubbleWidth, modifier)
-            MessageRole.ASSISTANT -> AssistantBubble(message, maxBubbleWidth, isDarkTheme, modifier)
+            MessageRole.USER -> UserBubble(message, maxBubbleWidth, searchQuery, modifier)
+            MessageRole.ASSISTANT -> AssistantBubble(message, maxBubbleWidth, isDarkTheme, searchQuery, modifier)
             MessageRole.SYSTEM -> SystemBubble(message, modifier)
             MessageRole.TOOL -> ToolBubble(message, isDarkTheme, modifier)
         }
@@ -97,9 +98,19 @@ fun ChatBubble(
 private fun UserBubble(
     message: ChatMessage,
     maxWidth: androidx.compose.ui.unit.Dp,
+    searchQuery: String = "",
     modifier: Modifier = Modifier,
 ) {
     val clipboardManager = LocalClipboardManager.current
+
+    val highlightedText =
+        remember(message.content, searchQuery) {
+            if (searchQuery.isNotBlank()) {
+                buildHighlightedString(message.content, searchQuery)
+            } else {
+                AnnotatedString(message.content)
+            }
+        }
     Box(
         modifier =
             modifier
@@ -140,7 +151,7 @@ private fun UserBubble(
             Column(modifier = Modifier.padding(12.dp)) {
                 SelectionContainer {
                     Text(
-                        text = message.content,
+                        text = highlightedText,
                         color = Color.White,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -164,6 +175,7 @@ private fun AssistantBubble(
     message: ChatMessage,
     maxWidth: androidx.compose.ui.unit.Dp,
     isDarkTheme: Boolean,
+    searchQuery: String = "",
     modifier: Modifier = Modifier,
 ) {
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
@@ -210,6 +222,7 @@ private fun AssistantBubble(
                     RichText(
                         text = message.content,
                         textColor = textColor,
+                        searchQuery = searchQuery,
                     )
                 }
                 if (!message.isStreaming) {
@@ -340,12 +353,14 @@ private fun ToolBubble(
 private fun RichText(
     text: String,
     textColor: Color,
+    searchQuery: String = "",
 ) {
     val uriHandler = LocalUriHandler.current
     val urlPattern = remember { Regex("""https?://[^\s)>\]\u0022\u0027]+""") }
     val linkColor = MaterialTheme.colorScheme.primary
+    val searchHighlightColor = Color(0xFFFFF176).copy(alpha = 0.9f)
     val annotated =
-        remember(text) {
+        remember(text, searchQuery) {
             buildAnnotatedString {
                 var i = 0
                 val src = text
@@ -422,6 +437,15 @@ private fun RichText(
                             i = match.range.last + 1
                         }
 
+                        // Search match highlight
+                        searchQuery.isNotEmpty() &&
+                            src.regionMatches(i, searchQuery, 0, searchQuery.length, ignoreCase = true) -> {
+                            withStyle(SpanStyle(background = searchHighlightColor)) {
+                                append(src.substring(i, i + searchQuery.length))
+                            }
+                            i += searchQuery.length
+                        }
+
                         else -> {
                             append(src[i])
                             i++
@@ -444,4 +468,35 @@ private fun RichText(
 private fun formatTimestamp(timestamp: Long): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))
+}
+
+/**
+ * Build an AnnotatedString with search matches highlighted.
+ */
+private fun buildHighlightedString(
+    text: String,
+    query: String,
+): AnnotatedString {
+    val highlightColor = Color(0xFFFFF176).copy(alpha = 0.9f)
+    return buildAnnotatedString {
+        var i = 0
+        while (i < text.length) {
+            val matchEnd = text.indexOf(query, i, ignoreCase = true)
+            if (matchEnd == -1) {
+                // No more matches — append the rest
+                append(text.substring(i))
+                i = text.length
+            } else {
+                // Append text before the match
+                if (matchEnd > i) {
+                    append(text.substring(i, matchEnd))
+                }
+                // Append the match highlighted
+                withStyle(SpanStyle(background = highlightColor)) {
+                    append(text.substring(matchEnd, matchEnd + query.length))
+                }
+                i = matchEnd + query.length
+            }
+        }
+    }
 }

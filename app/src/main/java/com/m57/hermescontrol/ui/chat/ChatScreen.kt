@@ -38,7 +38,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
@@ -159,26 +163,55 @@ fun ChatScreen(
                 ),
         )
 
+    // Search: filter messages to matches only
+    val filteredMessages =
+        if (state.isSearchActive && state.searchQuery.isNotBlank()) {
+            state.messages.filterIndexed { index, _ -> index in state.searchMatchIndices }
+        } else {
+            state.messages
+        }
+
+    // Scroll to current search match
+    LaunchedEffect(state.isSearchActive, state.currentSearchMatchIndex) {
+        if (state.isSearchActive && state.currentSearchMatchIndex >= 0 && filteredMessages.isNotEmpty()) {
+            listState.animateScrollToItem(
+                state.currentSearchMatchIndex.coerceIn(0, filteredMessages.lastIndex),
+            )
+        }
+    }
+
     HermesScaffold(
         modifier = modifier,
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Hermes",
-                    style =
-                        MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                        ),
+            if (state.isSearchActive) {
+                SearchBarRow(
+                    searchQuery = state.searchQuery,
+                    onQueryChange = { viewModel.setSearchQuery(it) },
+                    searchMatchCount = state.searchMatchIndices.size,
+                    currentMatchIndex = state.currentSearchMatchIndex,
+                    onNavigateUp = { viewModel.navigateSearchMatch(-1) },
+                    onNavigateDown = { viewModel.navigateSearchMatch(1) },
+                    onClose = { viewModel.clearSearch() },
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                // Connection status dot
-                Box(
-                    modifier =
-                        Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(if (state.isConnected) StatusGreen else StatusRed),
-                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Hermes",
+                        style =
+                            MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                            ),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // Connection status dot
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(if (state.isConnected) StatusGreen else StatusRed),
+                    )
+                }
             }
         },
         onOpenDrawer = onOpenDrawer,
@@ -269,6 +302,16 @@ fun ChatScreen(
                 }
             }
 
+            // Search toggle
+            IconButton(onClick = { viewModel.toggleSearch() }) {
+                Icon(
+                    imageVector =
+                        if (state.isSearchActive) Icons.Filled.Close else Icons.Filled.Search,
+                    contentDescription =
+                        if (state.isSearchActive) "Close search" else "Search",
+                )
+            }
+
             // Settings
             IconButton(onClick = onNavigateToSettings) {
                 Icon(
@@ -292,11 +335,18 @@ fun ChatScreen(
                         .weight(1f)
                         .fillMaxWidth(),
             ) {
-                if (state.messages.isEmpty() && !state.isLoading) {
-                    EmptyState(
-                        title = "Ready to chat",
-                        subtitle = "Send a message to start a conversation",
-                    )
+                if (filteredMessages.isEmpty() && !state.isLoading) {
+                    if (state.isSearchActive && state.searchQuery.isNotBlank()) {
+                        EmptyState(
+                            title = "No matches",
+                            subtitle = "No messages match \"${state.searchQuery}\"",
+                        )
+                    } else {
+                        EmptyState(
+                            title = "Ready to chat",
+                            subtitle = "Send a message to start a conversation",
+                        )
+                    }
                 }
 
                 LazyColumn(
@@ -305,12 +355,13 @@ fun ChatScreen(
                     contentPadding = PaddingValues(vertical = 8.dp),
                 ) {
                     items(
-                        items = state.messages,
+                        items = filteredMessages,
                         key = { it.id },
                     ) { message ->
                         ChatBubble(
                             message = message,
                             isDarkTheme = isDark,
+                            searchQuery = if (state.isSearchActive) state.searchQuery else "",
                         )
                     }
 
@@ -644,4 +695,57 @@ private fun ClarifyDialog(
             }
         },
     )
+}
+
+@Composable
+private fun SearchBarRow(
+    searchQuery: String,
+    onQueryChange: (String) -> Unit,
+    searchMatchCount: Int,
+    currentMatchIndex: Int,
+    onNavigateUp: () -> Unit,
+    onNavigateDown: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            placeholder = { Text("Search messages…") },
+            singleLine = true,
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Clear")
+                    }
+                }
+            },
+        )
+        if (searchMatchCount > 0 && searchQuery.isNotEmpty()) {
+            Text(
+                text = "${currentMatchIndex + 1}/$searchMatchCount",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+        IconButton(onClick = onNavigateUp) {
+            Icon(
+                Icons.Filled.KeyboardArrowUp,
+                contentDescription = "Previous match",
+            )
+        }
+        IconButton(onClick = onNavigateDown) {
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = "Next match",
+            )
+        }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Filled.Close, contentDescription = "Close search")
+        }
+    }
 }

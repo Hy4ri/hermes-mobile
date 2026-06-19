@@ -11,9 +11,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Cancel in-progress runs on the same ref when a new commit lands.
+# Cancel in-progress runs when a new commit lands on the same PR branch.
+# On main (push events), each commit gets a unique group so rapid merges
+# don't cancel each other's CI runs.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 jobs:

@@ -8,6 +8,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,12 +40,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,6 +98,7 @@ private fun UserBubble(
     maxWidth: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
+    val clipboardManager = LocalClipboardManager.current
     Box(
         modifier =
             modifier
@@ -118,7 +125,14 @@ private fun UserBubble(
                             bottomStart = 16.dp,
                             bottomEnd = 4.dp,
                         ),
-                    ).background(brush = gradientBrush),
+                    ).background(brush = gradientBrush)
+                    .pointerInput(message.content) {
+                        detectTapGestures(
+                            onLongPress = {
+                                clipboardManager.setText(AnnotatedString(message.content))
+                            },
+                        )
+                    },
             color = Color.Transparent,
             tonalElevation = 0.dp,
         ) {
@@ -153,6 +167,7 @@ private fun AssistantBubble(
 ) {
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
     val textColor = MaterialTheme.colorScheme.onSurface
+    val clipboardManager = LocalClipboardManager.current
 
     Box(
         modifier =
@@ -173,7 +188,14 @@ private fun AssistantBubble(
                             bottomStart = 16.dp,
                             bottomEnd = 16.dp,
                         ),
-                    ),
+                    )
+                    .pointerInput(message.content) {
+                        detectTapGestures(
+                            onLongPress = {
+                                clipboardManager.setText(AnnotatedString(message.content))
+                            },
+                        )
+                    },
             color = bubbleColor,
             border =
                 BorderStroke(
@@ -311,13 +333,15 @@ private fun ToolBubble(
 }
 
 /**
- * Simple rich text renderer supporting **bold**, `inline code`, and ```code blocks```.
+ * Simple rich text renderer supporting **bold**, `inline code`, ```code blocks```, and clickable URLs.
  */
 @Composable
 private fun RichText(
     text: String,
     textColor: Color,
 ) {
+    val uriHandler = LocalUriHandler.current
+    val urlPattern = remember { Regex("""https?://[^\s)>\]\u0022\u0027]+""") }
     val annotated =
         remember(text) {
             buildAnnotatedString {
@@ -380,6 +404,22 @@ private fun RichText(
                             }
                         }
 
+                        // URL: https://...
+                        urlPattern.matchAt(src, i) != null -> {
+                            val match = urlPattern.matchAt(src, i)!!
+                            pushStringAnnotation(tag = "URL", annotation = match.value)
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textDecoration = TextDecoration.Underline,
+                                ),
+                            ) {
+                                append(match.value)
+                            }
+                            pop()
+                            i = match.range.last + 1
+                        }
+
                         else -> {
                             append(src[i])
                             i++
@@ -392,6 +432,10 @@ private fun RichText(
     Text(
         text = annotated,
         style = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+        onClick = { offset ->
+            annotated.getStringAnnotations("URL", offset, offset)
+                .firstOrNull()?.let { uriHandler.openUri(it.item) }
+        },
     )
 }
 

@@ -562,6 +562,9 @@ class ChatViewModel(
                 messages = emptyList(),
                 currentSessionId = sessionId,
                 showSessionPicker = false,
+                isAgentTyping = false,
+                isThinking = false,
+                thinkingText = "",
             )
         }
         // Load cached messages first — instant display

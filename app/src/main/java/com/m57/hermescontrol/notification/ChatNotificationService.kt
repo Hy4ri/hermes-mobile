@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
@@ -41,10 +42,10 @@ import kotlinx.coroutines.launch
  */
 class ChatNotificationService : Service() {
     companion object {
-        private const val SERVICE_CHANNEL_ID = "hermes_service"
-        private const val CHAT_CHANNEL_ID = "hermes_chat"
-        private const val NOTIFICATION_ID = 1
-        private const val PENDING_NOTIFICATION_ID = 2
+        internal const val SERVICE_CHANNEL_ID = "hermes_service"
+        internal const val CHAT_CHANNEL_ID = "hermes_chat"
+        internal const val NOTIFICATION_ID = 1
+        internal const val PENDING_NOTIFICATION_ID = 2
 
         private var isAppInForeground = false
 
@@ -75,11 +76,11 @@ class ChatNotificationService : Service() {
                                         .take(100)
                                         .replace("\n", " ")
                                         .ifBlank { "New message" }
-                                showReplyNotification(preview)
+                                showReplyNotification(preview, event.sessionId)
                             }
 
                             is WsEvent.ClarifyRequest -> {
-                                showReplyNotification("Hermes needs a clarification")
+                                showReplyNotification("Hermes needs a clarification", null)
                             }
 
                             else -> {}
@@ -89,8 +90,11 @@ class ChatNotificationService : Service() {
             }
     }
 
-    private fun showReplyNotification(text: String) {
-        val notification =
+    private fun showReplyNotification(
+        text: String,
+        sessionId: String?,
+    ) {
+        val builder =
             NotificationCompat
                 .Builder(this, CHAT_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
@@ -100,10 +104,42 @@ class ChatNotificationService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .setContentIntent(buildContentIntent())
-                .build()
+
+        if (!sessionId.isNullOrBlank()) {
+            val replyLabel = "Type your reply..."
+            val remoteInput =
+                RemoteInput
+                    .Builder(NotificationReplyReceiver.KEY_TEXT_REPLY)
+                    .setLabel(replyLabel)
+                    .build()
+
+            val replyIntent =
+                Intent(this, NotificationReplyReceiver::class.java).apply {
+                    putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
+                }
+
+            val replyPendingIntent =
+                PendingIntent.getBroadcast(
+                    this,
+                    sessionId.hashCode(),
+                    replyIntent,
+                    PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+
+            val action =
+                NotificationCompat.Action
+                    .Builder(
+                        R.drawable.ic_notification,
+                        "Reply",
+                        replyPendingIntent,
+                    ).addRemoteInput(remoteInput)
+                    .build()
+
+            builder.addAction(action)
+        }
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(PENDING_NOTIFICATION_ID, notification)
+        manager.notify(PENDING_NOTIFICATION_ID, builder.build())
     }
 
     private fun buildContentIntent(): PendingIntent =

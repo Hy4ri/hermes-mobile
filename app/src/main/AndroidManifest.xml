@@ -29,6 +29,10 @@
             android:name=".notification.ChatNotificationService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <receiver
+            android:name=".notification.NotificationReplyReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

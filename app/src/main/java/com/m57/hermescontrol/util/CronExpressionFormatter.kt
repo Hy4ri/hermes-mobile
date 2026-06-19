@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.util
 
+import com.m57.hermescontrol.BuildConfig
+
 object CronExpressionFormatter {
     fun cronToHumanReadable(schedule: String): String {
         val clean = schedule.trim().replace("\\s+".toRegex(), " ")
@@ -150,7 +152,10 @@ object CronExpressionFormatter {
             // Fallback
             return schedule
         } catch (e: Exception) {
-            return schedule
+            if (BuildConfig.DEBUG) {
+                android.util.Log.w("CronExpressionFormatter", "Failed to parse cron: $schedule", e)
+            }
+            return "Raw: $schedule"
         }
     }
 

@@ -92,7 +92,7 @@ class ChatNotificationService : Service() {
         val notification =
             NotificationCompat
                 .Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Hermes")
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -116,7 +116,7 @@ class ChatNotificationService : Service() {
     private fun buildForegroundNotification(text: String): Notification =
         NotificationCompat
             .Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Hermes")
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_LOW)

@@ -325,14 +325,16 @@ class ChatViewModel(
                     (resultMap?.get("session_id") as? String)
                         ?: _uiState.value.currentSessionId
 
+                // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
+                // cached messages here — switchSession() already did so before
+                // the WS round-trip. Calling loadCachedMessages() here would
+                // overwrite any message the user sent between switchSession() and
+                // the server ack, making the chat appear to go blank.
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         currentSessionId = sessionId,
                     )
-                }
-                if (sessionId != null) {
-                    loadCachedMessages(sessionId)
                 }
                 addSystemMessage("Session resumed")
             }

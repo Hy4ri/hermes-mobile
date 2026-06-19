@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
@@ -85,6 +86,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -133,6 +135,26 @@ fun ChatScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Request POST_NOTIFICATIONS runtime permission on Android 13+ (API 33).
+    // The manifest declaration alone is insufficient — on API 33+ the system
+    // requires a runtime permission prompt before the app can post any
+    // notification, including the foreground service notification.
+    val requestNotificationPermission =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { /* granted — next lifecycle event will pick it up */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permission = android.Manifest.permission.POST_NOTIFICATIONS
+            if (
+                ContextCompat.checkSelfPermission(context, permission) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPermission.launch(permission)
+            }
         }
     }
 

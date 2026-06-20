@@ -70,6 +70,7 @@ data class SessionUi(
 data class ClarifyUi(
     val text: String,
     val options: List<String>,
+    val clarifyId: String? = null,
 )
 
 class ChatViewModel(
@@ -164,6 +165,7 @@ class ChatViewModel(
                             ClarifyUi(
                                 text = event.text.orEmpty(),
                                 options = event.options.orEmpty(),
+                                clarifyId = event.clarifyId,
                             ),
                     )
                 }
@@ -888,6 +890,7 @@ class ChatViewModel(
 
     fun respondToClarify(option: String) {
         val sessionId = _uiState.value.currentSessionId ?: return
+        val clarifyId = _uiState.value.clarifyRequest?.clarifyId
         _uiState.update { it.copy(clarifyRequest = null) }
 
         val userMessage =
@@ -908,9 +911,19 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "response" to option,
+                    "answer" to option,
+                )
+            if (clarifyId != null) {
+                params["clarify_id"] = clarifyId
+                params["request_id"] = clarifyId
+            }
             wsClient.send(
                 method = WsMethods.CLARIFY_RESPOND,
-                params = mapOf("session_id" to sessionId, "response" to option),
+                params = params,
                 onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
             )
         }

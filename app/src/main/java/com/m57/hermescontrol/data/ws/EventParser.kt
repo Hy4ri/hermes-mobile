@@ -82,10 +82,11 @@ object EventParser {
             "clarify.request" -> {
                 val text = payload?.get("text") as? String
                 val rawOptions = payload?.get("options")
+                val clarifyId = payload?.get("clarify_id") as? String ?: payload?.get("request_id") as? String
 
                 @Suppress("UNCHECKED_CAST")
                 val options = (rawOptions as? List<*>)?.filterIsInstance<String>()
-                WsEvent.ClarifyRequest(text, options)
+                WsEvent.ClarifyRequest(text, options, clarifyId)
             }
 
             "status.update" -> {

@@ -297,12 +297,13 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            mockEventsFlow.emit(WsEvent.ClarifyRequest("Please choose:", listOf("Yes", "No")))
+            mockEventsFlow.emit(WsEvent.ClarifyRequest("Please choose:", listOf("Yes", "No"), "clarify-123"))
             advanceUntilIdle()
 
             var state = viewModel.uiState.value
             assertEquals("Please choose:", state.clarifyRequest?.text)
             assertEquals(listOf("Yes", "No"), state.clarifyRequest?.options)
+            assertEquals("clarify-123", state.clarifyRequest?.clarifyId)
 
             // Respond to clarify
             viewModel.respondToClarify("Yes")
@@ -320,7 +321,14 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
-                    params = mapOf("session_id" to "session-123", "response" to "Yes"),
+                    params =
+                        mapOf(
+                            "session_id" to "session-123",
+                            "response" to "Yes",
+                            "answer" to "Yes",
+                            "clarify_id" to "clarify-123",
+                            "request_id" to "clarify-123",
+                        ),
                     onSent = any(),
                 )
             }
@@ -347,12 +355,13 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            mockEventsFlow.emit(WsEvent.ClarifyRequest("Please explain:", emptyList()))
+            mockEventsFlow.emit(WsEvent.ClarifyRequest("Please explain:", emptyList(), "clarify-456"))
             advanceUntilIdle()
 
             var state = viewModel.uiState.value
             assertEquals("Please explain:", state.clarifyRequest?.text)
             assertTrue(state.clarifyRequest?.options.isNullOrEmpty())
+            assertEquals("clarify-456", state.clarifyRequest?.clarifyId)
 
             // Respond to clarify with custom text
             viewModel.respondToClarify("This is my custom response text")
@@ -369,7 +378,14 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
-                    params = mapOf("session_id" to "session-123", "response" to "This is my custom response text"),
+                    params =
+                        mapOf(
+                            "session_id" to "session-123",
+                            "response" to "This is my custom response text",
+                            "answer" to "This is my custom response text",
+                            "clarify_id" to "clarify-456",
+                            "request_id" to "clarify-456",
+                        ),
                     onSent = any(),
                 )
             }

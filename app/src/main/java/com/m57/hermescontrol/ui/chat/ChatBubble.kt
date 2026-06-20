@@ -675,6 +675,15 @@ private fun ToolBubble(
                         }
                     }
                 }
+
+                // Timestamp — consistent with UserBubble/AssistantBubble
+                val textColor = if (isDarkTheme) Color.White else Color.Black
+                Text(
+                    text = formatTimestamp(message.timestamp),
+                    color = textColor.copy(alpha = 0.5f),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
+                )
             }
         }
     }

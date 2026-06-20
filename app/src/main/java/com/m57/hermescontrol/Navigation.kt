@@ -128,7 +128,7 @@ private val NAV_KEY_BY_NAME: Map<String, NavKey> =
 private fun resolveBottomNavItems(names: List<String>): List<BottomNavItem> =
     names.mapNotNull { name -> NAV_KEY_BY_NAME[name]?.let { key -> ALL_NAV_ITEMS.first { it.key == key } } }
 
-// ── Drawer sections for secondary screens ──────────────────────────────
+// ── Drawer sections ────────────────────────────────────────────────────
 
 private enum class DrawerSection(
     val title: String,
@@ -149,11 +149,15 @@ private data class DrawerEntry(
 private val DRAWER_ENTRIES =
     listOf(
         // Converse
+        DrawerEntry(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
         DrawerEntry(ProfilesScreen, "Profiles", Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
         // Automate
+        DrawerEntry(CronJobsScreen, "Cron", Icons.Filled.Schedule, DrawerSection.AUTOMATE),
         DrawerEntry(WebhooksScreen, "Webhooks", Icons.Filled.Webhook, DrawerSection.AUTOMATE),
         DrawerEntry(GatewayScreen, "Gateway", Icons.Filled.Bolt, DrawerSection.AUTOMATE),
         // Configure
+        DrawerEntry(SkillsScreen, "Skills", Icons.Filled.Extension, DrawerSection.CONFIGURE),
+        DrawerEntry(SettingsScreen, "Settings", Icons.Filled.Settings, DrawerSection.CONFIGURE),
         DrawerEntry(ToolsetsScreen, "Toolsets", Icons.Filled.Build, DrawerSection.CONFIGURE),
         DrawerEntry(PluginsScreen, "Plugins", Icons.Filled.Memory, DrawerSection.CONFIGURE),
         DrawerEntry(ConfigScreen, "Config", Icons.Filled.Code, DrawerSection.CONFIGURE),
@@ -163,6 +167,7 @@ private val DRAWER_ENTRIES =
         DrawerEntry(KeysScreen, "Keys", Icons.Filled.Key, DrawerSection.CONFIGURE),
         DrawerEntry(ChannelsScreen, "Channels", Icons.AutoMirrored.Filled.ListAlt, DrawerSection.CONFIGURE),
         // Inspect
+        DrawerEntry(SystemScreen, "System", Icons.Filled.Info, DrawerSection.INSPECT),
         DrawerEntry(LogsScreen, "Logs", Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
         DrawerEntry(KanbanScreen, "Kanban", Icons.Filled.Dashboard, DrawerSection.INSPECT),
         DrawerEntry(AchievementsScreen, "Achievements", Icons.Filled.Info, DrawerSection.INSPECT),

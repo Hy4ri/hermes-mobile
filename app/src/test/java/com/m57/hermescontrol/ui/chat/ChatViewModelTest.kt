@@ -20,7 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -68,13 +67,9 @@ class ChatViewModelTest {
         every { HermesWsClient.disconnect() } returns Unit
         every { mockDb.chatMessageDao() } returns mockDao
         every { HermesDatabase.get(any()) } returns mockDb
-        every { mockDao.observeMessagesForSession(any()) } returns flowOf(emptyList())
         coEvery { mockDao.getMessagesForSession(any()) } returns emptyList()
         coEvery { mockDao.upsert(any()) } returns Unit
         coEvery { mockDao.upsertAll(any()) } returns Unit
-        coEvery { mockDao.finalizeMessage(any(), any()) } returns Unit
-        coEvery { mockDao.deleteMessagesForSession(any()) } returns Unit
-        coEvery { mockDao.count() } returns 0
 
         // Default mock stubs for requests returning unique IDs
         var reqCount = 0

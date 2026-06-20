@@ -91,6 +91,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -581,7 +582,6 @@ fun ChatScreen(
 
 @Composable
 private fun ThinkingIndicator(thinkingText: String) {
-    val context = LocalContext.current
     val infiniteTransition = rememberInfiniteTransition(label = "thinking")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,
@@ -647,7 +647,6 @@ private fun ChatInputBar(
     isAgentTyping: Boolean,
     isConnected: Boolean,
 ) {
-    val context = LocalContext.current
     val canSend = inputText.isNotBlank() && !isAgentTyping && isConnected
 
     AnimatedVisibility(
@@ -816,7 +815,7 @@ private fun ChatInputBar(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = context.getString(R.string.chat_send_desc),
+                                contentDescription = stringResource(R.string.chat_send_desc),
                             )
                         }
                     }
@@ -832,12 +831,11 @@ private fun ClarifyDialog(
     onOptionSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
     var typedText by rememberSaveable(clarify) { mutableStateOf(clarify.text) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(context.getString(R.string.chat_clarify_title)) },
+        title = { Text(stringResource(R.string.chat_clarify_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = clarify.text)
@@ -845,7 +843,7 @@ private fun ClarifyDialog(
                 if (clarify.options.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = context.getString(R.string.chat_clarify_hint),
+                        text = stringResource(R.string.chat_clarify_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -872,7 +870,7 @@ private fun ClarifyDialog(
                 OutlinedTextField(
                     value = typedText,
                     onValueChange = { typedText = it },
-                    label = { Text(context.getString(R.string.chat_clarify_response)) },
+                    label = { Text(stringResource(R.string.chat_clarify_response)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -887,12 +885,12 @@ private fun ClarifyDialog(
                 },
                 enabled = typedText.isNotBlank(),
             ) {
-                Text(context.getString(R.string.chat_send))
+                Text(stringResource(R.string.chat_send))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(context.getString(R.string.chat_dismiss))
+                Text(stringResource(R.string.chat_dismiss))
             }
         },
     )
@@ -905,7 +903,6 @@ private fun CompactSearchInput(
     modifier: Modifier = Modifier,
     isError: Boolean = false,
 ) {
-    val context = LocalContext.current
     val textColor = MaterialTheme.colorScheme.onSurface
     val errorColor = MaterialTheme.colorScheme.error
     val outlineColor = if (isError) errorColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
@@ -941,7 +938,7 @@ private fun CompactSearchInput(
                 Box(modifier = Modifier.weight(1f)) {
                     if (value.isEmpty()) {
                         Text(
-                            text = context.getString(R.string.chat_search_placeholder),
+                            text = stringResource(R.string.chat_search_placeholder),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         )
@@ -955,7 +952,7 @@ private fun CompactSearchInput(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = context.getString(R.string.chat_clear_search_desc),
+                            contentDescription = stringResource(R.string.chat_clear_search_desc),
                             modifier = Modifier.size(16.dp),
                         )
                     }
@@ -975,7 +972,6 @@ private fun SearchBarRow(
     onNavigateDown: () -> Unit,
     onClose: () -> Unit,
 ) {
-    val context = LocalContext.current
     val isError = searchQuery.isNotEmpty() && searchMatchCount == 0
 
     Row(
@@ -1019,7 +1015,7 @@ private fun SearchBarRow(
         ) {
             Icon(
                 Icons.Filled.KeyboardArrowUp,
-                contentDescription = context.getString(R.string.chat_prev_match_desc),
+                contentDescription = stringResource(R.string.chat_prev_match_desc),
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -1030,14 +1026,14 @@ private fun SearchBarRow(
         ) {
             Icon(
                 Icons.Filled.KeyboardArrowDown,
-                contentDescription = context.getString(R.string.chat_next_match_desc),
+                contentDescription = stringResource(R.string.chat_next_match_desc),
                 modifier = Modifier.size(20.dp),
             )
         }
         IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = context.getString(R.string.chat_close_search_desc),
+                contentDescription = stringResource(R.string.chat_close_search_desc),
                 modifier = Modifier.size(20.dp),
             )
         }

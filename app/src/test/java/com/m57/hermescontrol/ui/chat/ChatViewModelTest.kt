@@ -657,4 +657,37 @@ class ChatViewModelTest {
             assertNull(state.streamingMessage)
             assertNull(state.clarifyRequest)
         }
+
+    @Test
+    fun testReconnectDoesNotDuplicateEventCollection() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Setup active session
+            var createReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                createReqId = "create-req-reconnect-test"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(createReqId)
+                createReqId
+            }
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
+            advanceUntilIdle()
+
+            // Trigger reconnect
+            viewModel.reconnect()
+            advanceUntilIdle()
+
+            // Emit a message token
+            mockEventsFlow.emit(WsEvent.MessageStart("session-123"))
+            mockEventsFlow.emit(WsEvent.MessageToken("Hello", "session-123"))
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            // Content should be "Hello", not "HelloHello" (no duplicate collectors running)
+            assertEquals("Hello", state.streamingMessage?.content)
+        }
 }

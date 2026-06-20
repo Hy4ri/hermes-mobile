@@ -113,6 +113,11 @@ class ChatViewModel(
 
     init {
         connectWebSocket()
+        viewModelScope.launch {
+            wsClient.events.collect { event ->
+                handleWsEvent(event)
+            }
+        }
         if (startCleanup) {
             startPendingRequestCleanup()
         }
@@ -127,12 +132,6 @@ class ChatViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.connect()
-        }
-
-        viewModelScope.launch {
-            wsClient.events.collect { event ->
-                handleWsEvent(event)
-            }
         }
     }
 

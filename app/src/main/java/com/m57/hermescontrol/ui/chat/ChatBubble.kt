@@ -6,6 +6,9 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -25,15 +29,18 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +72,7 @@ import com.m57.hermescontrol.theme.SystemMessageColor
 import com.m57.hermescontrol.theme.ToolChipColor
 import com.m57.hermescontrol.theme.ToolChipColorLight
 import com.m57.hermescontrol.theme.UserBubble
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -124,6 +132,15 @@ private fun UserBubble(
     modifier: Modifier = Modifier,
 ) {
     val clipboardManager = LocalClipboardManager.current
+    var showCopyButton by remember { mutableStateOf(false) }
+
+    // Auto-dismiss copy button after 4 seconds
+    LaunchedEffect(showCopyButton) {
+        if (showCopyButton) {
+            delay(4000)
+            showCopyButton = false
+        }
+    }
 
     val highlightedText =
         remember(message.content, searchQuery, isCurrentMatch) {
@@ -148,45 +165,79 @@ private fun UserBubble(
                         MaterialTheme.colorScheme.secondary,
                     ),
             )
-        Surface(
-            modifier =
-                Modifier
-                    .widthIn(max = maxWidth)
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 16.dp,
-                            topEnd = 16.dp,
-                            bottomStart = 16.dp,
-                            bottomEnd = 4.dp,
-                        ),
-                    ).background(brush = gradientBrush)
-                    .pointerInput(message.content) {
-                        detectTapGestures(
-                            onLongPress = {
-                                clipboardManager.setText(AnnotatedString(message.content))
-                            },
+        Box {
+            Surface(
+                modifier =
+                    Modifier
+                        .widthIn(max = maxWidth)
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 16.dp,
+                                bottomStart = 16.dp,
+                                bottomEnd = 4.dp,
+                            ),
+                        ).background(brush = gradientBrush)
+                        .pointerInput(message.content) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    showCopyButton = true
+                                },
+                            )
+                        },
+                color = Color.Transparent,
+                tonalElevation = 0.dp,
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    SelectionContainer {
+                        Text(
+                            text = highlightedText,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
-                    },
-            color = Color.Transparent,
-            tonalElevation = 0.dp,
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                SelectionContainer {
+                    }
                     Text(
-                        text = highlightedText,
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = formatTimestamp(message.timestamp),
+                        color = Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier =
+                            Modifier
+                                .align(Alignment.End)
+                                .padding(top = 4.dp),
                     )
                 }
-                Text(
-                    text = formatTimestamp(message.timestamp),
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier =
-                        Modifier
-                            .align(Alignment.End)
-                            .padding(top = 4.dp),
-                )
+            }
+
+            // Copy button overlay — top-right of the bubble
+            AnimatedVisibility(
+                visible = showCopyButton,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut(),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 8.dp, y = (-8).dp),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    shadowElevation = 6.dp,
+                ) {
+                    IconButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            showCopyButton = false
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.ContentCopy,
+                            contentDescription = "Copy",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
             }
         }
     }
@@ -204,6 +255,15 @@ private fun AssistantBubble(
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
     val textColor = MaterialTheme.colorScheme.onSurface
     val clipboardManager = LocalClipboardManager.current
+    var showCopyButton by remember { mutableStateOf(false) }
+
+    // Auto-dismiss copy button after 4 seconds
+    LaunchedEffect(showCopyButton) {
+        if (showCopyButton) {
+            delay(4000)
+            showCopyButton = false
+        }
+    }
 
     Box(
         modifier =
@@ -212,52 +272,86 @@ private fun AssistantBubble(
                 .padding(horizontal = 12.dp, vertical = 3.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Surface(
-            modifier =
-                Modifier
-                    .widthIn(max = maxWidth)
-                    .animateContentSize()
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 4.dp,
-                            topEnd = 16.dp,
-                            bottomStart = 16.dp,
-                            bottomEnd = 16.dp,
-                        ),
-                    ).pointerInput(message.content) {
-                        detectTapGestures(
-                            onLongPress = {
-                                clipboardManager.setText(AnnotatedString(message.content))
-                            },
+        Box {
+            Surface(
+                modifier =
+                    Modifier
+                        .widthIn(max = maxWidth)
+                        .animateContentSize()
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 4.dp,
+                                topEnd = 16.dp,
+                                bottomStart = 16.dp,
+                                bottomEnd = 16.dp,
+                            ),
+                        ).pointerInput(message.content) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    showCopyButton = true
+                                },
+                            )
+                        },
+                color = bubbleColor,
+                border =
+                    BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                    ),
+                tonalElevation = 1.dp,
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    SelectionContainer {
+                        RichText(
+                            text = message.content,
+                            textColor = textColor,
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
                         )
-                    },
-            color = bubbleColor,
-            border =
-                BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                ),
-            tonalElevation = 1.dp,
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                SelectionContainer {
-                    RichText(
-                        text = message.content,
-                        textColor = textColor,
-                        searchQuery = searchQuery,
-                        isCurrentMatch = isCurrentMatch,
-                    )
+                    }
+                    if (!message.isStreaming) {
+                        Text(
+                            text = formatTimestamp(message.timestamp),
+                            color = textColor.copy(alpha = 0.5f),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier =
+                                Modifier
+                                    .align(Alignment.End)
+                                    .padding(top = 4.dp),
+                        )
+                    }
                 }
-                if (!message.isStreaming) {
-                    Text(
-                        text = formatTimestamp(message.timestamp),
-                        color = textColor.copy(alpha = 0.5f),
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier =
-                            Modifier
-                                .align(Alignment.End)
-                                .padding(top = 4.dp),
-                    )
+            }
+
+            // Copy button overlay — top-right of the bubble
+            AnimatedVisibility(
+                visible = showCopyButton,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut(),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-8).dp, y = (-8).dp),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    shadowElevation = 6.dp,
+                ) {
+                    IconButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            showCopyButton = false
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.ContentCopy,
+                            contentDescription = "Copy",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 }
             }
         }

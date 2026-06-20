@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -117,6 +118,7 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    var lastSessionId by remember { mutableStateOf<String?>(null) }
     val showScrollToBottom by remember {
         derivedStateOf {
             state.messages.isNotEmpty() && listState.canScrollForward
@@ -196,7 +198,13 @@ fun ChatScreen(
                 (if (state.streamingMessage != null) 1 else 0) +
                 (if (state.isThinking) 1 else 0)
         if (totalItems > 0) {
-            listState.animateScrollToItem(totalItems - 1)
+            val isSessionSwitch = state.currentSessionId != lastSessionId
+            if (isSessionSwitch) {
+                lastSessionId = state.currentSessionId
+                listState.scrollToItem(totalItems - 1)
+            } else if (listState.isAtBottom()) {
+                listState.animateScrollToItem(totalItems - 1)
+            }
         }
     }
 
@@ -516,6 +524,15 @@ fun ChatScreen(
                 onSend = {
                     viewModel.sendMessage(inputText)
                     inputText = ""
+                    scrollScope.launch {
+                        val totalItems =
+                            state.messages.size +
+                                (if (state.streamingMessage != null) 1 else 0) +
+                                (if (state.isThinking) 1 else 0)
+                        if (totalItems > 0) {
+                            listState.animateScrollToItem(totalItems - 1)
+                        }
+                    }
                 },
                 onInterrupt = viewModel::interruptSession,
                 isAgentTyping = state.isAgentTyping,
@@ -1026,4 +1043,12 @@ private fun StreamingBubbleWithTypingEffect(
         searchQuery = "",
         isCurrentMatch = false,
     )
+}
+
+private fun LazyListState.isAtBottom(threshold: Int = 3): Boolean {
+    val layoutInfo = this.layoutInfo
+    val visibleItems = layoutInfo.visibleItemsInfo
+    if (visibleItems.isEmpty()) return true
+    val lastVisibleItem = visibleItems.last()
+    return lastVisibleItem.index >= layoutInfo.totalItemsCount - threshold
 }

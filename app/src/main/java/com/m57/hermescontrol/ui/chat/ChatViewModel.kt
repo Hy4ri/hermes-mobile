@@ -197,11 +197,12 @@ class ChatViewModel(
     private fun handleMessageStart(event: WsEvent.MessageStart) {
         if (!isCurrentSession(event.sessionId)) return
         // Create the streaming message as a standalone state field.
-        val msg = ChatMessage(
-            role = MessageRole.ASSISTANT,
-            content = "",
-            isStreaming = true,
-        )
+        val msg =
+            ChatMessage(
+                role = MessageRole.ASSISTANT,
+                content = "",
+                isStreaming = true,
+            )
         streamingMessageId = msg.id
         _uiState.update {
             it.copy(
@@ -219,18 +220,20 @@ class ChatViewModel(
             val current = state.streamingMessage
             if (current != null) {
                 state.copy(
-                    streamingMessage = current.copy(
-                        content = current.content + event.token,
-                    ),
+                    streamingMessage =
+                        current.copy(
+                            content = current.content + event.token,
+                        ),
                     isThinking = false,
                 )
             } else {
                 // Fallback: no MessageStart was received — create one now
-                val msg = ChatMessage(
-                    role = MessageRole.ASSISTANT,
-                    content = event.token,
-                    isStreaming = true,
-                )
+                val msg =
+                    ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = event.token,
+                        isStreaming = true,
+                    )
                 streamingMessageId = msg.id
                 state.copy(
                     streamingMessage = msg,
@@ -259,17 +262,18 @@ class ChatViewModel(
 
         _uiState.update { state ->
             val streaming = state.streamingMessage
-            val msg = if (streaming != null) {
-                streaming.copy(
-                    content = event.text,
-                    isStreaming = false,
-                )
-            } else {
-                ChatMessage(
-                    role = MessageRole.ASSISTANT,
-                    content = event.text,
-                )
-            }
+            val msg =
+                if (streaming != null) {
+                    streaming.copy(
+                        content = event.text,
+                        isStreaming = false,
+                    )
+                } else {
+                    ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = event.text,
+                    )
+                }
             finalizedMsg = msg
             sessionId = state.currentSessionId
             state.copy(
@@ -336,12 +340,13 @@ class ChatViewModel(
     // ── Tool events ──────────────────────────────────────────────────────
 
     private fun handleToolStart(event: WsEvent.ToolStart) {
-        val toolMessage = ChatMessage(
-            role = MessageRole.TOOL,
-            content = event.data.toString(),
-            toolName = event.name,
-            toolStatus = ToolStatus.RUNNING,
-        )
+        val toolMessage =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = event.data.toString(),
+                toolName = event.name,
+                toolStatus = ToolStatus.RUNNING,
+            )
 
         _uiState.update { state ->
             state.copy(messages = state.messages + toolMessage)
@@ -907,9 +912,10 @@ class ChatViewModel(
                         pendingRequests.entries.filter {
                             now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
                         }
-                for (entry in stale) {
-                    pendingRequests.remove(entry.key)
-                    Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
+                    for (entry in stale) {
+                        pendingRequests.remove(entry.key)
+                        Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
+                    }
                 }
             }
         }

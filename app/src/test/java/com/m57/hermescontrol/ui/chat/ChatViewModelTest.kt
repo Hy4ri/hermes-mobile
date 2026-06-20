@@ -321,6 +321,14 @@ class ChatViewModelTest {
             assertEquals("Session created", state.messages[0].content)
             assertEquals("Yes", state.messages[1].content)
             assertEquals(MessageRole.USER, state.messages[1].role)
+
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params = mapOf("session_id" to "session-123", "response" to "Yes"),
+                    onSent = any(),
+                )
+            }
         }
 
     @Test
@@ -362,6 +370,14 @@ class ChatViewModelTest {
             assertEquals("Session created", state.messages[0].content)
             assertEquals("This is my custom response text", state.messages[1].content)
             assertEquals(MessageRole.USER, state.messages[1].role)
+
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params = mapOf("session_id" to "session-123", "response" to "This is my custom response text"),
+                    onSent = any(),
+                )
+            }
         }
 
     @Test

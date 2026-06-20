@@ -790,7 +790,7 @@ private fun ClarifyDialog(
     onOptionSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var typedText by rememberSaveable { mutableStateOf("") }
+    var typedText by rememberSaveable(clarify) { mutableStateOf(clarify.text) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

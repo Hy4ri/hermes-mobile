@@ -886,8 +886,33 @@ class ChatViewModel(
     }
 
     fun respondToClarify(option: String) {
+        val sessionId = _uiState.value.currentSessionId ?: return
         _uiState.update { it.copy(clarifyRequest = null) }
-        sendMessage(option)
+
+        val userMessage =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = option,
+            )
+
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages + userMessage,
+                isAgentTyping = true,
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.upsert(userMessage.toEntity(sessionId))
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                method = WsMethods.CLARIFY_RESPOND,
+                params = mapOf("session_id" to sessionId, "response" to option),
+                onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
+            )
+        }
     }
 
     fun clearError() {

@@ -74,7 +74,10 @@ data class ClarifyUi(
 
 class ChatViewModel(
     application: Application,
+    private val startCleanup: Boolean,
 ) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, startCleanup = true)
+
     // ── Internal state ───────────────────────────────────────────────────
     private val _uiState = MutableStateFlow(ChatUiState())
 
@@ -102,13 +105,15 @@ class ChatViewModel(
             state.copy(connectionStatus = connStatus)
         }.stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.Eagerly,
             _uiState.value,
         )
 
     init {
         connectWebSocket()
-        startPendingRequestCleanup()
+        if (startCleanup) {
+            startPendingRequestCleanup()
+        }
     }
 
     // ── Connection ───────────────────────────────────────────────────────
@@ -918,7 +923,6 @@ class ChatViewModel(
                     }
                 }
             }
-        }
     }
 
     // ── Search ────────────────────────────────────────────────────────────

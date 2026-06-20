@@ -29,20 +29,32 @@ android {
 
     signingConfigs {
         create("release") {
-            val storePath = System.getenv("KEYSTORE_PATH")
-            val storePass = System.getenv("KEYSTORE_PASSWORD")
-            val alias = System.getenv("KEY_ALIAS")
-            val keyPass = System.getenv("KEY_PASSWORD")
+            val isReleaseBuild = gradle.startParameter.taskNames.any { name ->
+                name.contains("Release", ignoreCase = true) || name == "build"
+            }
 
-            require(!storePath.isNullOrEmpty()) { "KEYSTORE_PATH environment variable is not set" }
-            require(!storePass.isNullOrEmpty()) { "KEYSTORE_PASSWORD environment variable is not set" }
-            require(!alias.isNullOrEmpty()) { "KEY_ALIAS environment variable is not set" }
-            require(!keyPass.isNullOrEmpty()) { "KEY_PASSWORD environment variable is not set" }
+            if (isReleaseBuild) {
+                val storePath = System.getenv("KEYSTORE_PATH")
+                val storePass = System.getenv("KEYSTORE_PASSWORD")
+                val alias = System.getenv("KEY_ALIAS")
+                val keyPass = System.getenv("KEY_PASSWORD")
 
-            storeFile = file(storePath)
-            storePassword = storePass
-            keyAlias = alias
-            keyPassword = keyPass
+                require(!storePath.isNullOrEmpty()) { "KEYSTORE_PATH environment variable is not set" }
+                require(!storePass.isNullOrEmpty()) { "KEYSTORE_PASSWORD environment variable is not set" }
+                require(!alias.isNullOrEmpty()) { "KEY_ALIAS environment variable is not set" }
+                require(!keyPass.isNullOrEmpty()) { "KEY_PASSWORD environment variable is not set" }
+
+                storeFile = file(storePath)
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
+            } else {
+                // Dummy values for evaluation configuration during non-release builds
+                storeFile = file("dummy.keystore")
+                storePassword = "dummy"
+                keyAlias = "dummy"
+                keyPassword = "dummy"
+            }
         }
     }
 

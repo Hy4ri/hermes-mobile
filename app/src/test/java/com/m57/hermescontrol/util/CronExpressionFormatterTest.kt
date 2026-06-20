@@ -10,7 +10,6 @@ import org.junit.Before
 import org.junit.Test
 
 class CronExpressionFormatterTest {
-
     @Before
     fun setup() {
         mockkStatic(Log::class)

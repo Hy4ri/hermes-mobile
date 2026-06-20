@@ -36,6 +36,7 @@ class ConnectViewModelTest {
 
         mockkObject(AuthManager)
         mockkObject(ApiClient)
+        mockkStatic(android.util.Base64::class)
 
         mockApiService = mockk()
         every { ApiClient.hermesApi } returns mockApiService
@@ -292,4 +293,33 @@ class ConnectViewModelTest {
             assertFalse(state.connectionSuccess)
             assertEquals("Connection failed: Something went wrong", state.errorMessage)
         }
+
+    @Test
+    fun testOnPairingString_malformedBase64_showsError() {
+        val viewModel = ConnectViewModel()
+
+        // Mock Base64.decode to throw IllegalArgumentException for an invalid short string
+        every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
+
+        viewModel.onPairingString("short-invalid-string")
+
+        val state = viewModel.uiState.value
+        assertEquals("Malformed pairing string — expected URL or Base64-encoded JSON", state.errorMessage)
+    }
+
+    @Test
+    fun testOnPairingString_malformedBase64_validRawToken() {
+        val viewModel = ConnectViewModel()
+
+        // Mock Base64.decode to throw IllegalArgumentException
+        every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
+
+        // A string that is >= 32 chars and alphanumeric matching the raw token regex
+        val validToken = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+        viewModel.onPairingString(validToken)
+
+        val state = viewModel.uiState.value
+        assertEquals(validToken, state.token)
+        assertNull(state.errorMessage)
+    }
 }

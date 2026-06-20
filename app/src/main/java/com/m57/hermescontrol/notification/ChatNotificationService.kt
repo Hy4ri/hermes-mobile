@@ -103,7 +103,7 @@ class ChatNotificationService : Service() {
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
-                .setContentIntent(buildContentIntent())
+                .setContentIntent(buildContentIntent(sessionId))
 
         if (!sessionId.isNullOrBlank()) {
             val replyLabel = "Type your reply..."
@@ -142,13 +142,18 @@ class ChatNotificationService : Service() {
         manager.notify(PENDING_NOTIFICATION_ID, builder.build())
     }
 
-    private fun buildContentIntent(): PendingIntent =
-        PendingIntent.getActivity(
+    private fun buildContentIntent(sessionId: String?): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java)
+        if (!sessionId.isNullOrBlank()) {
+            intent.putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
+        }
+        return PendingIntent.getActivity(
             this,
-            0,
-            Intent(this, MainActivity::class.java),
+            sessionId?.hashCode() ?: 0,
+            intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+    }
 
     private fun buildForegroundNotification(text: String): Notification =
         NotificationCompat

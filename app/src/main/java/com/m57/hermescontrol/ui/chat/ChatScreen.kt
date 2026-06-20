@@ -101,6 +101,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 fun ChatScreen(
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
+    sessionId: String? = null,
     viewModel: ChatViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -110,6 +111,14 @@ fun ChatScreen(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    // Switch to the session from a notification tap when provided.
+    // Runs once per sessionId value (re-runs if a different notification taps in).
+    LaunchedEffect(sessionId) {
+        if (!sessionId.isNullOrBlank()) {
+            viewModel.switchSession(sessionId)
+        }
+    }
 
     // Manage notification foreground service lifecycle:
     // - When app goes to background (ON_STOP), mark as not-foreground and

@@ -171,7 +171,7 @@ private val DRAWER_ENTRIES =
 private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.map { it.key }.toSet()
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(sessionId: String? = null) {
     val hasToken = !AuthManager.getToken().isNullOrBlank()
     val startScreen: NavKey = if (hasToken) ChatScreen else ConnectScreen
 
@@ -315,7 +315,7 @@ fun MainNavigation() {
         ) { paddingValues ->
             NavDisplay(
                 backStack = backStack,
-                onBack = { backStack.removeLastOrNull() },
+                onBack = { NavigationController.goBack() },
                 entryProvider =
                     entryProvider {
                         entry<ConnectScreen> {
@@ -331,12 +331,13 @@ fun MainNavigation() {
                         entry<ChatScreen> {
                             ChatScreenContent(
                                 onOpenDrawer = { openDrawer() },
+                                sessionId = sessionId,
                             )
                         }
 
                         entry<SettingsScreen> {
                             SettingsScreenContent(
-                                onBack = { backStack.removeLastOrNull() },
+                                onBack = { NavigationController.goBack() },
                             )
                         }
 

@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.notification.NotificationReplyReceiver
 import com.m57.hermescontrol.theme.HermesControlTheme
 
 class MainActivity : ComponentActivity() {
@@ -16,6 +17,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         AuthManager.init(this)
+
+        // Read notification tap sessionId (if any) from the intent that launched us
+        val notificationSessionId = intent?.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
 
         enableEdgeToEdge()
         setContent {
@@ -28,7 +32,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    MainNavigation()
+                    MainNavigation(sessionId = notificationSessionId)
                 }
             }
         }

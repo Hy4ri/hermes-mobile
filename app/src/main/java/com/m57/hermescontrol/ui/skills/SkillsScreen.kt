@@ -18,6 +18,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +46,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.FilterChipRow
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
@@ -61,6 +63,13 @@ fun SkillsScreen(
     val context = LocalContext.current
     val spacing = LocalSpacing.current
     var query by remember { mutableStateOf("") }
+    val statuses = listOf("All Statuses", "Enabled", "Disabled")
+    var selectedStatus by remember { mutableStateOf("All Statuses") }
+    val categories =
+        remember(state.skills) {
+            listOf("All") + state.skills.mapNotNull { it.category }.distinct().sorted()
+        }
+    var selectedCategory by remember { mutableStateOf("All") }
 
     LaunchedEffect(Unit) {
         viewModel.loadSkills()
@@ -74,13 +83,32 @@ fun SkillsScreen(
     }
 
     val filtered =
-        if (query.isBlank()) {
-            state.skills
-        } else {
-            state.skills.filter {
-                it.name.contains(query, ignoreCase = true) ||
-                    it.category?.contains(query, ignoreCase = true) == true ||
-                    it.description?.contains(query, ignoreCase = true) == true
+        remember(state.skills, query, selectedStatus, selectedCategory) {
+            state.skills.filter { skill ->
+                val matchesQuery =
+                    if (query.isBlank()) {
+                        true
+                    } else {
+                        skill.name.contains(query, ignoreCase = true) ||
+                            skill.category?.contains(query, ignoreCase = true) == true ||
+                            skill.description?.contains(query, ignoreCase = true) == true
+                    }
+
+                val matchesStatus =
+                    when (selectedStatus) {
+                        "Enabled" -> skill.enabled
+                        "Disabled" -> !skill.enabled
+                        else -> true
+                    }
+
+                val matchesCategory =
+                    if (selectedCategory == "All") {
+                        true
+                    } else {
+                        skill.category == selectedCategory
+                    }
+
+                matchesQuery && matchesStatus && matchesCategory
             }
         }
 
@@ -123,74 +151,153 @@ fun SkillsScreen(
                             placeholder = "Search skills…",
                         )
                     }
-                    items(filtered) { skill ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                ),
+                    item {
+                        Column(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(spacing.xs),
                         ) {
+                            Text(
+                                text = "Status",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             Row(
+                                horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                            ) {
+                                statuses.forEach { status ->
+                                    FilterChip(
+                                        selected = selectedStatus == status,
+                                        onClick = { selectedStatus = status },
+                                        label = { Text(status) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (categories.size > 2) {
+                        item {
+                            Column(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
-                                        .padding(spacing.md),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+                                        .padding(vertical = spacing.xs),
+                                verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                            ) {
+                                Text(
+                                    text = "Category",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = spacing.md),
+                                )
+                                FilterChipRow(
+                                    chips = categories,
+                                    selectedChip = selectedCategory,
+                                    onChipSelected = { selectedCategory = it },
+                                )
+                            }
+                        }
+                    }
+                    if (filtered.isEmpty()) {
+                        item {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = spacing.lg),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                                ) {
+                                    Text(
+                                        text = "No matching skills",
+                                        style =
+                                            MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                            ),
+                                    )
+                                    Text(
+                                        text = "Try adjusting your search or filters.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(filtered) { skill ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                    CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    ),
                             ) {
                                 Row(
-                                    modifier = Modifier.weight(1f),
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(spacing.md),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Extension,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = skill.name,
-                                            style =
-                                                MaterialTheme.typography.titleMedium.copy(
-                                                    fontWeight = FontWeight.SemiBold,
-                                                ),
-                                        )
-                                        skill.category?.let { cat ->
-                                            Text(
-                                                text = cat,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                        skill.description?.let { desc ->
-                                            Text(
-                                                text = desc,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 2,
-                                            )
-                                        }
-                                    }
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    IconButton(
-                                        onClick = { viewModel.loadSkillContent(skill.name) },
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Filled.Edit,
-                                            contentDescription = "Edit Skill File",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            imageVector = Icons.Filled.Extension,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = skill.name,
+                                                style =
+                                                    MaterialTheme.typography.titleMedium.copy(
+                                                        fontWeight = FontWeight.SemiBold,
+                                                    ),
+                                            )
+                                            skill.category?.let { cat ->
+                                                Text(
+                                                    text = cat,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                            skill.description?.let { desc ->
+                                                Text(
+                                                    text = desc,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 2,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        IconButton(
+                                            onClick = { viewModel.loadSkillContent(skill.name) },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Edit,
+                                                contentDescription = "Edit Skill File",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        Switch(
+                                            checked = skill.enabled,
+                                            onCheckedChange = { viewModel.toggleSkill(skill) },
                                         )
                                     }
-                                    Switch(
-                                        checked = skill.enabled,
-                                        onCheckedChange = { viewModel.toggleSkill(skill) },
-                                    )
                                 }
                             }
                         }

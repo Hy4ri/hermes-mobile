@@ -475,8 +475,11 @@ class ChatViewModel(
                         )
                     }
                 _uiState.update { state ->
-                    val title = sessions.find { s -> s.id == state.currentSessionId }?.title ?: "Hermes"
-                    state.copy(sessions = sessions, chatTitle = title)
+                    val newTitle = sessions.find { s -> s.id == state.currentSessionId }?.title
+                    state.copy(
+                        sessions = sessions,
+                        chatTitle = newTitle ?: state.chatTitle,
+                    )
                 }
             }
 
@@ -492,11 +495,9 @@ class ChatViewModel(
                 // overwrite any message the user sent between switchSession() and
                 // the server ack, making the chat appear to go blank.
                 _uiState.update {
-                    val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
                     it.copy(
                         isLoading = false,
                         currentSessionId = sessionId,
-                        chatTitle = title,
                     )
                 }
                 addSystemMessage("Session resumed")
@@ -766,7 +767,7 @@ class ChatViewModel(
         streamingMessageId = null
 
         _uiState.update {
-            val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
+            val title = it.sessions.find { s -> s.id == sessionId }?.title ?: it.chatTitle
             it.copy(
                 isLoading = true,
                 messages = emptyList(),

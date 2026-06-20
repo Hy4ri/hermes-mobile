@@ -22,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.ChatScreen
@@ -83,15 +82,17 @@ fun SessionsScreen(
                 ) {
                     items(state.sessions) { session ->
                         Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    NavigationController.pendingSessionId = session.id
-                                    NavigationController.navigateTo(ChatScreen)
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            ),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        NavigationController.pendingSessionId = session.id
+                                        NavigationController.navigateTo(ChatScreen)
+                                    },
+                            colors =
+                                CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                ),
                         ) {
                             Column(
                                 modifier = Modifier.padding(spacing.md),

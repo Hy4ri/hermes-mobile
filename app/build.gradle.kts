@@ -29,10 +29,20 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "hermes-control-release.keystore.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "hermes_release"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "hermes-control-release"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "hermes_release"
+            val storePath = System.getenv("KEYSTORE_PATH")
+            val storePass = System.getenv("KEYSTORE_PASSWORD")
+            val alias = System.getenv("KEY_ALIAS")
+            val keyPass = System.getenv("KEY_PASSWORD")
+
+            require(!storePath.isNullOrEmpty()) { "KEYSTORE_PATH environment variable is not set" }
+            require(!storePass.isNullOrEmpty()) { "KEYSTORE_PASSWORD environment variable is not set" }
+            require(!alias.isNullOrEmpty()) { "KEY_ALIAS environment variable is not set" }
+            require(!keyPass.isNullOrEmpty()) { "KEY_PASSWORD environment variable is not set" }
+
+            storeFile = file(storePath)
+            storePassword = storePass
+            keyAlias = alias
+            keyPassword = keyPass
         }
     }
 

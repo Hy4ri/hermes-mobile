@@ -121,7 +121,7 @@ The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 ./gradlew assembleRelease -PversionName="1.2.0" -PversionCode="120"
 ```
 
-> **Note:** Release builds use debug signing keys by default. For Play Store distribution, configure a proper signing config.
+> **Note:** Release builds require proper signing configuration. Ensure the environment variables `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` are set before building.
 
 ### Install
 

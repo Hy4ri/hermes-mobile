@@ -106,7 +106,10 @@ object AuthManager {
         requirePrefs().edit().putString("token_$profileId", token).apply()
     }
 
-    fun getSelectedProfileId(): String? = requirePrefs().getString(KEY_SELECTED_PROFILE_ID, null)
+    fun getSelectedProfileId(): String? {
+        val id = requirePrefs().getString(KEY_SELECTED_PROFILE_ID, null)
+        return if (id.isNullOrBlank()) null else id
+    }
 
     fun setSelectedProfileId(id: String?) {
         requirePrefs().edit().putString(KEY_SELECTED_PROFILE_ID, id).apply()

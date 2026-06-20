@@ -94,6 +94,7 @@ class SettingsViewModel : ViewModel() {
             "ProfilesScreen" to "Profiles",
             "WebhooksScreen" to "Webhooks",
             "GatewayScreen" to "Gateway",
+            "HistoryScreen" to "History",
             "ToolsetsScreen" to "Toolsets",
             "PluginsScreen" to "Plugins",
             "ConfigScreen" to "Config",

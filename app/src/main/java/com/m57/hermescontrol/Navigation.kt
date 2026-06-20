@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
@@ -82,6 +83,7 @@ import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
+import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
 import com.m57.hermescontrol.ui.skills.SkillsScreen as SkillsScreenContent
 import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
@@ -118,6 +120,7 @@ private val ALL_NAV_ITEMS: List<BottomNavItem> =
         BottomNavItem(LogsScreen, "Logs", Icons.Filled.HistoryEdu),
         BottomNavItem(KanbanScreen, "Kanban", Icons.Filled.Dashboard),
         BottomNavItem(AchievementsScreen, "Achievements", Icons.Filled.Info),
+        BottomNavItem(HistoryScreen, "History", Icons.Filled.History),
     )
 
 /** Lookup: data-object simple name → NavKey (used by bottom-nav config). */
@@ -150,6 +153,7 @@ private val DRAWER_ENTRIES =
     listOf(
         // Converse
         DrawerEntry(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
+        DrawerEntry(HistoryScreen, "History", Icons.Filled.History, DrawerSection.CONVERSE),
         DrawerEntry(ProfilesScreen, "Profiles", Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
         // Automate
         DrawerEntry(CronJobsScreen, "Cron", Icons.Filled.Schedule, DrawerSection.AUTOMATE),
@@ -336,6 +340,12 @@ fun MainNavigation(sessionId: String? = null) {
                             ChatScreenContent(
                                 onOpenDrawer = { openDrawer() },
                                 sessionId = sessionId,
+                            )
+                        }
+
+                        entry<HistoryScreen> {
+                            HistoryScreenContent(
+                                onOpenDrawer = { openDrawer() },
                             )
                         }
 

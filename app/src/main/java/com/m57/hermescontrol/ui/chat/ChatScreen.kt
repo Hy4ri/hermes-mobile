@@ -47,9 +47,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
@@ -58,11 +56,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -101,6 +97,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -132,11 +129,15 @@ fun ChatScreen(
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    // Switch to the session from a notification tap when provided.
-    // Runs once per sessionId value (re-runs if a different notification taps in).
-    LaunchedEffect(sessionId) {
-        if (!sessionId.isNullOrBlank()) {
-            viewModel.switchSession(sessionId)
+    // Switch to the session from a notification tap or history screen when provided.
+    val pendingSessionId = NavigationController.pendingSessionId
+    LaunchedEffect(sessionId, pendingSessionId) {
+        val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
+        if (!target.isNullOrBlank()) {
+            viewModel.switchSession(target)
+            if (target == pendingSessionId) {
+                NavigationController.pendingSessionId = null
+            }
         }
     }
 
@@ -283,76 +284,6 @@ fun ChatScreen(
                     imageVector = Icons.Filled.Add,
                     contentDescription = "New Chat",
                 )
-            }
-
-            // Session picker
-            Box {
-                IconButton(onClick = {
-                    viewModel.loadSessions()
-                    viewModel.toggleSessionPicker()
-                }) {
-                    Icon(
-                        imageVector = Icons.Filled.History,
-                        contentDescription = "Sessions",
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = state.showSessionPicker,
-                    onDismissRequest = { viewModel.toggleSessionPicker() },
-                ) {
-                    DropdownMenuItem(
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Filled.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("New Session")
-                            }
-                        },
-                        onClick = {
-                            viewModel.createNewSession()
-                            viewModel.toggleSessionPicker()
-                        },
-                    )
-                    if (state.sessions.isNotEmpty()) {
-                        HorizontalDivider()
-                    }
-                    state.sessions.forEach { session ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = session.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = 1,
-                                    )
-                                    Text(
-                                        text = "${session.messageCount} messages",
-                                        style =
-                                            MaterialTheme.typography.labelSmall.copy(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ),
-                                    )
-                                }
-                            },
-                            onClick = { viewModel.switchSession(session.id) },
-                            trailingIcon = {
-                                if (session.id == state.currentSessionId) {
-                                    Icon(
-                                        Icons.Filled.ArrowDropDown,
-                                        contentDescription = "Current",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            },
-                        )
-                    }
-                }
             }
 
             // Search toggle

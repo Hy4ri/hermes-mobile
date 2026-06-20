@@ -324,6 +324,47 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testClarifyRequestCustomResponse() =
+        runTest {
+            var createReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                createReqId = "create-req-clarify-custom"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(createReqId)
+                createReqId
+            }
+
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Set session ID
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.ClarifyRequest("Please explain:", emptyList()))
+            advanceUntilIdle()
+
+            var state = viewModel.uiState.value
+            assertEquals("Please explain:", state.clarifyRequest?.text)
+            assertTrue(state.clarifyRequest?.options.isNullOrEmpty())
+
+            // Respond to clarify with custom text
+            viewModel.respondToClarify("This is my custom response text")
+            advanceUntilIdle()
+
+            // verify clarify request is dismissed, and user message is sent
+            state = viewModel.uiState.value
+            assertNull(state.clarifyRequest)
+            assertEquals(2, state.messages.size)
+            assertEquals("Session created", state.messages[0].content)
+            assertEquals("This is my custom response text", state.messages[1].content)
+            assertEquals(MessageRole.USER, state.messages[1].role)
+        }
+
+    @Test
     fun testSendMessage() =
         runTest {
             val viewModel = ChatViewModel(app, startCleanup = false)

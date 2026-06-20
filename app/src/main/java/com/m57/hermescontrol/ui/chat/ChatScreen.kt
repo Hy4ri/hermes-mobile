@@ -18,6 +18,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -82,6 +83,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -788,24 +790,63 @@ private fun ClarifyDialog(
     onOptionSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    var typedText by rememberSaveable { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Clarification Needed") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = clarify.text)
-                Spacer(modifier = Modifier.height(8.dp))
-                clarify.options.forEach { option ->
-                    FilledTonalButton(
-                        onClick = { onOptionSelected(option) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(option)
+
+                if (clarify.options.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Tap an option to copy to input, or long-press to send directly.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    clarify.options.forEach { option ->
+                        FilledTonalButton(
+                            onClick = { /* onTap handled by pointerInput */ },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .pointerInput(option) {
+                                        detectTapGestures(
+                                            onTap = { typedText = option },
+                                            onLongPress = { onOptionSelected(option) },
+                                        )
+                                    },
+                        ) {
+                            Text(option)
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = typedText,
+                    onValueChange = { typedText = it },
+                    label = { Text("Response") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (typedText.isNotBlank()) {
+                        onOptionSelected(typedText)
+                    }
+                },
+                enabled = typedText.isNotBlank(),
+            ) {
+                Text("Send")
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Dismiss")

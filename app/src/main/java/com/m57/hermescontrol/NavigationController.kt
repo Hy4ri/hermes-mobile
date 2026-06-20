@@ -49,8 +49,11 @@ object NavigationController {
         stack.add(key)
     }
 
-    fun add(key: NavKey) {
-        backStack?.add(key)
+    /** Clear the stack and navigate to the given screen atomically. */
+    fun resetTo(screen: NavKey) {
+        val stack = backStack ?: return
+        stack.clear()
+        stack.add(screen)
     }
 
     /**

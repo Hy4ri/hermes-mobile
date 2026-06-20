@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -689,5 +690,37 @@ class ChatViewModelTest {
             val state = viewModel.uiState.value
             // Content should be "Hello", not "HelloHello" (no duplicate collectors running)
             assertEquals("Hello", state.streamingMessage?.content)
+        }
+
+    @Test
+    fun testMessageCompleteWithoutStreaming_upsertsAssistantMessage() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Setup active session
+            var createReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                createReqId = "create-req-complete-test"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(createReqId)
+                createReqId
+            }
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
+            advanceUntilIdle()
+
+            // Emit MessageComplete without preceding MessageStart / MessageToken
+            mockEventsFlow.emit(WsEvent.MessageComplete("Fully complete message", "session-123"))
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(2, state.messages.size)
+            assertEquals("Fully complete message", state.messages[1].content)
+            assertEquals(MessageRole.ASSISTANT, state.messages[1].role)
+
+            // Verify upsert was called for the new message
+            coVerify { mockDao.upsert(any()) }
         }
 }

@@ -859,7 +859,7 @@ class ChatViewModel(
                         // Merge: keep any user messages sent between cache load
                         // and REST response (they won't be in the REST response
                         // yet), plus preserve any active streaming message.
-                        val existingIds = chatMessages.map { it.id }.toSet()
+                        val existingIds = chatMessages.mapTo(HashSet(chatMessages.size)) { it.id }
                         val localOnly = state.messages.filter { it.id !in existingIds }
                         state.copy(
                             messages = chatMessages + localOnly,

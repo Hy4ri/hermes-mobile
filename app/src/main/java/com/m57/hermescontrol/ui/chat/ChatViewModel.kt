@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.local.toEntity
@@ -371,10 +372,11 @@ class ChatViewModel(
         var orphanToPersist: ChatMessage? = null
         val sessionId = _uiState.value.currentSessionId
 
+        val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
         val toolMessage =
             ChatMessage(
                 role = MessageRole.TOOL,
-                content = event.data.toString(),
+                content = contentJson,
                 toolName = event.name,
                 toolStatus = ToolStatus.RUNNING,
             )
@@ -418,10 +420,11 @@ class ChatViewModel(
                         it.toolStatus == ToolStatus.RUNNING
                 }
             if (toolIdx >= 0) {
+                val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
                 val updated =
                     messages[toolIdx].copy(
                         toolStatus = ToolStatus.COMPLETED,
-                        content = event.data.toString(),
+                        content = contentJson,
                     )
                 messages[toolIdx] = updated
                 completedTool = updated

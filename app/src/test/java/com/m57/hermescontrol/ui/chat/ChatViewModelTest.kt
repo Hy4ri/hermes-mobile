@@ -562,4 +562,44 @@ class ChatViewModelTest {
             assertEquals("Second response segment", state.streamingMessage?.content)
             assertTrue(state.streamingMessage?.isStreaming == true)
         }
+
+    @Test
+    fun testToolExecution_serializesDataAsJson() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Setup active session
+            var createReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                createReqId = "create-req-tool-json-test"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(createReqId)
+                createReqId
+            }
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
+            advanceUntilIdle()
+
+            // Start tool call
+            mockEventsFlow.emit(WsEvent.ToolStart("calculator", mapOf("input" to "2+2", "nested" to mapOf("key" to "value"))))
+            advanceUntilIdle()
+
+            var state = viewModel.uiState.value
+            assertEquals(2, state.messages.size)
+            assertEquals(MessageRole.TOOL, state.messages[1].role)
+            assertEquals("{\"input\":\"2+2\",\"nested\":{\"key\":\"value\"}}", state.messages[1].content)
+            assertEquals(ToolStatus.RUNNING, state.messages[1].toolStatus)
+
+            // Complete tool call
+            mockEventsFlow.emit(WsEvent.ToolComplete("calculator", mapOf("result" to "4", "exit_code" to 0)))
+            advanceUntilIdle()
+
+            state = viewModel.uiState.value
+            assertEquals(2, state.messages.size)
+            assertEquals("{\"result\":\"4\",\"exit_code\":0}", state.messages[1].content)
+            assertEquals(ToolStatus.COMPLETED, state.messages[1].toolStatus)
+        }
 }
+

@@ -197,7 +197,7 @@ fun MainNavigation(sessionId: String? = null) {
     // recomposes and reflects choices instantly.
     val bottomNavItemsState by AuthManager.bottomNavItemsFlow.collectAsState()
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
-    val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.map { it.key }.toSet() }
+    val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
     // Sync primary screens to NavigationController
     LaunchedEffect(bottomNavKeys) {

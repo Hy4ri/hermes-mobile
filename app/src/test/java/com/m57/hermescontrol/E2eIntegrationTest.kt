@@ -78,6 +78,12 @@ class E2eIntegrationTest {
         every { AuthManager.setToken(any()) } returns Unit
         every { AuthManager.setHost(any()) } returns Unit
         every { AuthManager.setPort(any()) } returns Unit
+        every { AuthManager.getConnectionProfiles() } returns emptyList()
+        every { AuthManager.getSelectedProfileId() } returns null
+        every { AuthManager.setSelectedProfileId(any()) } returns Unit
+        every { AuthManager.getProfileToken(any()) } returns null
+        every { AuthManager.setProfileToken(any(), any()) } returns Unit
+        every { AuthManager.saveConnectionProfiles(any()) } returns Unit
     }
 
     @After

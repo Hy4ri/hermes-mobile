@@ -27,6 +27,9 @@ data class SettingsUiState(
     val selectedNavItems: List<String> = emptyList(),
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
+    val profiles: List<com.m57.hermescontrol.data.model.ConnectionProfile> = emptyList(),
+    val selectedProfileId: String? = null,
+    val renameProfileName: String = "",
 )
 
 class SettingsViewModel : ViewModel() {
@@ -38,6 +41,7 @@ class SettingsViewModel : ViewModel() {
     }
 
     private fun loadSettings() {
+        val selectedId = AuthManager.getSelectedProfileId()
         _uiState.update {
             it.copy(
                 host = AuthManager.getHost(),
@@ -51,8 +55,48 @@ class SettingsViewModel : ViewModel() {
                 selectedNavItems = AuthManager.getBottomNavItems(),
                 typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
                 typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
+                profiles = AuthManager.getConnectionProfiles(),
+                selectedProfileId = selectedId,
+                renameProfileName =
+                    AuthManager.getConnectionProfiles().firstOrNull {
+                            p ->
+                        p.id == selectedId
+                    }?.name ?: "",
             )
         }
+    }
+
+    fun selectProfile(profileId: String?) {
+        AuthManager.setSelectedProfileId(profileId)
+        loadSettings()
+        ApiClient.rebuild()
+    }
+
+    fun onRenameProfileNameChange(value: String) {
+        _uiState.update { it.copy(renameProfileName = value, isSaved = false) }
+    }
+
+    fun renameProfile() {
+        val currentId = _uiState.value.selectedProfileId ?: return
+        val newName = _uiState.value.renameProfileName.trim()
+        if (newName.isBlank()) return
+        val updatedProfiles =
+            AuthManager.getConnectionProfiles().map {
+                if (it.id == currentId) it.copy(name = newName) else it
+            }
+        AuthManager.saveConnectionProfiles(updatedProfiles)
+        loadSettings()
+    }
+
+    fun deleteProfile(profileId: String) {
+        val updatedProfiles = AuthManager.getConnectionProfiles().filter { it.id != profileId }
+        AuthManager.saveConnectionProfiles(updatedProfiles)
+        AuthManager.setProfileToken(profileId, null)
+        if (AuthManager.getSelectedProfileId() == profileId) {
+            AuthManager.setSelectedProfileId(null)
+        }
+        loadSettings()
+        ApiClient.rebuild()
     }
 
     fun onHostChange(value: String) {
@@ -145,6 +189,7 @@ class SettingsViewModel : ViewModel() {
         AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
         ApiClient.rebuild()
 
+        loadSettings()
         _uiState.update { it.copy(isSaved = true, testResult = null) }
     }
 

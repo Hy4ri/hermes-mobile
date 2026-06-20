@@ -78,6 +78,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -98,11 +99,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import kotlinx.coroutines.delay
 
 @Composable
 fun ChatScreen(
@@ -477,12 +480,23 @@ fun ChatScreen(
                     // Streaming message — rendered separately for O(1) updates
                     state.streamingMessage?.let { streaming ->
                         item(key = "streaming-${streaming.id}") {
-                            ChatBubble(
-                                message = streaming,
-                                isDarkTheme = isDark,
-                                searchQuery = "",
-                                isCurrentMatch = false,
-                            )
+                            val typingEnabled = AuthManager.isTypingEffectEnabled()
+                            val typingDelayMs = AuthManager.getTypingEffectDelayMs()
+
+                            if (typingEnabled && streaming.isStreaming) {
+                                StreamingBubbleWithTypingEffect(
+                                    streaming = streaming,
+                                    typingDelayMs = typingDelayMs,
+                                    isDark = isDark,
+                                )
+                            } else {
+                                ChatBubble(
+                                    message = streaming,
+                                    isDarkTheme = isDark,
+                                    searchQuery = "",
+                                    isCurrentMatch = false,
+                                )
+                            }
                         }
                     }
 
@@ -1031,4 +1045,47 @@ private fun SearchBarRow(
             )
         }
     }
+}
+
+/**
+ * Wraps a streaming [ChatBubble] with a word-by-word typing reveal effect.
+ * Shows words one at a time at [typingDelayMs] intervals while the message is
+ * still streaming. When streaming completes the full text is shown immediately.
+ * The underlying [ChatMessage.content] in state is never modified — this is a
+ * display-only transformation.
+ */
+@Composable
+private fun StreamingBubbleWithTypingEffect(
+    streaming: ChatMessage,
+    typingDelayMs: Int,
+    isDark: Boolean,
+) {
+    var visibleWordCount by remember { mutableIntStateOf(0) }
+
+    // Timer that ticks at the configured delay, incrementing the visible word
+    // count each tick. Stops ticking when streaming ends, then shows all words.
+    LaunchedEffect(Unit) {
+        while (streaming.isStreaming) {
+            delay(typingDelayMs.toLong())
+            visibleWordCount++
+        }
+        visibleWordCount = Int.MAX_VALUE
+    }
+
+    // Derive display text from the latest full content at each recomposition
+    val words = streaming.content.split(" ")
+    val visibleCount =
+        if (visibleWordCount >= Int.MAX_VALUE / 2) {
+            words.size
+        } else {
+            visibleWordCount.coerceIn(0, words.size)
+        }
+    val displayText = words.take(visibleCount.coerceAtLeast(1)).joinToString(" ")
+
+    ChatBubble(
+        message = streaming.copy(content = displayText),
+        isDarkTheme = isDark,
+        searchQuery = "",
+        isCurrentMatch = false,
+    )
 }

@@ -24,10 +24,14 @@ object AuthManager {
     private const val KEY_AUTO_RECONNECT = "auto_reconnect"
     private const val KEY_THEME_PREFERENCE = "theme_preference"
     private const val KEY_BOTTOM_NAV_ITEMS = "bottom_nav_items"
+    private const val KEY_TYPING_EFFECT_ENABLED = "typing_effect_enabled"
+    private const val KEY_TYPING_EFFECT_DELAY_MS = "typing_effect_delay_ms"
 
     private const val DEFAULT_HOST = "127.0.0.1"
     private const val DEFAULT_PORT = 9119
     private const val DEFAULT_AUTO_RECONNECT = true
+    private const val DEFAULT_TYPING_EFFECT_ENABLED = false
+    private const val DEFAULT_TYPING_EFFECT_DELAY_MS = 30
 
     @Volatile
     private var prefs: SharedPreferences? = null
@@ -143,5 +147,21 @@ object AuthManager {
     fun setBottomNavItems(items: List<String>) {
         requirePrefs().edit().putString(KEY_BOTTOM_NAV_ITEMS, items.joinToString(",")).apply()
         _bottomNavItemsFlow.value = items
+    }
+
+    // ── Typing Effect ───────────────────────────────────────────────────
+
+    fun isTypingEffectEnabled(): Boolean =
+        requirePrefs().getBoolean(KEY_TYPING_EFFECT_ENABLED, DEFAULT_TYPING_EFFECT_ENABLED)
+
+    fun setTypingEffectEnabled(enabled: Boolean) {
+        requirePrefs().edit().putBoolean(KEY_TYPING_EFFECT_ENABLED, enabled).apply()
+    }
+
+    fun getTypingEffectDelayMs(): Int =
+        requirePrefs().getInt(KEY_TYPING_EFFECT_DELAY_MS, DEFAULT_TYPING_EFFECT_DELAY_MS)
+
+    fun setTypingEffectDelayMs(delayMs: Int) {
+        requirePrefs().edit().putInt(KEY_TYPING_EFFECT_DELAY_MS, delayMs).apply()
     }
 }

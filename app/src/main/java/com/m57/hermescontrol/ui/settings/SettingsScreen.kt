@@ -236,6 +236,75 @@ fun SettingsScreen(
                 }
             }
 
+            // Chat section
+            SectionCard(title = "Chat") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = "Typing Effect",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "Animate new messages word by word",
+                            style =
+                                MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                        )
+                    }
+                    Switch(
+                        checked = state.typingEffectEnabled,
+                        onCheckedChange = viewModel::onTypingEffectEnabledChange,
+                        colors =
+                            SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                            ),
+                    )
+                }
+
+                // Delay slider — only visible when effect is enabled
+                AnimatedVisibility(visible = state.typingEffectEnabled) {
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Text(
+                            text = "Delay: ${state.typingEffectDelayMs} ms",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Slider(
+                            value = state.typingEffectDelayMs.toFloat(),
+                            onValueChange = { viewModel.onTypingEffectDelayMsChange(it.toInt()) },
+                            valueRange = 10f..100f,
+                            steps = 8, // 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = "10 ms",
+                                style =
+                                    MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    ),
+                            )
+                            Text(
+                                text = "100 ms",
+                                style =
+                                    MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    ),
+                            )
+                        }
+                    }
+                }
+            }
+
             // Navigation Bar section
             SectionCard(title = "Navigation Bar") {
                 Text(

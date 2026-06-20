@@ -25,6 +25,8 @@ data class SettingsUiState(
     val testResult: String? = null,
     val isSaved: Boolean = false,
     val selectedNavItems: List<String> = emptyList(),
+    val typingEffectEnabled: Boolean = false,
+    val typingEffectDelayMs: Int = 30,
 )
 
 class SettingsViewModel : ViewModel() {
@@ -47,6 +49,8 @@ class SettingsViewModel : ViewModel() {
                 // was missing — always defaulted to ThemePreference.SYSTEM.
                 themePreference = AuthManager.getThemePreference(),
                 selectedNavItems = AuthManager.getBottomNavItems(),
+                typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
+                typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
             )
         }
     }
@@ -69,6 +73,14 @@ class SettingsViewModel : ViewModel() {
 
     fun onThemeChange(theme: ThemePreference) {
         _uiState.update { it.copy(themePreference = theme, isSaved = false) }
+    }
+
+    fun onTypingEffectEnabledChange(enabled: Boolean) {
+        _uiState.update { it.copy(typingEffectEnabled = enabled, isSaved = false) }
+    }
+
+    fun onTypingEffectDelayMsChange(delayMs: Int) {
+        _uiState.update { it.copy(typingEffectDelayMs = delayMs, isSaved = false) }
     }
 
     /** All screens available for bottom-nav selection (name → display label). */
@@ -128,6 +140,8 @@ class SettingsViewModel : ViewModel() {
         // B6 (Jun 18 2026, kanban t_86e9be9b): persist theme choice so it
         // survives a cold start (was previously dropped on save()).
         AuthManager.setThemePreference(state.themePreference)
+        AuthManager.setTypingEffectEnabled(state.typingEffectEnabled)
+        AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
         ApiClient.rebuild()
 
         _uiState.update { it.copy(isSaved = true, testResult = null) }

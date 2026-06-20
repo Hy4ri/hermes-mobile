@@ -19,6 +19,12 @@ android {
         // Falls back to defaults for local development.
         versionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 1
         versionName = (project.findProperty("versionName") as? String) ?: "1.0-dev"
+
+        // Embed git commit SHA for the About card in Settings
+        val gitSha = providers.exec {
+            commandLine("git", "rev-parse", "--short", "HEAD")
+        }.standardOutput.asText.get().trim()
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 
     signingConfigs {

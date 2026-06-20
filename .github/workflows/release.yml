@@ -135,15 +135,6 @@ jobs:
             -PversionName="$VERSION_NAME" \
             -PversionCode="$VERSION_CODE"
 
-      - name: Create source archive
-        run: |
-          mkdir -p release
-          git archive --format=tar.gz \
-            -o release/hermes-control-${{ steps.version.outputs.tag }}-source.tar.gz \
-            --prefix=hermes-control-${{ steps.version.outputs.tag }}/ \
-            ${{ github.sha }}
-          ls -lh release/
-
       - name: Rename APK
         run: |
           mkdir -p release
@@ -155,9 +146,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hermes-control-release
-          path: |
-            release/*.apk
-            release/*-source.tar.gz
+          path: release/*.apk
           retention-days: 90
 
       - name: Create GitHub Release
@@ -166,9 +155,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Hermes Control ${{ steps.version.outputs.tag }}
           generate_release_notes: true
-          files: |
-            release/*.apk
-            release/*-source.tar.gz
+          files: release/*.apk
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

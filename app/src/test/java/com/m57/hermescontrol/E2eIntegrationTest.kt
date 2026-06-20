@@ -20,6 +20,8 @@ import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.ProfilesResponse
+import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
@@ -34,6 +36,7 @@ import com.m57.hermescontrol.ui.keys.KeysViewModel
 import com.m57.hermescontrol.ui.logs.LogsViewModel
 import com.m57.hermescontrol.ui.model.ModelViewModel
 import com.m57.hermescontrol.ui.plugins.PluginsViewModel
+import com.m57.hermescontrol.ui.sessions.SessionsViewModel
 import com.m57.hermescontrol.ui.skills.SkillsViewModel
 import com.m57.hermescontrol.ui.system.SystemViewModel
 import io.mockk.*
@@ -397,6 +400,44 @@ class E2eIntegrationTest {
 
             val viewModel = CronJobsViewModel()
             viewModel.loadCronJobs()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertNotNull(viewModel.uiState.value.errorMessage)
+            assertTrue(
+                viewModel.uiState.value.errorMessage!!
+                    .contains("HTTP 500"),
+            )
+        }
+
+    // Sessions History Screen:
+    @Test
+    fun testSessionsListing_success() =
+        runTest {
+            val session = SessionInfo("session-123", "Session 1", "2026-06-15T15:10:00Z", 5, "active")
+            coEvery { mockApiService.getSessions() } returns Response.success(SessionListResponse(listOf(session)))
+
+            val viewModel = SessionsViewModel()
+            viewModel.loadSessions()
+            assertTrue(viewModel.uiState.value.isLoading)
+
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertEquals(1, viewModel.uiState.value.sessions.size)
+            assertEquals("session-123", viewModel.uiState.value.sessions[0].id)
+            assertEquals("Session 1", viewModel.uiState.value.sessions[0].title)
+            assertEquals(5, viewModel.uiState.value.sessions[0].message_count)
+            assertEquals("active", viewModel.uiState.value.sessions[0].status)
+        }
+
+    @Test
+    fun testSessionsLoad_failure() =
+        runTest {
+            coEvery { mockApiService.getSessions() } returns createErrorResponse(500)
+
+            val viewModel = SessionsViewModel()
+            viewModel.loadSessions()
             advanceUntilIdle()
 
             assertFalse(viewModel.uiState.value.isLoading)

@@ -16,6 +16,7 @@ import androidx.navigation3.runtime.NavKey
  */
 object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
+    var pendingSessionId: String? = null
 
     // Bottom-nav primary screens — dynamic, updated by Navigation.kt via
     // updatePrimaryScreens() when the user customises the bottom nav bar.

@@ -132,11 +132,15 @@ fun ChatScreen(
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    // Switch to the session from a notification tap when provided.
-    // Runs once per sessionId value (re-runs if a different notification taps in).
-    LaunchedEffect(sessionId) {
-        if (!sessionId.isNullOrBlank()) {
-            viewModel.switchSession(sessionId)
+    // Switch to the session from a notification tap or history screen when provided.
+    val pendingSessionId = NavigationController.pendingSessionId
+    LaunchedEffect(sessionId, pendingSessionId) {
+        val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
+        if (!target.isNullOrBlank()) {
+            viewModel.switchSession(target)
+            if (target == pendingSessionId) {
+                NavigationController.pendingSessionId = null
+            }
         }
     }
 
@@ -283,76 +287,6 @@ fun ChatScreen(
                     imageVector = Icons.Filled.Add,
                     contentDescription = "New Chat",
                 )
-            }
-
-            // Session picker
-            Box {
-                IconButton(onClick = {
-                    viewModel.loadSessions()
-                    viewModel.toggleSessionPicker()
-                }) {
-                    Icon(
-                        imageVector = Icons.Filled.History,
-                        contentDescription = "Sessions",
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = state.showSessionPicker,
-                    onDismissRequest = { viewModel.toggleSessionPicker() },
-                ) {
-                    DropdownMenuItem(
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Filled.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("New Session")
-                            }
-                        },
-                        onClick = {
-                            viewModel.createNewSession()
-                            viewModel.toggleSessionPicker()
-                        },
-                    )
-                    if (state.sessions.isNotEmpty()) {
-                        HorizontalDivider()
-                    }
-                    state.sessions.forEach { session ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = session.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = 1,
-                                    )
-                                    Text(
-                                        text = "${session.messageCount} messages",
-                                        style =
-                                            MaterialTheme.typography.labelSmall.copy(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ),
-                                    )
-                                }
-                            },
-                            onClick = { viewModel.switchSession(session.id) },
-                            trailingIcon = {
-                                if (session.id == state.currentSessionId) {
-                                    Icon(
-                                        Icons.Filled.ArrowDropDown,
-                                        contentDescription = "Current",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            },
-                        )
-                    }
-                }
             }
 
             // Search toggle

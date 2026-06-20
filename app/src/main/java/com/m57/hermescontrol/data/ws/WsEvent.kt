@@ -56,6 +56,7 @@ sealed class WsEvent {
     data class ClarifyRequest(
         val text: String?,
         val options: List<String>?,
+        val clarifyId: String? = null,
     ) : WsEvent()
 
     // ── Status ───────────────────────────────────────────────────────────

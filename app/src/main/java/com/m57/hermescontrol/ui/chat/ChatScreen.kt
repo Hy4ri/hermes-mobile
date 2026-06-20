@@ -91,6 +91,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,6 +100,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
@@ -115,12 +117,12 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
     val showScrollToBottom by remember {
         derivedStateOf {
             state.messages.isNotEmpty() && listState.canScrollForward
         }
     }
+    val scrollScope = rememberCoroutineScope()
     var inputText by rememberSaveable { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
@@ -547,7 +549,7 @@ fun ChatScreen(
                 ) {
                     FloatingActionButton(
                         onClick = {
-                            coroutineScope.launch {
+                            scrollScope.launch {
                                 listState.animateScrollToItem(state.messages.lastIndex)
                             }
                         },
@@ -813,7 +815,7 @@ private fun ChatInputBar(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Send",
+                                contentDescription = stringResource(R.string.chat_send_desc),
                             )
                         }
                     }
@@ -833,7 +835,7 @@ private fun ClarifyDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Clarification Needed") },
+        title = { Text(stringResource(R.string.chat_clarify_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = clarify.text)
@@ -841,7 +843,7 @@ private fun ClarifyDialog(
                 if (clarify.options.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Tap an option to copy to input, or long-press to send directly.",
+                        text = stringResource(R.string.chat_clarify_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -868,7 +870,7 @@ private fun ClarifyDialog(
                 OutlinedTextField(
                     value = typedText,
                     onValueChange = { typedText = it },
-                    label = { Text("Response") },
+                    label = { Text(stringResource(R.string.chat_clarify_response)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -883,12 +885,12 @@ private fun ClarifyDialog(
                 },
                 enabled = typedText.isNotBlank(),
             ) {
-                Text("Send")
+                Text(stringResource(R.string.chat_send))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Dismiss")
+                Text(stringResource(R.string.chat_dismiss))
             }
         },
     )
@@ -936,7 +938,7 @@ private fun CompactSearchInput(
                 Box(modifier = Modifier.weight(1f)) {
                     if (value.isEmpty()) {
                         Text(
-                            text = "Search messages…",
+                            text = stringResource(R.string.chat_search_placeholder),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         )
@@ -950,7 +952,7 @@ private fun CompactSearchInput(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = "Clear",
+                            contentDescription = stringResource(R.string.chat_clear_search_desc),
                             modifier = Modifier.size(16.dp),
                         )
                     }
@@ -1013,7 +1015,7 @@ private fun SearchBarRow(
         ) {
             Icon(
                 Icons.Filled.KeyboardArrowUp,
-                contentDescription = "Previous match",
+                contentDescription = stringResource(R.string.chat_prev_match_desc),
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -1024,14 +1026,14 @@ private fun SearchBarRow(
         ) {
             Icon(
                 Icons.Filled.KeyboardArrowDown,
-                contentDescription = "Next match",
+                contentDescription = stringResource(R.string.chat_next_match_desc),
                 modifier = Modifier.size(20.dp),
             )
         }
         IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = "Close search",
+                contentDescription = stringResource(R.string.chat_close_search_desc),
                 modifier = Modifier.size(20.dp),
             )
         }

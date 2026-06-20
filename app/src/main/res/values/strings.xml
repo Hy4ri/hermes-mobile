@@ -1,3 +1,16 @@
 <resources>
     <string name="app_name">HermesControl</string>
+
+    <!-- Chat -->
+    <string name="chat_send_desc">Send</string>
+    <string name="chat_clarify_title">Clarification Needed</string>
+    <string name="chat_clarify_hint">Tap an option to copy to input, or long-press to send directly.</string>
+    <string name="chat_clarify_response">Response</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_dismiss">Dismiss</string>
+    <string name="chat_search_placeholder">Search messages\u2026</string>
+    <string name="chat_clear_search_desc">Clear</string>
+    <string name="chat_prev_match_desc">Previous match</string>
+    <string name="chat_next_match_desc">Next match</string>
+    <string name="chat_close_search_desc">Close search</string>
 </resources>

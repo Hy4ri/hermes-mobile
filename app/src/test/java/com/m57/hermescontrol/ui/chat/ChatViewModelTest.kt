@@ -304,16 +304,16 @@ class ChatViewModelTest {
 
             mockEventsFlow.emit(WsEvent.ClarifyRequest("Please choose:", listOf("Yes", "No"), "clarify-123"))
             advanceUntilIdle()
- 
+
             var state = viewModel.uiState.value
             assertEquals("Please choose:", state.clarifyRequest?.text)
             assertEquals(listOf("Yes", "No"), state.clarifyRequest?.options)
             assertEquals("clarify-123", state.clarifyRequest?.clarifyId)
- 
+
             // Respond to clarify
             viewModel.respondToClarify("Yes")
             advanceUntilIdle()
- 
+
             // verify clarify request is dismissed, and user message is sent
             state = viewModel.uiState.value
             assertNull(state.clarifyRequest)
@@ -322,22 +322,23 @@ class ChatViewModelTest {
             assertEquals("Session created", state.messages[0].content)
             assertEquals("Yes", state.messages[1].content)
             assertEquals(MessageRole.USER, state.messages[1].role)
- 
+
             verify {
                 HermesWsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
-                    params = mapOf(
-                        "session_id" to "session-123",
-                        "response" to "Yes",
-                        "answer" to "Yes",
-                        "clarify_id" to "clarify-123",
-                        "request_id" to "clarify-123",
-                    ),
+                    params =
+                        mapOf(
+                            "session_id" to "session-123",
+                            "response" to "Yes",
+                            "answer" to "Yes",
+                            "clarify_id" to "clarify-123",
+                            "request_id" to "clarify-123",
+                        ),
                     onSent = any(),
                 )
             }
         }
- 
+
     @Test
     fun testClarifyRequestCustomResponse() =
         runTest {
@@ -348,29 +349,29 @@ class ChatViewModelTest {
                 onSent?.invoke(createReqId)
                 createReqId
             }
- 
+
             val viewModel = ChatViewModel(app, startCleanup = false)
             advanceUntilIdle()
- 
+
             // Set session ID
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
- 
+
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
- 
+
             mockEventsFlow.emit(WsEvent.ClarifyRequest("Please explain:", emptyList(), "clarify-456"))
             advanceUntilIdle()
- 
+
             var state = viewModel.uiState.value
             assertEquals("Please explain:", state.clarifyRequest?.text)
             assertTrue(state.clarifyRequest?.options.isNullOrEmpty())
             assertEquals("clarify-456", state.clarifyRequest?.clarifyId)
- 
+
             // Respond to clarify with custom text
             viewModel.respondToClarify("This is my custom response text")
             advanceUntilIdle()
- 
+
             // verify clarify request is dismissed, and user message is sent
             state = viewModel.uiState.value
             assertNull(state.clarifyRequest)
@@ -378,17 +379,18 @@ class ChatViewModelTest {
             assertEquals("Session created", state.messages[0].content)
             assertEquals("This is my custom response text", state.messages[1].content)
             assertEquals(MessageRole.USER, state.messages[1].role)
- 
+
             verify {
                 HermesWsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
-                    params = mapOf(
-                        "session_id" to "session-123",
-                        "response" to "This is my custom response text",
-                        "answer" to "This is my custom response text",
-                        "clarify_id" to "clarify-456",
-                        "request_id" to "clarify-456",
-                    ),
+                    params =
+                        mapOf(
+                            "session_id" to "session-123",
+                            "response" to "This is my custom response text",
+                            "answer" to "This is my custom response text",
+                            "clarify_id" to "clarify-456",
+                            "request_id" to "clarify-456",
+                        ),
                     onSent = any(),
                 )
             }

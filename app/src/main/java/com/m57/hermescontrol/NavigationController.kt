@@ -53,8 +53,17 @@ object NavigationController {
         backStack?.add(key)
     }
 
-    fun goBack() {
+    /**
+     * Navigate back one step, or fall back to [fallback] when the stack has only one item.
+     * Never leaves the stack empty.
+     */
+    fun goBack(fallback: NavKey = ChatScreen) {
         val stack = backStack ?: return
-        if (stack.size > 1) stack.removeLastOrNull()
+        if (stack.size > 1) {
+            stack.removeLastOrNull()
+        } else if (stack.size == 1) {
+            stack.clear()
+            stack.add(fallback)
+        }
     }
 }

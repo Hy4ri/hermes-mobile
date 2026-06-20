@@ -110,11 +110,12 @@ git push -u origin HEAD
 gh pr create --title "fix(#N): description" --body "Closes #N"
 ```
 
-### Commit Conventions
+### Commit Conventions — STRICT
 
-- **NO co-author trailer.** No `Co-Authored-By`, no `Generated with ...`. Ever.
-- **Short commits:** subject line + max 2 lines of body. Split into atomic commits
-  rather than writing long bodies.
+**🚫 NEVER add yourself as author or co-author.** The agent must never appear in any commit metadata field — not as author, not as `Co-Authored-By`, not in `Generated with`, not anywhere.
+
+- **No `--author` override.** Use the default git config. Always.
+- **Short commits:** subject line + max 2 lines of body. Split into atomic commits rather than writing long bodies.
 - **Conventional Commits** types: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`.
 - Bug fixes annotated inline: `// B7 (Jun 18 2026, kanban t_xxx): description`.
 

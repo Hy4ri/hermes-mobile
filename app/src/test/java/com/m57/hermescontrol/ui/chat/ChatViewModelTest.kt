@@ -610,4 +610,51 @@ class ChatViewModelTest {
             assertEquals("{\"result\":\"4\",\"exit_code\":0}", state.messages[1].content)
             assertEquals(ToolStatus.COMPLETED, state.messages[1].toolStatus)
         }
+
+    @Test
+    fun testSessionMismatchEventsAreIgnored() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Setup active session "session-active"
+            var createReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                createReqId = "create-req-mismatch-test"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(createReqId)
+                createReqId
+            }
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-active")))
+            advanceUntilIdle()
+
+            // Emit events for another session "session-other" — should be ignored
+            mockEventsFlow.emit(
+                WsEvent.ToolStart(
+                    name = "calculator",
+                    data = mapOf("input" to "2+2"),
+                    sessionId = "session-other",
+                ),
+            )
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "Choose:",
+                    options = listOf("Yes"),
+                    clarifyId = "clarify-1",
+                    sessionId = "session-other",
+                ),
+            )
+            mockEventsFlow.emit(WsEvent.MessageStart("session-other"))
+            mockEventsFlow.emit(WsEvent.MessageToken("Hello", "session-other"))
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            // Only the "Session created" message should be present (mismatch events ignored)
+            assertEquals(1, state.messages.size)
+            assertEquals("Session created", state.messages[0].content)
+            assertNull(state.streamingMessage)
+            assertNull(state.clarifyRequest)
+        }
 }

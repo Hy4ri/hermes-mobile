@@ -44,11 +44,13 @@ sealed class WsEvent {
     data class ToolStart(
         val name: String?,
         val data: Map<String, Any?>?,
+        val sessionId: String? = null,
     ) : WsEvent()
 
     data class ToolComplete(
         val name: String?,
         val data: Map<String, Any?>?,
+        val sessionId: String? = null,
     ) : WsEvent()
 
     // ── Interactive ──────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ sealed class WsEvent {
         val text: String?,
         val options: List<String>?,
         val clarifyId: String? = null,
+        val sessionId: String? = null,
     ) : WsEvent()
 
     // ── Status ───────────────────────────────────────────────────────────

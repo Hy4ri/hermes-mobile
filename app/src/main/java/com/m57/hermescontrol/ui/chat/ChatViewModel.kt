@@ -160,6 +160,7 @@ class ChatViewModel(
             is WsEvent.ToolComplete -> handleToolComplete(event)
 
             is WsEvent.ClarifyRequest -> {
+                if (!isCurrentSession(event.sessionId)) return
                 _uiState.update {
                     it.copy(
                         clarifyRequest =
@@ -369,6 +370,7 @@ class ChatViewModel(
     // ── Tool events ──────────────────────────────────────────────────────
 
     private fun handleToolStart(event: WsEvent.ToolStart) {
+        if (!isCurrentSession(event.sessionId)) return
         var orphanToPersist: ChatMessage? = null
         val sessionId = _uiState.value.currentSessionId
 
@@ -409,6 +411,7 @@ class ChatViewModel(
     }
 
     private fun handleToolComplete(event: WsEvent.ToolComplete) {
+        if (!isCurrentSession(event.sessionId)) return
         var completedTool: ChatMessage? = null
 
         _uiState.update { state ->

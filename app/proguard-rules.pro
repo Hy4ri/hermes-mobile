@@ -46,3 +46,8 @@
 
 # ── BuildConfig ───────────────────────────────────────────────────────────
 -keep class com.m57.hermescontrol.BuildConfig { *; }
+
+# ── Navigation (NavKey Names) ─────────────────────────────────────────────
+# Keep screen object class names because their simpleNames are used for bottom nav selection and storage.
+-keep class * implements androidx.navigation3.runtime.NavKey { *; }
+

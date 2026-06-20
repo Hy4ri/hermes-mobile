@@ -583,7 +583,16 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // Start tool call
-            mockEventsFlow.emit(WsEvent.ToolStart("calculator", mapOf("input" to "2+2", "nested" to mapOf("key" to "value"))))
+            mockEventsFlow.emit(
+                WsEvent.ToolStart(
+                    name = "calculator",
+                    data =
+                        mapOf(
+                            "input" to "2+2",
+                            "nested" to mapOf("key" to "value"),
+                        ),
+                ),
+            )
             advanceUntilIdle()
 
             var state = viewModel.uiState.value
@@ -602,4 +611,3 @@ class ChatViewModelTest {
             assertEquals(ToolStatus.COMPLETED, state.messages[1].toolStatus)
         }
 }
-

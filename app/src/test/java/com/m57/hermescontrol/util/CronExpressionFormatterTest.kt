@@ -1,9 +1,27 @@
 package com.m57.hermescontrol.util
 
+import android.util.Log
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 
 class CronExpressionFormatterTest {
+
+    @Before
+    fun setup() {
+        mockkStatic(Log::class)
+        every { Log.w(any(), any<String>(), any()) } returns 0
+    }
+
+    @After
+    fun teardown() {
+        unmockkAll()
+    }
+
     @Test
     fun testCronToHumanReadable() {
         assertEquals("At 09:00 and 21:00 every day", CronExpressionFormatter.cronToHumanReadable("0 9,21 * * *"))
@@ -21,5 +39,14 @@ class CronExpressionFormatterTest {
     fun testMalformedCron() {
         assertEquals("invalid cron string", CronExpressionFormatter.cronToHumanReadable("invalid cron string"))
         assertEquals("0 9 * *", CronExpressionFormatter.cronToHumanReadable("0 9 * *"))
+    }
+
+    @Test
+    fun testExceptionFallback() {
+        // This will cause an IndexOutOfBoundsException because 15 is out of bounds for monthNames
+        assertEquals("Raw: 0 12 1 15 *", CronExpressionFormatter.cronToHumanReadable("0 12 1 15 *"))
+
+        // This will cause an IndexOutOfBoundsException because 8 is out of bounds for dowNames
+        assertEquals("Raw: 0 9 * * 8", CronExpressionFormatter.cronToHumanReadable("0 9 * * 8"))
     }
 }

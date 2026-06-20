@@ -99,6 +99,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
@@ -974,6 +975,7 @@ private fun SearchBarRow(
     onNavigateDown: () -> Unit,
     onClose: () -> Unit,
 ) {
+    val context = LocalContext.current
     val isError = searchQuery.isNotEmpty() && searchMatchCount == 0
 
     Row(

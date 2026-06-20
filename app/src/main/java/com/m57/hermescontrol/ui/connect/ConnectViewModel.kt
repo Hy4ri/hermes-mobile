@@ -22,6 +22,10 @@ data class ConnectUiState(
     val isConnecting: Boolean = false,
     val connectionSuccess: Boolean = false,
     val errorMessage: String? = null,
+    val profileName: String = "",
+    val saveProfile: Boolean = false,
+    val profiles: List<com.m57.hermescontrol.data.model.ConnectionProfile> = emptyList(),
+    val selectedProfile: com.m57.hermescontrol.data.model.ConnectionProfile? = null,
 )
 
 class ConnectViewModel : ViewModel() {
@@ -29,16 +33,60 @@ class ConnectViewModel : ViewModel() {
     val uiState: StateFlow<ConnectUiState> = _uiState.asStateFlow()
 
     init {
-        // Load saved values
+        loadSavedValues()
+    }
+
+    fun loadSavedValues() {
         val savedToken = AuthManager.getToken() ?: ""
         val savedHost = AuthManager.getHost()
         val savedPort = AuthManager.getPort()
+        val profiles = AuthManager.getConnectionProfiles()
+        val selectedId = AuthManager.getSelectedProfileId()
+        val selectedProfile = profiles.firstOrNull { it.id == selectedId }
         _uiState.update {
             it.copy(
                 token = savedToken,
                 host = savedHost,
                 port = savedPort.toString(),
+                profiles = profiles,
+                selectedProfile = selectedProfile,
+                profileName = selectedProfile?.name ?: "",
             )
+        }
+    }
+
+    fun onProfileNameChange(value: String) {
+        _uiState.update { it.copy(profileName = value, errorMessage = null) }
+    }
+
+    fun onSaveProfileChange(value: Boolean) {
+        _uiState.update { it.copy(saveProfile = value) }
+    }
+
+    fun selectProfile(profile: com.m57.hermescontrol.data.model.ConnectionProfile?) {
+        if (profile == null) {
+            AuthManager.setSelectedProfileId(null)
+            _uiState.update {
+                it.copy(
+                    selectedProfile = null,
+                    profileName = "",
+                    token = "",
+                    host = "127.0.0.1",
+                    port = "9119",
+                )
+            }
+        } else {
+            AuthManager.setSelectedProfileId(profile.id)
+            val token = AuthManager.getProfileToken(profile.id) ?: ""
+            _uiState.update {
+                it.copy(
+                    selectedProfile = profile,
+                    profileName = profile.name,
+                    host = profile.host,
+                    port = profile.port.toString(),
+                    token = token,
+                )
+            }
         }
     }
 
@@ -72,19 +120,54 @@ class ConnectViewModel : ViewModel() {
 
         _uiState.update { it.copy(isConnecting = true, errorMessage = null) }
 
-        // Save settings before testing so ApiClient uses the right base URL
-        AuthManager.setToken(state.token)
-        AuthManager.setHost(state.host)
-        AuthManager.setPort(port)
-        ApiClient.rebuild()
-
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
+                    // Update ApiClient temporarily with current inputs to verify connection
+                    AuthManager.setToken(state.token)
+                    AuthManager.setHost(state.host)
+                    AuthManager.setPort(port)
+                    ApiClient.rebuild()
                     safeApiCall { ApiClient.hermesApi.getStatus() }
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    if (state.saveProfile) {
+                        val currentProfiles = AuthManager.getConnectionProfiles()
+                        val existingIndex =
+                            currentProfiles.indexOfFirst {
+                                it.name.equals(
+                                    state.profileName,
+                                    ignoreCase = true,
+                                )
+                            }
+                        val targetProfile =
+                            if (existingIndex >= 0) {
+                                currentProfiles[existingIndex].copy(host = state.host, port = port)
+                            } else {
+                                com.m57.hermescontrol.data.model.ConnectionProfile(
+                                    name = state.profileName,
+                                    host = state.host,
+                                    port = port,
+                                )
+                            }
+                        val updatedProfiles =
+                            if (existingIndex >= 0) {
+                                currentProfiles.mapIndexed { idx, p -> if (idx == existingIndex) targetProfile else p }
+                            } else {
+                                currentProfiles + targetProfile
+                            }
+                        AuthManager.saveConnectionProfiles(updatedProfiles)
+                        AuthManager.setSelectedProfileId(targetProfile.id)
+                        AuthManager.setProfileToken(targetProfile.id, state.token)
+                    } else {
+                        // Clear selected profile if we connected standalone and didn't check "save profile"
+                        AuthManager.setSelectedProfileId(null)
+                        AuthManager.setToken(state.token)
+                        AuthManager.setHost(state.host)
+                        AuthManager.setPort(port)
+                    }
+                    ApiClient.rebuild()
                     _uiState.update {
                         it.copy(isConnecting = false, connectionSuccess = true, errorMessage = null)
                     }

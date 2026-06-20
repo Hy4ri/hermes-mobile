@@ -49,6 +49,12 @@ class ConnectViewModelTest {
         every { AuthManager.setToken(any()) } returns Unit
         every { AuthManager.setHost(any()) } returns Unit
         every { AuthManager.setPort(any()) } returns Unit
+        every { AuthManager.getConnectionProfiles() } returns emptyList()
+        every { AuthManager.saveConnectionProfiles(any()) } returns Unit
+        every { AuthManager.getProfileToken(any()) } returns null
+        every { AuthManager.setProfileToken(any(), any()) } returns Unit
+        every { AuthManager.getSelectedProfileId() } returns null
+        every { AuthManager.setSelectedProfileId(any()) } returns Unit
     }
 
     @After
@@ -322,4 +328,77 @@ class ConnectViewModelTest {
         assertEquals(validToken, state.token)
         assertNull(state.errorMessage)
     }
+
+    @Test
+    fun testSelectProfile_updatesState() {
+        val profile =
+            com.m57.hermescontrol.data.model.ConnectionProfile(
+                id = "test-id",
+                name = "Test Profile",
+                host = "192.168.1.100",
+                port = 8080,
+            )
+        every { AuthManager.getProfileToken("test-id") } returns "profile-token"
+
+        val viewModel = ConnectViewModel()
+        viewModel.selectProfile(profile)
+
+        val state = viewModel.uiState.value
+        assertEquals("Test Profile", state.profileName)
+        assertEquals("192.168.1.100", state.host)
+        assertEquals("8080", state.port)
+        assertEquals("profile-token", state.token)
+        assertEquals(profile, state.selectedProfile)
+
+        verify { AuthManager.setSelectedProfileId("test-id") }
+    }
+
+    @Test
+    fun testSelectProfile_null_clearsState() {
+        val viewModel = ConnectViewModel()
+        viewModel.selectProfile(null)
+
+        val state = viewModel.uiState.value
+        assertEquals("", state.profileName)
+        assertEquals("127.0.0.1", state.host)
+        assertEquals("9119", state.port)
+        assertEquals("", state.token)
+        assertNull(state.selectedProfile)
+
+        verify { AuthManager.setSelectedProfileId(null) }
+    }
+
+    @Test
+    fun testConnect_saveProfile_savesAndSelects() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("valid-token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+            viewModel.onProfileNameChange("New Profile")
+            viewModel.onSaveProfileChange(true)
+
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns true
+            every { mockResponse.body() } returns
+                StatusResponse(
+                    version = "1.0",
+                    gateway_running = true,
+                    active_sessions = 1,
+                    auth_required = false,
+                    gateway_platforms = emptyMap(),
+                )
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            verify { AuthManager.saveConnectionProfiles(any()) }
+            verify { AuthManager.setSelectedProfileId(any()) }
+            verify { AuthManager.setProfileToken(any(), "valid-token") }
+            verify { ApiClient.rebuild() }
+
+            val state = viewModel.uiState.value
+            assertTrue(state.connectionSuccess)
+        }
 }

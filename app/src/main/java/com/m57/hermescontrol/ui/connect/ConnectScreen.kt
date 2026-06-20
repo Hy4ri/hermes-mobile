@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,11 +24,15 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -118,6 +123,48 @@ fun ConnectScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Connection Profiles Dropdown / Selection
+            if (state.profiles.isNotEmpty()) {
+                var profilesExpanded by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { profilesExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text =
+                                if (state.selectedProfile != null) {
+                                    "Profile: ${state.selectedProfile!!.name}"
+                                } else {
+                                    "Select Saved Profile"
+                                },
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = profilesExpanded,
+                        onDismissRequest = { profilesExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.85f),
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("None (Standalone)") },
+                            onClick = {
+                                viewModel.selectProfile(null)
+                                profilesExpanded = false
+                            },
+                        )
+                        state.profiles.forEach { profile ->
+                            DropdownMenuItem(
+                                text = { Text(profile.name) },
+                                onClick = {
+                                    viewModel.selectProfile(profile)
+                                    profilesExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
             // Pairing (primary path)
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -155,6 +202,34 @@ fun ConnectScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
+                }
+
+                // Profile Save Options prior to connecting
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Checkbox(
+                        checked = state.saveProfile,
+                        onCheckedChange = viewModel::onSaveProfileChange,
+                    )
+                    Text(
+                        text = "Save connection profile",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+
+                AnimatedVisibility(visible = state.saveProfile) {
+                    OutlinedTextField(
+                        value = state.profileName,
+                        onValueChange = viewModel::onProfileNameChange,
+                        label = { Text("Profile Name") },
+                        placeholder = { Text("e.g. Local Hermit, Remote Server") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
 
                 Button(

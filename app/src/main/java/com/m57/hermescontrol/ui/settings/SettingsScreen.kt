@@ -91,6 +91,86 @@ fun SettingsScreen(
         ) {
             // Connection section
             SectionCard(title = "Connection") {
+                // Connection Profiles management in Settings
+                if (state.profiles.isNotEmpty()) {
+                    var profilesExpanded by remember { mutableStateOf(false) }
+                    Text(
+                        text = "Connection Profile",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        OutlinedButton(
+                            onClick = { profilesExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            val activeProfile = state.profiles.firstOrNull { it.id == state.selectedProfileId }
+                            Text(text = activeProfile?.name ?: "Standalone / Default")
+                        }
+                        DropdownMenu(
+                            expanded = profilesExpanded,
+                            onDismissRequest = { profilesExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.85f),
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("None (Standalone / Default)") },
+                                onClick = {
+                                    viewModel.selectProfile(null)
+                                    profilesExpanded = false
+                                },
+                            )
+                            state.profiles.forEach { profile ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(profile.name)
+                                            IconButton(
+                                                onClick = {
+                                                    viewModel.deleteProfile(profile.id)
+                                                    profilesExpanded = false
+                                                },
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Close,
+                                                    contentDescription = "Delete Profile",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        viewModel.selectProfile(profile.id)
+                                        profilesExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    if (state.selectedProfileId != null) {
+                        OutlinedTextField(
+                            value = state.renameProfileName,
+                            onValueChange = viewModel::onRenameProfileNameChange,
+                            label = { Text("Rename Profile") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                Button(
+                                    onClick = viewModel::renameProfile,
+                                    modifier = Modifier.padding(end = 4.dp),
+                                ) {
+                                    Text("Rename")
+                                }
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+
                 OutlinedTextField(
                     value = state.host,
                     onValueChange = viewModel::onHostChange,

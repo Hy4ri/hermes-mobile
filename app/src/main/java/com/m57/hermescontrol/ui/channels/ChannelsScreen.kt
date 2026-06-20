@@ -158,7 +158,13 @@ fun ChannelsScreen(
 
                                     Button(
                                         onClick = {
-                                            viewModel.configurePlatform(platform.id, inputValues.toMap())
+                                            viewModel.configurePlatform(
+                                                platform.id,
+                                                MessagingPlatformUpdate(
+                                                    enabled = platform.enabled,
+                                                    env = inputValues.toMap(),
+                                                ),
+                                            )
                                             showConfigureForm = false
                                         },
                                         modifier = Modifier.align(Alignment.End),

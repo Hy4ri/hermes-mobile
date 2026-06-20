@@ -54,6 +54,7 @@ class ChannelsViewModel : ViewModel() {
         platformId: String,
         update: MessagingPlatformUpdate,
     ) {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
@@ -61,12 +62,18 @@ class ChannelsViewModel : ViewModel() {
                 }
             when (result) {
                 is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "$platformId configured successfully") }
+                    _uiState.update { it.copy(isLoading = false, toastMessage = "$platformId configured successfully") }
                     loadPlatforms()
                 }
 
                 is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to configure platform: ${result.error.message}") }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to configure platform: ${result.error.message}",
+                            toastMessage = "Failed to configure platform: ${result.error.message}",
+                        )
+                    }
                 }
             }
         }

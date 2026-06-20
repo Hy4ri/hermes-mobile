@@ -177,7 +177,7 @@ private val DRAWER_ENTRIES =
         DrawerEntry(AchievementsScreen, "Achievements", Icons.Filled.Info, DrawerSection.INSPECT),
     )
 
-private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.map { it.key }.toSet()
+private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.mapTo(mutableSetOf()) { it.key }
 
 @Composable
 fun MainNavigation(sessionId: String? = null) {
@@ -197,7 +197,7 @@ fun MainNavigation(sessionId: String? = null) {
     // recomposes and reflects choices instantly.
     val bottomNavItemsState by AuthManager.bottomNavItemsFlow.collectAsState()
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
-    val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.map { it.key }.toSet() }
+    val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
     // Sync primary screens to NavigationController
     LaunchedEffect(bottomNavKeys) {

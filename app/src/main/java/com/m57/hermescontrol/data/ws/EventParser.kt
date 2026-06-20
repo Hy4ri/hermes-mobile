@@ -71,12 +71,12 @@ object EventParser {
 
             "tool.start" -> {
                 val name = payload?.get("name") as? String
-                WsEvent.ToolStart(name, payload)
+                WsEvent.ToolStart(name, payload, sessionId)
             }
 
             "tool.complete" -> {
                 val name = payload?.get("name") as? String
-                WsEvent.ToolComplete(name, payload)
+                WsEvent.ToolComplete(name, payload, sessionId)
             }
 
             "clarify.request" -> {
@@ -86,7 +86,7 @@ object EventParser {
 
                 @Suppress("UNCHECKED_CAST")
                 val options = (rawOptions as? List<*>)?.filterIsInstance<String>()
-                WsEvent.ClarifyRequest(text, options, clarifyId)
+                WsEvent.ClarifyRequest(text, options, clarifyId, sessionId)
             }
 
             "status.update" -> {

@@ -326,8 +326,7 @@ fun MainNavigation(sessionId: String? = null) {
                         entry<ConnectScreen> {
                             ConnectScreenContent(
                                 onConnected = {
-                                    backStack.clear()
-                                    backStack.add(ChatScreen)
+                                    NavigationController.resetTo(ChatScreen)
                                 },
                                 modifier = Modifier.safeDrawingPadding(),
                             )

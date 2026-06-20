@@ -29,6 +29,16 @@ import kotlinx.coroutines.launch
  * is backgrounded and posts a notification when a new assistant reply
  * completes (MessageComplete event) while the app is not in the foreground.
  *
+ * FGS type: `remoteMessaging` — indefinite listener that maintains a
+ * long-lived connection to a remote server for receiving messages. This is
+ * the correct type per Android 14+ policy (dataSync has a time budget and
+ * is intended for finite sync operations).
+ *
+ * Channel importance: IMPORTANCE_MIN — the ongoing notification is a
+ * persistent indicator, not an alert. PRIORITY_MIN matches.
+ * The separate `hermes_chat` channel uses IMPORTANCE_HIGH for actual
+ * message notifications, which is correct.
+ *
  * Lifecycle:
  * - Started by [NotificationHelper.start] when the user sends a message and
  *   the app is about to go to the background (called from ChatScreen's

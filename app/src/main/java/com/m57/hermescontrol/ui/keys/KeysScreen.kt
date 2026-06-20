@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -80,6 +81,16 @@ fun KeysScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadKeys() },
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+
+            state.envVars.isEmpty() -> {
+                EmptyState(
+                    title = "No environment keys reported",
+                    subtitle = "Verify configuration or retry",
+                    onAction = { viewModel.loadKeys() },
+                    actionLabel = "Refresh",
                     modifier = Modifier.padding(paddingValues),
                 )
             }

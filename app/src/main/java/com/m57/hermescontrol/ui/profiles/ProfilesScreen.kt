@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -84,6 +85,16 @@ fun ProfilesScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadProfiles() },
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+
+            state.profiles.isEmpty() -> {
+                EmptyState(
+                    title = "No profiles available",
+                    subtitle = "Verify configuration or retry",
+                    onAction = { viewModel.loadProfiles() },
+                    actionLabel = "Refresh",
                     modifier = Modifier.padding(paddingValues),
                 )
             }

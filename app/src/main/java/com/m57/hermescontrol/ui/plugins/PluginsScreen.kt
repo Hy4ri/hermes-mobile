@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -71,6 +72,16 @@ fun PluginsScreen(
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadPlugins() },
+                    modifier = Modifier.padding(paddingValues),
+                )
+            }
+
+            state.plugins.isEmpty() -> {
+                EmptyState(
+                    title = "No plugins found",
+                    subtitle = "Verify configuration or retry",
+                    onAction = { viewModel.loadPlugins() },
+                    actionLabel = "Refresh",
                     modifier = Modifier.padding(paddingValues),
                 )
             }

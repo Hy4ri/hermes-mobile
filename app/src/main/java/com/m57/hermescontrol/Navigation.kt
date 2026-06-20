@@ -179,6 +179,141 @@ private val DRAWER_ENTRIES =
 
 private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.mapTo(mutableSetOf()) { it.key }
 
+private fun appEntryProvider(
+    sessionId: String?,
+    openDrawer: () -> Unit,
+) = entryProvider {
+    entry<ConnectScreen> {
+        ConnectScreenContent(
+            onConnected = {
+                NavigationController.resetTo(ChatScreen)
+            },
+            modifier = Modifier.safeDrawingPadding(),
+        )
+    }
+
+    entry<ChatScreen> {
+        ChatScreenContent(
+            onOpenDrawer = openDrawer,
+            sessionId = sessionId,
+        )
+    }
+
+    entry<HistoryScreen> {
+        HistoryScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<SettingsScreen> {
+        SettingsScreenContent(
+            onBack = { NavigationController.goBack() },
+        )
+    }
+
+    entry<SkillsScreen> {
+        SkillsScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<CronJobsScreen> {
+        CronJobsScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<ProfilesScreen> {
+        ProfilesScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<ToolsetsScreen> {
+        ToolsetsScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<AchievementsScreen> {
+        AchievementsScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<PairingScreen> {
+        PairingScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<ConfigScreen> {
+        ConfigScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<McpServersScreen> {
+        McpServersScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<WebhooksScreen> {
+        WebhooksScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<ModelScreen> {
+        ModelScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<GatewayScreen> {
+        GatewayScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<LogsScreen> {
+        LogsScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<PluginsScreen> {
+        PluginsScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<ChannelsScreen> {
+        ChannelsScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<KeysScreen> {
+        KeysScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<SystemScreen> {
+        SystemScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+
+    entry<KanbanScreen> {
+        KanbanScreenContent(
+            onOpenDrawer = openDrawer,
+        )
+    }
+}
+
 @Composable
 fun MainNavigation(sessionId: String? = null) {
     val hasToken = !AuthManager.getToken().isNullOrBlank()
@@ -206,7 +341,7 @@ fun MainNavigation(sessionId: String? = null) {
 
     val showBottomBar = currentScreen != ConnectScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
-    val openDrawer = { scope.launch { drawerState.open() } }
+    val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -326,137 +461,7 @@ fun MainNavigation(sessionId: String? = null) {
                 backStack = backStack,
                 onBack = { NavigationController.goBack() },
                 entryProvider =
-                    entryProvider {
-                        entry<ConnectScreen> {
-                            ConnectScreenContent(
-                                onConnected = {
-                                    NavigationController.resetTo(ChatScreen)
-                                },
-                                modifier = Modifier.safeDrawingPadding(),
-                            )
-                        }
-
-                        entry<ChatScreen> {
-                            ChatScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                                sessionId = sessionId,
-                            )
-                        }
-
-                        entry<HistoryScreen> {
-                            HistoryScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<SettingsScreen> {
-                            SettingsScreenContent(
-                                onBack = { NavigationController.goBack() },
-                            )
-                        }
-
-                        entry<SkillsScreen> {
-                            SkillsScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<CronJobsScreen> {
-                            CronJobsScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<ProfilesScreen> {
-                            ProfilesScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<ToolsetsScreen> {
-                            ToolsetsScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<AchievementsScreen> {
-                            AchievementsScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<PairingScreen> {
-                            PairingScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<ConfigScreen> {
-                            ConfigScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<McpServersScreen> {
-                            McpServersScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<WebhooksScreen> {
-                            WebhooksScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<ModelScreen> {
-                            ModelScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<GatewayScreen> {
-                            GatewayScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<LogsScreen> {
-                            LogsScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<PluginsScreen> {
-                            PluginsScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<ChannelsScreen> {
-                            ChannelsScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<KeysScreen> {
-                            KeysScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<SystemScreen> {
-                            SystemScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-
-                        entry<KanbanScreen> {
-                            KanbanScreenContent(
-                                onOpenDrawer = { openDrawer() },
-                            )
-                        }
-                    },
+                    appEntryProvider(sessionId, openDrawer),
                 modifier =
                     Modifier
                         .padding(paddingValues)

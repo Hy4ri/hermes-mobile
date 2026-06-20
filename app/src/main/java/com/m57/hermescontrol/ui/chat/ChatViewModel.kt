@@ -1018,23 +1018,47 @@ class ChatViewModel(
         }
     }
 
+    private var searchJob: Job? = null
+
     fun setSearchQuery(query: String) {
-        val messages = _uiState.value.messages
-        val indices =
-            if (query.isNotBlank()) {
-                messages.indices.filter { idx ->
-                    messages[idx].content.contains(query, ignoreCase = true)
-                }
-            } else {
-                emptyList()
+        searchJob?.cancel()
+
+        if (query.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    searchQuery = query,
+                    searchMatchIndices = emptyList(),
+                    currentSearchMatchIndex = -1,
+                )
             }
-        _uiState.update {
-            it.copy(
-                searchQuery = query,
-                searchMatchIndices = indices,
-                currentSearchMatchIndex = if (indices.isNotEmpty()) 0 else -1,
-            )
+            return
         }
+
+        // Keep local state in sync immediately so UI feels responsive.
+        _uiState.update {
+            it.copy(searchQuery = query)
+        }
+
+        searchJob =
+            viewModelScope.launch(Dispatchers.Default) {
+                val messages = _uiState.value.messages
+                val indices =
+                    messages.indices.filter { idx ->
+                        messages[idx].content.contains(query, ignoreCase = true)
+                    }
+
+                _uiState.update {
+                    // Only update indices if the search query hasn't changed in the meantime
+                    if (it.searchQuery == query) {
+                        it.copy(
+                            searchMatchIndices = indices,
+                            currentSearchMatchIndex = if (indices.isNotEmpty()) 0 else -1,
+                        )
+                    } else {
+                        it
+                    }
+                }
+            }
     }
 
     fun navigateSearchMatch(direction: Int) {

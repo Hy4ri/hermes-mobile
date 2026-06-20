@@ -171,9 +171,10 @@ fun ChatScreen(
 
     // Auto-scroll to bottom on new messages
     LaunchedEffect(state.messages.size, state.streamingMessage?.content?.length, state.isThinking) {
-        val totalItems = state.messages.size +
-            (if (state.streamingMessage != null) 1 else 0) +
-            (if (state.isThinking) 1 else 0)
+        val totalItems =
+            state.messages.size +
+                (if (state.streamingMessage != null) 1 else 0) +
+                (if (state.isThinking) 1 else 0)
         if (totalItems > 0) {
             listState.animateScrollToItem(totalItems - 1)
         }
@@ -354,8 +355,9 @@ fun ChatScreen(
                     .imePadding(),
         ) {
             androidx.compose.animation.AnimatedVisibility(
-                visible = state.connectionStatus == ConnectionStatus.RECONNECTING ||
-                    state.connectionStatus == ConnectionStatus.DISCONNECTED,
+                visible =
+                    state.connectionStatus == ConnectionStatus.RECONNECTING ||
+                        state.connectionStatus == ConnectionStatus.DISCONNECTED,
                 enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
                 exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
             ) {
@@ -365,26 +367,29 @@ fun ChatScreen(
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
-                            text = if (state.connectionStatus == ConnectionStatus.RECONNECTING) {
-                                "Reconnecting to Hermes…"
-                            } else {
-                                "Disconnected from Hermes"
-                            },
+                            text =
+                                if (state.connectionStatus == ConnectionStatus.RECONNECTING) {
+                                    "Reconnecting to Hermes…"
+                                } else {
+                                    "Disconnected from Hermes"
+                                },
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         if (state.connectionStatus == ConnectionStatus.DISCONNECTED) {
                             TextButton(
                                 onClick = { viewModel.reconnect() },
-                                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                ),
+                                colors =
+                                    androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                    ),
                             ) {
                                 Text("Reconnect")
                             }

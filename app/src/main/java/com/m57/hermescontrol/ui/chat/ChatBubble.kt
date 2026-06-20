@@ -72,10 +72,10 @@ import com.m57.hermescontrol.theme.SystemMessageColor
 import com.m57.hermescontrol.theme.ToolChipColor
 import com.m57.hermescontrol.theme.ToolChipColorLight
 import com.m57.hermescontrol.theme.UserBubble
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.delay
 
 @Composable
 fun ChatBubble(
@@ -811,8 +811,9 @@ private fun RichText(
     )
 }
 
-private val TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
-    .withZone(ZoneId.systemDefault())
+private val TIMESTAMP_FORMATTER =
+    DateTimeFormatter.ofPattern("HH:mm")
+        .withZone(ZoneId.systemDefault())
 
 private fun formatTimestamp(timestamp: Long): String {
     return TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))

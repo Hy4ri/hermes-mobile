@@ -254,13 +254,12 @@ class ChatViewModel(
     private fun handleMessageComplete(event: WsEvent.MessageComplete) {
         if (!isCurrentSession(event.sessionId)) return
 
-        // Finalize: move the streaming message into the main list
-        val finalizedMsg: ChatMessage
-        val sessionId: String?
+        var finalizedMsg: ChatMessage? = null
+        var sessionId: String? = null
 
         _uiState.update { state ->
             val streaming = state.streamingMessage
-            finalizedMsg = if (streaming != null) {
+            val msg = if (streaming != null) {
                 streaming.copy(
                     content = event.text,
                     isStreaming = false,
@@ -271,9 +270,10 @@ class ChatViewModel(
                     content = event.text,
                 )
             }
+            finalizedMsg = msg
             sessionId = state.currentSessionId
             state.copy(
-                messages = state.messages + finalizedMsg,
+                messages = state.messages + msg,
                 streamingMessage = null,
                 isAgentTyping = false,
                 isThinking = false,
@@ -283,10 +283,11 @@ class ChatViewModel(
         streamingMessageId = null
 
         // Persist finalized message — OUTSIDE update{} to avoid CAS retry
+        val msgToPersist = finalizedMsg
         val sid = sessionId ?: _uiState.value.currentSessionId
-        if (sid != null) {
+        if (msgToPersist != null && sid != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(finalizedMsg.toEntity(sid))
+                dao.upsert(msgToPersist.toEntity(sid))
             }
         }
     }
@@ -296,16 +297,17 @@ class ChatViewModel(
 
         // If we still have an un-finalized streaming message (no MessageComplete
         // was sent, which happens on interrupts), fold it into the list.
-        val orphan: ChatMessage?
-        val sessionId: String?
+        var orphan: ChatMessage? = null
+        var sessionId: String? = null
 
         _uiState.update { state ->
             val streaming = state.streamingMessage
-            orphan = streaming?.copy(isStreaming = false)
+            val msg = streaming?.copy(isStreaming = false)
+            orphan = msg
             sessionId = state.currentSessionId
-            if (orphan != null) {
+            if (msg != null) {
                 state.copy(
-                    messages = state.messages + orphan,
+                    messages = state.messages + msg,
                     streamingMessage = null,
                     isAgentTyping = false,
                     isThinking = false,
@@ -322,10 +324,11 @@ class ChatViewModel(
         streamingMessageId = null
 
         // Persist orphaned streaming message
+        val msgToPersist = orphan
         val sid = sessionId ?: _uiState.value.currentSessionId
-        if (orphan != null && sid != null) {
+        if (msgToPersist != null && sid != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(orphan.toEntity(sid))
+                dao.upsert(msgToPersist.toEntity(sid))
             }
         }
     }
@@ -358,16 +361,18 @@ class ChatViewModel(
 
         _uiState.update { state ->
             val messages = state.messages.toMutableList()
-            val toolIdx = messages.indexOfLast {
-                it.role == MessageRole.TOOL &&
-                    it.toolName == event.name &&
-                    it.toolStatus == ToolStatus.RUNNING
-            }
+            val toolIdx =
+                messages.indexOfLast {
+                    it.role == MessageRole.TOOL &&
+                        it.toolName == event.name &&
+                        it.toolStatus == ToolStatus.RUNNING
+                }
             if (toolIdx >= 0) {
-                val updated = messages[toolIdx].copy(
-                    toolStatus = ToolStatus.COMPLETED,
-                    content = event.data.toString(),
-                )
+                val updated =
+                    messages[toolIdx].copy(
+                        toolStatus = ToolStatus.COMPLETED,
+                        content = event.data.toString(),
+                    )
                 messages[toolIdx] = updated
                 completedTool = updated
             }
@@ -494,10 +499,11 @@ class ChatViewModel(
             return
         }
 
-        val userMessage = ChatMessage(
-            role = MessageRole.USER,
-            content = text,
-        )
+        val userMessage =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = text,
+            )
 
         // Update UI — no DB writes inside update{}
         _uiState.update { state ->
@@ -892,13 +898,15 @@ class ChatViewModel(
      * responded to. Surfaces a timeout error for the user.
      */
     private fun startPendingRequestCleanup() {
-        pendingCleanupJob = viewModelScope.launch {
-            while (true) {
-                delay(PENDING_REQUEST_TIMEOUT_MS)
-                val now = System.currentTimeMillis()
-                val stale = pendingRequests.entries.filter {
-                    now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
-                }
+        pendingCleanupJob =
+            viewModelScope.launch {
+                while (true) {
+                    delay(PENDING_REQUEST_TIMEOUT_MS)
+                    val now = System.currentTimeMillis()
+                    val stale =
+                        pendingRequests.entries.filter {
+                            now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
+                        }
                 for (entry in stale) {
                     pendingRequests.remove(entry.key)
                     Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")

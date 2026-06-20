@@ -80,6 +80,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -103,6 +104,7 @@ import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import kotlinx.coroutines.launch
 
 @Composable
 fun ChatScreen(
@@ -113,6 +115,7 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
     val showScrollToBottom by remember {
         derivedStateOf {
             state.messages.isNotEmpty() && listState.canScrollForward
@@ -533,7 +536,7 @@ fun ChatScreen(
                 }
 
                 // Scroll-to-bottom FAB
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = showScrollToBottom,
                     enter = fadeIn() + scaleIn(),
                     exit = fadeOut() + scaleOut(),
@@ -544,7 +547,9 @@ fun ChatScreen(
                 ) {
                     FloatingActionButton(
                         onClick = {
-                            listState.animateScrollToItem(state.messages.lastIndex)
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(state.messages.lastIndex)
+                            }
                         },
                         modifier = Modifier.size(40.dp),
                         containerColor = MaterialTheme.colorScheme.surfaceContainer,

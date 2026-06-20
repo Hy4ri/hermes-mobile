@@ -812,12 +812,11 @@ private fun RichText(
 }
 
 private val TIMESTAMP_FORMATTER =
-    DateTimeFormatter.ofPattern("HH:mm")
+    DateTimeFormatter
+        .ofPattern("HH:mm")
         .withZone(ZoneId.systemDefault())
 
-private fun formatTimestamp(timestamp: Long): String {
-    return TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))
-}
+private fun formatTimestamp(timestamp: Long): String = TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))
 
 /**
  * Build an AnnotatedString with search matches highlighted.

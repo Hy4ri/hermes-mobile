@@ -29,8 +29,7 @@ abstract class HermesDatabase : RoomDatabase() {
                         if (BuildConfig.DEBUG) {
                             fallbackToDestructiveMigration(false)
                         }
-                    }
-                    .build()
+                    }.build()
                     .also { instance = it }
             }
 

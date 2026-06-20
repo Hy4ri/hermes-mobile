@@ -425,10 +425,26 @@ class E2eIntegrationTest {
 
             assertFalse(viewModel.uiState.value.isLoading)
             assertEquals(1, viewModel.uiState.value.sessions.size)
-            assertEquals("session-123", viewModel.uiState.value.sessions[0].id)
-            assertEquals("Session 1", viewModel.uiState.value.sessions[0].title)
-            assertEquals(5, viewModel.uiState.value.sessions[0].message_count)
-            assertEquals("active", viewModel.uiState.value.sessions[0].status)
+            assertEquals(
+                "session-123",
+                viewModel.uiState.value.sessions[0]
+                    .id,
+            )
+            assertEquals(
+                "Session 1",
+                viewModel.uiState.value.sessions[0]
+                    .title,
+            )
+            assertEquals(
+                5,
+                viewModel.uiState.value.sessions[0]
+                    .message_count,
+            )
+            assertEquals(
+                "active",
+                viewModel.uiState.value.sessions[0]
+                    .status,
+            )
         }
 
     @Test

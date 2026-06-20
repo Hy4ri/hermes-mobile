@@ -20,12 +20,14 @@ class NavigationBenchmarkTest {
 
         val iterations = 100000
         for (i in 1..iterations) {
-            timeMapToSet += measureNanoTime {
-                items.map { it }.toSet()
-            }
-            timeMapTo += measureNanoTime {
-                items.mapTo(mutableSetOf()) { it }
-            }
+            timeMapToSet +=
+                measureNanoTime {
+                    items.map { it }.toSet()
+                }
+            timeMapTo +=
+                measureNanoTime {
+                    items.mapTo(mutableSetOf()) { it }
+                }
         }
 
         println("============================")

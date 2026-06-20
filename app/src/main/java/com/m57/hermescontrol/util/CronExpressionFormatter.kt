@@ -19,7 +19,10 @@ object CronExpressionFormatter {
 
             // 1. Check for common simple shortcuts
             // Every X minutes: */X * * * *
-            if (minutePart.startsWith("*/") && hourPart == "*" && domPart == "*" && monthPart == "*" &&
+            if (minutePart.startsWith("*/") &&
+                hourPart == "*" &&
+                domPart == "*" &&
+                monthPart == "*" &&
                 dowPart == "*"
             ) {
                 val step = minutePart.substring(2).toIntOrNull()
@@ -27,7 +30,10 @@ object CronExpressionFormatter {
             }
 
             // Every X hours: 0 */X * * *
-            if (minutePart == "0" && hourPart.startsWith("*/") && domPart == "*" && monthPart == "*" &&
+            if (minutePart == "0" &&
+                hourPart.startsWith("*/") &&
+                domPart == "*" &&
+                monthPart == "*" &&
                 dowPart == "*"
             ) {
                 val step = hourPart.substring(2).toIntOrNull()

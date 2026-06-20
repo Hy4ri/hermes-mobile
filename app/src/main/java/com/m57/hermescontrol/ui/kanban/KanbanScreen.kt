@@ -48,6 +48,8 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 
+private const val DEFAULT_COLUMN = "todo"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KanbanScreen(
@@ -185,7 +187,7 @@ fun KanbanScreen(
                         AddTaskDialog(
                             onDismiss = { showAddTaskDialog = false },
                             onConfirm = { title, desc ->
-                                viewModel.createTask(title, desc, state.columns.firstOrNull()?.name ?: "todo")
+                                viewModel.createTask(title, desc, state.columns.firstOrNull()?.name ?: DEFAULT_COLUMN)
                                 showAddTaskDialog = false
                             },
                         )

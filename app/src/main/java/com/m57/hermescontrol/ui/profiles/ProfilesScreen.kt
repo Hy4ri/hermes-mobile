@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,7 +26,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -250,5 +253,125 @@ fun ProfilesScreen(
                 }
             }
         }
+    }
+
+    if (soulEditProfileName != null) {
+        val initialText = state.selectedSoulContent ?: ""
+        var soulText by remember(initialText) { mutableStateOf(initialText) }
+
+        AlertDialog(
+            onDismissRequest = {
+                soulEditProfileName = null
+                viewModel.closeSoulDialog()
+            },
+            title = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.profiles_title_edit_soul,
+                            soulEditProfileName.orEmpty(),
+                        ),
+                )
+            },
+            text = {
+                if (state.isLoadingSoul) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = soulText,
+                        onValueChange = { soulText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 10,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val profileName = soulEditProfileName
+                        if (profileName != null) {
+                            viewModel.saveSoul(profileName, soulText)
+                        }
+                        soulEditProfileName = null
+                    },
+                    enabled = !state.isLoadingSoul,
+                ) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        soulEditProfileName = null
+                        viewModel.closeSoulDialog()
+                    },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (modelEditProfileName != null) {
+        AlertDialog(
+            onDismissRequest = { modelEditProfileName = null },
+            title = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.profiles_title_set_model,
+                            modelEditProfileName.orEmpty(),
+                        ),
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = tempModelProvider,
+                        onValueChange = { tempModelProvider = it },
+                        label = { Text(stringResource(R.string.profiles_label_provider_input)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = tempModelName,
+                        onValueChange = { tempModelName = it },
+                        label = { Text(stringResource(R.string.profiles_label_model_input)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val profileName = modelEditProfileName
+                        if (profileName != null) {
+                            viewModel.updateModel(profileName, tempModelProvider, tempModelName)
+                        }
+                        modelEditProfileName = null
+                    },
+                ) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { modelEditProfileName = null },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Webhook
@@ -115,7 +116,7 @@ private val ALL_NAV_ITEMS: List<BottomNavItem> =
         BottomNavItem(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory),
         BottomNavItem(ConfigScreen, R.string.screen_config, Icons.Filled.Code),
         BottomNavItem(McpServersScreen, R.string.screen_mcp_servers, Icons.Filled.Dashboard),
-        BottomNavItem(ModelScreen, R.string.screen_models, Icons.Filled.Settings),
+        BottomNavItem(ModelScreen, R.string.screen_models, Icons.Filled.Psychology),
         BottomNavItem(PairingScreen, R.string.screen_pairing, Icons.Filled.Devices),
         BottomNavItem(KeysScreen, R.string.screen_keys, Icons.Filled.Key),
         BottomNavItem(ChannelsScreen, R.string.screen_channels, Icons.AutoMirrored.Filled.ListAlt),
@@ -168,7 +169,7 @@ private val DRAWER_ENTRIES =
         DrawerEntry(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory, DrawerSection.CONFIGURE),
         DrawerEntry(ConfigScreen, R.string.screen_config, Icons.Filled.Code, DrawerSection.CONFIGURE),
         DrawerEntry(McpServersScreen, R.string.screen_mcp_servers, Icons.Filled.Dashboard, DrawerSection.CONFIGURE),
-        DrawerEntry(ModelScreen, R.string.screen_models, Icons.Filled.Settings, DrawerSection.CONFIGURE),
+        DrawerEntry(ModelScreen, R.string.screen_models, Icons.Filled.Psychology, DrawerSection.CONFIGURE),
         DrawerEntry(PairingScreen, R.string.screen_pairing, Icons.Filled.Devices, DrawerSection.CONFIGURE),
         DrawerEntry(KeysScreen, R.string.screen_keys, Icons.Filled.Key, DrawerSection.CONFIGURE),
         DrawerEntry(

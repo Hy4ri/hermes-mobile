@@ -1040,6 +1040,7 @@ private fun StreamingBubbleWithTypingEffect(
     var visibleWordCount by remember { mutableIntStateOf(0) }
     val currentContent = rememberUpdatedState(streaming.content)
     val currentIsStreaming = rememberUpdatedState(streaming.isStreaming)
+    val currentDelayMs = rememberUpdatedState(typingDelayMs)
 
     // Timer that ticks at the configured delay, incrementing the visible word
     // count each tick. Stops ticking when streaming ends, then shows all words.
@@ -1047,7 +1048,7 @@ private fun StreamingBubbleWithTypingEffect(
         while (currentIsStreaming.value) {
             val words = currentContent.value.split(" ")
             if (visibleWordCount < words.size) {
-                delay(typingDelayMs.toLong())
+                delay(currentDelayMs.value.toLong())
                 visibleWordCount++
             } else {
                 delay(10)

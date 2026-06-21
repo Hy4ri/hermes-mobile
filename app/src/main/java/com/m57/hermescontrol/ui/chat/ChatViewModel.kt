@@ -500,6 +500,7 @@ class ChatViewModel(
                         isLoading = false,
                         messages = emptyList(),
                         streamingMessage = null,
+                        chatTitle = "Hermes",
                     )
                 }
                 addSystemMessage("Session created", persist = true)
@@ -783,6 +784,7 @@ class ChatViewModel(
                 isLoading = true,
                 messages = emptyList(),
                 streamingMessage = null,
+                chatTitle = "Hermes",
             )
         }
         streamingMessageId = null
@@ -816,7 +818,7 @@ class ChatViewModel(
         streamingMessageId = null
 
         _uiState.update {
-            val title = it.sessions.find { s -> s.id == sessionId }?.title ?: it.chatTitle
+            val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
             it.copy(
                 isLoading = true,
                 messages = emptyList(),
@@ -841,6 +843,8 @@ class ChatViewModel(
         }
         // Step 3: Load fresh messages from REST and merge
         loadSessionMessages(sessionId)
+        // Step 4: Refresh session list to get latest titles
+        loadSessions()
     }
 
     private fun loadCachedMessages(sessionId: String) {

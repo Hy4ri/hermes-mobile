@@ -35,7 +35,7 @@ class NotificationReplyReceiver : BroadcastReceiver() {
                     val entity = com.m57.hermescontrol.data.local.ChatMessageEntity(
                         id = java.util.UUID.randomUUID().toString(),
                         sessionId = sessionId,
-                        role = "user",
+                        role = "USER",
                         content = replyText,
                         timestamp = System.currentTimeMillis(),
                     )

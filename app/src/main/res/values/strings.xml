@@ -13,4 +13,19 @@
     <string name="chat_prev_match_desc">Previous match</string>
     <string name="chat_next_match_desc">Next match</string>
     <string name="chat_close_search_desc">Close search</string>
+
+    <!-- Actions -->
+    <string name="action_retry">Retry</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+    <string name="action_delete">Delete</string>
+
+    <!-- Content Descriptions -->
+    <string name="content_desc_back">Back</string>
+    <string name="content_desc_open_drawer">Open navigation drawer</string>
+    <string name="content_desc_refresh">Refresh</string>
+    <string name="content_desc_clear_search">Clear search</string>
+
+    <!-- General Errors -->
+    <string name="error_unknown">Unknown error</string>
 </resources>

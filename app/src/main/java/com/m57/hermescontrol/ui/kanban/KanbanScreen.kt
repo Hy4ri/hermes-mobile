@@ -71,7 +71,7 @@ fun KanbanScreen(
                 task.title.contains(query, ignoreCase = true) ||
                     task.description?.contains(query, ignoreCase = true) == true ||
                     task.status.contains(query, ignoreCase = true) ||
-                    task.assignee?.contains(query, ignoreCase = true) == true
+                    task.assignedTo?.contains(query, ignoreCase = true) == true
             }
         }
     var showAddTaskDialog by remember { mutableStateOf(false) }

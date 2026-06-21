@@ -253,7 +253,9 @@ interface HermesApiService {
     ): Response<Unit>
 
     @GET("api/messaging/platforms")
-    suspend fun getMessagingPlatforms(@Query("profile") profile: String? = null): Response<MessagingPlatformResponse>
+    suspend fun getMessagingPlatforms(
+        @Query("profile") profile: String? = null,
+    ): Response<MessagingPlatformResponse>
 
     @PUT("api/messaging/platforms/{platform_id}")
     suspend fun configurePlatform(

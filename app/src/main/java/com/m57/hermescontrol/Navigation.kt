@@ -375,7 +375,7 @@ fun MainNavigation(sessionId: String? = null) {
                         }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 4.dp),
+                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 2.dp),
                     ) {
                         Text(
                             text = stringResource(R.string.nav_drawer_title),
@@ -395,7 +395,7 @@ fun MainNavigation(sessionId: String? = null) {
                     }
                     Text(
                         text = stringResource(R.string.nav_drawer_subtitle),
-                        modifier = Modifier.padding(start = 20.dp, bottom = 12.dp, end = 16.dp),
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, end = 16.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -406,9 +406,9 @@ fun MainNavigation(sessionId: String? = null) {
                             text = stringResource(section.titleRes).uppercase(),
                             modifier =
                                 Modifier.padding(
-                                    start = 20.dp,
-                                    top = 16.dp,
-                                    bottom = 6.dp,
+                                    start = 16.dp,
+                                    top = 8.dp,
+                                    bottom = 4.dp,
                                     end = 16.dp,
                                 ),
                             style = MaterialTheme.typography.labelSmall,
@@ -434,7 +434,7 @@ fun MainNavigation(sessionId: String? = null) {
                                         ),
                                     modifier =
                                         Modifier
-                                            .padding(horizontal = 12.dp, vertical = 2.dp)
+                                            .padding(horizontal = 8.dp, vertical = 1.dp)
                                             .testTag(
                                                 "drawer_${entry.key::class.simpleName?.lowercase()?.removeSuffix(
                                                     "screen",

@@ -287,13 +287,6 @@ fun ChatScreen(
             }
         },
         actions = {
-            IconButton(onClick = { viewModel.createNewSession() }) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "New Chat",
-                )
-            }
-
             // Search toggle
             IconButton(onClick = { viewModel.toggleSearch() }) {
                 Icon(
@@ -301,6 +294,13 @@ fun ChatScreen(
                         if (state.isSearchActive) Icons.Filled.Close else Icons.Filled.Search,
                     contentDescription =
                         if (state.isSearchActive) "Close search" else "Search",
+                )
+            }
+
+            IconButton(onClick = { viewModel.createNewSession() }) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "New Chat",
                 )
             }
         },

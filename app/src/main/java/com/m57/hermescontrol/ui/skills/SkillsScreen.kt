@@ -67,7 +67,11 @@ fun SkillsScreen(
     var selectedStatus by remember { mutableStateOf("All Statuses") }
     val categories =
         remember(state.skills) {
-            listOf("All") + state.skills.mapNotNull { it.category }.distinct().sorted()
+            listOf("All") +
+                state.skills
+                    .mapNotNull { it.category }
+                    .distinct()
+                    .sorted()
         }
     var selectedCategory by remember { mutableStateOf("All") }
 

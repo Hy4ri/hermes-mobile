@@ -58,10 +58,11 @@ class SettingsViewModel : ViewModel() {
                 profiles = AuthManager.getConnectionProfiles(),
                 selectedProfileId = selectedId,
                 renameProfileName =
-                    AuthManager.getConnectionProfiles().firstOrNull {
-                            p ->
-                        p.id == selectedId
-                    }?.name ?: "",
+                    AuthManager
+                        .getConnectionProfiles()
+                        .firstOrNull { p ->
+                            p.id == selectedId
+                        }?.name ?: "",
             )
         }
     }

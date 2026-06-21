@@ -95,9 +95,7 @@ object AuthManager {
         requirePrefs().edit().putString(KEY_CONNECTION_PROFILES, json).apply()
     }
 
-    fun getProfileToken(profileId: String): String? {
-        return requirePrefs().getString("token_$profileId", null)
-    }
+    fun getProfileToken(profileId: String): String? = requirePrefs().getString("token_$profileId", null)
 
     fun setProfileToken(
         profileId: String,

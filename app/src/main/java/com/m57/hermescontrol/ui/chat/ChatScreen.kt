@@ -524,7 +524,13 @@ fun ChatScreen(
                     FloatingActionButton(
                         onClick = {
                             scrollScope.launch {
-                                listState.animateScrollToItem(state.messages.lastIndex)
+                                val totalItems =
+                                    state.messages.size +
+                                        (if (state.streamingMessage != null) 1 else 0) +
+                                        (if (state.isThinking) 1 else 0)
+                                if (totalItems > 0) {
+                                    listState.animateScrollToItem(totalItems - 1)
+                                }
                             }
                         },
                         modifier = Modifier.size(40.dp),

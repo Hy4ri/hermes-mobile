@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
@@ -167,6 +168,23 @@ private fun UserBubble(
                         MaterialTheme.colorScheme.secondary,
                     ),
             )
+        val primary = MaterialTheme.colorScheme.primary
+        val secondary = MaterialTheme.colorScheme.secondary
+        val avgLuminance = (primary.luminance() + secondary.luminance()) / 2f
+        val userBubbleTextColor =
+            if (avgLuminance > 0.5f) {
+                if (MaterialTheme.colorScheme.onPrimary.luminance() < 0.5f) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    Color(0xFF1A1A24)
+                }
+            } else {
+                if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    Color.White
+                }
+            }
         Box {
             Surface(
                 modifier =
@@ -194,19 +212,21 @@ private fun UserBubble(
                     SelectionContainer {
                         Text(
                             text = highlightedText,
-                            color = Color.White,
+                            color = userBubbleTextColor,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    Text(
-                        text = formatTimestamp(message.timestamp),
-                        color = Color.White.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier =
-                            Modifier
-                                .align(Alignment.End)
-                                .padding(top = 4.dp),
-                    )
+                    if (!message.isStreaming) {
+                        Text(
+                            text = formatTimestamp(message.timestamp),
+                            color = userBubbleTextColor.copy(alpha = 0.6f),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier =
+                                Modifier
+                                    .align(Alignment.End)
+                                    .padding(top = 4.dp),
+                        )
+                    }
                 }
             }
 
@@ -255,7 +275,20 @@ private fun AssistantBubble(
     modifier: Modifier = Modifier,
 ) {
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
-    val textColor = MaterialTheme.colorScheme.onSurface
+    val textColor =
+        if (bubbleColor.luminance() > 0.5f) {
+            if (MaterialTheme.colorScheme.onSurface.luminance() < 0.5f) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                Color(0xFF1A1A24)
+            }
+        } else {
+            if (MaterialTheme.colorScheme.onSurface.luminance() > 0.5f) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                Color(0xFFE8E6EE)
+            }
+        }
     val clipboardManager = LocalClipboardManager.current
     var showCopyButton by remember { mutableStateOf(false) }
 
@@ -786,7 +819,7 @@ private fun RichText(
                         // Search match highlight
                         searchQuery.isNotEmpty() &&
                             src.regionMatches(i, searchQuery, 0, searchQuery.length, ignoreCase = true) -> {
-                            withStyle(SpanStyle(background = searchHighlightColor)) {
+                            withStyle(SpanStyle(background = searchHighlightColor, color = Color(0xFF1A1A24))) {
                                 append(src.substring(i, i + searchQuery.length))
                             }
                             i += searchQuery.length
@@ -843,7 +876,7 @@ private fun buildHighlightedString(
                     append(text.substring(i, matchEnd))
                 }
                 // Append the match highlighted
-                withStyle(SpanStyle(background = highlightColor)) {
+                withStyle(SpanStyle(background = highlightColor, color = Color(0xFF1A1A24))) {
                     append(text.substring(matchEnd, matchEnd + query.length))
                 }
                 i = matchEnd + query.length

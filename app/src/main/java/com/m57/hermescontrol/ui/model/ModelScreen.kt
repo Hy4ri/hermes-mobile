@@ -45,6 +45,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +57,18 @@ fun ModelScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var expandedProviderSlug by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+
+    val filteredProviders =
+        remember(query, state.providers) {
+            state.providers.filter { provider ->
+                provider.name.contains(query, ignoreCase = true) ||
+                    provider.slug.contains(query, ignoreCase = true) ||
+                    provider.models.orEmpty().any { model ->
+                        model.contains(query, ignoreCase = true)
+                    }
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadModelOptions()
@@ -121,7 +134,14 @@ fun ModelScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            items(state.providers) { provider ->
+                            item {
+                                SearchBar(
+                                    query = query,
+                                    onQueryChange = { query = it },
+                                    placeholder = "Search models...",
+                                )
+                            }
+                            items(filteredProviders) { provider ->
                                 val isExpanded = expandedProviderSlug == provider.slug
                                 val isCurrent = provider.is_current == true
 

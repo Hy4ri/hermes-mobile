@@ -16,6 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -30,6 +33,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
 
 @Composable
 fun LogsScreen(
@@ -41,6 +45,15 @@ fun LogsScreen(
     val context = LocalContext.current
     val spacing = LocalSpacing.current
     val listState = rememberLazyListState()
+
+    var query by remember { mutableStateOf("") }
+
+    val filteredLogs =
+        remember(query, state.logs) {
+            state.logs.filter { logLine ->
+                logLine.contains(query, ignoreCase = true)
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadLogs()
@@ -54,9 +67,9 @@ fun LogsScreen(
     }
 
     // Auto scroll to bottom when new logs arrive
-    LaunchedEffect(state.logs.size) {
-        if (state.logs.isNotEmpty()) {
-            listState.animateScrollToItem(state.logs.size - 1)
+    LaunchedEffect(filteredLogs.size) {
+        if (filteredLogs.isNotEmpty()) {
+            listState.animateScrollToItem(filteredLogs.size)
         }
     }
 
@@ -101,7 +114,15 @@ fun LogsScreen(
                             vertical = spacing.sm,
                         ),
                 ) {
-                    items(state.logs) { logLine ->
+                    item {
+                        SearchBar(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search logs...",
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    items(filteredLogs) { logLine ->
                         Text(
                             text = logLine,
                             color = MaterialTheme.colorScheme.onSurface,

@@ -49,6 +49,7 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
 
 private const val DEFAULT_COLUMN = "todo"
 
@@ -61,6 +62,18 @@ fun KanbanScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var query by remember { mutableStateOf("") }
+
+    val filteredTasks =
+        remember(query, state.tasks) {
+            state.tasks.filter { task ->
+                task.title.contains(query, ignoreCase = true) ||
+                    task.description?.contains(query, ignoreCase = true) == true ||
+                    task.status.contains(query, ignoreCase = true) ||
+                    task.assignee?.contains(query, ignoreCase = true) == true
+            }
+        }
     var showAddTaskDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -107,6 +120,12 @@ fun KanbanScreen(
                         Column(
                             modifier = Modifier.fillMaxSize().padding(paddingValues),
                         ) {
+                            SearchBar(
+                                query = query,
+                                onQueryChange = { query = it },
+                                placeholder = "Filter tasks by title, status, or assignee...",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
                             // Board selector tab row
                             if (state.boards.isNotEmpty()) {
                                 PrimaryScrollableTabRow(
@@ -140,7 +159,7 @@ fun KanbanScreen(
                                     items(state.columns) { column ->
                                         val colName = column.name
                                         val colTasks =
-                                            state.tasks.filter {
+                                            filteredTasks.filter {
                                                 it.status.equals(colName, ignoreCase = true)
                                             }
                                         val columnIndex = state.columns.indexOf(column)

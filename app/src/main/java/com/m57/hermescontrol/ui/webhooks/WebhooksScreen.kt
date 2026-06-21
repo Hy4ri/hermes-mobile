@@ -26,6 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +42,9 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.listContentPadding
+import com.m57.hermescontrol.ui.common.listItemSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +55,16 @@ fun WebhooksScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var query by remember { mutableStateOf("") }
+
+    val filteredSubscriptions =
+        remember(query, state.subscriptions) {
+            state.subscriptions.filter { sub ->
+                sub.name.contains(query, ignoreCase = true) ||
+                    sub.url.contains(query, ignoreCase = true)
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadWebhooks()
@@ -98,8 +114,8 @@ fun WebhooksScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = listContentPadding,
+                            verticalArrangement = listItemSpacing,
                         ) {
                             // Global Status Switch
                             item {
@@ -155,7 +171,15 @@ fun WebhooksScreen(
                                 )
                             }
 
-                            if (state.subscriptions.isEmpty()) {
+                            item {
+                                SearchBar(
+                                    query = query,
+                                    onQueryChange = { query = it },
+                                    placeholder = "Search subscriptions...",
+                                )
+                            }
+
+                            if (filteredSubscriptions.isEmpty()) {
                                 item {
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
@@ -176,7 +200,7 @@ fun WebhooksScreen(
                                     }
                                 }
                             } else {
-                                items(state.subscriptions) { sub ->
+                                items(filteredSubscriptions) { sub ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {

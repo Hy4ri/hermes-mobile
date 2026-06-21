@@ -19,6 +19,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -33,6 +36,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 
@@ -44,6 +48,16 @@ fun SessionsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
+
+    var query by remember { mutableStateOf("") }
+
+    val filteredSessions =
+        remember(query, state.sessions) {
+            state.sessions.filter { session ->
+                session.title?.contains(query, ignoreCase = true) == true ||
+                    session.status?.contains(query, ignoreCase = true) == true
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadSessions()
@@ -82,7 +96,14 @@ fun SessionsScreen(
                     contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {
-                    items(state.sessions) { session ->
+                    item {
+                        SearchBar(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search sessions...",
+                        )
+                    }
+                    items(filteredSessions) { session ->
                         Card(
                             modifier =
                                 Modifier

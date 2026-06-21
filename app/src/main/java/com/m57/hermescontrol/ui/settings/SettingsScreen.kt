@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.BuildConfig
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 
@@ -77,7 +79,7 @@ fun SettingsScreen(
     BackHandler(onBack = onBack)
 
     HermesScaffold(
-        title = { Text("Settings") },
+        title = { Text(stringResource(R.string.screen_settings)) },
         showBack = true,
         onBack = onBack,
     ) {
@@ -90,12 +92,12 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Connection section
-            SectionCard(title = "Connection") {
+            SectionCard(title = stringResource(R.string.settings_sec_connection)) {
                 // Connection Profiles management in Settings
                 if (state.profiles.isNotEmpty()) {
                     var profilesExpanded by remember { mutableStateOf(false) }
                     Text(
-                        text = "Connection Profile",
+                        text = stringResource(R.string.settings_item_profile),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -105,7 +107,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             val activeProfile = state.profiles.firstOrNull { it.id == state.selectedProfileId }
-                            Text(text = activeProfile?.name ?: "Standalone / Default")
+                            Text(text = activeProfile?.name ?: stringResource(R.string.settings_profile_default))
                         }
                         DropdownMenu(
                             expanded = profilesExpanded,
@@ -113,7 +115,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(0.85f),
                         ) {
                             DropdownMenuItem(
-                                text = { Text("None (Standalone / Default)") },
+                                text = { Text(stringResource(R.string.settings_profile_none)) },
                                 onClick = {
                                     viewModel.selectProfile(null)
                                     profilesExpanded = false
@@ -136,7 +138,10 @@ fun SettingsScreen(
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Filled.Close,
-                                                    contentDescription = "Delete Profile",
+                                                    contentDescription =
+                                                        stringResource(
+                                                            R.string.content_desc_delete_profile,
+                                                        ),
                                                     tint = MaterialTheme.colorScheme.error,
                                                 )
                                             }
@@ -155,7 +160,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = state.renameProfileName,
                             onValueChange = viewModel::onRenameProfileNameChange,
-                            label = { Text("Rename Profile") },
+                            label = { Text(stringResource(R.string.settings_action_rename_profile)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             trailingIcon = {
@@ -163,7 +168,7 @@ fun SettingsScreen(
                                     onClick = viewModel::renameProfile,
                                     modifier = Modifier.padding(end = 4.dp),
                                 ) {
-                                    Text("Rename")
+                                    Text(stringResource(R.string.action_rename))
                                 }
                             },
                         )
@@ -174,7 +179,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = state.host,
                     onValueChange = viewModel::onHostChange,
-                    label = { Text("Host") },
+                    label = { Text(stringResource(R.string.settings_field_host)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors =
@@ -189,7 +194,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = state.port,
                     onValueChange = viewModel::onPortChange,
-                    label = { Text("Port") },
+                    label = { Text(stringResource(R.string.settings_field_port)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -205,7 +210,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = state.token,
                     onValueChange = viewModel::onTokenChange,
-                    label = { Text("Auth Token") },
+                    label = { Text(stringResource(R.string.settings_field_token)) },
                     singleLine = true,
                     visualTransformation =
                         if (passwordVisible) {
@@ -224,9 +229,9 @@ fun SettingsScreen(
                                     },
                                 contentDescription =
                                     if (passwordVisible) {
-                                        "Hide token"
+                                        stringResource(R.string.content_desc_hide_token)
                                     } else {
-                                        "Show token"
+                                        stringResource(R.string.content_desc_show_token)
                                     },
                             )
                         }
@@ -253,12 +258,12 @@ fun SettingsScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Clear Token")
+                    Text(stringResource(R.string.settings_action_clear_token))
                 }
             }
 
             // Behavior section
-            SectionCard(title = "Behavior") {
+            SectionCard(title = stringResource(R.string.settings_sec_behavior)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -266,11 +271,11 @@ fun SettingsScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Auto-Reconnect",
+                            text = stringResource(R.string.settings_item_auto_reconnect),
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            text = "Automatically reconnect on disconnect",
+                            text = stringResource(R.string.settings_desc_auto_reconnect),
                             style =
                                 MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -290,9 +295,9 @@ fun SettingsScreen(
             }
 
             // Appearance section
-            SectionCard(title = "Appearance") {
+            SectionCard(title = stringResource(R.string.settings_sec_appearance)) {
                 Text(
-                    text = "Theme",
+                    text = stringResource(R.string.settings_item_theme),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -308,9 +313,11 @@ fun SettingsScreen(
                                 ),
                         ) {
                             Text(
-                                pref.name
-                                    .lowercase()
-                                    .replaceFirstChar { it.uppercase() },
+                                when (pref) {
+                                    ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
+                                    ThemePreference.LIGHT -> stringResource(R.string.theme_light)
+                                    ThemePreference.DARK -> stringResource(R.string.theme_dark)
+                                },
                             )
                         }
                     }
@@ -318,7 +325,7 @@ fun SettingsScreen(
             }
 
             // Chat section
-            SectionCard(title = "Chat") {
+            SectionCard(title = stringResource(R.string.settings_sec_chat)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -326,11 +333,11 @@ fun SettingsScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Typing Effect",
+                            text = stringResource(R.string.settings_item_typing_effect),
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            text = "Animate new messages word by word",
+                            text = stringResource(R.string.settings_desc_typing_effect),
                             style =
                                 MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -352,7 +359,7 @@ fun SettingsScreen(
                 AnimatedVisibility(visible = state.typingEffectEnabled) {
                     Column(modifier = Modifier.padding(top = 12.dp)) {
                         Text(
-                            text = "Delay: ${state.typingEffectDelayMs} ms",
+                            text = stringResource(R.string.settings_item_typing_delay, state.typingEffectDelayMs),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -368,14 +375,14 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Text(
-                                text = "10 ms",
+                                text = stringResource(R.string.settings_delay_10ms),
                                 style =
                                     MaterialTheme.typography.labelSmall.copy(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     ),
                             )
                             Text(
-                                text = "100 ms",
+                                text = stringResource(R.string.settings_delay_100ms),
                                 style =
                                     MaterialTheme.typography.labelSmall.copy(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -387,15 +394,16 @@ fun SettingsScreen(
             }
 
             // Navigation Bar section
-            SectionCard(title = "Navigation Bar") {
+            SectionCard(title = stringResource(R.string.settings_sec_nav_bar)) {
                 Text(
-                    text = "Bottom bar items (${state.selectedNavItems.size}/5)",
+                    text = stringResource(R.string.settings_item_nav_items, state.selectedNavItems.size),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 state.selectedNavItems.forEachIndexed { index, name ->
-                    val label = viewModel.availableNavItems.firstOrNull { it.first == name }?.second ?: name
+                    val labelRes = viewModel.availableNavItems.firstOrNull { it.first == name }?.second
+                    val label = if (labelRes != null) stringResource(labelRes) else name
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -417,7 +425,10 @@ fun SettingsScreen(
                                 },
                                 enabled = index > 0,
                             ) {
-                                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up")
+                                Icon(
+                                    Icons.Filled.KeyboardArrowUp,
+                                    contentDescription = stringResource(R.string.content_desc_move_up),
+                                )
                             }
                             IconButton(
                                 onClick = {
@@ -429,10 +440,16 @@ fun SettingsScreen(
                                 },
                                 enabled = index < state.selectedNavItems.lastIndex,
                             ) {
-                                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down")
+                                Icon(
+                                    Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = stringResource(R.string.content_desc_move_down),
+                                )
                             }
                             IconButton(onClick = { viewModel.removeNavItem(name) }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Remove $label")
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.content_desc_remove_item, label),
+                                )
                             }
                         }
                     }
@@ -446,12 +463,12 @@ fun SettingsScreen(
                             OutlinedButton(onClick = { expanded = true }) {
                                 Icon(Icons.Filled.Add, contentDescription = null)
                                 Spacer(Modifier.size(4.dp))
-                                Text("Add Item")
+                                Text(stringResource(R.string.settings_action_add_item))
                             }
                             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                                available.forEach { (name, label) ->
+                                available.forEach { (name, labelRes) ->
                                     DropdownMenuItem(
-                                        text = { Text(label) },
+                                        text = { Text(stringResource(labelRes)) },
                                         onClick = {
                                             viewModel.addNavItem(name)
                                             expanded = false
@@ -463,7 +480,7 @@ fun SettingsScreen(
                     }
                 } else {
                     Text(
-                        text = "Maximum of 5 items",
+                        text = stringResource(R.string.settings_nav_max_reached),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -505,7 +522,7 @@ fun SettingsScreen(
                 exit = fadeOut(),
             ) {
                 Text(
-                    text = "✅ Settings saved",
+                    text = stringResource(R.string.settings_save_success),
                     style =
                         MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.primary,
@@ -529,7 +546,7 @@ fun SettingsScreen(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text("Test Connection")
+                        Text(stringResource(R.string.settings_action_test_connection))
                     }
                 }
 
@@ -541,17 +558,17 @@ fun SettingsScreen(
                             containerColor = MaterialTheme.colorScheme.primary,
                         ),
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.action_save))
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // ── About section ─────────────────────────────────────────
-            SectionCard(title = "About") {
+            SectionCard(title = stringResource(R.string.settings_sec_about)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "⚡ Hermes Control",
+                        text = stringResource(R.string.settings_about_app_name),
                         style =
                             MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
@@ -563,13 +580,21 @@ fun SettingsScreen(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                InfoRow(label = "Version", value = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                 InfoRow(
-                    label = "Build",
-                    value = if (BuildConfig.DEBUG) "Debug" else "Release",
+                    label = stringResource(R.string.settings_about_version),
+                    value = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                )
+                InfoRow(
+                    label = stringResource(R.string.settings_about_build),
+                    value =
+                        if (BuildConfig.DEBUG) {
+                            stringResource(R.string.settings_about_debug)
+                        } else {
+                            stringResource(R.string.settings_about_release)
+                        },
                 )
                 if (BuildConfig.GIT_SHA.isNotBlank()) {
-                    InfoRow(label = "Commit", value = BuildConfig.GIT_SHA)
+                    InfoRow(label = stringResource(R.string.settings_about_commit), value = BuildConfig.GIT_SHA)
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))

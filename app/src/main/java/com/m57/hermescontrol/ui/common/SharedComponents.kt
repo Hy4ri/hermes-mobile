@@ -250,7 +250,15 @@ fun FilterChipRow(
             FilterChip(
                 selected = chip == selectedChip,
                 onClick = { onChipSelected(chip) },
-                label = { Text(chip) },
+                label = {
+                    Text(
+                        if (chip == "All") {
+                            stringResource(R.string.skills_category_all)
+                        } else {
+                            chip
+                        },
+                    )
+                },
             )
         }
     }

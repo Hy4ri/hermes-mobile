@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -129,28 +130,28 @@ class SettingsViewModel : ViewModel() {
     }
 
     /** All screens available for bottom-nav selection (name → display label). */
-    val availableNavItems: List<Pair<String, String>> =
+    val availableNavItems: List<Pair<String, Int>> =
         listOf(
-            "ChatScreen" to "Chat",
-            "SkillsScreen" to "Skills",
-            "CronJobsScreen" to "Cron Jobs",
-            "SystemScreen" to "System",
-            "SettingsScreen" to "Settings",
-            "ProfilesScreen" to "Profiles",
-            "WebhooksScreen" to "Webhooks",
-            "GatewayScreen" to "Gateway",
-            "HistoryScreen" to "History",
-            "ToolsetsScreen" to "Toolsets",
-            "PluginsScreen" to "Plugins",
-            "ConfigScreen" to "Config",
-            "McpServersScreen" to "MCP Servers",
-            "ModelScreen" to "Models",
-            "PairingScreen" to "Pairing",
-            "KeysScreen" to "Keys",
-            "ChannelsScreen" to "Channels",
-            "LogsScreen" to "Logs",
-            "KanbanScreen" to "Kanban",
-            "AchievementsScreen" to "Achievements",
+            "ChatScreen" to R.string.screen_chat,
+            "SkillsScreen" to R.string.screen_skills,
+            "CronJobsScreen" to R.string.screen_cron,
+            "SystemScreen" to R.string.screen_system,
+            "SettingsScreen" to R.string.screen_settings,
+            "ProfilesScreen" to R.string.screen_profiles,
+            "WebhooksScreen" to R.string.screen_webhooks,
+            "GatewayScreen" to R.string.screen_gateway,
+            "HistoryScreen" to R.string.screen_history,
+            "ToolsetsScreen" to R.string.screen_toolsets,
+            "PluginsScreen" to R.string.screen_plugins,
+            "ConfigScreen" to R.string.screen_config,
+            "McpServersScreen" to R.string.screen_mcp_servers,
+            "ModelScreen" to R.string.screen_models,
+            "PairingScreen" to R.string.screen_pairing,
+            "KeysScreen" to R.string.screen_keys,
+            "ChannelsScreen" to R.string.screen_channels,
+            "LogsScreen" to R.string.screen_logs,
+            "KanbanScreen" to R.string.screen_kanban,
+            "AchievementsScreen" to R.string.screen_achievements,
         )
 
     /** Add a nav item to the bottom bar (max 5). Auto-saves. */

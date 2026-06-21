@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +44,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -117,7 +119,7 @@ fun SkillsScreen(
         }
 
     HermesScaffold(
-        title = { Text("Skills") },
+        title = { Text(stringResource(R.string.screen_skills)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSkills() },
@@ -129,15 +131,15 @@ fun SkillsScreen(
 
             state.errorMessage != null -> {
                 ErrorState(
-                    message = state.errorMessage ?: "Unknown error",
+                    message = state.errorMessage ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.loadSkills() },
                 )
             }
 
             state.skills.isEmpty() -> {
                 EmptyState(
-                    title = "No skills found",
-                    subtitle = "Skills loaded from Hermes will appear here.",
+                    title = stringResource(R.string.skills_no_skills),
+                    subtitle = stringResource(R.string.skills_no_skills_desc),
                     icon = Icons.Filled.Extension,
                 )
             }
@@ -152,7 +154,7 @@ fun SkillsScreen(
                         SearchBar(
                             query = query,
                             onQueryChange = { query = it },
-                            placeholder = "Search skills…",
+                            placeholder = stringResource(R.string.skills_search_placeholder),
                         )
                     }
                     item {
@@ -164,7 +166,7 @@ fun SkillsScreen(
                             verticalArrangement = Arrangement.spacedBy(spacing.xs),
                         ) {
                             Text(
-                                text = "Status",
+                                text = stringResource(R.string.skills_filter_status),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -175,7 +177,16 @@ fun SkillsScreen(
                                     FilterChip(
                                         selected = selectedStatus == status,
                                         onClick = { selectedStatus = status },
-                                        label = { Text(status) },
+                                        label = {
+                                            Text(
+                                                when (status) {
+                                                    "All Statuses" -> stringResource(R.string.skills_status_all)
+                                                    "Enabled" -> stringResource(R.string.skills_status_enabled)
+                                                    "Disabled" -> stringResource(R.string.skills_status_disabled)
+                                                    else -> status
+                                                },
+                                            )
+                                        },
                                     )
                                 }
                             }
@@ -191,7 +202,7 @@ fun SkillsScreen(
                                 verticalArrangement = Arrangement.spacedBy(spacing.xs),
                             ) {
                                 Text(
-                                    text = "Category",
+                                    text = stringResource(R.string.skills_filter_category),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = spacing.md),
@@ -218,14 +229,14 @@ fun SkillsScreen(
                                     verticalArrangement = Arrangement.spacedBy(spacing.xs),
                                 ) {
                                     Text(
-                                        text = "No matching skills",
+                                        text = stringResource(R.string.skills_no_matching),
                                         style =
                                             MaterialTheme.typography.titleMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                             ),
                                     )
                                     Text(
-                                        text = "Try adjusting your search or filters.",
+                                        text = stringResource(R.string.skills_no_matching_desc),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -293,7 +304,7 @@ fun SkillsScreen(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Filled.Edit,
-                                                contentDescription = "Edit Skill File",
+                                                contentDescription = stringResource(R.string.content_desc_edit_skill),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                         }
@@ -373,7 +384,7 @@ fun SkillEditorDialog(
                 ),
         ) {
             HermesScaffold(
-                title = { Text("Edit: $skillName") },
+                title = { Text(stringResource(R.string.skills_edit_title, skillName)) },
                 onBack = {
                     if (hasChanges) {
                         showDiscardConfirm = true
@@ -397,7 +408,7 @@ fun SkillEditorDialog(
                             } else {
                                 Icon(
                                     imageVector = Icons.Filled.Save,
-                                    contentDescription = "Save Changes",
+                                    contentDescription = stringResource(R.string.content_desc_save_changes),
                                 )
                             }
                         }
@@ -429,7 +440,7 @@ fun SkillEditorDialog(
                                         color = MaterialTheme.colorScheme.onSurface,
                                     ),
                                 placeholder = {
-                                    Text("Enter skill content...")
+                                    Text(stringResource(R.string.skills_content_placeholder))
                                 },
                             )
                         }
@@ -442,8 +453,8 @@ fun SkillEditorDialog(
     if (showDiscardConfirm) {
         AlertDialog(
             onDismissRequest = { showDiscardConfirm = false },
-            title = { Text("Discard changes?") },
-            text = { Text("You have unsaved changes. Are you sure you want to discard them?") },
+            title = { Text(stringResource(R.string.skills_discard_title)) },
+            text = { Text(stringResource(R.string.skills_discard_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -451,12 +462,12 @@ fun SkillEditorDialog(
                         onDismiss()
                     },
                 ) {
-                    Text("Discard")
+                    Text(stringResource(R.string.action_discard))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDiscardConfirm = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )

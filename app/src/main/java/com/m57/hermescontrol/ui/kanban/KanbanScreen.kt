@@ -39,10 +39,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -73,7 +75,7 @@ fun KanbanScreen(
     }
 
     HermesScaffold(
-        title = { Text("Kanban Board") },
+        title = { Text(stringResource(R.string.kanban_board_title)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
@@ -99,10 +101,12 @@ fun KanbanScreen(
                         Text(
                             text = state.errorMessage ?: "",
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(paddingValues),
                         )
                     } else {
-                        Column(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(paddingValues),
+                        ) {
                             // Board selector tab row
                             if (state.boards.isNotEmpty()) {
                                 PrimaryScrollableTabRow(
@@ -121,11 +125,11 @@ fun KanbanScreen(
 
                             if (state.selectedBoard == null) {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("No boards found.")
+                                    Text(stringResource(R.string.kanban_no_boards))
                                 }
                             } else if (state.columns.isEmpty()) {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("No columns found for this board.")
+                                    Text(stringResource(R.string.kanban_no_columns))
                                 }
                             } else {
                                 LazyRow(
@@ -219,7 +223,10 @@ fun TaskCard(
             ) {
                 if (onMoveLeft != null) {
                     IconButton(onClick = onMoveLeft) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Move Left")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.content_desc_move_left),
+                        )
                     }
                 } else {
                     Spacer(modifier = Modifier.size(48.dp))
@@ -227,7 +234,10 @@ fun TaskCard(
 
                 if (onMoveRight != null) {
                     IconButton(onClick = onMoveRight) {
-                        Icon(imageVector = Icons.Filled.ArrowForward, contentDescription = "Move Right")
+                        Icon(
+                            imageVector = Icons.Filled.ArrowForward,
+                            contentDescription = stringResource(R.string.content_desc_move_right),
+                        )
                     }
                 } else {
                     Spacer(modifier = Modifier.size(48.dp))
@@ -248,20 +258,20 @@ fun AddTaskDialog(
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add New Task") },
+        title = { Text(stringResource(R.string.kanban_add_new_task)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Task Title") },
+                    label = { Text(stringResource(R.string.kanban_task_title)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = desc,
                     onValueChange = { desc = it },
-                    label = { Text("Task Description") },
+                    label = { Text(stringResource(R.string.kanban_task_desc)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -271,12 +281,12 @@ fun AddTaskDialog(
                 onClick = { if (title.isNotBlank()) onConfirm(title, desc.ifBlank { null }) },
                 enabled = title.isNotBlank(),
             ) {
-                Text("Add")
+                Text(stringResource(R.string.action_add))
             }
         },
         dismissButton = {
             Button(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )

@@ -54,6 +54,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.AssistantBubble
 import com.m57.hermescontrol.theme.AssistantBubbleLight
 import com.m57.hermescontrol.theme.StatusGreen
@@ -232,7 +234,7 @@ private fun UserBubble(
                     ) {
                         Icon(
                             Icons.Filled.ContentCopy,
-                            contentDescription = "Copy",
+                            contentDescription = stringResource(R.string.content_desc_copy),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurface,
                         )
@@ -347,7 +349,7 @@ private fun AssistantBubble(
                     ) {
                         Icon(
                             Icons.Filled.ContentCopy,
-                            contentDescription = "Copy",
+                            contentDescription = stringResource(R.string.content_desc_copy),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurface,
                         )
@@ -489,7 +491,7 @@ private fun ParsedToolContent(
             }
             parsed.stderr?.let {
                 Text(
-                    text = "Error Output (stderr):\n$it",
+                    text = stringResource(R.string.chat_tool_stderr, it),
                     style =
                         MaterialTheme.typography.bodySmall.copy(
                             color = StatusRed.copy(alpha = 0.9f),
@@ -500,7 +502,7 @@ private fun ParsedToolContent(
             }
             parsed.error?.let {
                 Text(
-                    text = "Execution Error: $it",
+                    text = stringResource(R.string.chat_tool_execution_error, it),
                     style =
                         MaterialTheme.typography.bodySmall.copy(
                             color = StatusRed,
@@ -513,7 +515,7 @@ private fun ParsedToolContent(
             parsed.exitCode?.let { code ->
                 if (code != 0) {
                     Text(
-                        text = "Exit Code: $code",
+                        text = stringResource(R.string.chat_tool_exit_code, code),
                         style =
                             MaterialTheme.typography.labelSmall.copy(
                                 color = StatusRed,
@@ -619,7 +621,7 @@ private fun ToolBubble(
                     }
 
                     Text(
-                        text = message.toolName ?: "Tool",
+                        text = message.toolName ?: stringResource(R.string.chat_tool_fallback),
                         style =
                             MaterialTheme.typography.labelMedium.copy(
                                 color = contentColor,
@@ -635,7 +637,7 @@ private fun ToolBubble(
 
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Show Raw JSON",
+                                text = stringResource(R.string.chat_tool_show_raw),
                                 style =
                                     MaterialTheme.typography.labelSmall.copy(
                                         color = MaterialTheme.colorScheme.primary,
@@ -660,7 +662,7 @@ private fun ToolBubble(
                             if (parsedOutput != null) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Show Parsed Output",
+                                    text = stringResource(R.string.chat_tool_show_parsed),
                                     style =
                                         MaterialTheme.typography.labelSmall.copy(
                                             color = MaterialTheme.colorScheme.primary,

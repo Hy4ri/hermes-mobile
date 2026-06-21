@@ -31,8 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 
@@ -215,7 +217,7 @@ fun SearchBar(
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(
                         imageVector = Icons.Filled.Close,
-                        contentDescription = "Clear search",
+                        contentDescription = stringResource(R.string.content_desc_clear_search),
                     )
                 }
             }
@@ -248,7 +250,15 @@ fun FilterChipRow(
             FilterChip(
                 selected = chip == selectedChip,
                 onClick = { onChipSelected(chip) },
-                label = { Text(chip) },
+                label = {
+                    Text(
+                        if (chip == "All") {
+                            stringResource(R.string.skills_category_all)
+                        } else {
+                            chip
+                        },
+                    )
+                },
             )
         }
     }

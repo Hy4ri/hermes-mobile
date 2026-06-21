@@ -36,10 +36,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -67,7 +69,7 @@ fun KeysScreen(
     }
 
     HermesScaffold(
-        title = { Text("Keys & Credentials") },
+        title = { Text(stringResource(R.string.screen_keys)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadKeys() },
@@ -87,10 +89,10 @@ fun KeysScreen(
 
             state.envVars.isEmpty() -> {
                 EmptyState(
-                    title = "No environment keys reported",
-                    subtitle = "Verify configuration or retry",
+                    title = stringResource(R.string.keys_empty_title),
+                    subtitle = stringResource(R.string.toolsets_empty_desc),
                     onAction = { viewModel.loadKeys() },
-                    actionLabel = "Refresh",
+                    actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),
                 )
             }
@@ -123,7 +125,7 @@ fun KeysScreen(
                                     } else if (config.isSet) {
                                         config.redactedValue ?: "********"
                                     } else {
-                                        "Not configured"
+                                        stringResource(R.string.keys_label_not_configured)
                                     }
 
                                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -158,13 +160,13 @@ fun KeysScreen(
                                                     viewModel.updateKey(key, editedValue)
                                                     isEditing = false
                                                 }) {
-                                                    Text("Save")
+                                                    Text(stringResource(R.string.action_save))
                                                 }
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Button(onClick = {
                                                     isEditing = false
                                                 }) {
-                                                    Text("Cancel")
+                                                    Text(stringResource(R.string.action_cancel))
                                                 }
                                             }
                                         } else {
@@ -196,7 +198,10 @@ fun KeysScreen(
                                                                     } else {
                                                                         Icons.Filled.Visibility
                                                                     },
-                                                                contentDescription = "Toggle Visibility",
+                                                                contentDescription =
+                                                                    stringResource(
+                                                                        R.string.keys_action_toggle_visibility,
+                                                                    ),
                                                             )
                                                         }
                                                     }
@@ -206,7 +211,10 @@ fun KeysScreen(
                                                     }) {
                                                         Icon(
                                                             imageVector = Icons.Filled.Edit,
-                                                            contentDescription = "Edit",
+                                                            contentDescription =
+                                                                stringResource(
+                                                                    R.string.nav_drawer_section_converse,
+                                                                ),
                                                         )
                                                     }
                                                 }

@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 /**
  * Shared Scaffold wrapper that standardizes the TopAppBar.
@@ -69,7 +71,7 @@ fun HermesScaffold(
                             IconButton(onClick = onBack) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
+                                    contentDescription = stringResource(R.string.content_desc_back),
                                     modifier = Modifier.testTag("back_button"),
                                 )
                             }
@@ -79,7 +81,7 @@ fun HermesScaffold(
                             IconButton(onClick = onOpenDrawer) {
                                 Icon(
                                     imageVector = Icons.Filled.Menu,
-                                    contentDescription = "Open navigation drawer",
+                                    contentDescription = stringResource(R.string.content_desc_open_drawer),
                                     modifier = Modifier.testTag("menu_button"),
                                 )
                             }
@@ -91,7 +93,7 @@ fun HermesScaffold(
                         IconButton(onClick = onRefresh) {
                             Icon(
                                 imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Refresh",
+                                contentDescription = stringResource(R.string.content_desc_refresh),
                                 modifier = Modifier.testTag("refresh_button"),
                             )
                         }

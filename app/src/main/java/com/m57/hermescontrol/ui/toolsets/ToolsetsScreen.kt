@@ -32,10 +32,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -63,7 +65,7 @@ fun ToolsetsScreen(
     }
 
     HermesScaffold(
-        title = { Text("Toolsets") },
+        title = { Text(stringResource(R.string.screen_toolsets)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadToolsets() },
@@ -83,10 +85,10 @@ fun ToolsetsScreen(
 
             state.toolsets.isEmpty() -> {
                 EmptyState(
-                    title = "No toolsets reported",
-                    subtitle = "Verify configuration or retry",
+                    title = stringResource(R.string.toolsets_empty_title),
+                    subtitle = stringResource(R.string.toolsets_empty_desc),
                     onAction = { viewModel.loadToolsets() },
-                    actionLabel = "Refresh",
+                    actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),
                 )
             }
@@ -103,7 +105,10 @@ fun ToolsetsScreen(
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             IconButton(onClick = { viewModel.loadToolsets() }) {
-                                Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Retry")
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = stringResource(R.string.action_retry),
+                                )
                             }
                         }
                     } else {

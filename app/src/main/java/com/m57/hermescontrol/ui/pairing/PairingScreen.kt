@@ -28,10 +28,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -58,7 +60,7 @@ fun PairingScreen(
     }
 
     HermesScaffold(
-        title = { Text("Device Pairing") },
+        title = { Text(stringResource(R.string.pairing_screen_title)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPairing() },
@@ -88,7 +90,7 @@ fun PairingScreen(
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { viewModel.loadPairing() }) {
-                                Text("Retry")
+                                Text(stringResource(R.string.action_retry))
                             }
                         }
                     } else {
@@ -109,7 +111,7 @@ fun PairingScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Text(
-                                            text = "Pending Approvals",
+                                            text = stringResource(R.string.pairing_sec_pending),
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                         )
@@ -121,7 +123,7 @@ fun PairingScreen(
                                                     contentColor = MaterialTheme.colorScheme.error,
                                                 ),
                                         ) {
-                                            Text("Clear All")
+                                            Text(stringResource(R.string.pairing_action_clear_all))
                                         }
                                     }
                                 }
@@ -170,7 +172,7 @@ fun PairingScreen(
                                                         containerColor = MaterialTheme.colorScheme.primary,
                                                     ),
                                             ) {
-                                                Text("Approve")
+                                                Text(stringResource(R.string.pairing_action_approve))
                                             }
                                         }
                                     }
@@ -179,7 +181,7 @@ fun PairingScreen(
 
                             item {
                                 Text(
-                                    text = "Approved Devices",
+                                    text = stringResource(R.string.pairing_sec_approved),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                 )
@@ -198,7 +200,7 @@ fun PairingScreen(
                                             contentAlignment = Alignment.Center,
                                         ) {
                                             Text(
-                                                text = "No approved devices paired yet.",
+                                                text = stringResource(R.string.pairing_empty_approved),
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -225,7 +227,11 @@ fun PairingScreen(
                                                     fontWeight = FontWeight.SemiBold,
                                                 )
                                                 Text(
-                                                    text = "User ID: ${item.user_id ?: "Unknown"}",
+                                                    text =
+                                                        stringResource(
+                                                            R.string.pairing_label_user_id,
+                                                            item.user_id ?: "Unknown",
+                                                        ),
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
@@ -246,7 +252,7 @@ fun PairingScreen(
                                                         contentColor = MaterialTheme.colorScheme.error,
                                                     ),
                                             ) {
-                                                Text("Revoke")
+                                                Text(stringResource(R.string.pairing_action_revoke))
                                             }
                                         }
                                     }

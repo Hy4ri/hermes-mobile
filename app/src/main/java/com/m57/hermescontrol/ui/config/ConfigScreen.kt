@@ -26,10 +26,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -57,7 +59,7 @@ fun ConfigScreen(
     }
 
     HermesScaffold(
-        title = { Text("Configuration") },
+        title = { Text(stringResource(R.string.config_screen_title)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadRawConfig() },
@@ -87,7 +89,7 @@ fun ConfigScreen(
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { viewModel.loadRawConfig() }) {
-                                Text("Retry")
+                                Text(stringResource(R.string.action_retry))
                             }
                         }
                     } else {
@@ -113,7 +115,7 @@ fun ConfigScreen(
                                     Modifier
                                         .fillMaxWidth()
                                         .weight(1f),
-                                placeholder = { Text("YAML Config...") },
+                                placeholder = { Text(stringResource(R.string.config_placeholder_yaml)) },
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                                 maxLines = Int.MAX_VALUE,
                             )
@@ -125,7 +127,7 @@ fun ConfigScreen(
                                     onClick = { editingText = state.yamlText ?: "" },
                                     modifier = Modifier.weight(1f),
                                 ) {
-                                    Text("Reset")
+                                    Text(stringResource(R.string.config_action_reset))
                                 }
 
                                 Spacer(modifier = Modifier.width(16.dp))
@@ -138,7 +140,7 @@ fun ConfigScreen(
                                     if (state.isSaving) {
                                         CircularProgressIndicator(modifier = Modifier.width(16.dp))
                                     } else {
-                                        Text("Save Config")
+                                        Text(stringResource(R.string.config_action_save))
                                     }
                                 }
                             }

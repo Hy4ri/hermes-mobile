@@ -29,11 +29,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -60,7 +62,7 @@ fun WebhooksScreen(
     }
 
     HermesScaffold(
-        title = { Text("Webhooks") },
+        title = { Text(stringResource(R.string.screen_webhooks)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadWebhooks() },
@@ -90,7 +92,7 @@ fun WebhooksScreen(
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { viewModel.loadWebhooks() }) {
-                                Text("Retry")
+                                Text(stringResource(R.string.action_retry))
                             }
                         }
                     } else {
@@ -123,7 +125,7 @@ fun WebhooksScreen(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "Global Webhooks Status",
+                                                text = stringResource(R.string.webhooks_sec_status),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold,
                                             )
@@ -147,7 +149,7 @@ fun WebhooksScreen(
                             // Subscriptions List Header
                             item {
                                 Text(
-                                    text = "Subscriptions",
+                                    text = stringResource(R.string.webhooks_sec_subscriptions),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                 )
@@ -166,7 +168,7 @@ fun WebhooksScreen(
                                             contentAlignment = Alignment.Center,
                                         ) {
                                             Text(
-                                                text = "No webhook subscriptions configured.",
+                                                text = stringResource(R.string.webhooks_empty_desc),
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -191,7 +193,7 @@ fun WebhooksScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                             )
                                             Text(
-                                                text = "Target URL:",
+                                                text = stringResource(R.string.webhooks_label_target),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
                                             )
@@ -207,7 +209,7 @@ fun WebhooksScreen(
                                                 if (events.isNotEmpty()) {
                                                     Spacer(modifier = Modifier.height(4.dp))
                                                     Text(
-                                                        text = "Events Subscribed:",
+                                                        text = stringResource(R.string.webhooks_label_events),
                                                         style = MaterialTheme.typography.bodySmall,
                                                         fontWeight = FontWeight.Bold,
                                                     )

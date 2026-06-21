@@ -32,10 +32,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -62,7 +64,7 @@ fun GatewayScreen(
     }
 
     HermesScaffold(
-        title = { Text("Gateway Control") },
+        title = { Text(stringResource(R.string.screen_gateway)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadStatus() },
@@ -96,7 +98,7 @@ fun GatewayScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { viewModel.loadStatus() }) {
-                                Text("Retry")
+                                Text(stringResource(R.string.action_retry))
                             }
                         }
                     } else {
@@ -132,7 +134,14 @@ fun GatewayScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     Text(
-                                        text = if (isRunning) "GATEWAY RUNNING" else "GATEWAY STOPPED",
+                                        text =
+                                            if (isRunning) {
+                                                stringResource(
+                                                    R.string.gateway_status_running,
+                                                )
+                                            } else {
+                                                stringResource(R.string.gateway_status_stopped)
+                                            },
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold,
                                         color =
@@ -145,7 +154,7 @@ fun GatewayScreen(
                                     status?.version?.let {
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "Version: $it",
+                                            text = stringResource(R.string.gateway_label_version, it),
                                             style = MaterialTheme.typography.bodySmall,
                                             color =
                                                 if (isRunning) {
@@ -170,7 +179,7 @@ fun GatewayScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
                                     Text(
-                                        text = "Controls",
+                                        text = stringResource(R.string.gateway_sec_controls),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
                                     )
@@ -191,7 +200,7 @@ fun GatewayScreen(
                                         ) {
                                             Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null)
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Start")
+                                            Text(stringResource(R.string.gateway_action_start))
                                         }
 
                                         Button(
@@ -204,7 +213,7 @@ fun GatewayScreen(
                                                     contentColor = Color.White,
                                                 ),
                                         ) {
-                                            Text("Stop")
+                                            Text(stringResource(R.string.gateway_action_stop))
                                         }
                                     }
 
@@ -219,7 +228,7 @@ fun GatewayScreen(
                                     ) {
                                         Icon(imageVector = Icons.Filled.Refresh, contentDescription = null)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Restart")
+                                        Text(stringResource(R.string.gateway_action_restart))
                                     }
 
                                     if (state.isActionRunning) {
@@ -245,7 +254,7 @@ fun GatewayScreen(
                                             verticalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
                                             Text(
-                                                text = "Active Platforms",
+                                                text = stringResource(R.string.gateway_sec_active_platforms),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold,
                                             )

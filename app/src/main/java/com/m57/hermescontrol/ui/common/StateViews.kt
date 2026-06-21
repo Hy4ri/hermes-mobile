@@ -23,8 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 
 // Unified loading / error / empty / skeleton placeholders so every screen
@@ -94,7 +96,7 @@ fun ErrorState(
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.size(spacing.sm))
-                Text("Retry")
+                Text(stringResource(R.string.action_retry))
             }
         }
     }

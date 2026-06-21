@@ -23,10 +23,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -45,7 +47,7 @@ fun AchievementsScreen(
     }
 
     HermesScaffold(
-        title = { Text("Agent Achievements") },
+        title = { Text(stringResource(R.string.screen_achievements)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadAchievements() },
@@ -65,8 +67,8 @@ fun AchievementsScreen(
 
             state.achievements.isEmpty() -> {
                 EmptyState(
-                    title = "No achievements yet",
-                    subtitle = "Complete tasks to unlock achievements.",
+                    title = stringResource(R.string.achievements_empty_title),
+                    subtitle = stringResource(R.string.achievements_empty_desc),
                     icon = Icons.Filled.Refresh,
                     modifier = Modifier.padding(paddingValues),
                 )
@@ -156,8 +158,11 @@ fun AchievementsScreen(
                                     ) {
                                         Text(
                                             text =
-                                                "Progress: ${achievement.progress?.toInt() ?: 0} / " +
-                                                    "${achievement.next_threshold?.toInt() ?: 0}",
+                                                stringResource(
+                                                    R.string.achievements_label_progress,
+                                                    achievement.progress?.toInt() ?: 0,
+                                                    achievement.next_threshold?.toInt() ?: 0,
+                                                ),
                                             style = MaterialTheme.typography.bodySmall,
                                         )
                                         Text(

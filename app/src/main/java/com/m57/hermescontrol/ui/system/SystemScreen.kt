@@ -27,8 +27,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -65,7 +67,7 @@ fun SystemScreen(
     }
 
     HermesScaffold(
-        title = { Text("System") },
+        title = { Text(stringResource(R.string.screen_system)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSystemData() },
@@ -77,15 +79,15 @@ fun SystemScreen(
 
             state.errorMessage != null -> {
                 ErrorState(
-                    message = state.errorMessage ?: "Unknown error",
+                    message = state.errorMessage ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.loadSystemData() },
                 )
             }
 
             state.stats == null && state.doctorReport == null -> {
                 EmptyState(
-                    title = "No system data",
-                    subtitle = "Tap refresh to load system diagnostics.",
+                    title = stringResource(R.string.system_empty_title),
+                    subtitle = stringResource(R.string.system_empty_desc),
                 )
             }
 
@@ -102,7 +104,7 @@ fun SystemScreen(
                     // Stats row
                     state.stats?.let { stats ->
                         item {
-                            SectionHeader(title = "Performance")
+                            SectionHeader(title = stringResource(R.string.system_sec_performance))
                         }
                         item {
                             FlowRow(
@@ -111,7 +113,7 @@ fun SystemScreen(
                             ) {
                                 stats.cpuPercent?.let { cpu ->
                                     StatCard(
-                                        label = "CPU Usage",
+                                        label = stringResource(R.string.system_metric_cpu),
                                         value = "$cpu%",
                                         icon = Icons.Filled.Speed,
                                         modifier = Modifier.weight(1f),
@@ -119,7 +121,7 @@ fun SystemScreen(
                                 }
                                 stats.memoryPercent?.let { mem ->
                                     StatCard(
-                                        label = "Memory",
+                                        label = stringResource(R.string.system_metric_memory),
                                         value = "$mem%",
                                         icon = Icons.Filled.Memory,
                                         modifier = Modifier.weight(1f),
@@ -132,7 +134,7 @@ fun SystemScreen(
                     // Doctor diagnostics
                     state.doctorReport?.let { report ->
                         item {
-                            SectionHeader(title = "Doctor")
+                            SectionHeader(title = stringResource(R.string.system_sec_doctor))
                         }
                         item {
                             Card(
@@ -158,7 +160,12 @@ fun SystemScreen(
                                                 },
                                         )
                                         StatusBadge(
-                                            text = if (report.ok) "Running" else "Failed",
+                                            text =
+                                                if (report.ok) {
+                                                    stringResource(R.string.system_status_running)
+                                                } else {
+                                                    stringResource(R.string.system_status_failed)
+                                                },
                                             status =
                                                 if (report.ok) {
                                                     StatusBadgeType.SUCCESS
@@ -169,10 +176,13 @@ fun SystemScreen(
                                     }
                                     Spacer(modifier = Modifier.height(spacing.sm))
                                     report.pid?.let { pid ->
-                                        InfoRow(label = "Process PID", value = pid.toString())
+                                        InfoRow(
+                                            label = stringResource(R.string.system_info_pid),
+                                            value = pid.toString(),
+                                        )
                                     }
                                     report.name?.let { name ->
-                                        InfoRow(label = "Process Name", value = name)
+                                        InfoRow(label = stringResource(R.string.system_info_proc_name), value = name)
                                     }
                                 }
                             }
@@ -181,7 +191,7 @@ fun SystemScreen(
 
                     // Admin actions
                     item {
-                        SectionHeader(title = "Administration")
+                        SectionHeader(title = stringResource(R.string.system_sec_admin))
                     }
                     item {
                         Card(
@@ -201,7 +211,7 @@ fun SystemScreen(
                                         contentDescription = null,
                                         modifier = Modifier.padding(end = spacing.xs),
                                     )
-                                    Text("Trigger System Backup")
+                                    Text(stringResource(R.string.system_action_backup))
                                 }
                             }
                         }

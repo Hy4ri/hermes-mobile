@@ -29,9 +29,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -59,7 +61,7 @@ fun ChannelsScreen(
     }
 
     HermesScaffold(
-        title = { Text("Messaging Channels") },
+        title = { Text(stringResource(R.string.screen_channels)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlatforms() },
@@ -79,8 +81,8 @@ fun ChannelsScreen(
 
             state.platforms.isEmpty() -> {
                 EmptyState(
-                    title = "No channels configured",
-                    subtitle = "Add messaging platforms in Hermes to see them here.",
+                    title = stringResource(R.string.channels_empty_title),
+                    subtitle = stringResource(R.string.channels_empty_desc),
                     modifier = Modifier.padding(paddingValues),
                 )
             }
@@ -104,7 +106,14 @@ fun ChannelsScreen(
                                     Column {
                                         Text(text = platform.name, style = MaterialTheme.typography.titleLarge)
                                         Text(
-                                            text = if (platform.enabled) "Active" else "Disabled",
+                                            text =
+                                                if (platform.enabled) {
+                                                    stringResource(
+                                                        R.string.channels_status_active,
+                                                    )
+                                                } else {
+                                                    stringResource(R.string.channels_status_disabled)
+                                                },
                                             color =
                                                 if (platform.enabled) {
                                                     MaterialTheme.colorScheme.primary
@@ -126,7 +135,15 @@ fun ChannelsScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Button(onClick = { showConfigureForm = !showConfigureForm }) {
-                                            Text(if (showConfigureForm) "Cancel" else "Configure")
+                                            Text(
+                                                if (showConfigureForm) {
+                                                    stringResource(
+                                                        R.string.action_cancel,
+                                                    )
+                                                } else {
+                                                    stringResource(R.string.channels_action_configure)
+                                                },
+                                            )
                                         }
                                     }
                                 }
@@ -134,7 +151,7 @@ fun ChannelsScreen(
                                 if (showConfigureForm) {
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Text(
-                                        text = "Configuration Settings",
+                                        text = stringResource(R.string.channels_sec_settings),
                                         style = MaterialTheme.typography.titleMedium,
                                     )
 
@@ -148,7 +165,7 @@ fun ChannelsScreen(
                                             label = { Text(field.prompt ?: field.key) },
                                             placeholder = {
                                                 if (field.isSet) {
-                                                    Text("******** (Already Configured)")
+                                                    Text(stringResource(R.string.channels_placeholder_configured))
                                                 }
                                             },
                                             modifier = Modifier.fillMaxWidth(),
@@ -169,13 +186,16 @@ fun ChannelsScreen(
                                         },
                                         modifier = Modifier.align(Alignment.End),
                                     ) {
-                                        Text("Save Settings")
+                                        Text(stringResource(R.string.channels_action_save_settings))
                                     }
                                 } else {
                                     val envFields = platform.envVars.orEmpty()
                                     if (envFields.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        Text(text = "Configured Keys:", style = MaterialTheme.typography.titleSmall)
+                                        Text(
+                                            text = stringResource(R.string.channels_sec_keys),
+                                            style = MaterialTheme.typography.titleSmall,
+                                        )
                                         envFields.forEach { field ->
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
@@ -187,7 +207,14 @@ fun ChannelsScreen(
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
                                                 Text(
-                                                    text = if (field.isSet) "Configured" else "Not set",
+                                                    text =
+                                                        if (field.isSet) {
+                                                            stringResource(
+                                                                R.string.channels_status_configured,
+                                                            )
+                                                        } else {
+                                                            stringResource(R.string.channels_status_not_set)
+                                                        },
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color =
                                                         if (field.isSet) {

@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 
 @Composable
 fun ConnectScreen(
@@ -106,7 +108,7 @@ fun ConnectScreen(
             }
 
             Text(
-                text = "Hermes",
+                text = stringResource(R.string.notif_title),
                 style =
                     MaterialTheme.typography.displayMedium.copy(
                         fontWeight = FontWeight.Bold,
@@ -114,7 +116,7 @@ fun ConnectScreen(
                     ),
             )
             Text(
-                text = "AI Agent Control",
+                text = stringResource(R.string.nav_drawer_subtitle),
                 style =
                     MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -134,9 +136,9 @@ fun ConnectScreen(
                         Text(
                             text =
                                 if (state.selectedProfile != null) {
-                                    "Profile: ${state.selectedProfile!!.name}"
+                                    stringResource(R.string.connect_selected_profile, state.selectedProfile!!.name)
                                 } else {
-                                    "Select Saved Profile"
+                                    stringResource(R.string.connect_action_select_profile)
                                 },
                         )
                     }
@@ -146,7 +148,7 @@ fun ConnectScreen(
                         modifier = Modifier.fillMaxWidth(0.85f),
                     ) {
                         DropdownMenuItem(
-                            text = { Text("None (Standalone)") },
+                            text = { Text(stringResource(R.string.connect_profile_none)) },
                             onClick = {
                                 viewModel.selectProfile(null)
                                 profilesExpanded = false
@@ -171,7 +173,7 @@ fun ConnectScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    text = "Pairing string",
+                    text = stringResource(R.string.connect_pairing_string),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
@@ -182,7 +184,7 @@ fun ConnectScreen(
                         pairingString = it
                         if (it.isNotBlank()) viewModel.onPairingString(it)
                     },
-                    placeholder = { Text("Paste hermes://… or Base64 config") },
+                    placeholder = { Text(stringResource(R.string.connect_placeholder_pairing)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -215,7 +217,7 @@ fun ConnectScreen(
                         onCheckedChange = viewModel::onSaveProfileChange,
                     )
                     Text(
-                        text = "Save connection profile",
+                        text = stringResource(R.string.connect_save_profile),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onBackground,
                     )
@@ -225,8 +227,8 @@ fun ConnectScreen(
                     OutlinedTextField(
                         value = state.profileName,
                         onValueChange = viewModel::onProfileNameChange,
-                        label = { Text("Profile Name") },
-                        placeholder = { Text("e.g. Local Hermit, Remote Server") },
+                        label = { Text(stringResource(R.string.connect_profile_name)) },
+                        placeholder = { Text(stringResource(R.string.connect_placeholder_profile_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -247,7 +249,7 @@ fun ConnectScreen(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text("Connect", style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(R.string.action_connect), style = MaterialTheme.typography.labelLarge)
                     }
                 }
 
@@ -256,7 +258,12 @@ fun ConnectScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = if (showManualFields) "Hide manual entry" else "Enter manually instead",
+                        text =
+                            if (showManualFields) {
+                                stringResource(R.string.connect_action_hide_manual)
+                            } else {
+                                stringResource(R.string.connect_action_show_manual)
+                            },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -271,8 +278,8 @@ fun ConnectScreen(
                         OutlinedTextField(
                             value = state.token,
                             onValueChange = viewModel::onTokenChange,
-                            label = { Text("Auth Token") },
-                            placeholder = { Text("API token") },
+                            label = { Text(stringResource(R.string.settings_field_token)) },
+                            placeholder = { Text(stringResource(R.string.connect_placeholder_token)) },
                             singleLine = true,
                             visualTransformation =
                                 if (passwordVisible) {
@@ -290,7 +297,11 @@ fun ConnectScreen(
                                                 Icons.Filled.VisibilityOff
                                             },
                                         contentDescription =
-                                            if (passwordVisible) "Hide token" else "Show token",
+                                            if (passwordVisible) {
+                                                stringResource(R.string.content_desc_hide_token)
+                                            } else {
+                                                stringResource(R.string.content_desc_show_token)
+                                            },
                                     )
                                 }
                             },
@@ -299,16 +310,16 @@ fun ConnectScreen(
                         OutlinedTextField(
                             value = state.host,
                             onValueChange = viewModel::onHostChange,
-                            label = { Text("Host") },
-                            placeholder = { Text("127.0.0.1") },
+                            label = { Text(stringResource(R.string.settings_field_host)) },
+                            placeholder = { Text(stringResource(R.string.connect_placeholder_host)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
                             value = state.port,
                             onValueChange = viewModel::onPortChange,
-                            label = { Text("Port") },
-                            placeholder = { Text("9119") },
+                            label = { Text(stringResource(R.string.settings_field_port)) },
+                            placeholder = { Text(stringResource(R.string.connect_placeholder_port)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),

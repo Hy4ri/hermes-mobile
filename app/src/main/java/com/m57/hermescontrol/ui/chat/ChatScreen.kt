@@ -293,14 +293,20 @@ fun ChatScreen(
                     imageVector =
                         if (state.isSearchActive) Icons.Filled.Close else Icons.Filled.Search,
                     contentDescription =
-                        if (state.isSearchActive) "Close search" else "Search",
+                        if (state.isSearchActive) {
+                            stringResource(
+                                R.string.chat_action_close_search,
+                            )
+                        } else {
+                            stringResource(R.string.chat_action_search)
+                        },
                 )
             }
 
             IconButton(onClick = { viewModel.createNewSession() }) {
                 Icon(
                     imageVector = Icons.Filled.Add,
-                    contentDescription = "New Chat",
+                    contentDescription = stringResource(R.string.content_desc_new_chat),
                 )
             }
         },
@@ -335,9 +341,9 @@ fun ChatScreen(
                         Text(
                             text =
                                 if (state.connectionStatus == ConnectionStatus.RECONNECTING) {
-                                    "Reconnecting to Hermes…"
+                                    stringResource(R.string.chat_status_reconnecting)
                                 } else {
-                                    "Disconnected from Hermes"
+                                    stringResource(R.string.chat_status_disconnected)
                                 },
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -349,7 +355,7 @@ fun ChatScreen(
                                         contentColor = MaterialTheme.colorScheme.onErrorContainer,
                                     ),
                             ) {
-                                Text("Reconnect")
+                                Text(stringResource(R.string.chat_action_reconnect))
                             }
                         }
                     }
@@ -393,8 +399,8 @@ fun ChatScreen(
             ) {
                 if (state.messages.isEmpty() && !state.isLoading) {
                     EmptyState(
-                        title = "Ready to chat",
-                        subtitle = "Send a message to start a conversation",
+                        title = stringResource(R.string.chat_empty_title),
+                        subtitle = stringResource(R.string.chat_empty_subtitle),
                     )
                 }
 
@@ -482,7 +488,7 @@ fun ChatScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Connecting to Hermes…",
+                                    text = stringResource(R.string.chat_status_connecting),
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
@@ -512,7 +518,7 @@ fun ChatScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.KeyboardArrowDown,
-                            contentDescription = "Scroll to bottom",
+                            contentDescription = stringResource(R.string.content_desc_scroll_to_bottom),
                         )
                     }
                 }
@@ -584,9 +590,9 @@ private fun ThinkingIndicator(thinkingText: String) {
                     text =
                         if (thinkingText.isNotBlank()) {
                             val display = thinkingText.takeLast(100)
-                            "Thinking: $display…"
+                            stringResource(R.string.chat_thinking_param, display)
                         } else {
-                            "Thinking…"
+                            stringResource(R.string.chat_thinking)
                         },
                     style =
                         MaterialTheme.typography.bodySmall.copy(
@@ -671,14 +677,14 @@ private fun ChatInputBar(
                                 items(filteredCommands) { cmd ->
                                     val description =
                                         when (cmd) {
-                                            "/help" -> "Show help menu"
-                                            "/status" -> "Check gateway and platform status"
-                                            "/sessions" -> "List all chat sessions"
-                                            "/stats" -> "Check system resource usage (stats)"
-                                            "/system" -> "Check system resource usage (system)"
-                                            "/new" -> "Create a new chat session"
-                                            "/stop" -> "Interrupt the active run"
-                                            "/interrupt" -> "Interrupt the active run"
+                                            "/help" -> stringResource(R.string.command_help_desc)
+                                            "/status" -> stringResource(R.string.command_status_desc)
+                                            "/sessions" -> stringResource(R.string.command_sessions_desc)
+                                            "/stats" -> stringResource(R.string.command_stats_desc)
+                                            "/system" -> stringResource(R.string.command_system_desc)
+                                            "/new" -> stringResource(R.string.command_new_desc)
+                                            "/stop" -> stringResource(R.string.command_stop_desc)
+                                            "/interrupt" -> stringResource(R.string.command_stop_desc)
                                             else -> ""
                                         }
                                     DropdownMenuItem(
@@ -725,11 +731,11 @@ private fun ChatInputBar(
                         placeholder = {
                             Text(
                                 if (!isConnected) {
-                                    "Not connected…"
+                                    stringResource(R.string.chat_input_placeholder_not_connected)
                                 } else if (isAgentTyping) {
-                                    "Waiting for response…"
+                                    stringResource(R.string.chat_input_placeholder_waiting)
                                 } else {
-                                    "Type a message…"
+                                    stringResource(R.string.chat_input_placeholder_type_message)
                                 },
                             )
                         },
@@ -759,7 +765,7 @@ private fun ChatInputBar(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Stop,
-                                contentDescription = "Interrupt",
+                                contentDescription = stringResource(R.string.content_desc_interrupt),
                                 tint = MaterialTheme.colorScheme.error,
                             )
                         }

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -58,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
@@ -94,33 +96,33 @@ import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
 private data class BottomNavItem(
     val key: NavKey,
-    val label: String,
+    @param:StringRes val labelRes: Int,
     val icon: ImageVector,
 )
 
 /** Master list of ALL screens available for bottom-nav selection. */
 private val ALL_NAV_ITEMS: List<BottomNavItem> =
     listOf(
-        BottomNavItem(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat),
-        BottomNavItem(SkillsScreen, "Skills", Icons.Filled.Extension),
-        BottomNavItem(CronJobsScreen, "Cron", Icons.Filled.Schedule),
-        BottomNavItem(SystemScreen, "System", Icons.Filled.Info),
-        BottomNavItem(SettingsScreen, "Settings", Icons.Filled.Settings),
-        BottomNavItem(ProfilesScreen, "Profiles", Icons.Filled.AccountCircle),
-        BottomNavItem(WebhooksScreen, "Webhooks", Icons.Filled.Webhook),
-        BottomNavItem(GatewayScreen, "Gateway", Icons.Filled.Bolt),
-        BottomNavItem(ToolsetsScreen, "Toolsets", Icons.Filled.Build),
-        BottomNavItem(PluginsScreen, "Plugins", Icons.Filled.Memory),
-        BottomNavItem(ConfigScreen, "Config", Icons.Filled.Code),
-        BottomNavItem(McpServersScreen, "MCP Servers", Icons.Filled.Dashboard),
-        BottomNavItem(ModelScreen, "Models", Icons.Filled.Settings),
-        BottomNavItem(PairingScreen, "Pairing", Icons.Filled.Devices),
-        BottomNavItem(KeysScreen, "Keys", Icons.Filled.Key),
-        BottomNavItem(ChannelsScreen, "Channels", Icons.AutoMirrored.Filled.ListAlt),
-        BottomNavItem(LogsScreen, "Logs", Icons.Filled.HistoryEdu),
-        BottomNavItem(KanbanScreen, "Kanban", Icons.Filled.Dashboard),
-        BottomNavItem(AchievementsScreen, "Achievements", Icons.Filled.Info),
-        BottomNavItem(HistoryScreen, "History", Icons.Filled.History),
+        BottomNavItem(ChatScreen, R.string.screen_chat, Icons.AutoMirrored.Filled.Chat),
+        BottomNavItem(SkillsScreen, R.string.screen_skills, Icons.Filled.Extension),
+        BottomNavItem(CronJobsScreen, R.string.screen_cron, Icons.Filled.Schedule),
+        BottomNavItem(SystemScreen, R.string.screen_system, Icons.Filled.Info),
+        BottomNavItem(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings),
+        BottomNavItem(ProfilesScreen, R.string.screen_profiles, Icons.Filled.AccountCircle),
+        BottomNavItem(WebhooksScreen, R.string.screen_webhooks, Icons.Filled.Webhook),
+        BottomNavItem(GatewayScreen, R.string.screen_gateway, Icons.Filled.Bolt),
+        BottomNavItem(ToolsetsScreen, R.string.screen_toolsets, Icons.Filled.Build),
+        BottomNavItem(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory),
+        BottomNavItem(ConfigScreen, R.string.screen_config, Icons.Filled.Code),
+        BottomNavItem(McpServersScreen, R.string.screen_mcp_servers, Icons.Filled.Dashboard),
+        BottomNavItem(ModelScreen, R.string.screen_models, Icons.Filled.Settings),
+        BottomNavItem(PairingScreen, R.string.screen_pairing, Icons.Filled.Devices),
+        BottomNavItem(KeysScreen, R.string.screen_keys, Icons.Filled.Key),
+        BottomNavItem(ChannelsScreen, R.string.screen_channels, Icons.AutoMirrored.Filled.ListAlt),
+        BottomNavItem(LogsScreen, R.string.screen_logs, Icons.Filled.HistoryEdu),
+        BottomNavItem(KanbanScreen, R.string.screen_kanban, Icons.Filled.Dashboard),
+        BottomNavItem(AchievementsScreen, R.string.screen_achievements, Icons.Filled.Info),
+        BottomNavItem(HistoryScreen, R.string.screen_history, Icons.Filled.History),
     )
 
 /** Lookup: data-object simple name → NavKey (used by bottom-nav config). */
@@ -134,17 +136,17 @@ private fun resolveBottomNavItems(names: List<String>): List<BottomNavItem> =
 // ── Drawer sections ────────────────────────────────────────────────────
 
 private enum class DrawerSection(
-    val title: String,
+    @param:StringRes val titleRes: Int,
 ) {
-    CONVERSE("Converse"),
-    AUTOMATE("Automate"),
-    CONFIGURE("Configure"),
-    INSPECT("Inspect"),
+    CONVERSE(R.string.nav_drawer_section_converse),
+    AUTOMATE(R.string.nav_drawer_section_automate),
+    CONFIGURE(R.string.nav_drawer_section_configure),
+    INSPECT(R.string.nav_drawer_section_inspect),
 }
 
 private data class DrawerEntry(
     val key: NavKey,
-    val label: String,
+    @param:StringRes val labelRes: Int,
     val icon: ImageVector,
     val section: DrawerSection,
 )
@@ -152,29 +154,34 @@ private data class DrawerEntry(
 private val DRAWER_ENTRIES =
     listOf(
         // Converse
-        DrawerEntry(ChatScreen, "Chat", Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
-        DrawerEntry(HistoryScreen, "History", Icons.Filled.History, DrawerSection.CONVERSE),
-        DrawerEntry(ProfilesScreen, "Profiles", Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
+        DrawerEntry(ChatScreen, R.string.screen_chat, Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
+        DrawerEntry(HistoryScreen, R.string.screen_history, Icons.Filled.History, DrawerSection.CONVERSE),
+        DrawerEntry(ProfilesScreen, R.string.screen_profiles, Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
         // Automate
-        DrawerEntry(CronJobsScreen, "Cron", Icons.Filled.Schedule, DrawerSection.AUTOMATE),
-        DrawerEntry(WebhooksScreen, "Webhooks", Icons.Filled.Webhook, DrawerSection.AUTOMATE),
-        DrawerEntry(GatewayScreen, "Gateway", Icons.Filled.Bolt, DrawerSection.AUTOMATE),
+        DrawerEntry(CronJobsScreen, R.string.screen_cron, Icons.Filled.Schedule, DrawerSection.AUTOMATE),
+        DrawerEntry(WebhooksScreen, R.string.screen_webhooks, Icons.Filled.Webhook, DrawerSection.AUTOMATE),
+        DrawerEntry(GatewayScreen, R.string.screen_gateway, Icons.Filled.Bolt, DrawerSection.AUTOMATE),
         // Configure
-        DrawerEntry(SkillsScreen, "Skills", Icons.Filled.Extension, DrawerSection.CONFIGURE),
-        DrawerEntry(SettingsScreen, "Settings", Icons.Filled.Settings, DrawerSection.CONFIGURE),
-        DrawerEntry(ToolsetsScreen, "Toolsets", Icons.Filled.Build, DrawerSection.CONFIGURE),
-        DrawerEntry(PluginsScreen, "Plugins", Icons.Filled.Memory, DrawerSection.CONFIGURE),
-        DrawerEntry(ConfigScreen, "Config", Icons.Filled.Code, DrawerSection.CONFIGURE),
-        DrawerEntry(McpServersScreen, "MCP Servers", Icons.Filled.Dashboard, DrawerSection.CONFIGURE),
-        DrawerEntry(ModelScreen, "Models", Icons.Filled.Settings, DrawerSection.CONFIGURE),
-        DrawerEntry(PairingScreen, "Pairing", Icons.Filled.Devices, DrawerSection.CONFIGURE),
-        DrawerEntry(KeysScreen, "Keys", Icons.Filled.Key, DrawerSection.CONFIGURE),
-        DrawerEntry(ChannelsScreen, "Channels", Icons.AutoMirrored.Filled.ListAlt, DrawerSection.CONFIGURE),
+        DrawerEntry(SkillsScreen, R.string.screen_skills, Icons.Filled.Extension, DrawerSection.CONFIGURE),
+        DrawerEntry(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.CONFIGURE),
+        DrawerEntry(ToolsetsScreen, R.string.screen_toolsets, Icons.Filled.Build, DrawerSection.CONFIGURE),
+        DrawerEntry(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory, DrawerSection.CONFIGURE),
+        DrawerEntry(ConfigScreen, R.string.screen_config, Icons.Filled.Code, DrawerSection.CONFIGURE),
+        DrawerEntry(McpServersScreen, R.string.screen_mcp_servers, Icons.Filled.Dashboard, DrawerSection.CONFIGURE),
+        DrawerEntry(ModelScreen, R.string.screen_models, Icons.Filled.Settings, DrawerSection.CONFIGURE),
+        DrawerEntry(PairingScreen, R.string.screen_pairing, Icons.Filled.Devices, DrawerSection.CONFIGURE),
+        DrawerEntry(KeysScreen, R.string.screen_keys, Icons.Filled.Key, DrawerSection.CONFIGURE),
+        DrawerEntry(
+            ChannelsScreen,
+            R.string.screen_channels,
+            Icons.AutoMirrored.Filled.ListAlt,
+            DrawerSection.CONFIGURE,
+        ),
         // Inspect
-        DrawerEntry(SystemScreen, "System", Icons.Filled.Info, DrawerSection.INSPECT),
-        DrawerEntry(LogsScreen, "Logs", Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
-        DrawerEntry(KanbanScreen, "Kanban", Icons.Filled.Dashboard, DrawerSection.INSPECT),
-        DrawerEntry(AchievementsScreen, "Achievements", Icons.Filled.Info, DrawerSection.INSPECT),
+        DrawerEntry(SystemScreen, R.string.screen_system, Icons.Filled.Info, DrawerSection.INSPECT),
+        DrawerEntry(LogsScreen, R.string.screen_logs, Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
+        DrawerEntry(KanbanScreen, R.string.screen_kanban, Icons.Filled.Dashboard, DrawerSection.INSPECT),
+        DrawerEntry(AchievementsScreen, R.string.screen_achievements, Icons.Filled.Info, DrawerSection.INSPECT),
     )
 
 private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.mapTo(mutableSetOf()) { it.key }
@@ -370,7 +377,7 @@ fun MainNavigation(sessionId: String? = null) {
                         modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 4.dp),
                     ) {
                         Text(
-                            text = "⚡ Hermes",
+                            text = stringResource(R.string.nav_drawer_title),
                             style =
                                 MaterialTheme.typography.headlineSmall.copy(
                                     fontWeight = FontWeight.Bold,
@@ -386,7 +393,7 @@ fun MainNavigation(sessionId: String? = null) {
                         )
                     }
                     Text(
-                        text = "AI Agent Control",
+                        text = stringResource(R.string.nav_drawer_subtitle),
                         modifier = Modifier.padding(start = 20.dp, bottom = 12.dp, end = 16.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -395,7 +402,7 @@ fun MainNavigation(sessionId: String? = null) {
 
                     for (section in DrawerSection.entries) {
                         Text(
-                            text = section.title.uppercase(),
+                            text = stringResource(section.titleRes).uppercase(),
                             modifier =
                                 Modifier.padding(
                                     start = 20.dp,
@@ -412,7 +419,7 @@ fun MainNavigation(sessionId: String? = null) {
                             .forEach { entry ->
                                 NavigationDrawerItem(
                                     icon = { Icon(entry.icon, contentDescription = null) },
-                                    label = { Text(entry.label) },
+                                    label = { Text(stringResource(entry.labelRes)) },
                                     selected = currentScreen == entry.key,
                                     onClick = {
                                         scope.launch { drawerState.close() }
@@ -427,7 +434,11 @@ fun MainNavigation(sessionId: String? = null) {
                                     modifier =
                                         Modifier
                                             .padding(horizontal = 12.dp, vertical = 2.dp)
-                                            .testTag("drawer_${entry.label.lowercase().replace(' ', '_')}"),
+                                            .testTag(
+                                                "drawer_${entry.key::class.simpleName?.lowercase()?.removeSuffix(
+                                                    "screen",
+                                                ) ?: ""}",
+                                            ),
                                 )
                             }
                     }
@@ -448,9 +459,12 @@ fun MainNavigation(sessionId: String? = null) {
                             NavigationBarItem(
                                 selected = currentScreen == item.key,
                                 onClick = { NavigationController.navigateTo(item.key) },
-                                icon = { Icon(item.icon, contentDescription = item.label) },
-                                label = { Text(item.label) },
-                                modifier = Modifier.testTag("nav_${item.label.lowercase().replace(' ', '_')}"),
+                                icon = { Icon(item.icon, contentDescription = stringResource(item.labelRes)) },
+                                label = { Text(stringResource(item.labelRes)) },
+                                modifier =
+                                    Modifier.testTag(
+                                        "nav_${item.key::class.simpleName?.lowercase()?.removeSuffix("screen") ?: ""}",
+                                    ),
                             )
                         }
                     }

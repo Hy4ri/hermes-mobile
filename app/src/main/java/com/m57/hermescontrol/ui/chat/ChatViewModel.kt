@@ -150,13 +150,33 @@ class ChatViewModel(
 
             is WsEvent.SessionInfo -> {}
 
-            is WsEvent.MessageStart -> handleMessageStart(event)
-            is WsEvent.MessageToken -> handleMessageToken(event)
-            is WsEvent.ThinkingDelta -> handleThinkingDelta(event)
-            is WsEvent.MessageComplete -> handleMessageComplete(event)
-            is WsEvent.MessageDone -> handleMessageDone(event)
-            is WsEvent.ToolStart -> handleToolStart(event)
-            is WsEvent.ToolComplete -> handleToolComplete(event)
+            is WsEvent.MessageStart -> {
+                handleMessageStart(event)
+            }
+
+            is WsEvent.MessageToken -> {
+                handleMessageToken(event)
+            }
+
+            is WsEvent.ThinkingDelta -> {
+                handleThinkingDelta(event)
+            }
+
+            is WsEvent.MessageComplete -> {
+                handleMessageComplete(event)
+            }
+
+            is WsEvent.MessageDone -> {
+                handleMessageDone(event)
+            }
+
+            is WsEvent.ToolStart -> {
+                handleToolStart(event)
+            }
+
+            is WsEvent.ToolComplete -> {
+                handleToolComplete(event)
+            }
 
             is WsEvent.ClarifyRequest -> {
                 if (!isCurrentSession(event.sessionId)) return

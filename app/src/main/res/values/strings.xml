@@ -13,4 +13,309 @@
     <string name="chat_prev_match_desc">Previous match</string>
     <string name="chat_next_match_desc">Next match</string>
     <string name="chat_close_search_desc">Close search</string>
+
+    <!-- Actions -->
+    <string name="action_retry">Retry</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+    <string name="action_delete">Delete</string>
+
+    <!-- Content Descriptions -->
+    <string name="content_desc_back">Back</string>
+    <string name="content_desc_open_drawer">Open navigation drawer</string>
+    <string name="content_desc_refresh">Refresh</string>
+    <string name="content_desc_clear_search">Clear search</string>
+
+    <!-- General Errors -->
+    <string name="error_unknown">Unknown error</string>
+
+    <!-- Navigation & Drawer -->
+    <string name="nav_drawer_title">⚡ Hermes</string>
+    <string name="nav_drawer_subtitle">AI Agent Control</string>
+    <string name="nav_drawer_section_converse">Converse</string>
+    <string name="nav_drawer_section_automate">Automate</string>
+    <string name="nav_drawer_section_configure">Configure</string>
+    <string name="nav_drawer_section_inspect">Inspect</string>
+
+    <!-- Screen Names -->
+    <string name="screen_chat">Chat</string>
+    <string name="screen_skills">Skills</string>
+    <string name="screen_cron">Cron</string>
+    <string name="screen_system">System</string>
+    <string name="screen_settings">Settings</string>
+    <string name="screen_profiles">Profiles</string>
+    <string name="screen_webhooks">Webhooks</string>
+    <string name="screen_gateway">Gateway</string>
+    <string name="screen_toolsets">Toolsets</string>
+    <string name="screen_plugins">Plugins</string>
+    <string name="screen_config">Config</string>
+    <string name="screen_mcp_servers">MCP Servers</string>
+    <string name="screen_models">Models</string>
+    <string name="screen_pairing">Pairing</string>
+    <string name="screen_keys">Keys</string>
+    <string name="screen_channels">Channels</string>
+    <string name="screen_logs">Logs</string>
+    <string name="screen_kanban">Kanban</string>
+    <string name="screen_achievements">Achievements</string>
+    <string name="screen_history">History</string>
+
+    <!-- Notifications -->
+    <string name="notif_title">Hermes</string>
+    <string name="notif_waiting_replies">Waiting for Hermes replies</string>
+    <string name="notif_new_message">New message</string>
+    <string name="notif_clarification_needed">Hermes needs a clarification</string>
+    <string name="notif_reply_placeholder">Type your reply\u2026</string>
+    <string name="notif_channel_service_name">Hermes Background Service</string>
+    <string name="notif_channel_service_desc">Keeps connection alive in the background</string>
+    <string name="notif_channel_chat_name">Hermes Chat Replies</string>
+    <string name="notif_channel_chat_desc">Alerts for new replies from Hermes</string>
+    <string name="action_reply">Reply</string>
+
+    <!-- Chat Screen & Bubble -->
+    <string name="chat_action_search">Search</string>
+    <string name="chat_action_close_search">Close search</string>
+    <string name="chat_action_reconnect">Reconnect</string>
+    <string name="chat_empty_title">Ready to chat</string>
+    <string name="chat_empty_subtitle">Send a message to start a conversation</string>
+    <string name="chat_status_connecting">Connecting to Hermes\u2026</string>
+    <string name="chat_status_reconnecting">Reconnecting to Hermes\u2026</string>
+    <string name="chat_status_disconnected">Disconnected from Hermes</string>
+    <string name="chat_thinking">Thinking\u2026</string>
+    <string name="chat_thinking_param">Thinking: %1$s\u2026</string>
+    <string name="chat_input_placeholder_not_connected">Not connected\u2026</string>
+    <string name="chat_input_placeholder_waiting">Waiting for response\u2026</string>
+    <string name="chat_input_placeholder_type_message">Type a message\u2026</string>
+    <string name="chat_tool_stderr">Error Output (stderr):\n%1$s</string>
+    <string name="chat_tool_execution_error">Execution Error: %1$s</string>
+    <string name="chat_tool_exit_code">Exit Code: %1$d</string>
+    <string name="chat_tool_fallback">Tool</string>
+    <string name="chat_tool_show_raw">Show Raw JSON</string>
+    <string name="chat_tool_show_parsed">Show Parsed Output</string>
+    <string name="command_help_desc">Show help menu</string>
+    <string name="command_status_desc">Check gateway and platform status</string>
+    <string name="command_sessions_desc">List all chat sessions</string>
+    <string name="command_stats_desc">Check system resource usage (stats)</string>
+    <string name="command_system_desc">Check system resource usage (system)</string>
+    <string name="command_new_desc">Create a new chat session</string>
+    <string name="command_stop_desc">Interrupt the active run</string>
+    <string name="content_desc_new_chat">New Chat</string>
+    <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
+    <string name="content_desc_interrupt">Interrupt</string>
+    <string name="content_desc_copy">Copy</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_sec_connection">Connection</string>
+    <string name="settings_item_profile">Connection Profile</string>
+    <string name="settings_profile_default">Standalone / Default</string>
+    <string name="settings_profile_none">None (Standalone / Default)</string>
+    <string name="settings_action_rename_profile">Rename Profile</string>
+    <string name="settings_field_host">Host</string>
+    <string name="settings_field_port">Port</string>
+    <string name="settings_field_token">Auth Token</string>
+    <string name="settings_action_clear_token">Clear Token</string>
+    <string name="settings_sec_behavior">Behavior</string>
+    <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
+    <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>
+    <string name="settings_sec_appearance">Appearance</string>
+    <string name="settings_item_theme">Theme</string>
+    <string name="settings_sec_chat">Chat</string>
+    <string name="settings_item_typing_effect">Typing Effect</string>
+    <string name="settings_desc_typing_effect">Animate new messages word by word</string>
+    <string name="settings_item_typing_delay">Delay: %1$d ms</string>
+    <string name="settings_delay_10ms">10 ms</string>
+    <string name="settings_delay_100ms">100 ms</string>
+    <string name="settings_sec_nav_bar">Navigation Bar</string>
+    <string name="settings_item_nav_items">Bottom bar items (%1$d/5)</string>
+    <string name="settings_action_add_item">Add Item</string>
+    <string name="settings_nav_max_reached">Maximum of 5 items</string>
+    <string name="settings_save_success">✅ Settings saved</string>
+    <string name="settings_action_test_connection">Test Connection</string>
+    <string name="settings_sec_about">About</string>
+    <string name="settings_about_app_name">⚡ Hermes Control</string>
+    <string name="settings_about_version">Version</string>
+    <string name="settings_about_build">Build</string>
+    <string name="settings_about_debug">Debug</string>
+    <string name="settings_about_release">Release</string>
+    <string name="settings_about_commit">Commit</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_save">Save</string>
+    <string name="content_desc_delete_profile">Delete Profile</string>
+    <string name="content_desc_hide_token">Hide token</string>
+    <string name="content_desc_show_token">Show token</string>
+    <string name="content_desc_move_up">Move up</string>
+    <string name="content_desc_move_down">Move down</string>
+    <string name="content_desc_remove_item">Remove %1$s</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- Connect Screen -->
+    <string name="connect_selected_profile">Profile: %1$s</string>
+    <string name="connect_action_select_profile">Select Saved Profile</string>
+    <string name="connect_profile_none">None (Standalone)</string>
+    <string name="connect_pairing_string">Pairing string</string>
+    <string name="connect_placeholder_pairing">Paste hermes://\u2026 or Base64 config</string>
+    <string name="connect_save_profile">Save connection profile</string>
+    <string name="connect_profile_name">Profile Name</string>
+    <string name="connect_placeholder_profile_name">e.g. Local Hermit, Remote Server</string>
+    <string name="connect_action_hide_manual">Hide manual entry</string>
+    <string name="connect_action_show_manual">Enter manually instead</string>
+    <string name="connect_placeholder_token">API token</string>
+    <string name="connect_placeholder_host">127.0.0.1</string>
+    <string name="connect_placeholder_port">9119</string>
+    <string name="action_connect">Connect</string>
+
+    <!-- Kanban Screen -->
+    <string name="kanban_board_title">Kanban Board</string>
+    <string name="kanban_no_boards">No boards found.</string>
+    <string name="kanban_no_columns">No columns found for this board.</string>
+    <string name="kanban_add_new_task">Add New Task</string>
+    <string name="kanban_task_title">Task Title</string>
+    <string name="kanban_task_desc">Task Description</string>
+    <string name="action_add">Add</string>
+    <string name="content_desc_move_left">Move Left</string>
+    <string name="content_desc_move_right">Move Right</string>
+
+    <!-- Skills Screen -->
+    <string name="skills_status_all">All Statuses</string>
+    <string name="skills_status_enabled">Enabled</string>
+    <string name="skills_status_disabled">Disabled</string>
+    <string name="skills_category_all">All</string>
+    <string name="skills_no_skills">No skills found</string>
+    <string name="skills_no_skills_desc">Skills loaded from Hermes will appear here.</string>
+    <string name="skills_search_placeholder">Search skills\u2026</string>
+    <string name="skills_filter_status">Status</string>
+    <string name="skills_filter_category">Category</string>
+    <string name="skills_no_matching">No matching skills</string>
+    <string name="skills_no_matching_desc">Try adjusting your search or filters.</string>
+    <string name="skills_edit_title">Edit: %1$s</string>
+    <string name="skills_content_placeholder">Enter skill content\u2026</string>
+    <string name="skills_discard_title">Discard changes?</string>
+    <string name="skills_discard_message">You have unsaved changes. Are you sure you want to discard them?</string>
+    <string name="action_discard">Discard</string>
+    <string name="content_desc_edit_skill">Edit Skill File</string>
+    <string name="content_desc_save_changes">Save Changes</string>
+
+    <!-- Logs Screen -->
+    <string name="logs_empty_title">No logs available</string>
+    <string name="logs_empty_desc">Log output from Hermes will appear here.</string>
+
+    <!-- System Screen -->
+    <string name="system_empty_title">No system data</string>
+    <string name="system_empty_desc">Tap refresh to load system diagnostics.</string>
+    <string name="system_sec_performance">Performance</string>
+    <string name="system_metric_cpu">CPU Usage</string>
+    <string name="system_metric_memory">Memory</string>
+    <string name="system_sec_doctor">Doctor</string>
+    <string name="system_status_running">Running</string>
+    <string name="system_status_failed">Failed</string>
+    <string name="system_info_pid">Process PID</string>
+    <string name="system_info_proc_name">Process Name</string>
+    <string name="system_sec_admin">Administration</string>
+    <string name="system_action_backup">Trigger System Backup</string>
+
+    <!-- Model Screen -->
+    <string name="model_empty_title">No model providers reported</string>
+    <string name="model_empty_desc">Verify configuration or retry</string>
+    <string name="model_label_slug">Slug: %1$s</string>
+    <string name="model_status_current">CURRENT</string>
+    <string name="model_label_available">Available Models:</string>
+    <string name="model_no_models">No models reported or provider needs authentication.</string>
+    <string name="content_desc_active_model">Active Model</string>
+
+    <!-- Sessions (History) Screen -->
+    <string name="history_empty_title">No history</string>
+    <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
+    <string name="history_untitled">Untitled</string>
+    <string name="history_message_count">%1$d messages</string>
+
+    <!-- Toolsets Screen -->
+    <string name="toolsets_empty_title">No toolsets reported</string>
+    <string name="toolsets_empty_desc">Verify configuration or retry</string>
+
+    <!-- Webhooks Screen -->
+    <string name="webhooks_sec_status">Global Webhooks Status</string>
+    <string name="webhooks_sec_subscriptions">Subscriptions</string>
+    <string name="webhooks_empty_desc">No webhook subscriptions configured.</string>
+    <string name="webhooks_label_target">Target URL:</string>
+    <string name="webhooks_label_events">Events Subscribed:</string>
+
+    <!-- Pairing Screen -->
+    <string name="pairing_screen_title">Device Pairing</string>
+    <string name="pairing_sec_pending">Pending Approvals</string>
+    <string name="pairing_action_clear_all">Clear All</string>
+    <string name="pairing_action_approve">Approve</string>
+    <string name="pairing_sec_approved">Approved Devices</string>
+    <string name="pairing_empty_approved">No approved devices paired yet.</string>
+    <string name="pairing_label_user_id">User ID: %1$s</string>
+    <string name="pairing_action_revoke">Revoke</string>
+
+    <!-- Config Screen -->
+    <string name="config_screen_title">Configuration</string>
+    <string name="config_placeholder_yaml">YAML Config...</string>
+    <string name="config_action_reset">Reset</string>
+    <string name="config_action_save">Save Config</string>
+
+    <!-- Profiles Screen -->
+    <string name="profiles_empty_title">No profiles available</string>
+    <string name="profiles_label_model">Model: %1$s</string>
+    <string name="profiles_label_provider">Provider: %1$s</string>
+    <string name="profiles_action_edit_soul">Edit Soul</string>
+    <string name="profiles_action_set_model">Set Model</string>
+    <string name="profiles_content_desc_active">Active Profile</string>
+
+    <!-- Plugins Screen -->
+    <string name="plugins_empty_title">No plugins found</string>
+    <string name="plugins_empty_desc">Verify configuration or retry</string>
+    <string name="plugins_no_desc">No description provided.</string>
+    <string name="plugins_action_update">Update</string>
+    <string name="plugins_action_uninstall">Uninstall</string>
+    <string name="plugins_action_install">Install</string>
+
+    <!-- McpServers Screen -->
+    <string name="mcp_servers_label_transport">Transport: %1$s</string>
+    <string name="mcp_servers_label_command">Command:</string>
+    <string name="mcp_servers_action_test">Test</string>
+
+    <!-- Gateway Screen -->
+    <string name="gateway_status_running">GATEWAY RUNNING</string>
+    <string name="gateway_status_stopped">GATEWAY STOPPED</string>
+    <string name="gateway_label_version">Version: %1$s</string>
+    <string name="gateway_sec_controls">Controls</string>
+    <string name="gateway_action_start">Start</string>
+    <string name="gateway_action_stop">Stop</string>
+    <string name="gateway_action_restart">Restart</string>
+    <string name="gateway_sec_active_platforms">Active Platforms</string>
+
+    <!-- CronJobs Screen -->
+    <string name="cron_empty_title">No cron jobs</string>
+    <string name="cron_empty_desc">Scheduled tasks from Hermes will appear here.</string>
+    <string name="cron_status_active">Active</string>
+    <string name="cron_status_paused">Paused</string>
+    <string name="cron_action_pause">Pause</string>
+    <string name="cron_action_resume">Resume</string>
+    <string name="cron_action_run">Run</string>
+
+    <!-- Achievements Screen -->
+    <string name="achievements_empty_title">No achievements yet</string>
+    <string name="achievements_empty_desc">Complete tasks to unlock achievements.</string>
+    <string name="achievements_label_progress">Progress: %1$d / %2$d</string>
+
+    <!-- Keys Screen -->
+    <string name="keys_empty_title">No environment keys reported</string>
+    <string name="keys_label_not_configured">Not configured</string>
+    <string name="keys_action_toggle_visibility">Toggle Visibility</string>
+
+    <!-- Channels Screen -->
+    <string name="channels_empty_title">No channels configured</string>
+    <string name="channels_empty_desc">Add messaging platforms in Hermes to see them here.</string>
+    <string name="channels_status_active">Active</string>
+    <string name="channels_status_disabled">Disabled</string>
+    <string name="channels_action_configure">Configure</string>
+    <string name="channels_sec_settings">Configuration Settings</string>
+    <string name="channels_placeholder_configured">******** (Already Configured)</string>
+    <string name="channels_action_save_settings">Save Settings</string>
+    <string name="channels_sec_keys">Configured Keys:</string>
+    <string name="channels_status_configured">Configured</string>
+    <string name="channels_status_not_set">Not set</string>
 </resources>

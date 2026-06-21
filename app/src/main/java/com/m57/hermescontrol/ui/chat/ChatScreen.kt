@@ -169,6 +169,7 @@ fun ChatScreen(
                     androidx.lifecycle.Lifecycle.Event.ON_START -> {
                         NotificationHelper.setAppForeground(context, true)
                         NotificationHelper.stop(context)
+                        viewModel.refreshCurrentSession()
                     }
 
                     androidx.lifecycle.Lifecycle.Event.ON_STOP -> {

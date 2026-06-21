@@ -803,6 +803,12 @@ class ChatViewModel(
         }
     }
 
+    fun refreshCurrentSession() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        loadCachedMessages(sessionId)
+        loadSessionMessages(sessionId)
+    }
+
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 

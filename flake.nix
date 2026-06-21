@@ -29,9 +29,11 @@
           # Target platforms (36 required by AGP 9.0.1 / compileSdk 36)
           platformVersions = [ "36" "35" "34" ];
 
-          # For the emulator (optional, remove if not needed)
-          includeEmulator = false;
-          includeSystemImages = false;
+          # For the emulator
+          includeEmulator = true;
+          includeSystemImages = true;
+          systemImageTypes = [ "google_apis" ];
+          abiVersions = [ "x86_64" ];
 
           # NDK (not needed for this project, but handy)
           includeNDK = false;

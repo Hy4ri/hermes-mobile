@@ -271,6 +271,10 @@
     <string name="profiles_action_edit_soul">Edit Soul</string>
     <string name="profiles_action_set_model">Set Model</string>
     <string name="profiles_content_desc_active">Active Profile</string>
+    <string name="profiles_title_edit_soul">Edit Soul Profile: %1$s</string>
+    <string name="profiles_title_set_model">Set Model: %1$s</string>
+    <string name="profiles_label_provider_input">Provider</string>
+    <string name="profiles_label_model_input">Model Name</string>
 
     <!-- Plugins Screen -->
     <string name="plugins_empty_title">No plugins found</string>

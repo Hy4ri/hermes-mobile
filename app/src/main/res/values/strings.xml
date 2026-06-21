@@ -28,4 +28,34 @@
 
     <!-- General Errors -->
     <string name="error_unknown">Unknown error</string>
+
+    <!-- Navigation & Drawer -->
+    <string name="nav_drawer_title">⚡ Hermes</string>
+    <string name="nav_drawer_subtitle">AI Agent Control</string>
+    <string name="nav_drawer_section_converse">Converse</string>
+    <string name="nav_drawer_section_automate">Automate</string>
+    <string name="nav_drawer_section_configure">Configure</string>
+    <string name="nav_drawer_section_inspect">Inspect</string>
+
+    <!-- Screen Names -->
+    <string name="screen_chat">Chat</string>
+    <string name="screen_skills">Skills</string>
+    <string name="screen_cron">Cron</string>
+    <string name="screen_system">System</string>
+    <string name="screen_settings">Settings</string>
+    <string name="screen_profiles">Profiles</string>
+    <string name="screen_webhooks">Webhooks</string>
+    <string name="screen_gateway">Gateway</string>
+    <string name="screen_toolsets">Toolsets</string>
+    <string name="screen_plugins">Plugins</string>
+    <string name="screen_config">Config</string>
+    <string name="screen_mcp_servers">MCP Servers</string>
+    <string name="screen_models">Models</string>
+    <string name="screen_pairing">Pairing</string>
+    <string name="screen_keys">Keys</string>
+    <string name="screen_channels">Channels</string>
+    <string name="screen_logs">Logs</string>
+    <string name="screen_kanban">Kanban</string>
+    <string name="screen_achievements">Achievements</string>
+    <string name="screen_history">History</string>
 </resources>

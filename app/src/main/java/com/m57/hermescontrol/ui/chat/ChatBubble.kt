@@ -157,7 +157,7 @@ private fun UserBubble(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 3.dp),
+                .padding(horizontal = 8.dp, vertical = 2.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
         val gradientBrush =
@@ -208,7 +208,7 @@ private fun UserBubble(
                 color = Color.Transparent,
                 tonalElevation = 0.dp,
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                     SelectionContainer {
                         Text(
                             text = highlightedText,
@@ -304,7 +304,7 @@ private fun AssistantBubble(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 3.dp),
+                .padding(horizontal = 8.dp, vertical = 2.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box {
@@ -335,7 +335,7 @@ private fun AssistantBubble(
                     ),
                 tonalElevation = 1.dp,
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                     SelectionContainer {
                         RichText(
                             text = message.content,
@@ -402,7 +402,7 @@ private fun SystemBubble(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 6.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -612,7 +612,7 @@ private fun ToolBubble(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 2.dp),
+                .padding(horizontal = 8.dp, vertical = 1.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         Card(
@@ -624,7 +624,7 @@ private fun ToolBubble(
                 modifier =
                     Modifier
                         .animateContentSize()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

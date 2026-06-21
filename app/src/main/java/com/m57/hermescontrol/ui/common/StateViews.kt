@@ -157,6 +157,6 @@ fun EmptyState(
 
 // ── Padding conventions ──────────────────────────────────────────────
 
-val listContentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+val listContentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
 
-val listItemSpacing = Arrangement.spacedBy(8.dp)
+val listItemSpacing = Arrangement.spacedBy(6.dp)

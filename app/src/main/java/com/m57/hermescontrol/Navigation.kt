@@ -44,6 +44,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
@@ -457,7 +458,15 @@ fun MainNavigation(sessionId: String? = null) {
             contentWindowInsets = WindowInsets.navigationBars,
             bottomBar = {
                 if (showBottomBar) {
-                    NavigationBar {
+                    val barHeight =
+                        when (bottomNavDisplayMode) {
+                            BottomNavDisplayMode.ICON_ONLY -> 52.dp
+                            BottomNavDisplayMode.TEXT_ONLY -> 44.dp
+                            BottomNavDisplayMode.ICON_AND_TEXT -> 80.dp
+                        }
+                    NavigationBar(
+                        modifier = Modifier.height(barHeight),
+                    ) {
                         bottomNavItems.forEach { item ->
                             val showIcon =
                                 bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
@@ -466,14 +475,28 @@ fun MainNavigation(sessionId: String? = null) {
                                 bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
                                     bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY
 
+                            val isSelected = currentScreen == item.key
+
                             NavigationBarItem(
-                                selected = currentScreen == item.key,
+                                selected = isSelected,
                                 onClick = { NavigationController.navigateTo(item.key) },
+                                colors =
+                                    if (bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY) {
+                                        NavigationBarItemDefaults.colors(
+                                            indicatorColor = Color.Transparent,
+                                        )
+                                    } else {
+                                        NavigationBarItemDefaults.colors()
+                                    },
                                 icon = {
                                     if (showIcon) {
                                         Icon(item.icon, contentDescription = stringResource(item.labelRes))
                                     } else {
-                                        Text(stringResource(item.labelRes))
+                                        Text(
+                                            text = stringResource(item.labelRes),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        )
                                     }
                                 },
                                 label =

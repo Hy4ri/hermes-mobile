@@ -70,6 +70,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
@@ -339,6 +340,7 @@ fun MainNavigation(sessionId: String? = null) {
     // customises items in Settings. Using collectAsState() ensures the NavigationBar
     // recomposes and reflects choices instantly.
     val bottomNavItemsState by AuthManager.bottomNavItemsFlow.collectAsState()
+    val bottomNavDisplayMode by AuthManager.bottomNavDisplayModeFlow.collectAsState()
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
     val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
@@ -457,11 +459,29 @@ fun MainNavigation(sessionId: String? = null) {
                 if (showBottomBar) {
                     NavigationBar {
                         bottomNavItems.forEach { item ->
+                            val showIcon =
+                                bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
+                                    bottomNavDisplayMode == BottomNavDisplayMode.ICON_ONLY
+                            val showLabel =
+                                bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
+                                    bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY
+
                             NavigationBarItem(
                                 selected = currentScreen == item.key,
                                 onClick = { NavigationController.navigateTo(item.key) },
-                                icon = { Icon(item.icon, contentDescription = stringResource(item.labelRes)) },
-                                label = { Text(stringResource(item.labelRes)) },
+                                icon = {
+                                    if (showIcon) {
+                                        Icon(item.icon, contentDescription = stringResource(item.labelRes))
+                                    } else {
+                                        Text(stringResource(item.labelRes))
+                                    }
+                                },
+                                label =
+                                    if (showLabel && showIcon) {
+                                        { Text(stringResource(item.labelRes)) }
+                                    } else {
+                                        null
+                                    },
                                 modifier =
                                     Modifier.testTag(
                                         "nav_${item.key::class.simpleName?.lowercase()?.removeSuffix("screen") ?: ""}",

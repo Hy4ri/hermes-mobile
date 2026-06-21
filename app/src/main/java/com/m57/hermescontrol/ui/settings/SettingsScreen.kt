@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -478,6 +479,51 @@ fun SettingsScreen(
 
             // Navigation Bar section
             SectionCard(title = stringResource(R.string.settings_sec_nav_bar)) {
+                Text(
+                    text = stringResource(R.string.settings_item_bottom_nav_display_mode),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    BottomNavDisplayMode.entries.forEachIndexed { index, mode ->
+                        SegmentedButton(
+                            selected = state.bottomNavDisplayMode == mode,
+                            onClick = { viewModel.onBottomNavDisplayModeChange(mode) },
+                            shape =
+                                SegmentedButtonDefaults.itemShape(
+                                    index = index,
+                                    count = BottomNavDisplayMode.entries.size,
+                                ),
+                        ) {
+                            Text(
+                                when (mode) {
+                                    BottomNavDisplayMode.ICON_AND_TEXT -> {
+                                        stringResource(
+                                            R.string.settings_display_mode_icon_and_text,
+                                        )
+                                    }
+
+                                    BottomNavDisplayMode.ICON_ONLY -> {
+                                        stringResource(
+                                            R.string.settings_display_mode_icon_only,
+                                        )
+                                    }
+
+                                    BottomNavDisplayMode.TEXT_ONLY -> {
+                                        stringResource(
+                                            R.string.settings_display_mode_text_only,
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Text(
                     text = stringResource(R.string.settings_item_nav_items, state.selectedNavItems.size),
                     style = MaterialTheme.typography.bodyMedium,

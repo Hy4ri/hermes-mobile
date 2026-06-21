@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,7 @@ object AuthManager {
     private const val KEY_SELECTED_PROFILE_ID = "selected_profile_id"
     private const val KEY_USE_DYNAMIC_COLORS = "use_dynamic_colors"
     private const val KEY_THEME_PRESET = "theme_preset"
+    private const val KEY_BOTTOM_NAV_DISPLAY_MODE = "bottom_nav_display_mode"
 
     private const val DEFAULT_HOST = "127.0.0.1"
     private const val DEFAULT_PORT = 9119
@@ -52,6 +54,9 @@ object AuthManager {
 
     private val _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)
     val themePresetFlow: StateFlow<ThemePreset> = _themePresetFlow.asStateFlow()
+
+    private val _bottomNavDisplayModeFlow = MutableStateFlow<BottomNavDisplayMode>(BottomNavDisplayMode.ICON_AND_TEXT)
+    val bottomNavDisplayModeFlow: StateFlow<BottomNavDisplayMode> = _bottomNavDisplayModeFlow.asStateFlow()
     private val gson = com.google.gson.Gson()
 
     /**
@@ -81,6 +86,7 @@ object AuthManager {
             _themePreferenceFlow.value = getThemePreference()
             _useDynamicColorsFlow.value = isUseDynamicColors()
             _themePresetFlow.value = getThemePreset()
+            _bottomNavDisplayModeFlow.value = getBottomNavDisplayMode()
         }
     }
 
@@ -281,5 +287,17 @@ object AuthManager {
 
     fun setTypingEffectDelayMs(delayMs: Int) {
         requirePrefs().edit().putInt(KEY_TYPING_EFFECT_DELAY_MS, delayMs).apply()
+    }
+
+    // ── Bottom Nav Display Mode ──────────────────────────────────────────
+
+    fun getBottomNavDisplayMode(): BottomNavDisplayMode =
+        requirePrefs().getString(KEY_BOTTOM_NAV_DISPLAY_MODE, BottomNavDisplayMode.ICON_AND_TEXT.name)?.let { name ->
+            runCatching { BottomNavDisplayMode.valueOf(name) }.getOrNull()
+        } ?: BottomNavDisplayMode.ICON_AND_TEXT
+
+    fun setBottomNavDisplayMode(mode: BottomNavDisplayMode) {
+        requirePrefs().edit().putString(KEY_BOTTOM_NAV_DISPLAY_MODE, mode.name).apply()
+        _bottomNavDisplayModeFlow.value = mode
     }
 }

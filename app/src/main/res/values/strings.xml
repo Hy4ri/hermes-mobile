@@ -195,4 +195,37 @@
     <string name="action_discard">Discard</string>
     <string name="content_desc_edit_skill">Edit Skill File</string>
     <string name="content_desc_save_changes">Save Changes</string>
+
+    <!-- Logs Screen -->
+    <string name="logs_empty_title">No logs available</string>
+    <string name="logs_empty_desc">Log output from Hermes will appear here.</string>
+
+    <!-- System Screen -->
+    <string name="system_empty_title">No system data</string>
+    <string name="system_empty_desc">Tap refresh to load system diagnostics.</string>
+    <string name="system_sec_performance">Performance</string>
+    <string name="system_metric_cpu">CPU Usage</string>
+    <string name="system_metric_memory">Memory</string>
+    <string name="system_sec_doctor">Doctor</string>
+    <string name="system_status_running">Running</string>
+    <string name="system_status_failed">Failed</string>
+    <string name="system_info_pid">Process PID</string>
+    <string name="system_info_proc_name">Process Name</string>
+    <string name="system_sec_admin">Administration</string>
+    <string name="system_action_backup">Trigger System Backup</string>
+
+    <!-- Model Screen -->
+    <string name="model_empty_title">No model providers reported</string>
+    <string name="model_empty_desc">Verify configuration or retry</string>
+    <string name="model_label_slug">Slug: %1$s</string>
+    <string name="model_status_current">CURRENT</string>
+    <string name="model_label_available">Available Models:</string>
+    <string name="model_no_models">No models reported or provider needs authentication.</string>
+    <string name="content_desc_active_model">Active Model</string>
+
+    <!-- Sessions (History) Screen -->
+    <string name="history_empty_title">No history</string>
+    <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
+    <string name="history_untitled">Untitled</string>
+    <string name="history_message_count">%1$d messages</string>
 </resources>

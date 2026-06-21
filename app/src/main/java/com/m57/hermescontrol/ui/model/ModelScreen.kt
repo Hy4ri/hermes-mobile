@@ -35,10 +35,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -67,7 +69,7 @@ fun ModelScreen(
     }
 
     HermesScaffold(
-        title = { Text("Models") },
+        title = { Text(stringResource(R.string.screen_models)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadModelOptions() },
@@ -87,10 +89,10 @@ fun ModelScreen(
 
             state.providers.isEmpty() -> {
                 EmptyState(
-                    title = "No model providers reported",
-                    subtitle = "Verify configuration or retry",
+                    title = stringResource(R.string.model_empty_title),
+                    subtitle = stringResource(R.string.model_empty_desc),
                     onAction = { viewModel.loadModelOptions() },
-                    actionLabel = "Refresh",
+                    actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),
                 )
             }
@@ -107,7 +109,10 @@ fun ModelScreen(
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             IconButton(onClick = { viewModel.loadModelOptions() }) {
-                                Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Retry")
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = stringResource(R.string.action_retry),
+                                )
                             }
                         }
                     } else {
@@ -153,7 +158,7 @@ fun ModelScreen(
                                                     fontWeight = FontWeight.Bold,
                                                 )
                                                 Text(
-                                                    text = "Slug: ${provider.slug}",
+                                                    text = stringResource(R.string.model_label_slug, provider.slug),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
@@ -161,7 +166,7 @@ fun ModelScreen(
 
                                             if (isCurrent) {
                                                 Text(
-                                                    text = "CURRENT",
+                                                    text = stringResource(R.string.model_status_current),
                                                     style = MaterialTheme.typography.labelMedium,
                                                     color = MaterialTheme.colorScheme.primary,
                                                     fontWeight = FontWeight.Bold,
@@ -183,7 +188,7 @@ fun ModelScreen(
                                         AnimatedVisibility(visible = isExpanded) {
                                             Column(modifier = Modifier.padding(top = 16.dp)) {
                                                 Text(
-                                                    text = "Available Models:",
+                                                    text = stringResource(R.string.model_label_available),
                                                     style = MaterialTheme.typography.titleSmall,
                                                     fontWeight = FontWeight.SemiBold,
                                                     modifier = Modifier.padding(bottom = 8.dp),
@@ -192,7 +197,7 @@ fun ModelScreen(
                                                 val models = provider.models.orEmpty()
                                                 if (models.isEmpty()) {
                                                     Text(
-                                                        text = "No models reported or provider needs authentication.",
+                                                        text = stringResource(R.string.model_no_models),
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                     )
@@ -262,7 +267,10 @@ fun ModelScreen(
                                                                 if (isActive) {
                                                                     Icon(
                                                                         imageVector = Icons.Filled.Check,
-                                                                        contentDescription = "Active Model",
+                                                                        contentDescription =
+                                                                            stringResource(
+                                                                                R.string.content_desc_active_model,
+                                                                            ),
                                                                         tint = MaterialTheme.colorScheme.primary,
                                                                     )
                                                                 }

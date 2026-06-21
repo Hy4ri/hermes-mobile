@@ -21,11 +21,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.ChatScreen
 import com.m57.hermescontrol.NavigationController
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -48,7 +50,7 @@ fun SessionsScreen(
     }
 
     HermesScaffold(
-        title = { Text("History") },
+        title = { Text(stringResource(R.string.screen_history)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSessions() },
@@ -61,15 +63,15 @@ fun SessionsScreen(
 
             state.errorMessage != null -> {
                 ErrorState(
-                    message = state.errorMessage ?: "Unknown error",
+                    message = state.errorMessage ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.loadSessions() },
                 )
             }
 
             state.sessions.isEmpty() -> {
                 EmptyState(
-                    title = "No history",
-                    subtitle = "Previous chat sessions from Hermes will appear here.",
+                    title = stringResource(R.string.history_empty_title),
+                    subtitle = stringResource(R.string.history_empty_desc),
                     icon = Icons.Filled.History,
                 )
             }
@@ -98,7 +100,7 @@ fun SessionsScreen(
                                 modifier = Modifier.padding(spacing.md),
                             ) {
                                 Text(
-                                    text = session.title ?: "Untitled",
+                                    text = session.title ?: stringResource(R.string.history_untitled),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                 )
@@ -107,7 +109,11 @@ fun SessionsScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        text = "${session.message_count ?: 0} messages",
+                                        text =
+                                            stringResource(
+                                                R.string.history_message_count,
+                                                session.message_count ?: 0,
+                                            ),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

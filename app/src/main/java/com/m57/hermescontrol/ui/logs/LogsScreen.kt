@@ -18,11 +18,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -59,7 +61,7 @@ fun LogsScreen(
     }
 
     HermesScaffold(
-        title = { Text("Logs") },
+        title = { Text(stringResource(R.string.screen_logs)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadLogs() },
@@ -71,7 +73,7 @@ fun LogsScreen(
 
             state.errorMessage != null -> {
                 ErrorState(
-                    message = state.errorMessage ?: "Unknown error",
+                    message = state.errorMessage ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.loadLogs() },
                 )
             }
@@ -80,8 +82,8 @@ fun LogsScreen(
                 // B5 (Jun 18 2026, kanban t_2322818d): proper empty-state using
                 // the shared EmptyState component instead of a bare Text.
                 EmptyState(
-                    title = "No logs available",
-                    subtitle = "Log output from Hermes will appear here.",
+                    title = stringResource(R.string.logs_empty_title),
+                    subtitle = stringResource(R.string.logs_empty_desc),
                     icon = Icons.Filled.HistoryEdu,
                 )
             }

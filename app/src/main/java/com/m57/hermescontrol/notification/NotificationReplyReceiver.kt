@@ -8,6 +8,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import kotlinx.coroutines.launch
 
 class NotificationReplyReceiver : BroadcastReceiver() {
     companion object {
@@ -25,6 +26,26 @@ class NotificationReplyReceiver : BroadcastReceiver() {
 
         if (!replyText.isNullOrBlank() && !sessionId.isNullOrBlank()) {
             HermesWsClient.sendMessage(sessionId, replyText)
+
+            val pendingResult = goAsync()
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val db = com.m57.hermescontrol.data.local.HermesDatabase.get(context)
+                    val dao = db.chatMessageDao()
+                    val entity = com.m57.hermescontrol.data.local.ChatMessageEntity(
+                        id = java.util.UUID.randomUUID().toString(),
+                        sessionId = sessionId,
+                        role = "user",
+                        content = replyText,
+                        timestamp = System.currentTimeMillis(),
+                    )
+                    dao.upsert(entity)
+                } catch (e: Exception) {
+                    android.util.Log.e("NotificationReply", "Failed to save replied message to Room DB", e)
+                } finally {
+                    pendingResult.finish()
+                }
+            }
 
             val repliedNotification =
                 NotificationCompat

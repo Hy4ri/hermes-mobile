@@ -465,7 +465,16 @@ fun MainNavigation(sessionId: String? = null) {
                             BottomNavDisplayMode.ICON_AND_TEXT -> 80.dp
                         }
                     NavigationBar(
-                        modifier = Modifier.height(barHeight),
+                        modifier =
+                            Modifier
+                                .height(barHeight)
+                                .run {
+                                    if (bottomNavDisplayMode == BottomNavDisplayMode.ICON_ONLY) {
+                                        padding(top = 4.dp)
+                                    } else {
+                                        this
+                                    }
+                                },
                     ) {
                         bottomNavItems.forEach { item ->
                             val showIcon =

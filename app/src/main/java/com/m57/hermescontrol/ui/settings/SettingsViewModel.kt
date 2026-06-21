@@ -119,6 +119,7 @@ class SettingsViewModel : ViewModel() {
 
     fun onThemeChange(theme: ThemePreference) {
         _uiState.update { it.copy(themePreference = theme, isSaved = false) }
+        AuthManager.setThemePreference(theme)
     }
 
     fun onTypingEffectEnabledChange(enabled: Boolean) {

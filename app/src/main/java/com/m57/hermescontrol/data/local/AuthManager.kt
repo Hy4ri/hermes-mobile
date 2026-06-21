@@ -41,6 +41,9 @@ object AuthManager {
     private val _bottomNavItemsFlow = MutableStateFlow<List<String>>(emptyList())
     val bottomNavItemsFlow: StateFlow<List<String>> = _bottomNavItemsFlow.asStateFlow()
 
+    private val _themePreferenceFlow = MutableStateFlow<ThemePreference>(ThemePreference.SYSTEM)
+    val themePreferenceFlow: StateFlow<ThemePreference> = _themePreferenceFlow.asStateFlow()
+
     private val gson = com.google.gson.Gson()
 
     /**
@@ -67,6 +70,7 @@ object AuthManager {
                 )
 
             _bottomNavItemsFlow.value = getBottomNavItems()
+            _themePreferenceFlow.value = getThemePreference()
         }
     }
 
@@ -206,6 +210,7 @@ object AuthManager {
 
     fun setThemePreference(theme: ThemePreference) {
         requirePrefs().edit().putString(KEY_THEME_PREFERENCE, theme.name).apply()
+        _themePreferenceFlow.value = theme
     }
 
     /** Convenience: build the base URL from current host + port.

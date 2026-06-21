@@ -7,6 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
@@ -21,11 +23,8 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            // B6 (Jun 18 2026, kanban t_86e9be9b): read the stored theme
-            // preference at startup so HermesControlTheme actually applies
-            // the user's SYSTEM/LIGHT/DARK choice rather than defaulting to
-            // SYSTEM on every cold start.
-            HermesControlTheme(themePreference = AuthManager.getThemePreference()) {
+            val themePreference by AuthManager.themePreferenceFlow.collectAsState()
+            HermesControlTheme(themePreference = themePreference) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,

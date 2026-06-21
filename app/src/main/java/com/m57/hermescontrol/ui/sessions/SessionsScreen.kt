@@ -100,7 +100,9 @@ fun SessionsScreen(
                                 modifier = Modifier.padding(spacing.md),
                             ) {
                                 Text(
-                                    text = session.title ?: stringResource(R.string.history_untitled),
+                                    text =
+                                        session.title?.takeIf { it.isNotBlank() }
+                                            ?: stringResource(R.string.history_untitled),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                 )

@@ -11,13 +11,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -145,38 +148,46 @@ fun CronJobsScreen(
                                 Spacer(modifier = Modifier.height(spacing.sm))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                                    horizontalArrangement = Arrangement.End,
                                 ) {
                                     if (job.state == "active") {
-                                        OutlinedButton(
+                                        IconButton(
                                             onClick = { viewModel.pauseCronJob(job.id) },
-                                            modifier = Modifier.weight(1f),
                                         ) {
-                                            Text(stringResource(R.string.cron_action_pause))
+                                            Icon(
+                                                imageVector = Icons.Filled.Pause,
+                                                contentDescription = stringResource(R.string.cron_action_pause),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
                                         }
                                     } else {
-                                        OutlinedButton(
+                                        IconButton(
                                             onClick = { viewModel.resumeCronJob(job.id) },
-                                            modifier = Modifier.weight(1f),
                                         ) {
-                                            Text(stringResource(R.string.cron_action_resume))
+                                            Icon(
+                                                imageVector = Icons.Filled.PlayArrow,
+                                                contentDescription = stringResource(R.string.cron_action_resume),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
                                         }
                                     }
-                                    OutlinedButton(
+                                    IconButton(
                                         onClick = { viewModel.triggerCronJob(job.id) },
-                                        modifier = Modifier.weight(1f),
                                     ) {
-                                        Text(stringResource(R.string.cron_action_run))
+                                        Icon(
+                                            imageVector = Icons.Filled.Refresh,
+                                            contentDescription = stringResource(R.string.cron_action_run),
+                                            tint = MaterialTheme.colorScheme.secondary,
+                                        )
                                     }
-                                    Button(
+                                    IconButton(
                                         onClick = { viewModel.deleteCronJob(job.id) },
-                                        colors =
-                                            ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.error,
-                                            ),
-                                        modifier = Modifier.weight(1f),
                                     ) {
-                                        Text(stringResource(R.string.action_delete))
+                                        Icon(
+                                            imageVector = Icons.Filled.Delete,
+                                            contentDescription = stringResource(R.string.action_delete),
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
                                     }
                                 }
                             }

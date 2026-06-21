@@ -123,7 +123,7 @@
     <string name="settings_desc_typing_effect">Animate new messages word by word</string>
     <string name="settings_item_typing_delay">Delay: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
-    <string name="settings_delay_100ms">100 ms</string>
+    <string name="settings_delay_1000ms">1000 ms</string>
     <string name="settings_sec_nav_bar">Navigation Bar</string>
     <string name="settings_item_nav_items">Bottom bar items (%1$d/5)</string>
     <string name="settings_action_add_item">Add Item</string>

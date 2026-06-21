@@ -449,8 +449,8 @@ fun SettingsScreen(
                         Slider(
                             value = state.typingEffectDelayMs.toFloat(),
                             onValueChange = { viewModel.onTypingEffectDelayMsChange(it.toInt()) },
-                            valueRange = 10f..100f,
-                            steps = 8, // 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+                            valueRange = 10f..1000f,
+                            steps = 98, // 10ms steps from 10ms to 1000ms
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Row(
@@ -465,7 +465,7 @@ fun SettingsScreen(
                                     ),
                             )
                             Text(
-                                text = stringResource(R.string.settings_delay_100ms),
+                                text = stringResource(R.string.settings_delay_1000ms),
                                 style =
                                     MaterialTheme.typography.labelSmall.copy(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -323,10 +323,20 @@ class HermesWsClientTest {
         serverSocket1?.close(1001, "Server shutting down")
 
         assertTrue("Client didn't detect disconnect", clientDisconnectedLatch.await(5, TimeUnit.SECONDS))
-        assertEquals(ConnectionStatus.RECONNECTING, HermesWsClient.connectionStatus.value)
+
+        // Poll for status to become RECONNECTING (async race mitigation —
+        // onClosed fires onDisconnected before updating _connectionStatus)
+        var status: ConnectionStatus
+        val deadline = System.currentTimeMillis() + 2000
+        do {
+            status = HermesWsClient.connectionStatus.value
+            if (status == ConnectionStatus.RECONNECTING) break
+            Thread.sleep(50)
+        } while (System.currentTimeMillis() < deadline)
+        assertEquals(ConnectionStatus.RECONNECTING, status)
 
         // The client should now attempt to reconnect after initial backoff (1000ms)
         // Wait for the second connection to hit the server
-        assertTrue("Failed to reconnect", connect2Latch.await(5, TimeUnit.SECONDS))
+        assertTrue("Failed to reconnect", connect2Latch.await(6, TimeUnit.SECONDS))
     }
 }

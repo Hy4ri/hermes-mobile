@@ -58,4 +58,16 @@
     <string name="screen_kanban">Kanban</string>
     <string name="screen_achievements">Achievements</string>
     <string name="screen_history">History</string>
+
+    <!-- Notifications -->
+    <string name="notif_title">Hermes</string>
+    <string name="notif_waiting_replies">Waiting for Hermes replies</string>
+    <string name="notif_new_message">New message</string>
+    <string name="notif_clarification_needed">Hermes needs a clarification</string>
+    <string name="notif_reply_placeholder">Type your reply\u2026</string>
+    <string name="notif_channel_service_name">Hermes Background Service</string>
+    <string name="notif_channel_service_desc">Keeps connection alive in the background</string>
+    <string name="notif_channel_chat_name">Hermes Chat Replies</string>
+    <string name="notif_channel_chat_desc">Alerts for new replies from Hermes</string>
+    <string name="action_reply">Reply</string>
 </resources>

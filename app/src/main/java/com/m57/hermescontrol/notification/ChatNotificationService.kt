@@ -70,7 +70,7 @@ class ChatNotificationService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
-        startForeground(NOTIFICATION_ID, buildForegroundNotification("Waiting for Hermes replies"))
+        startForeground(NOTIFICATION_ID, buildForegroundNotification(getString(R.string.notif_waiting_replies)))
         startEventCollection()
     }
 
@@ -85,12 +85,12 @@ class ChatNotificationService : Service() {
                                     event.text
                                         .take(100)
                                         .replace("\n", " ")
-                                        .ifBlank { "New message" }
+                                        .ifBlank { getString(R.string.notif_new_message) }
                                 showReplyNotification(preview, event.sessionId)
                             }
 
                             is WsEvent.ClarifyRequest -> {
-                                showReplyNotification("Hermes needs a clarification", null)
+                                showReplyNotification(getString(R.string.notif_clarification_needed), null)
                             }
 
                             else -> {}
@@ -108,7 +108,7 @@ class ChatNotificationService : Service() {
             NotificationCompat
                 .Builder(this, CHAT_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle("Hermes")
+                .setContentTitle(getString(R.string.notif_title))
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -116,7 +116,7 @@ class ChatNotificationService : Service() {
                 .setContentIntent(buildContentIntent(sessionId))
 
         if (!sessionId.isNullOrBlank()) {
-            val replyLabel = "Type your reply..."
+            val replyLabel = getString(R.string.notif_reply_placeholder)
             val remoteInput =
                 RemoteInput
                     .Builder(NotificationReplyReceiver.KEY_TEXT_REPLY)
@@ -140,7 +140,7 @@ class ChatNotificationService : Service() {
                 NotificationCompat.Action
                     .Builder(
                         R.drawable.ic_notification,
-                        "Reply",
+                        getString(R.string.action_reply),
                         replyPendingIntent,
                     ).addRemoteInput(remoteInput)
                     .build()
@@ -169,7 +169,7 @@ class ChatNotificationService : Service() {
         NotificationCompat
             .Builder(this, SERVICE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Hermes")
+            .setContentTitle(getString(R.string.notif_title))
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
@@ -180,19 +180,19 @@ class ChatNotificationService : Service() {
             val serviceChannel =
                 NotificationChannel(
                     SERVICE_CHANNEL_ID,
-                    "Hermes Background Service",
+                    getString(R.string.notif_channel_service_name),
                     NotificationManager.IMPORTANCE_MIN,
                 ).apply {
-                    description = "Keeps connection alive in the background"
+                    description = getString(R.string.notif_channel_service_desc)
                 }
 
             val chatChannel =
                 NotificationChannel(
                     CHAT_CHANNEL_ID,
-                    "Hermes Chat Replies",
+                    getString(R.string.notif_channel_chat_name),
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
-                    description = "Alerts for new replies from Hermes"
+                    description = getString(R.string.notif_channel_chat_desc)
                 }
 
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

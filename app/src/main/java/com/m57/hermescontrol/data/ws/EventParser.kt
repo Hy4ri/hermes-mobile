@@ -35,7 +35,8 @@ object EventParser {
         @Suppress("UNCHECKED_CAST")
         val payload = params["payload"] as? Map<String, Any?>
 
-        val sessionId = payload?.get("session_id") as? String
+        // B7 (Jun 21 2026, kanban t_240): extract session_id from params first, fallback to payload
+        val sessionId = params["session_id"] as? String ?: payload?.get("session_id") as? String
 
         return when (eventType) {
             "gateway.ready" -> {

@@ -87,6 +87,29 @@ class EventParserTest {
     }
 
     @Test
+    fun testParseMessageToken_withSessionIdInParams_returnsMessageTokenEvent() {
+        val response =
+            JsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "message.token",
+                        "session_id" to "session-params-1",
+                        "payload" to mapOf("text" to "hello"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.MessageToken)
+        val tokenEvent = event as WsEvent.MessageToken
+        assertEquals("hello", tokenEvent.token)
+        assertEquals("session-params-1", tokenEvent.sessionId)
+    }
+
+    @Test
     fun testParseThinkingDelta_returnsThinkingDeltaEvent() {
         val response =
             JsonRpcResponse(

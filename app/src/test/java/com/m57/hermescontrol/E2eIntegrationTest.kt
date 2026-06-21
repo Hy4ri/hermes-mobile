@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.MessagingPlatform
+import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PluginInfo
@@ -895,7 +896,14 @@ class E2eIntegrationTest {
     fun testChannelsConfiguration_success() =
         runTest {
             val platform = MessagingPlatform("telegram", "Telegram", false, false, emptyList())
-            coEvery { mockApiService.getMessagingPlatforms() } returns Response.success(listOf(platform))
+            coEvery { mockApiService.getMessagingPlatforms() } returns
+                Response.success(
+                    MessagingPlatformResponse(
+                        env_path = "/tmp/.env",
+                        gateway_start_command = "hermes gateway start",
+                        platforms = listOf(platform),
+                    ),
+                )
             coEvery { mockApiService.configurePlatform("telegram", any()) } returns Response.success(Unit)
 
             val viewModel = ChannelsViewModel()

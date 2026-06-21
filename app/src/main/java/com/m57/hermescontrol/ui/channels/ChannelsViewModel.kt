@@ -35,7 +35,7 @@ class ChannelsViewModel : ViewModel() {
                 }
             when (result) {
                 is NetworkResult.Success -> {
-                    _uiState.update { it.copy(isLoading = false, platforms = result.data.orEmpty()) }
+                    _uiState.update { it.copy(isLoading = false, platforms = result.data?.platforms.orEmpty()) }
                 }
 
                 is NetworkResult.Failure -> {

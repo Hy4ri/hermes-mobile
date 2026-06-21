@@ -16,7 +16,7 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
-import com.m57.hermescontrol.data.model.MessagingPlatform
+import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
@@ -253,7 +253,7 @@ interface HermesApiService {
     ): Response<Unit>
 
     @GET("api/messaging/platforms")
-    suspend fun getMessagingPlatforms(): Response<List<MessagingPlatform>>
+    suspend fun getMessagingPlatforms(@Query("profile") profile: String? = null): Response<MessagingPlatformResponse>
 
     @PUT("api/messaging/platforms/{platform_id}")
     suspend fun configurePlatform(

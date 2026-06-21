@@ -35,7 +35,7 @@ object AuthManager {
     private const val DEFAULT_HOST = "127.0.0.1"
     private const val DEFAULT_PORT = 9119
     private const val DEFAULT_AUTO_RECONNECT = true
-    private const val DEFAULT_TYPING_EFFECT_ENABLED = false
+    private const val DEFAULT_TYPING_EFFECT_ENABLED = true
     private const val DEFAULT_TYPING_EFFECT_DELAY_MS = 30
 
     @Volatile

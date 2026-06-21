@@ -80,6 +80,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -127,6 +128,7 @@ fun ChatScreen(
     }
     val scrollScope = rememberCoroutineScope()
     var inputText by rememberSaveable { mutableStateOf("") }
+    var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
@@ -434,12 +436,28 @@ fun ChatScreen(
                                 state.currentSearchMatchIndex < state.searchMatchIndices.size &&
                                 state.searchMatchIndices[state.currentSearchMatchIndex] == index
 
-                        ChatBubble(
-                            message = message,
-                            isDarkTheme = isDark,
-                            searchQuery = if (state.isSearchActive) state.searchQuery else "",
-                            isCurrentMatch = isCurrentMatch,
-                        )
+                        val isLastMessage = index == state.messages.lastIndex
+                        val isAssistant = message.role == MessageRole.ASSISTANT
+                        val typingEnabled = AuthManager.isTypingEffectEnabled()
+                        val typingDelayMs = AuthManager.getTypingEffectDelayMs()
+
+                        if (typingEnabled && isLastMessage && isAssistant && lastAnimatedMessageId != message.id) {
+                            StreamingBubbleWithTypingEffect(
+                                streaming = message,
+                                typingDelayMs = typingDelayMs,
+                                isDark = isDark,
+                                onAnimationComplete = {
+                                    lastAnimatedMessageId = message.id
+                                },
+                            )
+                        } else {
+                            ChatBubble(
+                                message = message,
+                                isDarkTheme = isDark,
+                                searchQuery = if (state.isSearchActive) state.searchQuery else "",
+                                isCurrentMatch = isCurrentMatch,
+                            )
+                        }
                     }
 
                     // Streaming message — rendered separately for O(1) updates
@@ -1041,15 +1059,28 @@ private fun StreamingBubbleWithTypingEffect(
     streaming: ChatMessage,
     typingDelayMs: Int,
     isDark: Boolean,
+    onAnimationComplete: () -> Unit = {},
 ) {
     var visibleWordCount by remember { mutableIntStateOf(0) }
+    val currentContent = rememberUpdatedState(streaming.content)
+    val currentIsStreaming = rememberUpdatedState(streaming.isStreaming)
+    val currentDelayMs = rememberUpdatedState(typingDelayMs)
 
     // Timer that ticks at the configured delay, incrementing the visible word
     // count each tick. Stops ticking when streaming ends, then shows all words.
     LaunchedEffect(Unit) {
-        while (streaming.isStreaming) {
-            delay(typingDelayMs.toLong())
-            visibleWordCount++
+        while (true) {
+            val words = currentContent.value.split(" ")
+            if (visibleWordCount < words.size) {
+                delay(currentDelayMs.value.toLong())
+                visibleWordCount++
+            } else {
+                if (!currentIsStreaming.value) {
+                    onAnimationComplete()
+                    break
+                }
+                delay(10)
+            }
         }
         visibleWordCount = Int.MAX_VALUE
     }

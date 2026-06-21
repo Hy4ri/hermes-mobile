@@ -51,7 +51,7 @@ object EventParser {
                 WsEvent.MessageStart(sessionId)
             }
 
-            "message.token" -> {
+            "message.token", "message.delta" -> {
                 val token = payload?.get("text") as? String ?: ""
                 WsEvent.MessageToken(token, sessionId)
             }

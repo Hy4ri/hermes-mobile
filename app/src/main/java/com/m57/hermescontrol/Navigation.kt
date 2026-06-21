@@ -460,21 +460,12 @@ fun MainNavigation(sessionId: String? = null) {
                 if (showBottomBar) {
                     val barHeight =
                         when (bottomNavDisplayMode) {
-                            BottomNavDisplayMode.ICON_ONLY -> 52.dp
+                            BottomNavDisplayMode.ICON_ONLY -> 56.dp
                             BottomNavDisplayMode.TEXT_ONLY -> 44.dp
                             BottomNavDisplayMode.ICON_AND_TEXT -> 80.dp
                         }
                     NavigationBar(
-                        modifier =
-                            Modifier
-                                .height(barHeight)
-                                .run {
-                                    if (bottomNavDisplayMode == BottomNavDisplayMode.ICON_ONLY) {
-                                        padding(top = 4.dp)
-                                    } else {
-                                        this
-                                    }
-                                },
+                        modifier = Modifier.height(barHeight),
                     ) {
                         bottomNavItems.forEach { item ->
                             val showIcon =

@@ -35,10 +35,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -71,7 +73,7 @@ fun ProfilesScreen(
     }
 
     HermesScaffold(
-        title = { Text("Profiles") },
+        title = { Text(stringResource(R.string.screen_profiles)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadProfiles() },
@@ -91,10 +93,10 @@ fun ProfilesScreen(
 
             state.profiles.isEmpty() -> {
                 EmptyState(
-                    title = "No profiles available",
-                    subtitle = "Verify configuration or retry",
+                    title = stringResource(R.string.profiles_empty_title),
+                    subtitle = stringResource(R.string.toolsets_empty_desc),
                     onAction = { viewModel.loadProfiles() },
-                    actionLabel = "Refresh",
+                    actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),
                 )
             }
@@ -111,7 +113,7 @@ fun ProfilesScreen(
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { viewModel.loadProfiles() }) {
-                                Text("Retry")
+                                Text(stringResource(R.string.action_retry))
                             }
                         }
                     } else {
@@ -170,7 +172,10 @@ fun ProfilesScreen(
                                             if (isActive) {
                                                 Icon(
                                                     imageVector = Icons.Filled.Check,
-                                                    contentDescription = "Active Profile",
+                                                    contentDescription =
+                                                        stringResource(
+                                                            R.string.profiles_content_desc_active,
+                                                        ),
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.padding(start = 8.dp),
                                                 )
@@ -186,11 +191,19 @@ fun ProfilesScreen(
                                         ) {
                                             Column {
                                                 Text(
-                                                    text = "Model: ${profile.model ?: "None"}",
+                                                    text =
+                                                        stringResource(
+                                                            R.string.profiles_label_model,
+                                                            profile.model ?: "None",
+                                                        ),
                                                     style = MaterialTheme.typography.bodyMedium,
                                                 )
                                                 Text(
-                                                    text = "Provider: ${profile.provider ?: "None"}",
+                                                    text =
+                                                        stringResource(
+                                                            R.string.profiles_label_provider,
+                                                            profile.provider ?: "None",
+                                                        ),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
@@ -216,7 +229,7 @@ fun ProfilesScreen(
                                                     modifier = Modifier.width(16.dp),
                                                 )
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Edit Soul")
+                                                Text(stringResource(R.string.profiles_action_edit_soul))
                                             }
 
                                             Button(
@@ -226,7 +239,7 @@ fun ProfilesScreen(
                                                     tempModelName = profile.model ?: ""
                                                 },
                                             ) {
-                                                Text("Set Model")
+                                                Text(stringResource(R.string.profiles_action_set_model))
                                             }
                                         }
                                     }

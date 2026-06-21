@@ -28,11 +28,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -59,7 +61,7 @@ fun McpServersScreen(
     }
 
     HermesScaffold(
-        title = { Text("MCP Servers") },
+        title = { Text(stringResource(R.string.screen_mcp_servers)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadServers() },
@@ -89,7 +91,7 @@ fun McpServersScreen(
                             Text(text = state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { viewModel.loadServers() }) {
-                                Text("Retry")
+                                Text(stringResource(R.string.action_retry))
                             }
                         }
                     } else {
@@ -129,7 +131,11 @@ fun McpServersScreen(
                                                     fontWeight = FontWeight.Bold,
                                                 )
                                                 Text(
-                                                    text = "Transport: ${server.transport ?: "stdio"}",
+                                                    text =
+                                                        stringResource(
+                                                            R.string.mcp_servers_label_transport,
+                                                            server.transport ?: "stdio",
+                                                        ),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
@@ -145,7 +151,7 @@ fun McpServersScreen(
                                             Spacer(modifier = Modifier.height(8.dp))
                                             val fullCmd = "${server.command} ${server.args.orEmpty().joinToString(" ")}"
                                             Text(
-                                                text = "Command:",
+                                                text = stringResource(R.string.mcp_servers_label_command),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
                                             )
@@ -168,13 +174,13 @@ fun McpServersScreen(
                                                 onClick = { viewModel.testServer(server.name) },
                                                 modifier = Modifier.padding(end = 8.dp),
                                             ) {
-                                                Text("Test")
+                                                Text(stringResource(R.string.mcp_servers_action_test))
                                             }
 
                                             OutlinedButton(
                                                 onClick = { viewModel.deleteServer(server.name) },
                                             ) {
-                                                Text("Delete")
+                                                Text(stringResource(R.string.action_delete))
                                             }
                                         }
                                     }

@@ -255,4 +255,67 @@
     <string name="config_placeholder_yaml">YAML Config...</string>
     <string name="config_action_reset">Reset</string>
     <string name="config_action_save">Save Config</string>
+
+    <!-- Profiles Screen -->
+    <string name="profiles_empty_title">No profiles available</string>
+    <string name="profiles_label_model">Model: %1$s</string>
+    <string name="profiles_label_provider">Provider: %1$s</string>
+    <string name="profiles_action_edit_soul">Edit Soul</string>
+    <string name="profiles_action_set_model">Set Model</string>
+    <string name="profiles_content_desc_active">Active Profile</string>
+
+    <!-- Plugins Screen -->
+    <string name="plugins_empty_title">No plugins found</string>
+    <string name="plugins_empty_desc">Verify configuration or retry</string>
+    <string name="plugins_no_desc">No description provided.</string>
+    <string name="plugins_action_update">Update</string>
+    <string name="plugins_action_uninstall">Uninstall</string>
+    <string name="plugins_action_install">Install</string>
+
+    <!-- McpServers Screen -->
+    <string name="mcp_servers_label_transport">Transport: %1$s</string>
+    <string name="mcp_servers_label_command">Command:</string>
+    <string name="mcp_servers_action_test">Test</string>
+
+    <!-- Gateway Screen -->
+    <string name="gateway_status_running">GATEWAY RUNNING</string>
+    <string name="gateway_status_stopped">GATEWAY STOPPED</string>
+    <string name="gateway_label_version">Version: %1$s</string>
+    <string name="gateway_sec_controls">Controls</string>
+    <string name="gateway_action_start">Start</string>
+    <string name="gateway_action_stop">Stop</string>
+    <string name="gateway_action_restart">Restart</string>
+    <string name="gateway_sec_active_platforms">Active Platforms</string>
+
+    <!-- CronJobs Screen -->
+    <string name="cron_empty_title">No cron jobs</string>
+    <string name="cron_empty_desc">Scheduled tasks from Hermes will appear here.</string>
+    <string name="cron_status_active">Active</string>
+    <string name="cron_status_paused">Paused</string>
+    <string name="cron_action_pause">Pause</string>
+    <string name="cron_action_resume">Resume</string>
+    <string name="cron_action_run">Run</string>
+
+    <!-- Achievements Screen -->
+    <string name="achievements_empty_title">No achievements yet</string>
+    <string name="achievements_empty_desc">Complete tasks to unlock achievements.</string>
+    <string name="achievements_label_progress">Progress: %1$d / %2$d</string>
+
+    <!-- Keys Screen -->
+    <string name="keys_empty_title">No environment keys reported</string>
+    <string name="keys_label_not_configured">Not configured</string>
+    <string name="keys_action_toggle_visibility">Toggle Visibility</string>
+
+    <!-- Channels Screen -->
+    <string name="channels_empty_title">No channels configured</string>
+    <string name="channels_empty_desc">Add messaging platforms in Hermes to see them here.</string>
+    <string name="channels_status_active">Active</string>
+    <string name="channels_status_disabled">Disabled</string>
+    <string name="channels_action_configure">Configure</string>
+    <string name="channels_sec_settings">Configuration Settings</string>
+    <string name="channels_placeholder_configured">******** (Already Configured)</string>
+    <string name="channels_action_save_settings">Save Settings</string>
+    <string name="channels_sec_keys">Configured Keys:</string>
+    <string name="channels_status_configured">Configured</string>
+    <string name="channels_status_not_set">Not set</string>
 </resources>

@@ -24,9 +24,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -60,7 +62,7 @@ fun CronJobsScreen(
     }
 
     HermesScaffold(
-        title = { Text("Cron Jobs") },
+        title = { Text(stringResource(R.string.screen_cron)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadCronJobs() },
@@ -79,8 +81,8 @@ fun CronJobsScreen(
 
             state.jobs.isEmpty() -> {
                 EmptyState(
-                    title = "No cron jobs",
-                    subtitle = "Scheduled tasks from Hermes will appear here.",
+                    title = stringResource(R.string.cron_empty_title),
+                    subtitle = stringResource(R.string.cron_empty_desc),
                     icon = Icons.Filled.Schedule,
                 )
             }
@@ -112,7 +114,14 @@ fun CronJobsScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                     StatusBadge(
-                                        text = if (job.state == "active") "Active" else "Paused",
+                                        text =
+                                            if (job.state == "active") {
+                                                stringResource(
+                                                    R.string.cron_status_active,
+                                                )
+                                            } else {
+                                                stringResource(R.string.cron_status_paused)
+                                            },
                                         status =
                                             if (job.state == "active") {
                                                 StatusBadgeType.SUCCESS
@@ -143,21 +152,21 @@ fun CronJobsScreen(
                                             onClick = { viewModel.pauseCronJob(job.id) },
                                             modifier = Modifier.weight(1f),
                                         ) {
-                                            Text("Pause")
+                                            Text(stringResource(R.string.cron_action_pause))
                                         }
                                     } else {
                                         OutlinedButton(
                                             onClick = { viewModel.resumeCronJob(job.id) },
                                             modifier = Modifier.weight(1f),
                                         ) {
-                                            Text("Resume")
+                                            Text(stringResource(R.string.cron_action_resume))
                                         }
                                     }
                                     OutlinedButton(
                                         onClick = { viewModel.triggerCronJob(job.id) },
                                         modifier = Modifier.weight(1f),
                                     ) {
-                                        Text("Run")
+                                        Text(stringResource(R.string.cron_action_run))
                                     }
                                     Button(
                                         onClick = { viewModel.deleteCronJob(job.id) },
@@ -167,7 +176,7 @@ fun CronJobsScreen(
                                             ),
                                         modifier = Modifier.weight(1f),
                                     ) {
-                                        Text("Delete")
+                                        Text(stringResource(R.string.action_delete))
                                     }
                                 }
                             }

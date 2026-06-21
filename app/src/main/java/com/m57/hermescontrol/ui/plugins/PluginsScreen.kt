@@ -28,9 +28,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -58,7 +60,7 @@ fun PluginsScreen(
     }
 
     HermesScaffold(
-        title = { Text("Plugins") },
+        title = { Text(stringResource(R.string.screen_plugins)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlugins() },
@@ -78,10 +80,10 @@ fun PluginsScreen(
 
             state.plugins.isEmpty() -> {
                 EmptyState(
-                    title = "No plugins found",
-                    subtitle = "Verify configuration or retry",
+                    title = stringResource(R.string.plugins_empty_title),
+                    subtitle = stringResource(R.string.plugins_empty_desc),
                     onAction = { viewModel.loadPlugins() },
-                    actionLabel = "Refresh",
+                    actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),
                 )
             }
@@ -129,7 +131,7 @@ fun PluginsScreen(
                                         }
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = plugin.description ?: "No description provided.",
+                                            text = plugin.description ?: stringResource(R.string.plugins_no_desc),
                                             style = MaterialTheme.typography.bodyMedium,
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
@@ -139,7 +141,7 @@ fun PluginsScreen(
                                         ) {
                                             if (plugin.installed) {
                                                 OutlinedButton(onClick = { viewModel.updatePlugin(plugin.name) }) {
-                                                    Text("Update")
+                                                    Text(stringResource(R.string.plugins_action_update))
                                                 }
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 OutlinedButton(
@@ -149,11 +151,11 @@ fun PluginsScreen(
                                                             contentColor = MaterialTheme.colorScheme.error,
                                                         ),
                                                 ) {
-                                                    Text("Uninstall")
+                                                    Text(stringResource(R.string.plugins_action_uninstall))
                                                 }
                                             } else {
                                                 Button(onClick = { viewModel.installPlugin(plugin.name) }) {
-                                                    Text("Install")
+                                                    Text(stringResource(R.string.plugins_action_install))
                                                 }
                                             }
                                         }

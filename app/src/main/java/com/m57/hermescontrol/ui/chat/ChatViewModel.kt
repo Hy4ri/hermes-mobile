@@ -359,6 +359,8 @@ class ChatViewModel(
                 dao.upsert(msgToPersist.toEntity(sid))
             }
         }
+        // Refresh session list to catch newly generated titles
+        loadSessions()
     }
 
     private fun handleMessageDone(event: WsEvent.MessageDone) {

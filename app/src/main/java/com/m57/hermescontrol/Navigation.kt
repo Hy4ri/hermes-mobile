@@ -44,6 +44,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
@@ -70,6 +71,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
@@ -164,7 +166,6 @@ private val DRAWER_ENTRIES =
         DrawerEntry(GatewayScreen, R.string.screen_gateway, Icons.Filled.Bolt, DrawerSection.AUTOMATE),
         // Configure
         DrawerEntry(SkillsScreen, R.string.screen_skills, Icons.Filled.Extension, DrawerSection.CONFIGURE),
-        DrawerEntry(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.CONFIGURE),
         DrawerEntry(ToolsetsScreen, R.string.screen_toolsets, Icons.Filled.Build, DrawerSection.CONFIGURE),
         DrawerEntry(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory, DrawerSection.CONFIGURE),
         DrawerEntry(ConfigScreen, R.string.screen_config, Icons.Filled.Code, DrawerSection.CONFIGURE),
@@ -183,6 +184,7 @@ private val DRAWER_ENTRIES =
         DrawerEntry(LogsScreen, R.string.screen_logs, Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
         DrawerEntry(KanbanScreen, R.string.screen_kanban, Icons.Filled.Dashboard, DrawerSection.INSPECT),
         DrawerEntry(AchievementsScreen, R.string.screen_achievements, Icons.Filled.Info, DrawerSection.INSPECT),
+        DrawerEntry(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.INSPECT),
     )
 
 private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.mapTo(mutableSetOf()) { it.key }
@@ -339,6 +341,7 @@ fun MainNavigation(sessionId: String? = null) {
     // customises items in Settings. Using collectAsState() ensures the NavigationBar
     // recomposes and reflects choices instantly.
     val bottomNavItemsState by AuthManager.bottomNavItemsFlow.collectAsState()
+    val bottomNavDisplayMode by AuthManager.bottomNavDisplayModeFlow.collectAsState()
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
     val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
@@ -375,7 +378,7 @@ fun MainNavigation(sessionId: String? = null) {
                         }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 16.dp, bottom = 4.dp),
+                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 2.dp),
                     ) {
                         Text(
                             text = stringResource(R.string.nav_drawer_title),
@@ -395,7 +398,7 @@ fun MainNavigation(sessionId: String? = null) {
                     }
                     Text(
                         text = stringResource(R.string.nav_drawer_subtitle),
-                        modifier = Modifier.padding(start = 20.dp, bottom = 12.dp, end = 16.dp),
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, end = 16.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -406,9 +409,9 @@ fun MainNavigation(sessionId: String? = null) {
                             text = stringResource(section.titleRes).uppercase(),
                             modifier =
                                 Modifier.padding(
-                                    start = 20.dp,
-                                    top = 16.dp,
-                                    bottom = 6.dp,
+                                    start = 16.dp,
+                                    top = 8.dp,
+                                    bottom = 4.dp,
                                     end = 16.dp,
                                 ),
                             style = MaterialTheme.typography.labelSmall,
@@ -434,7 +437,7 @@ fun MainNavigation(sessionId: String? = null) {
                                         ),
                                     modifier =
                                         Modifier
-                                            .padding(horizontal = 12.dp, vertical = 2.dp)
+                                            .padding(horizontal = 8.dp, vertical = 1.dp)
                                             .testTag(
                                                 "drawer_${entry.key::class.simpleName?.lowercase()?.removeSuffix(
                                                     "screen",
@@ -455,13 +458,53 @@ fun MainNavigation(sessionId: String? = null) {
             contentWindowInsets = WindowInsets.navigationBars,
             bottomBar = {
                 if (showBottomBar) {
-                    NavigationBar {
+                    val barHeight =
+                        when (bottomNavDisplayMode) {
+                            BottomNavDisplayMode.ICON_ONLY -> 56.dp
+                            BottomNavDisplayMode.TEXT_ONLY -> 44.dp
+                            BottomNavDisplayMode.ICON_AND_TEXT -> 80.dp
+                        }
+                    NavigationBar(
+                        modifier = Modifier.height(barHeight),
+                    ) {
                         bottomNavItems.forEach { item ->
+                            val showIcon =
+                                bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
+                                    bottomNavDisplayMode == BottomNavDisplayMode.ICON_ONLY
+                            val showLabel =
+                                bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
+                                    bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY
+
+                            val isSelected = currentScreen == item.key
+
                             NavigationBarItem(
-                                selected = currentScreen == item.key,
+                                selected = isSelected,
                                 onClick = { NavigationController.navigateTo(item.key) },
-                                icon = { Icon(item.icon, contentDescription = stringResource(item.labelRes)) },
-                                label = { Text(stringResource(item.labelRes)) },
+                                colors =
+                                    if (bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY) {
+                                        NavigationBarItemDefaults.colors(
+                                            indicatorColor = Color.Transparent,
+                                        )
+                                    } else {
+                                        NavigationBarItemDefaults.colors()
+                                    },
+                                icon = {
+                                    if (showIcon) {
+                                        Icon(item.icon, contentDescription = stringResource(item.labelRes))
+                                    } else {
+                                        Text(
+                                            text = stringResource(item.labelRes),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        )
+                                    }
+                                },
+                                label =
+                                    if (showLabel && showIcon) {
+                                        { Text(stringResource(item.labelRes)) }
+                                    } else {
+                                        null
+                                    },
                                 modifier =
                                     Modifier.testTag(
                                         "nav_${item.key::class.simpleName?.lowercase()?.removeSuffix("screen") ?: ""}",

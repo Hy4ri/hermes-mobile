@@ -18,12 +18,12 @@ import androidx.compose.ui.unit.dp
  * Access in composables via `LocalSpacing.current` or the [Spacing] object.
  */
 object Spacing {
-    val xs = 4.dp
-    val sm = 8.dp
-    val md = 16.dp
-    val lg = 24.dp
-    val xl = 32.dp
-    val xxl = 48.dp
+    val xs = 2.dp
+    val sm = 6.dp
+    val md = 12.dp
+    val lg = 18.dp
+    val xl = 24.dp
+    val xxl = 36.dp
 }
 
 /** Alias for backwards-compatibility — existing `Spacing.xs` calls still work. */

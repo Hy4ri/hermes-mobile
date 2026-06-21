@@ -128,6 +128,10 @@
     <string name="settings_item_nav_items">Bottom bar items (%1$d/5)</string>
     <string name="settings_action_add_item">Add Item</string>
     <string name="settings_nav_max_reached">Maximum of 5 items</string>
+    <string name="settings_item_bottom_nav_display_mode">Bottom Bar Display Mode</string>
+    <string name="settings_display_mode_icon_and_text">Icon &amp; Text</string>
+    <string name="settings_display_mode_icon_only">Icons Only</string>
+    <string name="settings_display_mode_text_only">Text Only</string>
     <string name="settings_save_success">✅ Settings saved</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>

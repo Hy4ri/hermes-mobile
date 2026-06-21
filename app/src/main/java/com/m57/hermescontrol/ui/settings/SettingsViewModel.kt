@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,7 @@ data class SettingsUiState(
     val profiles: List<com.m57.hermescontrol.data.model.ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
+    val bottomNavDisplayMode: BottomNavDisplayMode = BottomNavDisplayMode.ICON_AND_TEXT,
 )
 
 class SettingsViewModel : ViewModel() {
@@ -69,6 +71,7 @@ class SettingsViewModel : ViewModel() {
                         .firstOrNull { p ->
                             p.id == selectedId
                         }?.name ?: "",
+                bottomNavDisplayMode = AuthManager.getBottomNavDisplayMode(),
             )
         }
     }
@@ -135,6 +138,11 @@ class SettingsViewModel : ViewModel() {
     fun onThemePresetChange(preset: ThemePreset) {
         _uiState.update { it.copy(themePreset = preset, isSaved = false) }
         AuthManager.setThemePreset(preset)
+    }
+
+    fun onBottomNavDisplayModeChange(mode: BottomNavDisplayMode) {
+        _uiState.update { it.copy(bottomNavDisplayMode = mode, isSaved = false) }
+        AuthManager.setBottomNavDisplayMode(mode)
     }
 
     fun onTypingEffectEnabledChange(enabled: Boolean) {
@@ -205,6 +213,7 @@ class SettingsViewModel : ViewModel() {
         AuthManager.setThemePreference(state.themePreference)
         AuthManager.setUseDynamicColors(state.useDynamicColors)
         AuthManager.setThemePreset(state.themePreset)
+        AuthManager.setBottomNavDisplayMode(state.bottomNavDisplayMode)
         AuthManager.setTypingEffectEnabled(state.typingEffectEnabled)
         AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
         ApiClient.rebuild()

@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.channels
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +38,9 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.listContentPadding
+import com.m57.hermescontrol.ui.common.listItemSpacing
 
 @Composable
 fun ChannelsScreen(
@@ -48,6 +50,15 @@ fun ChannelsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var query by remember { mutableStateOf("") }
+
+    val filteredPlatforms =
+        remember(query, state.platforms) {
+            state.platforms.filter { platform ->
+                platform.name.contains(query, ignoreCase = true)
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadPlatforms()
@@ -90,10 +101,17 @@ fun ChannelsScreen(
             else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(paddingValues),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = listContentPadding,
+                    verticalArrangement = listItemSpacing,
                 ) {
-                    items(state.platforms, key = { it.id }) { platform ->
+                    item {
+                        SearchBar(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search channels...",
+                        )
+                    }
+                    items(filteredPlatforms, key = { it.id }) { platform ->
                         var showConfigureForm by remember { mutableStateOf(false) }
 
                         Card(modifier = Modifier.fillMaxWidth()) {

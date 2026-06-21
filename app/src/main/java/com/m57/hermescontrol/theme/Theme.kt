@@ -17,6 +17,8 @@ enum class ThemePreference { SYSTEM, LIGHT, DARK }
 
 enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED }
 
+enum class BottomNavDisplayMode { ICON_AND_TEXT, ICON_ONLY, TEXT_ONLY }
+
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
 
@@ -242,8 +244,14 @@ fun HermesControlTheme(
     val dynamicAvailable = useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme =
         when {
-            dynamicAvailable && darkTheme -> dynamicDarkColorScheme(context)
-            dynamicAvailable && !darkTheme -> dynamicLightColorScheme(context)
+            dynamicAvailable && darkTheme -> {
+                dynamicDarkColorScheme(context)
+            }
+
+            dynamicAvailable && !darkTheme -> {
+                dynamicLightColorScheme(context)
+            }
+
             else -> {
                 when (themePreset) {
                     ThemePreset.DEFAULT -> if (darkTheme) HermesDarkColorScheme else HermesLightColorScheme
@@ -269,6 +277,7 @@ fun HermesControlTheme(
                     infoContainer = Color(0xFF3C3836),
                 )
             }
+
             themePreset == ThemePreset.GRUVBOX && !darkTheme -> {
                 HermesStatusColors(
                     success = Color(0xFF98971A),
@@ -281,6 +290,7 @@ fun HermesControlTheme(
                     infoContainer = Color(0xFFEBDBB2),
                 )
             }
+
             themePreset == ThemePreset.CATPPUCCIN && darkTheme -> {
                 HermesStatusColors(
                     success = Color(0xFFA6E3A1),
@@ -293,6 +303,7 @@ fun HermesControlTheme(
                     infoContainer = Color(0xFF313244),
                 )
             }
+
             themePreset == ThemePreset.CATPPUCCIN && !darkTheme -> {
                 HermesStatusColors(
                     success = Color(0xFF40A02B),
@@ -305,6 +316,7 @@ fun HermesControlTheme(
                     infoContainer = Color(0xFFE6E9EF),
                 )
             }
+
             darkTheme -> {
                 HermesStatusColors(
                     success = StatusGreen,
@@ -317,6 +329,7 @@ fun HermesControlTheme(
                     infoContainer = StatusBlueContainer,
                 )
             }
+
             else -> {
                 HermesStatusColors(
                     success = Color(0xFF1B873A),

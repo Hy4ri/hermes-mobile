@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +45,9 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.listContentPadding
+import com.m57.hermescontrol.ui.common.listItemSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +58,16 @@ fun KeysScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var query by remember { mutableStateOf("") }
+
+    val filteredEnvVars =
+        remember(query, state.envVars) {
+            state.envVars.filter { (key, config) ->
+                key.contains(query, ignoreCase = true) ||
+                    config.description?.contains(query, ignoreCase = true) == true
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadKeys()
@@ -110,10 +122,17 @@ fun KeysScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = listContentPadding,
+                            verticalArrangement = listItemSpacing,
                         ) {
-                            items(state.envVars.toList()) { (key, config) ->
+                            item {
+                                SearchBar(
+                                    query = query,
+                                    onQueryChange = { query = it },
+                                    placeholder = "Search keys...",
+                                )
+                            }
+                            items(filteredEnvVars.toList()) { (key, config) ->
                                 var isEditing by remember { mutableStateOf(false) }
                                 val revealedVal = state.revealedValues[key]
                                 val isRevealed = revealedVal != null

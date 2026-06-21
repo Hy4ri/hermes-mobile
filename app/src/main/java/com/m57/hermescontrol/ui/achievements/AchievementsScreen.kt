@@ -21,6 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -33,6 +36,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
 
 @Composable
 fun AchievementsScreen(
@@ -41,6 +45,16 @@ fun AchievementsScreen(
     viewModel: AchievementsViewModel = viewModel { AchievementsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var query by remember { mutableStateOf("") }
+
+    val filteredAchievements =
+        remember(query, state.achievements) {
+            state.achievements.filter { achievement ->
+                achievement.name.contains(query, ignoreCase = true) ||
+                    achievement.description?.contains(query, ignoreCase = true) == true ||
+                    achievement.category?.contains(query, ignoreCase = true) == true
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadAchievements()
@@ -80,7 +94,14 @@ fun AchievementsScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(state.achievements) { achievement ->
+                    item {
+                        SearchBar(
+                            query = query,
+                            onQueryChange = { query = it },
+                            placeholder = "Search achievements...",
+                        )
+                    }
+                    items(filteredAchievements) { achievement ->
                         val pct = achievement.progress_pct?.toFloat()?.div(100f) ?: 0f
 
                         Card(

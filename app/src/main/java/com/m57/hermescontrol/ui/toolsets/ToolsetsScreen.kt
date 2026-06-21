@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,6 +44,9 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.listContentPadding
+import com.m57.hermescontrol.ui.common.listItemSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +57,17 @@ fun ToolsetsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var query by remember { mutableStateOf("") }
+
+    val filteredToolsets =
+        remember(query, state.toolsets) {
+            state.toolsets.filter { toolset ->
+                toolset.name.contains(query, ignoreCase = true) ||
+                    toolset.label?.contains(query, ignoreCase = true) == true ||
+                    toolset.description?.contains(query, ignoreCase = true) == true
+            }
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadToolsets()
@@ -114,10 +130,17 @@ fun ToolsetsScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = listContentPadding,
+                            verticalArrangement = listItemSpacing,
                         ) {
-                            items(state.toolsets) { toolset ->
+                            item {
+                                SearchBar(
+                                    query = query,
+                                    onQueryChange = { query = it },
+                                    placeholder = "Search toolsets...",
+                                )
+                            }
+                            items(filteredToolsets) { toolset ->
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors =

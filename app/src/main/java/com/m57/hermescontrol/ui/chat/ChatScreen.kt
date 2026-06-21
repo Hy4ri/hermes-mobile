@@ -73,6 +73,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -131,9 +132,22 @@ fun ChatScreen(
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
+    // Publish the notification session ID to the ViewModel synchronously
+    // during composition — BEFORE any WebSocket event (GatewayReady) can be
+    // processed. This ensures GatewayReady sees the pending session and
+    // resumes it instead of creating a new empty chat (issue #240).
+    SideEffect {
+        viewModel.initialSessionId = sessionId
+    }
+
     // Switch to the session from a notification tap or history screen when provided.
+    // Keyed on connectionStatus so switchSession only fires after the WS is
+    // connected — otherwise SESSION_RESUME is silently dropped (webSocket is
+    // null before onOpen). GatewayReady also handles initialSessionId as a
+    // fallback for the race where it fires before this effect.
     val pendingSessionId = NavigationController.pendingSessionId
-    LaunchedEffect(sessionId, pendingSessionId) {
+    LaunchedEffect(sessionId, pendingSessionId, state.connectionStatus) {
+        if (state.connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
         val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
         if (!target.isNullOrBlank()) {
             viewModel.switchSession(target)

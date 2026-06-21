@@ -137,6 +137,16 @@ class ChatViewModel(
 
     // ── WS Event Handling ────────────────────────────────────────────────
 
+    /**
+     * Session ID to resume when the WebSocket connects. Set synchronously by
+     * [ChatScreen] via `SideEffect` during composition — before any WS event
+     * can be processed. This prevents the race where [GatewayReady] fires
+     * before ChatScreen's `LaunchedEffect` can call [switchSession], causing
+     * [createNewSession] to create an empty chat that overwrites the
+     * notification session (issue #240).
+     */
+    var initialSessionId: String? = null
+
     private fun handleWsEvent(event: WsEvent) {
         when (event) {
             is WsEvent.GatewayReady -> {
@@ -144,7 +154,13 @@ class ChatViewModel(
                 addSystemMessage("Connected to Hermes")
                 loadSessions()
                 if (_uiState.value.currentSessionId == null) {
-                    createNewSession()
+                    val initial = initialSessionId
+                    if (!initial.isNullOrBlank()) {
+                        initialSessionId = null
+                        switchSession(initial)
+                    } else {
+                        createNewSession()
+                    }
                 }
             }
 

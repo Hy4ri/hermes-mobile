@@ -129,6 +129,36 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testGatewayReady_withInitialSessionId_switchesToIt() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Set the initial session ID (normally done by ChatScreen SideEffect)
+            viewModel.initialSessionId = "session-from-notification"
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertTrue(state.isConnected)
+            // Should NOT have called createNewSession — switchSession was used instead
+            assertEquals("session-from-notification", state.currentSessionId)
+
+            // Verify SESSION_RESUME was sent instead of SESSION_CREATE
+            verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to "session-from-notification"),
+                    any(),
+                )
+            }
+            // SESSION_CREATE must NOT be sent
+            verify(inverse = true) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+        }
+
+    @Test
     fun testSessionCreateRpcResult() =
         runTest {
             var createReqId = ""

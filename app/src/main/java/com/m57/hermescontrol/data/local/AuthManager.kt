@@ -79,11 +79,8 @@ object AuthManager {
 
             _bottomNavItemsFlow.value = getBottomNavItems()
             _themePreferenceFlow.value = getThemePreference()
-<<<<<<< HEAD
-=======
             _useDynamicColorsFlow.value = isUseDynamicColors()
             _themePresetFlow.value = getThemePreset()
->>>>>>> a9853754 (feat(#208): add Monochrome, Gruvbox, Catppuccin and AMOLED theme presets)
         }
     }
 

@@ -164,7 +164,6 @@ private val DRAWER_ENTRIES =
         DrawerEntry(GatewayScreen, R.string.screen_gateway, Icons.Filled.Bolt, DrawerSection.AUTOMATE),
         // Configure
         DrawerEntry(SkillsScreen, R.string.screen_skills, Icons.Filled.Extension, DrawerSection.CONFIGURE),
-        DrawerEntry(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.CONFIGURE),
         DrawerEntry(ToolsetsScreen, R.string.screen_toolsets, Icons.Filled.Build, DrawerSection.CONFIGURE),
         DrawerEntry(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory, DrawerSection.CONFIGURE),
         DrawerEntry(ConfigScreen, R.string.screen_config, Icons.Filled.Code, DrawerSection.CONFIGURE),
@@ -183,6 +182,7 @@ private val DRAWER_ENTRIES =
         DrawerEntry(LogsScreen, R.string.screen_logs, Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
         DrawerEntry(KanbanScreen, R.string.screen_kanban, Icons.Filled.Dashboard, DrawerSection.INSPECT),
         DrawerEntry(AchievementsScreen, R.string.screen_achievements, Icons.Filled.Info, DrawerSection.INSPECT),
+        DrawerEntry(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.INSPECT),
     )
 
 private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.mapTo(mutableSetOf()) { it.key }

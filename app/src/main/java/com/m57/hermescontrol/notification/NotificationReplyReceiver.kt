@@ -30,15 +30,21 @@ class NotificationReplyReceiver : BroadcastReceiver() {
             val pendingResult = goAsync()
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 try {
-                    val db = com.m57.hermescontrol.data.local.HermesDatabase.get(context)
+                    val db =
+                        com.m57.hermescontrol.data.local.HermesDatabase
+                            .get(context)
                     val dao = db.chatMessageDao()
-                    val entity = com.m57.hermescontrol.data.local.ChatMessageEntity(
-                        id = java.util.UUID.randomUUID().toString(),
-                        sessionId = sessionId,
-                        role = "USER",
-                        content = replyText,
-                        timestamp = System.currentTimeMillis(),
-                    )
+                    val entity =
+                        com.m57.hermescontrol.data.local.ChatMessageEntity(
+                            id =
+                                java.util.UUID
+                                    .randomUUID()
+                                    .toString(),
+                            sessionId = sessionId,
+                            role = "USER",
+                            content = replyText,
+                            timestamp = System.currentTimeMillis(),
+                        )
                     dao.upsert(entity)
                 } catch (e: Exception) {
                     android.util.Log.e("NotificationReply", "Failed to save replied message to Room DB", e)

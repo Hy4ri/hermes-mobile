@@ -84,7 +84,8 @@ touch events and become unresponsive.
 ### Room Persistence
 
 - `ChatMessageEntity` / `ChatMessageDao` / `HermesDatabase` — chat messages survive
-  app kills.
+  app kills. `getMessagesForSession()` returns `suspend fun ...: List<ChatMessageEntity>`
+  (not `Flow` — the caller controls the coroutine scope).
 - Room 2.7.x requires `room { schemaDirectory("$projectDir/schemas") }` DSL.
 - `ChatViewModel` extends `AndroidViewModel` (needs Application for DB access).
 

@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.data.local
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import androidx.room.Room
 import io.mockk.every
 import io.mockk.mockk
@@ -29,11 +28,6 @@ class ChatMessageDaoTest {
         every { mockContext.getDatabasePath(any()) } returns File("/tmp/test.db")
         every { mockContext.deleteDatabase(any()) } returns true
         every { mockContext.cacheDir } returns File("/tmp/cache")
-
-        // Room 2.7.x accesses applicationInfo on in-memory database build
-        val mockAppInfo = mockk<ApplicationInfo>(relaxed = true)
-        every { mockAppInfo.dataDir } returns "/tmp"
-        every { mockContext.applicationInfo } returns mockAppInfo
 
         db =
             Room

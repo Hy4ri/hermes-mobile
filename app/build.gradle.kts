@@ -119,13 +119,14 @@ dependencies {
   implementation(libs.androidx.compose.material.icons.extended)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
+  debugImplementation(libs.leakcanary.android)
   // Instrumented tests
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
   // Networking
   implementation(libs.okhttp)
-  implementation(libs.okhttp.logging)
+  debugImplementation(libs.okhttp.logging)
   implementation(libs.retrofit)
   implementation(libs.retrofit.converter.gson)
   implementation(libs.gson)

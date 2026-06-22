@@ -18,10 +18,11 @@ kotlin = "2.3.20"
 ksp = "2.3.9"
 nav3Core = "1.0.1"
 lifecycleViewmodelNav3 = "2.10.0"
+leakcanary = "2.14"
 okhttp = "4.12.0"
 retrofit = "2.11.0"
 gson = "2.11.0"
-securityCrypto = "1.1.0-alpha06"
+securityCrypto = "1.0.0"
 mockk = "1.13.12"
 room = "2.7.1"
 
@@ -49,6 +50,7 @@ junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", vers
 junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit5" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatform" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanary" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
 androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "nav3Core" }

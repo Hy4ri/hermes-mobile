@@ -9,6 +9,7 @@ import androidx.test.filters.MediumTest
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

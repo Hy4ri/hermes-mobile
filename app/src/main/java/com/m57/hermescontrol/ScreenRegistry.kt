@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Webhook
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
-
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
@@ -59,30 +58,135 @@ data class ScreenDefinition(
     @param:StringRes val labelRes: Int,
     val icon: ImageVector,
     val drawerSection: DrawerSection?,
-    val content: @Composable (sessionId: String?, openDrawer: () -> Unit) -> Unit
+    val content: @Composable (sessionId: String?, openDrawer: () -> Unit) -> Unit,
 )
 
 object ScreenRegistry {
-    val ALL_SCREENS = listOf(
-        ScreenDefinition(ChatScreen, R.string.screen_chat, Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE) { sessionId, openDrawer -> ChatScreenContent(onOpenDrawer = openDrawer, sessionId = sessionId) },
-        ScreenDefinition(HistoryScreen, R.string.screen_history, Icons.Filled.History, DrawerSection.CONVERSE) { sessionId, openDrawer -> HistoryScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(ProfilesScreen, R.string.screen_profiles, Icons.Filled.AccountCircle, DrawerSection.CONVERSE) { sessionId, openDrawer -> ProfilesScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(CronJobsScreen, R.string.screen_cron, Icons.Filled.Schedule, DrawerSection.AUTOMATE) { sessionId, openDrawer -> CronJobsScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(WebhooksScreen, R.string.screen_webhooks, Icons.Filled.Webhook, DrawerSection.AUTOMATE) { sessionId, openDrawer -> WebhooksScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(GatewayScreen, R.string.screen_gateway, Icons.Filled.Bolt, DrawerSection.AUTOMATE) { sessionId, openDrawer -> GatewayScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(SkillsScreen, R.string.screen_skills, Icons.Filled.Extension, DrawerSection.CONFIGURE) { sessionId, openDrawer -> SkillsScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(ToolsetsScreen, R.string.screen_toolsets, Icons.Filled.Build, DrawerSection.CONFIGURE) { sessionId, openDrawer -> ToolsetsScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory, DrawerSection.CONFIGURE) { sessionId, openDrawer -> PluginsScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(ConfigScreen, R.string.screen_config, Icons.Filled.Code, DrawerSection.CONFIGURE) { sessionId, openDrawer -> ConfigScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(McpServersScreen, R.string.screen_mcp_servers, Icons.Filled.Dashboard, DrawerSection.CONFIGURE) { sessionId, openDrawer -> McpServersScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(ModelScreen, R.string.screen_models, Icons.Filled.Psychology, DrawerSection.CONFIGURE) { sessionId, openDrawer -> ModelScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(PairingScreen, R.string.screen_pairing, Icons.Filled.Devices, DrawerSection.CONFIGURE) { sessionId, openDrawer -> PairingScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(KeysScreen, R.string.screen_keys, Icons.Filled.Key, DrawerSection.CONFIGURE) { sessionId, openDrawer -> KeysScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(ChannelsScreen, R.string.screen_channels, Icons.AutoMirrored.Filled.ListAlt, DrawerSection.CONFIGURE) { sessionId, openDrawer -> ChannelsScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(SystemScreen, R.string.screen_system, Icons.Filled.Info, DrawerSection.INSPECT) { sessionId, openDrawer -> SystemScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(LogsScreen, R.string.screen_logs, Icons.Filled.HistoryEdu, DrawerSection.INSPECT) { sessionId, openDrawer -> LogsScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(KanbanScreen, R.string.screen_kanban, Icons.Filled.Dashboard, DrawerSection.INSPECT) { sessionId, openDrawer -> KanbanScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(AchievementsScreen, R.string.screen_achievements, Icons.Filled.Info, DrawerSection.INSPECT) { sessionId, openDrawer -> AchievementsScreenContent(onOpenDrawer = openDrawer) },
-        ScreenDefinition(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.INSPECT) { sessionId, openDrawer -> SettingsScreenContent(onBack = { NavigationController.goBack() }) },
-    )
+    val ALL_SCREENS =
+        listOf(
+            ScreenDefinition(
+                ChatScreen,
+                R.string.screen_chat,
+                Icons.AutoMirrored.Filled.Chat,
+                DrawerSection.CONVERSE,
+            ) { sessionId, openDrawer -> ChatScreenContent(onOpenDrawer = openDrawer, sessionId = sessionId) },
+            ScreenDefinition(
+                HistoryScreen,
+                R.string.screen_history,
+                Icons.Filled.History,
+                DrawerSection.CONVERSE,
+            ) { sessionId, openDrawer -> HistoryScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ProfilesScreen,
+                R.string.screen_profiles,
+                Icons.Filled.AccountCircle,
+                DrawerSection.CONVERSE,
+            ) { sessionId, openDrawer -> ProfilesScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                CronJobsScreen,
+                R.string.screen_cron,
+                Icons.Filled.Schedule,
+                DrawerSection.AUTOMATE,
+            ) { sessionId, openDrawer -> CronJobsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                WebhooksScreen,
+                R.string.screen_webhooks,
+                Icons.Filled.Webhook,
+                DrawerSection.AUTOMATE,
+            ) { sessionId, openDrawer -> WebhooksScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                GatewayScreen,
+                R.string.screen_gateway,
+                Icons.Filled.Bolt,
+                DrawerSection.AUTOMATE,
+            ) { sessionId, openDrawer -> GatewayScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                SkillsScreen,
+                R.string.screen_skills,
+                Icons.Filled.Extension,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> SkillsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ToolsetsScreen,
+                R.string.screen_toolsets,
+                Icons.Filled.Build,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> ToolsetsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                PluginsScreen,
+                R.string.screen_plugins,
+                Icons.Filled.Memory,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> PluginsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ConfigScreen,
+                R.string.screen_config,
+                Icons.Filled.Code,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> ConfigScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                McpServersScreen,
+                R.string.screen_mcp_servers,
+                Icons.Filled.Dashboard,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> McpServersScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ModelScreen,
+                R.string.screen_models,
+                Icons.Filled.Psychology,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> ModelScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                PairingScreen,
+                R.string.screen_pairing,
+                Icons.Filled.Devices,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> PairingScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                KeysScreen,
+                R.string.screen_keys,
+                Icons.Filled.Key,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> KeysScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ChannelsScreen,
+                R.string.screen_channels,
+                Icons.AutoMirrored.Filled.ListAlt,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> ChannelsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                SystemScreen,
+                R.string.screen_system,
+                Icons.Filled.Info,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> SystemScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                LogsScreen,
+                R.string.screen_logs,
+                Icons.Filled.HistoryEdu,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> LogsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                KanbanScreen,
+                R.string.screen_kanban,
+                Icons.Filled.Dashboard,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> KanbanScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                AchievementsScreen,
+                R.string.screen_achievements,
+                Icons.Filled.Info,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> AchievementsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                SettingsScreen,
+                R.string.screen_settings,
+                Icons.Filled.Settings,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer ->
+                SettingsScreenContent(onBack = {
+                    NavigationController.goBack()
+                })
+            },
+        )
 }

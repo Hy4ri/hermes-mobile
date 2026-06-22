@@ -2,7 +2,6 @@ package com.m57.hermescontrol.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -154,7 +153,10 @@ class SettingsViewModel : ViewModel() {
     }
 
     /** All screens available for bottom-nav selection (name → display label). */
-    val availableNavItems: List<Pair<String, Int>> = com.m57.hermescontrol.ScreenRegistry.ALL_SCREENS.map { it.key::class.simpleName!! to it.labelRes }
+    val availableNavItems: List<Pair<String, Int>> =
+        com.m57.hermescontrol.ScreenRegistry.ALL_SCREENS.map {
+            it.key::class.simpleName!! to it.labelRes
+        }
 
     /** Add a nav item to the bottom bar (max 5). Auto-saves. */
     fun addNavItem(name: String) {

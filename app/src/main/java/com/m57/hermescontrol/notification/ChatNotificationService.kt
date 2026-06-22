@@ -57,6 +57,7 @@ class ChatNotificationService : Service() {
         internal const val NOTIFICATION_ID = 1
         internal const val PENDING_NOTIFICATION_ID = 2
 
+        @Volatile
         private var isAppInForeground = false
 
         fun setAppForeground(foreground: Boolean) {

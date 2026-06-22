@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.m57.hermescontrol.data.ws.ConnectionStatus
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -47,9 +48,10 @@ class ChatScreenTest {
         // Default ChatUiState has connectionStatus=DISCONNECTED which
         // disables the input field and hides the send button.  Override
         // so the interactive controls are active.
-        val uiState = ChatUiState(
-            connectionStatus = ConnectionStatus.CONNECTED,
-        )
+        val uiState =
+            ChatUiState(
+                connectionStatus = ConnectionStatus.CONNECTED,
+            )
         val mockViewModel = mockk<ChatViewModel>(relaxed = true)
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
 

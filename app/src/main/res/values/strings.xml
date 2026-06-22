@@ -181,6 +181,7 @@
     <string name="connect_error_malformed">Malformed pairing string — expected URL or Base64-encoded JSON</string>
     <string name="connect_error_parse_failed">Failed to parse pairing string: %1$s</string>
 
+    <string name="connect_pairing_string">Pairing string</string>
     <string name="connect_placeholder_pairing">Paste hermes://\u2026 or Base64 config</string>
     <string name="connect_save_profile">Save connection profile</string>
     <string name="connect_profile_name">Profile Name</string>

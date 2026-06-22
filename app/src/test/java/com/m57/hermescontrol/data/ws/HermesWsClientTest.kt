@@ -7,6 +7,10 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
@@ -94,13 +98,8 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = {
-            clientLatch.countDown()
-        }
-
         HermesWsClient.connect()
-        assertTrue("Client failed to connect", clientLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertTrue("Server failed to accept connection", serverLatch.await(5, TimeUnit.SECONDS))
         assertTrue(HermesWsClient.isConnected)
         assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
@@ -136,21 +135,9 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = {
-            clientLatch.countDown()
-        }
-
         HermesWsClient.connect()
-        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
-
-        val eventLatch = CountDownLatch(1)
-        var receivedEvent: WsEvent? = null
-        HermesWsClient.onMessage = { event ->
-            receivedEvent = event
-            eventLatch.countDown()
-        }
 
         // Server sends a message to client
         val jsonResponse =
@@ -161,9 +148,15 @@ class HermesWsClientTest {
                 "result": "success"
             }
             """.trimIndent()
-        serverWebSocket?.send(jsonResponse)
 
-        assertTrue("Event not received", eventLatch.await(5, TimeUnit.SECONDS))
+        val receivedEvent =
+            runBlocking {
+                withTimeout(5000) {
+                    launch { serverWebSocket?.send(jsonResponse) }
+                    HermesWsClient.events.first { it is WsEvent.RpcResult }
+                }
+            }
+
         assertTrue(receivedEvent is WsEvent.RpcResult)
         assertEquals("1", (receivedEvent as WsEvent.RpcResult).id)
     }
@@ -194,17 +187,8 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientLatch = CountDownLatch(1)
-        val clientDisconnectedLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = {
-            clientLatch.countDown()
-        }
-        HermesWsClient.onDisconnected = { _ ->
-            clientDisconnectedLatch.countDown()
-        }
-
         HermesWsClient.connect()
-        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
 
         HermesWsClient.disconnect()
@@ -244,13 +228,8 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = {
-            clientLatch.countDown()
-        }
-
         HermesWsClient.connect()
-        assertTrue("Client failed to connect", clientLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertTrue("Server failed to accept connection", serverLatch.await(5, TimeUnit.SECONDS))
 
         // Use the convenience method
@@ -303,37 +282,21 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientConnected1Latch = CountDownLatch(1)
-        val clientDisconnectedLatch = CountDownLatch(1)
-
-        HermesWsClient.onConnected = {
-            clientConnected1Latch.countDown()
-        }
-        HermesWsClient.onDisconnected = { _ ->
-            clientDisconnectedLatch.countDown()
-        }
-
         HermesWsClient.connect()
 
         assertTrue("Failed initial connection", connect1Latch.await(5, TimeUnit.SECONDS))
-        assertTrue("Client failed initial connection", clientConnected1Latch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
 
         // Force server to close socket 1 to trigger reconnect
         serverSocket1?.close(1001, "Server shutting down")
 
-        assertTrue("Client didn't detect disconnect", clientDisconnectedLatch.await(5, TimeUnit.SECONDS))
-
-        // Poll for status to become RECONNECTING (async race mitigation —
-        // onClosed fires onDisconnected before updating _connectionStatus)
-        var status: ConnectionStatus
-        val deadline = System.currentTimeMillis() + 2000
-        do {
-            status = HermesWsClient.connectionStatus.value
-            if (status == ConnectionStatus.RECONNECTING) break
-            Thread.sleep(50)
-        } while (System.currentTimeMillis() < deadline)
-        assertEquals(ConnectionStatus.RECONNECTING, status)
+        // Wait for status to become RECONNECTING
+        runBlocking {
+            withTimeout(
+                5000,
+            ) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.RECONNECTING } }
+        }
 
         // The client should now attempt to reconnect after initial backoff (1000ms)
         // Wait for the second connection to hit the server
@@ -360,11 +323,8 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = { clientLatch.countDown() }
-
         HermesWsClient.connect()
-        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
 
         // After connect, backoff should be back to initial
         val backoffField = HermesWsClient::class.java.getDeclaredField("currentBackoff")
@@ -394,11 +354,8 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = { clientLatch.countDown() }
-
         HermesWsClient.connect()
-        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
 
         // Disconnect — this sets intentionalClose = true and cancels reconnect
         HermesWsClient.disconnect()
@@ -423,22 +380,14 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientLatch = CountDownLatch(1)
-        val connectCount = intArrayOf(0)
-        HermesWsClient.onConnected = {
-            connectCount[0]++
-            clientLatch.countDown()
-        }
-
         HermesWsClient.connect()
-        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
-        assertEquals(1, connectCount[0])
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertTrue(HermesWsClient.isConnected)
 
         // Second connect call should be a no-op
         HermesWsClient.connect()
-        assertEquals(1, connectCount[0])
         assertTrue(HermesWsClient.isConnected)
+        assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
     }
 
     @Test
@@ -472,9 +421,7 @@ class HermesWsClientTest {
         assertEquals(ConnectionStatus.CONNECTING, status)
 
         // Wait for actual connection
-        val clientLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = { clientLatch.countDown() }
-        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
     }
 
@@ -510,11 +457,9 @@ class HermesWsClientTest {
             ),
         )
 
-        val clientConnectedLatch = CountDownLatch(1)
-        HermesWsClient.onConnected = { clientConnectedLatch.countDown() }
         HermesWsClient.connect()
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS))
-        assertTrue(clientConnectedLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
 
         // Disconnect (sets intentionalClose) — after this, reconnect should be prevented
         HermesWsClient.disconnect()

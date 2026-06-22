@@ -93,13 +93,6 @@ object HermesWsClient {
     /** Observable connection status: DISCONNECTED / CONNECTING / CONNECTED / RECONNECTING */
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
-    // ── Callbacks (legacy / convenience) ─────────────────────────────────
-
-    var onMessage: ((WsEvent) -> Unit)? = null
-    var onConnected: (() -> Unit)? = null
-    var onDisconnected: ((reason: String?) -> Unit)? = null
-    var onError: ((Throwable) -> Unit)? = null
-
     // ── Connection helpers ────────────────────────────────────────────────
 
     val isConnected: Boolean get() = connected.get()
@@ -216,7 +209,6 @@ object HermesWsClient {
 
     private fun emit(event: WsEvent) {
         _events.tryEmit(event)
-        onMessage?.invoke(event)
     }
 
     // ── Listener ─────────────────────────────────────────────────────────
@@ -230,7 +222,6 @@ object HermesWsClient {
             connected.set(true)
             _connectionStatus.value = ConnectionStatus.CONNECTED
             currentBackoff = INITIAL_BACKOFF_MS
-            onConnected?.invoke()
         }
 
         override fun onMessage(
@@ -267,7 +258,6 @@ object HermesWsClient {
         ) {
             Log.i(TAG, "WebSocket closed: $code $reason")
             connected.set(false)
-            onDisconnected?.invoke(reason)
             _connectionStatus.value = ConnectionStatus.RECONNECTING
             scheduleReconnect()
         }
@@ -279,8 +269,6 @@ object HermesWsClient {
         ) {
             Log.e(TAG, "WebSocket failure: ${t.message}", t)
             connected.set(false)
-            onError?.invoke(t)
-            onDisconnected?.invoke(t.message)
             _connectionStatus.value = ConnectionStatus.RECONNECTING
             scheduleReconnect()
         }

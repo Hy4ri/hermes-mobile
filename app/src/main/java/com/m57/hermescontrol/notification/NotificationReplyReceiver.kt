@@ -16,6 +16,13 @@ class NotificationReplyReceiver : BroadcastReceiver() {
         const val EXTRA_SESSION_ID = "extra_session_id"
     }
 
+    /**
+     * Test-friendly wrapper for [BroadcastReceiver.goAsync] which is `final`
+     * (Java) and cannot be mocked or overridden directly. Tests override this
+     * via anonymous subclass to inject a fake [PendingResult].
+     */
+    internal open fun goAsyncCompat(): BroadcastReceiver.PendingResult = goAsync()
+
     override fun onReceive(
         context: Context,
         intent: Intent,
@@ -27,7 +34,7 @@ class NotificationReplyReceiver : BroadcastReceiver() {
         if (!replyText.isNullOrBlank() && !sessionId.isNullOrBlank()) {
             HermesWsClient.sendMessage(sessionId, replyText)
 
-            val pendingResult = goAsync()
+            val pendingResult = goAsyncCompat()
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 try {
                     val db =

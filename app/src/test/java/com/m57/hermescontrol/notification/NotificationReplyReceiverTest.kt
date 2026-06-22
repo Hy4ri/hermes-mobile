@@ -79,7 +79,10 @@ class NotificationReplyReceiverTest {
 
         // Mock Room DB via its test injection point
         mockDao = mockk(relaxed = true)
-        coEvery { mockDao.upsert(any<ChatMessageEntity>()) } answers { upsertCallCount++ }
+        coEvery { mockDao.upsert(any<ChatMessageEntity>()) } answers {
+            upsertCallCount++
+            Unit
+        }
         mockDb = mockk(relaxed = true)
         every { mockDb.chatMessageDao() } returns mockDao
         HermesDatabase.setForTest(mockDb)
@@ -89,7 +92,7 @@ class NotificationReplyReceiverTest {
 
         // Mock HermesWsClient singleton
         mockkObject(HermesWsClient)
-        every { HermesWsClient.sendMessage(any(), any()) } returns true
+        every { HermesWsClient.sendMessage(any(), any()) } returns "mock-req-id"
 
         // Create receiver with mocked goAsync()
         receiver = spyk(NotificationReplyReceiver())
@@ -118,6 +121,7 @@ class NotificationReplyReceiverTest {
         val entitySlot = slot<ChatMessageEntity>()
         coEvery { mockDao.upsert(capture(entitySlot)) } answers {
             upsertCallCount++
+            Unit
         }
 
         givenValidReply("session-abc", "Hello")

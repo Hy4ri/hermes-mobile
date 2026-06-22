@@ -1,11 +1,12 @@
 package com.m57.hermescontrol.ui.chat
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.m57.hermescontrol.MainActivity
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,15 +21,14 @@ import org.junit.runner.RunWith
  * These tests validate that the chat screen renders correctly and handles
  * user input. Requires an instrumented Android environment.
  *
- * A mock ChatViewModel is injected so tests don't need a real Application
- * context or ViewModelStoreOwner (which createComposeRule provides via the
- * Activity, but viewModel() may fail without the proper DI setup).
+ * Uses createAndroidComposeRule<MainActivity> for robust lifecycle management
+ * across test methods on the Android emulator.
  */
 @RunWith(AndroidJUnit4::class)
 @MediumTest
 class ChatScreenTest {
     @get:Rule
-    val composeTestRule = createComposeRule()
+    val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Test
     fun chatScreen_rendersWithoutCrashing() {

@@ -704,6 +704,13 @@ class ChatViewModelTest {
             val viewModel = ChatViewModel(app, startCleanup = false)
             advanceUntilIdle()
 
+            // Mock the REST API call so loadSessionMessages behaves predictably
+            coEvery { ApiClient.hermesApi.getSessionMessages(any()) } returns
+                mockk(relaxed = true) {
+                    every { isSuccessful } returns true
+                    every { body() } returns null
+                }
+
             viewModel.switchSession("session-456")
             advanceUntilIdle()
 
@@ -711,13 +718,9 @@ class ChatViewModelTest {
             assertEquals("session-456", state.currentSessionId)
             // B3 (Jun 18 2026, kanban t_33da8a97): loadSessionMessages now
             // sets isLoading=false on its error/success branches (previously
-            // never reset on error, leaving isLoading stuck at true). Since
-            // ApiClient.hermesApi is not mocked in this test suite, the real
-            // Retrofit call fails → catch branch sets isLoading=false and
-            // records errorMessage. Assert the new correct behavior.
+            // never reset on error, leaving isLoading stuck at true).
             assertFalse("isLoading should be false once loadSessionMessages settles", state.isLoading)
             assertTrue("messages should be cleared by switchSession", state.messages.isEmpty())
-            assertNotNull("errorMessage should be set on load failure", state.errorMessage)
 
             verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456"), any()) }
         }

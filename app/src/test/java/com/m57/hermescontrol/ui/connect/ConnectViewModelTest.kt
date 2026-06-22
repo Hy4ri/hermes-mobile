@@ -37,6 +37,11 @@ class ConnectViewModelTest {
         mockkObject(AuthManager)
         mockkObject(ApiClient)
         mockkStatic(android.util.Base64::class)
+        mockkStatic(android.net.Uri::class)
+
+        // Default Uri mock — returns null for all query params (pairing string parsing fails by default)
+        val mockUri = mockk<android.net.Uri>(relaxed = true)
+        every { android.net.Uri.parse(any()) } returns mockUri
 
         mockApiService = mockk()
         every { ApiClient.hermesApi } returns mockApiService
@@ -533,6 +538,15 @@ class ConnectViewModelTest {
     @Test
     fun testOnPairingString_hermesUrl_parsesAndConnects() =
         runTest {
+            // Stub the Uri mock for this test
+            every { android.net.Uri.parse(any()) } answers {
+                val uri = mockk<android.net.Uri>(relaxed = true)
+                every { uri.getQueryParameter("host") } returns "192.168.1.1"
+                every { uri.getQueryParameter("port") } returns "8888"
+                every { uri.getQueryParameter("token") } returns "abc123"
+                uri
+            }
+
             val mockResponse = mockk<Response<StatusResponse>>()
             every { mockResponse.isSuccessful } returns true
             every { mockResponse.body() } returns

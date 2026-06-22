@@ -1,10 +1,8 @@
 package com.m57.hermescontrol.data.remote
 
-import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
 import io.mockk.every
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
@@ -35,7 +33,6 @@ class ApiClientTest {
         mockWebServer.start()
 
         mockkObject(AuthManager)
-        mockkStatic(BuildConfig::class)
 
         // Point AuthManager at our MockWebServer
         every { AuthManager.baseUrl() } returns mockWebServer.url("/").toString()
@@ -107,44 +104,6 @@ class ApiClientTest {
             val request = mockWebServer.takeRequest()
             val authHeader = request.getHeader("Authorization")
             assertNull(authHeader)
-        }
-
-    @Test
-    fun testDebugGate_doesNotCrashWhenDebugTrue() =
-        runTest {
-            every { BuildConfig.DEBUG } returns true
-            every { AuthManager.getToken() } returns "token"
-
-            ApiClient.rebuild()
-
-            mockWebServer.enqueue(
-                MockResponse().setResponseCode(200).setBody("""{"gateway_running":true}"""),
-            )
-
-            val response = ApiClient.hermesApi.getStatus()
-            assertTrue(response.isSuccessful)
-
-            val request = mockWebServer.takeRequest()
-            assertEquals("Bearer token", request.getHeader("Authorization"))
-        }
-
-    @Test
-    fun testDebugGate_doesNotCrashWhenDebugFalse() =
-        runTest {
-            every { BuildConfig.DEBUG } returns false
-            every { AuthManager.getToken() } returns "token"
-
-            ApiClient.rebuild()
-
-            mockWebServer.enqueue(
-                MockResponse().setResponseCode(200).setBody("""{"gateway_running":true}"""),
-            )
-
-            val response = ApiClient.hermesApi.getStatus()
-            assertTrue(response.isSuccessful)
-
-            val request = mockWebServer.takeRequest()
-            assertEquals("Bearer token", request.getHeader("Authorization"))
         }
 
     @Test

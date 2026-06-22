@@ -45,9 +45,14 @@ class ConnectViewModel : ViewModel() {
         val selectedProfile = profiles.firstOrNull { it.id == selectedId }
         _uiState.update {
             it.copy(
-                token = savedToken,
-                host = savedHost,
-                port = savedPort.toString(),
+                token =
+                    if (selectedProfile != null) {
+                        AuthManager.getProfileToken(selectedProfile.id) ?: ""
+                    } else {
+                        savedToken
+                    },
+                host = selectedProfile?.host ?: savedHost,
+                port = (selectedProfile?.port ?: savedPort).toString(),
                 profiles = profiles,
                 selectedProfile = selectedProfile,
                 profileName = selectedProfile?.name ?: "",

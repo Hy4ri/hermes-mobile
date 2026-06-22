@@ -12,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 
 class ChatMessageDaoTest {
     private lateinit var db: HermesDatabase
@@ -27,6 +28,9 @@ class ChatMessageDaoTest {
 
         every { mockContext.applicationContext } returns mockContext
         every { mockContext.packageName } returns "com.m57.hermescontrol.test"
+        every { mockContext.filesDir } returns File("/tmp")
+        every { mockContext.getDatabasePath(any()) } returns File("/tmp/test.db")
+        every { mockContext.deleteDatabase(any()) } returns true
 
         db =
             Room

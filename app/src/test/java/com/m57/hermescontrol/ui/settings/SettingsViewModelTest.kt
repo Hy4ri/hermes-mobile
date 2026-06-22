@@ -31,6 +31,8 @@ import org.junit.Test
 class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
+    private var storedSelectedProfileId: String? = null
+
     private val testProfiles =
         listOf(
             ConnectionProfile("prof-1", "Work", "10.0.0.1", 9119),
@@ -45,6 +47,8 @@ class SettingsViewModelTest {
         mockkObject(ApiClient)
 
         // Default stubs
+        storedSelectedProfileId = null
+
         every { AuthManager.getHost() } returns "127.0.0.1"
         every { AuthManager.getPort() } returns 9119
         every { AuthManager.getToken() } returns ""
@@ -56,7 +60,7 @@ class SettingsViewModelTest {
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.getConnectionProfiles() } returns emptyList()
-        every { AuthManager.getSelectedProfileId() } returns null
+        every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.getBottomNavDisplayMode() } returns BottomNavDisplayMode.ICON_AND_TEXT
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
         every { AuthManager.setHost(any()) } returns Unit
@@ -69,9 +73,15 @@ class SettingsViewModelTest {
         every { AuthManager.setBottomNavDisplayMode(any()) } returns Unit
         every { AuthManager.setTypingEffectEnabled(any()) } returns Unit
         every { AuthManager.setTypingEffectDelayMs(any()) } returns Unit
-        every { AuthManager.setSelectedProfileId(any()) } returns Unit
+        every { AuthManager.setSelectedProfileId(any()) } answers {
+            storedSelectedProfileId = firstArg()
+            Unit
+        }
         every { AuthManager.saveConnectionProfiles(any()) } returns Unit
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
+
+        // Ensure ApiClient.rebuild() is stubbed (used by selectProfile)
+        every { ApiClient.rebuild() } returns Unit
     }
 
     @After
@@ -83,7 +93,7 @@ class SettingsViewModelTest {
     @Test
     fun testLoadSettings_loadsProfiles() {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
-        every { AuthManager.getSelectedProfileId() } returns "prof-1"
+        storedSelectedProfileId = "prof-1"
 
         val viewModel = SettingsViewModel()
         val state = viewModel.uiState.value
@@ -96,7 +106,6 @@ class SettingsViewModelTest {
     @Test
     fun testLoadSettings_noSelectedProfile_renameEmpty() {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
-        every { AuthManager.getSelectedProfileId() } returns null
 
         val viewModel = SettingsViewModel()
         assertEquals("", viewModel.uiState.value.renameProfileName)
@@ -119,7 +128,7 @@ class SettingsViewModelTest {
     @Test
     fun testSelectProfile_nullClearsSelection() {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
-        every { AuthManager.getSelectedProfileId() } returns "prof-1"
+        storedSelectedProfileId = "prof-1"
 
         val viewModel = SettingsViewModel()
 

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.notification
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -15,7 +16,6 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.slot
-import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
@@ -51,6 +51,7 @@ class NotificationReplyReceiverTest {
     private lateinit var mockDb: HermesDatabase
     private lateinit var mockDao: ChatMessageDao
     private lateinit var receiver: NotificationReplyReceiver
+    private lateinit var mockNotification: Notification
 
     // Call counters for suspend function tracking
     private var upsertCallCount = 0
@@ -90,16 +91,21 @@ class NotificationReplyReceiverTest {
         // Mock PendingResult
         mockPendingResult = mockk(relaxed = true)
 
+        // Mock Notification
+        mockNotification = mockk(relaxed = true)
+
         // Mock HermesWsClient singleton
         mockkObject(HermesWsClient)
         every { HermesWsClient.sendMessage(any(), any()) } returns "mock-req-id"
 
-        // Create receiver with overridden goAsyncCompat() — BroadcastReceiver.goAsync()
-        // is final (Java) and cannot be mocked via spyk or overridden directly.
-        // We use an open Kotlin wrapper (goAsyncCompat) that tests can override.
+        // Create receiver with overridden goAsyncCompat() and buildReplyNotification()
+        // — BroadcastReceiver.goAsync() is final (Java) and cannot be mocked via spyk,
+        // and NotificationCompat.Builder.build() calls framework methods that throw
+        // "not mocked" in unit tests.
         receiver =
             object : NotificationReplyReceiver() {
                 override fun goAsyncCompat(): BroadcastReceiver.PendingResult = mockPendingResult
+                override fun buildReplyNotification(context: Context): Notification = mockNotification
             }
     }
 

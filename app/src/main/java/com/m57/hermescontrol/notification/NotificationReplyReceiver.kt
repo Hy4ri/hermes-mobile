@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.notification
 
+import android.app.Notification
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -22,6 +23,21 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
      * via anonymous subclass to inject a fake [PendingResult].
      */
     internal open fun goAsyncCompat(): BroadcastReceiver.PendingResult = goAsync()
+
+    /**
+     * Test-friendly wrapper for notification creation. Override in tests to
+     * avoid [NotificationCompat.Builder.build()] calling Android framework
+     * methods that throw "not mocked" in unit tests.
+     */
+    internal open fun buildReplyNotification(context: Context): Notification =
+        NotificationCompat
+            .Builder(context, ChatNotificationService.CHAT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Hermes")
+            .setContentText("Replied")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
 
     override fun onReceive(
         context: Context,
@@ -60,15 +76,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                 }
             }
 
-            val repliedNotification =
-                NotificationCompat
-                    .Builder(context, ChatNotificationService.CHAT_CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_notification)
-                    .setContentTitle("Hermes")
-                    .setContentText("Replied")
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setAutoCancel(true)
-                    .build()
+            val repliedNotification = buildReplyNotification(context)
 
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)

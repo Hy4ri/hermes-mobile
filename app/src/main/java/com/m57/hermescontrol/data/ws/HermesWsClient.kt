@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.ws
 
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.google.gson.Gson
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
@@ -102,6 +103,7 @@ object HermesWsClient {
 
     // ── Connection helpers ────────────────────────────────────────────────
 
+    @VisibleForTesting
     val isConnected: Boolean get() = connected.get()
 
     /** Open a WebSocket connection using settings from [AuthManager]. */

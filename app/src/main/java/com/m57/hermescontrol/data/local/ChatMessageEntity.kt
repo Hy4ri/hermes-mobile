@@ -9,7 +9,7 @@ import androidx.room.PrimaryKey
  * UI model but is stored independently so it survives process death.
  *
  * Messages are scoped by [sessionId] so switching sessions loads the right
- * thread. The [createdAt] field preserves original ordering even if Room
+ * thread. The [timestamp] field preserves original ordering even if Room
  * reorders internally.
  */
 @Entity(tableName = "chat_messages")

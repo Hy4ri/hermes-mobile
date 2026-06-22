@@ -37,7 +37,3 @@ data class UpdateProfileModelRequest(
     val provider: String,
     val model: String,
 )
-
-data class UpdateProfileDescriptionRequest(
-    val description: String,
-)

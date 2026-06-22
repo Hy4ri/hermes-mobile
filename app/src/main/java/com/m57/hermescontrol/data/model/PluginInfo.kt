@@ -28,10 +28,6 @@ data class PluginsHubResponse(
     val plugins: List<PluginInfo>,
 )
 
-data class TogglePluginRequest(
-    val enabled: Boolean,
-)
-
 data class AgentPluginInstallBody(
     val identifier: String,
     val force: Boolean = false,

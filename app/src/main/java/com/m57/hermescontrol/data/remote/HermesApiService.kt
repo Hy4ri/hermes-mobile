@@ -37,7 +37,6 @@ import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
-import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
@@ -77,9 +76,6 @@ interface HermesApiService {
 
     @GET("api/system/stats")
     suspend fun getSystemStats(): Response<SystemStatsResponse>
-
-    @GET("api/config")
-    suspend fun getConfig(): Response<Map<String, Any?>>
 
     @GET("api/skills")
     suspend fun getSkills(): Response<List<Skill>>
@@ -147,12 +143,6 @@ interface HermesApiService {
     suspend fun updateProfileModel(
         @Path("name") name: String,
         @Body body: UpdateProfileModelRequest,
-    ): Response<Unit>
-
-    @PUT("api/profiles/{name}/description")
-    suspend fun updateProfileDescription(
-        @Path("name") name: String,
-        @Body body: UpdateProfileDescriptionRequest,
     ): Response<Unit>
 
     @GET("api/tools/toolsets")

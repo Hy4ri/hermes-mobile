@@ -10,7 +10,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.launch
 
-class NotificationReplyReceiver : BroadcastReceiver() {
+open class NotificationReplyReceiver : BroadcastReceiver() {
     companion object {
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val EXTRA_SESSION_ID = "extra_session_id"

@@ -5,7 +5,6 @@ import android.content.pm.ApplicationInfo
 import androidx.room.Room
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -22,10 +21,7 @@ class ChatMessageDaoTest {
 
     @Before
     fun setUp() {
-        mockkStatic(android.util.Log::class)
-        every { android.util.Log.d(any<String>(), any<String>()) } returns 0
-        every { android.util.Log.i(any<String>(), any<String>()) } returns 0
-        every { android.util.Log.e(any<String>(), any<String>(), any()) } returns 0
+        // Log is mocked via mockkStatic in EventParserTest — not needed here
 
         every { mockContext.applicationContext } returns mockContext
         every { mockContext.packageName } returns "com.m57.hermescontrol.test"

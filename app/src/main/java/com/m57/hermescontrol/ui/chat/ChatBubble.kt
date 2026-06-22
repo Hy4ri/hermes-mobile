@@ -318,7 +318,7 @@ private fun AssistantBubble(
                 modifier =
                     Modifier
                         .widthIn(max = maxWidth)
-                        .animateContentSize()
+                        .let { if (!message.isStreaming) it.animateContentSize() else it }
                         .clip(
                             RoundedCornerShape(
                                 topStart = 4.dp,

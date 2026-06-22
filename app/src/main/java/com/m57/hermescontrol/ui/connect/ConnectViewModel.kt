@@ -196,7 +196,7 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                                     }
 
                                     else -> {
-                                        app.getString(R.string.connect_error_http_code, err.code)
+                                        String.format(app.getString(R.string.connect_error_http_code), err.code)
                                     }
                                 }
                             }
@@ -217,8 +217,8 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                                         true,
                                     ) -> app.getString(R.string.connect_error_resolve)
                                     else ->
-                                        app.getString(
-                                            R.string.connect_error_connection_failed,
+                                        String.format(
+                                            app.getString(R.string.connect_error_connection_failed),
                                             err.cause.message ?: "",
                                         )
                                 }
@@ -240,8 +240,8 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                                         true,
                                     ) -> app.getString(R.string.connect_error_resolve)
                                     else ->
-                                        app.getString(
-                                            R.string.connect_error_connection_failed,
+                                        String.format(
+                                            app.getString(R.string.connect_error_connection_failed),
                                             err.cause.message ?: "",
                                         )
                                 }
@@ -331,7 +331,11 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        errorMessage = app.getString(R.string.connect_error_parse_failed, e.message ?: ""),
+                        errorMessage =
+                            String.format(
+                                app.getString(R.string.connect_error_parse_failed),
+                                e.message ?: "",
+                            ),
                     )
                 }
                 return
@@ -339,7 +343,7 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
-                    errorMessage = app.getString(R.string.connect_error_parse_failed, e.message ?: ""),
+                    errorMessage = String.format(app.getString(R.string.connect_error_parse_failed), e.message ?: ""),
                 )
             }
         }

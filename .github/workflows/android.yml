@@ -198,7 +198,7 @@ jobs:
   instrumented-tests:
     name: Instrumented Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -218,17 +218,32 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
+      # Enable KVM hardware acceleration on the Linux runner
+      - name: Enable KVM group permissions
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Cache the AVD to avoid downloading/recreating it from scratch every time
+      - name: AVD Cache
+        id: avd-cache
+        uses: actions/cache@v7
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-api34-atd-x86_64
+
       - name: Run connectedDebugAndroidTest
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: default
+          target: aosp_atd
           arch: x86_64
           disable-animations: true
-          force-avd-creation: true
-          emulator-boot-timeout: 900
-          cores: 4
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 2048
+          force-avd-creation: false
+          emulator-options: -no-window -no-audio -no-boot-anim -camera-back none -memory 2048
           script: ./gradlew connectedDebugAndroidTest --no-daemon
 
       - name: Upload instrumented test reports

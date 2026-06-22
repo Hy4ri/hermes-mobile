@@ -1,16 +1,17 @@
 package com.m57.hermescontrol.ui.chat
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
-import com.m57.hermescontrol.MainActivity
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,17 +19,24 @@ import org.junit.runner.RunWith
 /**
  * Instrumented Compose UI tests for ChatScreen composable (TEST-09, issue #292).
  *
- * These tests validate that the chat screen renders correctly and handles
+ * Tests validate that the chat screen renders correctly and handles
  * user input. Requires an instrumented Android environment.
- *
- * Uses createAndroidComposeRule<MainActivity> for robust lifecycle management
- * across test methods on the Android emulator.
  */
 @RunWith(AndroidJUnit4::class)
 @MediumTest
 class ChatScreenTest {
     @get:Rule
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createComposeRule()
+
+    @Before
+    fun setUp() {
+        composeTestRule.waitForIdle()
+    }
+
+    @After
+    fun tearDown() {
+        composeTestRule.waitForIdle()
+    }
 
     @Test
     fun chatScreen_rendersWithoutCrashing() {
@@ -57,6 +65,7 @@ class ChatScreenTest {
             )
         }
 
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("chat_input").performTextInput("Hello Hermes")
     }
 
@@ -73,6 +82,7 @@ class ChatScreenTest {
             )
         }
 
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
     }
 }

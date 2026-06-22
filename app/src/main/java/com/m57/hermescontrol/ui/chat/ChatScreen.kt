@@ -212,7 +212,7 @@ fun ChatScreen(
     }
 
     // Auto-scroll to bottom on new messages
-    LaunchedEffect(state.messages.size, state.streamingMessage?.content?.length, state.isThinking) {
+    LaunchedEffect(state.messages.size, state.streamingMessage != null, state.isThinking) {
         val totalItems =
             state.messages.size +
                 (if (state.streamingMessage != null) 1 else 0) +

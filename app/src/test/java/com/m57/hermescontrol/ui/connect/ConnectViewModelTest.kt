@@ -568,6 +568,6 @@ class ConnectViewModelTest {
             assertEquals("abc123", state.token)
             // Should have triggered connect
             advanceUntilIdle()
-            assertTrue(state.connectionSuccess)
+            assertTrue("connection should succeed after pairing", viewModel.uiState.value.connectionSuccess)
         }
 }

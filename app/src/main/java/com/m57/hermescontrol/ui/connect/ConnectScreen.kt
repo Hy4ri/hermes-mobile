@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.connect
 
+import android.app.Application
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -60,7 +61,10 @@ import com.m57.hermescontrol.R
 fun ConnectScreen(
     onConnected: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: ConnectViewModel = viewModel { ConnectViewModel() },
+    viewModel: ConnectViewModel =
+        viewModel {
+            ConnectViewModel(LocalContext.current.applicationContext as Application)
+        },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 

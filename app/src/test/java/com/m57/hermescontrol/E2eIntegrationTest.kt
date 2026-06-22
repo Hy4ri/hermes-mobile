@@ -1,5 +1,6 @@
 package com.m57.hermescontrol
 
+import android.app.Application
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
@@ -56,6 +57,7 @@ import java.io.IOException
 class E2eIntegrationTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApiService: HermesApiService
+    private val mockApp = mockk<Application>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -85,6 +87,9 @@ class E2eIntegrationTest {
         every { AuthManager.getProfileToken(any()) } returns null
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
         every { AuthManager.saveConnectionProfiles(any()) } returns Unit
+
+        // Application stubs
+        every { mockApp.getString(R.string.connect_error_401) } returns "Invalid token (401 Unauthorized)"
     }
 
     @After
@@ -760,7 +765,7 @@ class E2eIntegrationTest {
             val mockResponse = createErrorResponse<StatusResponse>(401)
             coEvery { mockApiService.getStatus() } returns mockResponse
 
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("expired-token")
             viewModel.connect()
             advanceUntilIdle()
@@ -781,7 +786,7 @@ class E2eIntegrationTest {
             val statusResponse = mockk<StatusResponse>()
             coEvery { mockApiService.getStatus() } returns Response.success(statusResponse)
 
-            val connectViewModel = ConnectViewModel()
+            val connectViewModel = ConnectViewModel(mockApp)
             connectViewModel.onTokenChange("valid-token")
             connectViewModel.onHostChange("127.0.0.1")
             connectViewModel.onPortChange("9119")
@@ -1069,7 +1074,7 @@ class E2eIntegrationTest {
             val statusResponse = mockk<StatusResponse>()
             coEvery { mockApiService.getStatus() } returns Response.success(statusResponse)
 
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onPairingString("hermes://connect?host=192.168.1.5&port=9119&token=TEST_TOKEN")
             advanceUntilIdle()
 
@@ -1095,7 +1100,7 @@ class E2eIntegrationTest {
             val statusResponse = mockk<StatusResponse>()
             coEvery { mockApiService.getStatus() } returns Response.success(statusResponse)
 
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onPairingString(base64Str)
             advanceUntilIdle()
 

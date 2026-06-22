@@ -1,7 +1,7 @@
 package com.m57.hermescontrol.ui.connect
 
 import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
@@ -30,8 +30,7 @@ data class ConnectUiState(
     val selectedProfile: com.m57.hermescontrol.data.model.ConnectionProfile? = null,
 )
 
-class ConnectViewModel(application: Application) : AndroidViewModel(application) {
-    private val uiContext = application
+class ConnectViewModel(private val app: Application) : ViewModel() {
     private val _uiState = MutableStateFlow(ConnectUiState())
     val uiState: StateFlow<ConnectUiState> = _uiState.asStateFlow()
 
@@ -113,16 +112,16 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     fun connect() {
         val state = _uiState.value
         if (state.token.isBlank()) {
-            _uiState.update { it.copy(errorMessage = uiContext.getString(R.string.connect_error_token_required)) }
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_token_required)) }
             return
         }
         if (state.host.isBlank()) {
-            _uiState.update { it.copy(errorMessage = uiContext.getString(R.string.connect_error_host_required)) }
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_host_required)) }
             return
         }
         val port = state.port.toIntOrNull()
         if (port == null || port !in 1..65535) {
-            _uiState.update { it.copy(errorMessage = uiContext.getString(R.string.connect_error_port_invalid)) }
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_port_invalid)) }
             return
         }
 
@@ -188,15 +187,15 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                                 when (err.code) {
                                     401 -> {
                                         AuthManager.setToken(null)
-                                        uiContext.getString(R.string.connect_error_401)
+                                        app.getString(R.string.connect_error_401)
                                     }
 
                                     403 -> {
-                                        uiContext.getString(R.string.connect_error_403)
+                                        app.getString(R.string.connect_error_403)
                                     }
 
                                     else -> {
-                                        uiContext.getString(R.string.connect_error_http_code, err.code)
+                                        app.getString(R.string.connect_error_http_code, err.code)
                                     }
                                 }
                             }
@@ -207,17 +206,17 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                                     causeMessage.contains(
                                         "timeout",
                                         true,
-                                    ) -> uiContext.getString(R.string.connect_error_timeout)
+                                    ) -> app.getString(R.string.connect_error_timeout)
                                     causeMessage.contains(
                                         "refused",
                                         true,
-                                    ) -> uiContext.getString(R.string.connect_error_refused)
+                                    ) -> app.getString(R.string.connect_error_refused)
                                     causeMessage.contains(
                                         "resolve",
                                         true,
-                                    ) -> uiContext.getString(R.string.connect_error_resolve)
+                                    ) -> app.getString(R.string.connect_error_resolve)
                                     else ->
-                                        uiContext.getString(
+                                        app.getString(
                                             R.string.connect_error_connection_failed,
                                             err.cause.message ?: "",
                                         )
@@ -230,17 +229,17 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                                     causeMessage.contains(
                                         "timeout",
                                         true,
-                                    ) -> uiContext.getString(R.string.connect_error_timeout)
+                                    ) -> app.getString(R.string.connect_error_timeout)
                                     causeMessage.contains(
                                         "refused",
                                         true,
-                                    ) -> uiContext.getString(R.string.connect_error_refused)
+                                    ) -> app.getString(R.string.connect_error_refused)
                                     causeMessage.contains(
                                         "resolve",
                                         true,
-                                    ) -> uiContext.getString(R.string.connect_error_resolve)
+                                    ) -> app.getString(R.string.connect_error_resolve)
                                     else ->
-                                        uiContext.getString(
+                                        app.getString(
                                             R.string.connect_error_connection_failed,
                                             err.cause.message ?: "",
                                         )
@@ -304,7 +303,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                     // Decoded valid JSON but missing required fields
                     _uiState.update {
                         it.copy(
-                            errorMessage = uiContext.getString(R.string.connect_error_missing_fields),
+                            errorMessage = app.getString(R.string.connect_error_missing_fields),
                         )
                     }
                     return
@@ -312,7 +311,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 // Decoded to valid string but not JSON shape — not a pairing string
                 _uiState.update {
                     it.copy(
-                        errorMessage = uiContext.getString(R.string.connect_error_malformed),
+                        errorMessage = app.getString(R.string.connect_error_malformed),
                     )
                 }
                 return
@@ -323,7 +322,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 } else {
                     _uiState.update {
                         it.copy(
-                            errorMessage = uiContext.getString(R.string.connect_error_malformed),
+                            errorMessage = app.getString(R.string.connect_error_malformed),
                         )
                     }
                 }
@@ -331,7 +330,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        errorMessage = uiContext.getString(R.string.connect_error_parse_failed, e.message ?: ""),
+                        errorMessage = app.getString(R.string.connect_error_parse_failed, e.message ?: ""),
                     )
                 }
                 return
@@ -339,7 +338,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
-                    errorMessage = uiContext.getString(R.string.connect_error_parse_failed, e.message ?: ""),
+                    errorMessage = app.getString(R.string.connect_error_parse_failed, e.message ?: ""),
                 )
             }
         }

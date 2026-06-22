@@ -102,7 +102,7 @@ fun KeysScreen(
             state.envVars.isEmpty() -> {
                 EmptyState(
                     title = stringResource(R.string.keys_empty_title),
-                    subtitle = stringResource(R.string.toolsets_empty_desc),
+                    subtitle = stringResource(R.string.keys_empty_desc),
                     onAction = { viewModel.loadKeys() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),
@@ -232,7 +232,7 @@ fun KeysScreen(
                                                             imageVector = Icons.Filled.Edit,
                                                             contentDescription =
                                                                 stringResource(
-                                                                    R.string.nav_drawer_section_converse,
+                                                                    R.string.content_desc_edit,
                                                                 ),
                                                         )
                                                     }

@@ -97,7 +97,7 @@ fun ProfilesScreen(
             state.profiles.isEmpty() -> {
                 EmptyState(
                     title = stringResource(R.string.profiles_empty_title),
-                    subtitle = stringResource(R.string.toolsets_empty_desc),
+                    subtitle = stringResource(R.string.profiles_empty_desc),
                     onAction = { viewModel.loadProfiles() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),

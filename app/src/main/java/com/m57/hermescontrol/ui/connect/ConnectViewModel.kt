@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.connect
 
 import android.app.Application
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
@@ -342,5 +343,14 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                 )
             }
         }
+    }
+}
+
+class ConnectViewModelFactory(
+    private val app: Application,
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return ConnectViewModel(app) as T
     }
 }

@@ -63,9 +63,13 @@ fun ConnectScreen(
     onConnected: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ConnectViewModel =
-        viewModel {
-            ConnectViewModel(LocalContext.current.applicationContext as Application)
-        },
+        viewModel(
+            factory =
+                run {
+                    val app = LocalContext.current.applicationContext as Application
+                    ConnectViewModelFactory(app)
+                },
+        ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 

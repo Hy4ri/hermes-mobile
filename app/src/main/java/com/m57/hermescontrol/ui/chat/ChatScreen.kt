@@ -104,7 +104,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
@@ -443,7 +442,11 @@ fun ChatScreen(
                         val isLastMessage = index == state.messages.lastIndex
                         val isAssistant = message.role == MessageRole.ASSISTANT
 
-                        if (state.typingEffectEnabled && isLastMessage && isAssistant && lastAnimatedMessageId != message.id) {
+                        if (state.typingEffectEnabled &&
+                            isLastMessage &&
+                            isAssistant &&
+                            lastAnimatedMessageId != message.id
+                        ) {
                             StreamingBubbleWithTypingEffect(
                                 streaming = message,
                                 typingDelayMs = state.typingEffectDelayMs,

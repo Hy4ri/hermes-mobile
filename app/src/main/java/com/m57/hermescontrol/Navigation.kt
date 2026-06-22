@@ -61,22 +61,30 @@ private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ScreenRegistry.ALL_SCREENS.map
 private fun appEntryProvider(
     sessionId: String?,
     openDrawer: () -> Unit,
-) = entryProvider {
-    entry<ConnectScreen> {
-        com.m57.hermescontrol.ui.connect.ConnectScreen(
-            onConnected = {
-                NavigationController.resetTo(ChatScreen)
-            },
-            modifier = Modifier.safeDrawingPadding(),
-        )
-    }
-
-    ScreenRegistry.ALL_SCREENS.forEach { screen ->
-        entry(screen.key::class) {
-            screen.content(sessionId, openDrawer)
+): (NavKey) -> androidx.navigation3.runtime.NavEntry<NavKey> =
+    { key ->
+        if (key == ConnectScreen) {
+            androidx.navigation3.runtime.NavEntry(
+                key = key,
+                metadata = emptyMap<String, Any>(),
+                content = {
+                    com.m57.hermescontrol.ui.connect.ConnectScreen(
+                        onConnected = { NavigationController.resetTo(ChatScreen) },
+                        modifier = Modifier.safeDrawingPadding(),
+                    )
+                },
+            )
+        } else {
+            val screenDef =
+                ScreenRegistry.ALL_SCREENS.firstOrNull { it.key == key }
+                    ?: throw IllegalStateException("Unknown screen $key")
+            androidx.navigation3.runtime.NavEntry(
+                key = key,
+                metadata = emptyMap<String, Any>(),
+                content = { screenDef.content(sessionId, openDrawer) },
+            )
         }
     }
-}
 
 @Composable
 fun MainNavigation(sessionId: String? = null) {

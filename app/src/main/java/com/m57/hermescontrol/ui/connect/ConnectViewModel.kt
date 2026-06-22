@@ -1,7 +1,10 @@
 package com.m57.hermescontrol.ui.connect
 
+import android.app.Application
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -28,7 +31,7 @@ data class ConnectUiState(
     val selectedProfile: com.m57.hermescontrol.data.model.ConnectionProfile? = null,
 )
 
-class ConnectViewModel : ViewModel() {
+class ConnectViewModel(private val app: Application) : ViewModel() {
     private val _uiState = MutableStateFlow(ConnectUiState())
     val uiState: StateFlow<ConnectUiState> = _uiState.asStateFlow()
 
@@ -110,16 +113,16 @@ class ConnectViewModel : ViewModel() {
     fun connect() {
         val state = _uiState.value
         if (state.token.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Token is required") }
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_token_required)) }
             return
         }
         if (state.host.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Host is required") }
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_host_required)) }
             return
         }
         val port = state.port.toIntOrNull()
         if (port == null || port !in 1..65535) {
-            _uiState.update { it.copy(errorMessage = "Port must be between 1 and 65535") }
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_port_invalid)) }
             return
         }
 
@@ -185,15 +188,15 @@ class ConnectViewModel : ViewModel() {
                                 when (err.code) {
                                     401 -> {
                                         AuthManager.setToken(null)
-                                        "Invalid token (401 Unauthorized)"
+                                        app.getString(R.string.connect_error_401)
                                     }
 
                                     403 -> {
-                                        "Access denied (403 Forbidden)"
+                                        app.getString(R.string.connect_error_403)
                                     }
 
                                     else -> {
-                                        "Server returned HTTP ${err.code}"
+                                        String.format(app.getString(R.string.connect_error_http_code), err.code)
                                     }
                                 }
                             }
@@ -201,20 +204,46 @@ class ConnectViewModel : ViewModel() {
                             is NetworkError.Connection -> {
                                 val causeMessage = err.cause.message ?: ""
                                 when {
-                                    causeMessage.contains("timeout", true) -> "Connection timed out"
-                                    causeMessage.contains("refused", true) -> "Connection refused – is Hermes running?"
-                                    causeMessage.contains("resolve", true) -> "Could not resolve host"
-                                    else -> "Connection failed: ${err.cause.message}"
+                                    causeMessage.contains(
+                                        "timeout",
+                                        true,
+                                    ) -> app.getString(R.string.connect_error_timeout)
+                                    causeMessage.contains(
+                                        "refused",
+                                        true,
+                                    ) -> app.getString(R.string.connect_error_refused)
+                                    causeMessage.contains(
+                                        "resolve",
+                                        true,
+                                    ) -> app.getString(R.string.connect_error_resolve)
+                                    else ->
+                                        String.format(
+                                            app.getString(R.string.connect_error_connection_failed),
+                                            err.cause.message ?: "",
+                                        )
                                 }
                             }
 
                             is NetworkError.Unknown -> {
                                 val causeMessage = err.cause.message ?: ""
                                 when {
-                                    causeMessage.contains("timeout", true) -> "Connection timed out"
-                                    causeMessage.contains("refused", true) -> "Connection refused – is Hermes running?"
-                                    causeMessage.contains("resolve", true) -> "Could not resolve host"
-                                    else -> "Connection failed: ${err.cause.message}"
+                                    causeMessage.contains(
+                                        "timeout",
+                                        true,
+                                    ) -> app.getString(R.string.connect_error_timeout)
+                                    causeMessage.contains(
+                                        "refused",
+                                        true,
+                                    ) -> app.getString(R.string.connect_error_refused)
+                                    causeMessage.contains(
+                                        "resolve",
+                                        true,
+                                    ) -> app.getString(R.string.connect_error_resolve)
+                                    else ->
+                                        String.format(
+                                            app.getString(R.string.connect_error_connection_failed),
+                                            err.cause.message ?: "",
+                                        )
                                 }
                             }
                         }
@@ -275,7 +304,7 @@ class ConnectViewModel : ViewModel() {
                     // Decoded valid JSON but missing required fields
                     _uiState.update {
                         it.copy(
-                            errorMessage = "Malformed pairing string — missing host, port, or token",
+                            errorMessage = app.getString(R.string.connect_error_missing_fields),
                         )
                     }
                     return
@@ -283,7 +312,7 @@ class ConnectViewModel : ViewModel() {
                 // Decoded to valid string but not JSON shape — not a pairing string
                 _uiState.update {
                     it.copy(
-                        errorMessage = "Malformed pairing string — expected URL or Base64-encoded JSON",
+                        errorMessage = app.getString(R.string.connect_error_malformed),
                     )
                 }
                 return
@@ -294,17 +323,38 @@ class ConnectViewModel : ViewModel() {
                 } else {
                     _uiState.update {
                         it.copy(
-                            errorMessage = "Malformed pairing string — expected URL or Base64-encoded JSON",
+                            errorMessage = app.getString(R.string.connect_error_malformed),
                         )
                     }
                 }
                 return
             } catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = "Failed to parse pairing string: ${e.message}") }
+                _uiState.update {
+                    it.copy(
+                        errorMessage =
+                            String.format(
+                                app.getString(R.string.connect_error_parse_failed),
+                                e.message ?: "",
+                            ),
+                    )
+                }
                 return
             }
         } catch (e: Exception) {
-            _uiState.update { it.copy(errorMessage = "Failed to parse pairing string: ${e.message}") }
+            _uiState.update {
+                it.copy(
+                    errorMessage = String.format(app.getString(R.string.connect_error_parse_failed), e.message ?: ""),
+                )
+            }
         }
+    }
+}
+
+class ConnectViewModelFactory(
+    private val app: Application,
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return ConnectViewModel(app) as T
     }
 }

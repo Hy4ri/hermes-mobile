@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.m57.hermescontrol.theme.HermesControlTheme
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
@@ -43,22 +44,26 @@ class ChatScreenTest {
     @Test
     fun chatScreen_rendersWithoutCrashing() {
         composeTestRule.setContent {
-            ChatScreen(
-                onOpenDrawer = {},
-                sessionId = null,
-                viewModel = createMockViewModel(),
-            )
+            HermesControlTheme {
+                ChatScreen(
+                    onOpenDrawer = {},
+                    sessionId = null,
+                    viewModel = createMockViewModel(),
+                )
+            }
         }
     }
 
     @Test
     fun chatScreen_inputField_acceptsText() {
         composeTestRule.setContent {
-            ChatScreen(
-                onOpenDrawer = {},
-                sessionId = null,
-                viewModel = createMockViewModel(),
-            )
+            HermesControlTheme {
+                ChatScreen(
+                    onOpenDrawer = {},
+                    sessionId = null,
+                    viewModel = createMockViewModel(),
+                )
+            }
         }
 
         composeTestRule.onNodeWithTag("chat_input").performTextInput("Hello Hermes")
@@ -67,11 +72,13 @@ class ChatScreenTest {
     @Test
     fun chatScreen_sendButton_isDisplayed() {
         composeTestRule.setContent {
-            ChatScreen(
-                onOpenDrawer = {},
-                sessionId = null,
-                viewModel = createMockViewModel(),
-            )
+            HermesControlTheme {
+                ChatScreen(
+                    onOpenDrawer = {},
+                    sessionId = null,
+                    viewModel = createMockViewModel(),
+                )
+            }
         }
 
         composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()

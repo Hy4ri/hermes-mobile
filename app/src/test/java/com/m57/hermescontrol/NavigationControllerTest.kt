@@ -86,7 +86,7 @@ class NavigationControllerTest {
     }
 
     @Test
-    fun `navigateTo on the current primary screen does not clear`() {
+    fun `navigateTo on the current primary screen clears the stack`() {
         val backStack = NavBackStack<NavKey>(ChatScreen)
         NavigationController.backStack = backStack
 
@@ -94,12 +94,15 @@ class NavigationControllerTest {
         NavigationController.navigateTo(ProfilesScreen)
         assertEquals(2, backStack.size)
 
-        // Try navigating to ChatScreen again — it's primary AND the last item
+        // Navigate to ChatScreen — it's a primary screen, so the stack gets
+        // cleared before adding it. The dedup guard only fires when the key
+        // is already the LAST item (ChatScreen is at index 0, ProfilesScreen
+        // is last), not when it's merely present somewhere in the stack.
         NavigationController.navigateTo(ChatScreen)
 
-        // The dedup guard should prevent navigation since ChatScreen is already the last item
-        // ProfilesScreen should still be on the stack
-        assertEquals(2, backStack.size)
+        // Primary screen navigation clears the stack
+        assertEquals("primary navigation clears stack", 1, backStack.size)
+        assertEquals(ChatScreen, backStack.lastOrNull())
     }
 
     // ── Non-primary screen behaviour: stack appending ─────────────────────

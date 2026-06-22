@@ -94,9 +94,13 @@ class NotificationReplyReceiverTest {
         mockkObject(HermesWsClient)
         every { HermesWsClient.sendMessage(any(), any()) } returns "mock-req-id"
 
-        // Create receiver with mocked goAsync()
-        receiver = spyk(NotificationReplyReceiver())
-        every { receiver.goAsync() } returns mockPendingResult
+        // Create receiver with overridden goAsync() — spyk can't reliably
+        // intercept inherited Java parent methods (goAsync is on BroadcastReceiver)
+        // when called via `this.` from within onReceive, so we use a concrete override.
+        receiver =
+            object : NotificationReplyReceiver() {
+                override fun goAsync(): BroadcastReceiver.PendingResult = mockPendingResult
+            }
     }
 
     @After

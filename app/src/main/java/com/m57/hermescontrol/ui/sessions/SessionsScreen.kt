@@ -24,7 +24,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -108,7 +110,8 @@ fun SessionsScreen(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .clickable {
+                                    .testTag("session_card_${session.id}")
+                                    .clickable(role = Role.Button) {
                                         NavigationController.pendingSessionId = session.id
                                         NavigationController.navigateTo(ChatScreen)
                                     },

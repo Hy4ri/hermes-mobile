@@ -49,6 +49,7 @@ class AuthManagerTest {
 
         // Initialise AuthManager
         AuthManager.init(mockContext)
+        AuthManager.resetTokenCacheForTest()
     }
 
     @After
@@ -111,6 +112,24 @@ class AuthManagerTest {
         every { mockPrefs.getString("host", "127.0.0.1") } returns "hermes.local"
         every { mockPrefs.getInt("port", 9119) } returns 1234
         assertEquals("http://hermes.local:1234/", AuthManager.baseUrl())
+    }
+
+    @Test
+    fun testTokenCaching() {
+        every { mockPrefs.getString("auth_token", null) } returns "first-token"
+        assertEquals("first-token", AuthManager.getToken())
+
+        // Update the mockPrefs directly, but since getToken uses the cache, it should still return the first token
+        every { mockPrefs.getString("auth_token", null) } returns "second-token"
+        assertEquals("first-token", AuthManager.getToken())
+
+        // Clear token initialized manually since this happens upon selecting profile id
+        AuthManager.setSelectedProfileId(null)
+        assertEquals("second-token", AuthManager.getToken())
+
+        // Test setToken
+        AuthManager.setToken("third-token")
+        assertEquals("third-token", AuthManager.getToken())
     }
 
     @Test
@@ -285,10 +304,12 @@ class AuthManagerTest {
         // Switch to Profile B → returns token_b
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns "token-for-b"
+        AuthManager.setSelectedProfileId("prof-b") // Required to clear token cache
         assertEquals("token-for-b", AuthManager.getToken())
 
         // Switch back to Profile A → still returns token_a
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
+        AuthManager.setSelectedProfileId("prof-a") // Required to clear token cache
         assertEquals("token-for-a", AuthManager.getToken())
     }
 
@@ -318,11 +339,13 @@ class AuthManagerTest {
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns "fallback"
+        AuthManager.setSelectedProfileId("prof-b") // Required to clear token cache
         assertEquals("fallback", AuthManager.getToken())
 
         // Profile C has its own token too
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-c"
         every { mockPrefs.getString("token_prof-c", null) } returns "token-c"
+        AuthManager.setSelectedProfileId("prof-c") // Required to clear token cache
         assertEquals("token-c", AuthManager.getToken())
     }
 

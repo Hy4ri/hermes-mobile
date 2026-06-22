@@ -269,6 +269,7 @@ fun ChatScreen(
     HermesScaffold(
         modifier = modifier,
         pinTopBar = true,
+        navIcon = onOpenDrawer?.let { com.m57.hermescontrol.ui.common.NavIcon.Menu(it) } ?: com.m57.hermescontrol.ui.common.NavIcon.None,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -293,7 +294,6 @@ fun ChatScreen(
                 }
             }
         },
-        onOpenDrawer = onOpenDrawer,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(

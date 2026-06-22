@@ -3,44 +3,44 @@ package com.m57.hermescontrol
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
-@Serializable data object ConnectScreen : NavKey
+@Serializable data object ConnectScreenKey : NavKey
 
-@Serializable data object ChatScreen : NavKey
+@Serializable data object ChatScreenKey : NavKey
 
-@Serializable data object SettingsScreen : NavKey
+@Serializable data object SettingsScreenKey : NavKey
 
-@Serializable data object SkillsScreen : NavKey
+@Serializable data object SkillsScreenKey : NavKey
 
-@Serializable data object CronJobsScreen : NavKey
+@Serializable data object CronJobsScreenKey : NavKey
 
-@Serializable data object GatewayScreen : NavKey
+@Serializable data object GatewayScreenKey : NavKey
 
-@Serializable data object HistoryScreen : NavKey
+@Serializable data object HistoryScreenKey : NavKey
 
-@Serializable data object ProfilesScreen : NavKey
+@Serializable data object ProfilesScreenKey : NavKey
 
-@Serializable data object ToolsetsScreen : NavKey
+@Serializable data object ToolsetsScreenKey : NavKey
 
-@Serializable data object AchievementsScreen : NavKey
+@Serializable data object AchievementsScreenKey : NavKey
 
-@Serializable data object PairingScreen : NavKey
+@Serializable data object PairingScreenKey : NavKey
 
-@Serializable data object ConfigScreen : NavKey
+@Serializable data object ConfigScreenKey : NavKey
 
-@Serializable data object McpServersScreen : NavKey
+@Serializable data object McpServersScreenKey : NavKey
 
-@Serializable data object WebhooksScreen : NavKey
+@Serializable data object WebhooksScreenKey : NavKey
 
-@Serializable data object ModelScreen : NavKey
+@Serializable data object ModelScreenKey : NavKey
 
-@Serializable data object LogsScreen : NavKey
+@Serializable data object LogsScreenKey : NavKey
 
-@Serializable data object PluginsScreen : NavKey
+@Serializable data object PluginsScreenKey : NavKey
 
-@Serializable data object ChannelsScreen : NavKey
+@Serializable data object ChannelsScreenKey : NavKey
 
-@Serializable data object KeysScreen : NavKey
+@Serializable data object KeysScreenKey : NavKey
 
-@Serializable data object SystemScreen : NavKey
+@Serializable data object SystemScreenKey : NavKey
 
-@Serializable data object KanbanScreen : NavKey
+@Serializable data object KanbanScreenKey : NavKey

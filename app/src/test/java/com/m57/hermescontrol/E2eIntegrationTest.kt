@@ -503,24 +503,24 @@ class E2eIntegrationTest {
     // Navigation Drawer:
     @Test
     fun testNavigationDrawerTransitions() {
-        val backStack = NavBackStack<NavKey>(ChatScreen)
+        val backStack = NavBackStack<NavKey>(ChatScreenKey)
         NavigationController.backStack = backStack
 
-        assertEquals(ChatScreen, backStack.lastOrNull())
+        assertEquals(ChatScreenKey, backStack.lastOrNull())
 
-        NavigationController.navigateTo(SkillsScreen)
-        assertEquals(SkillsScreen, backStack.lastOrNull())
+        NavigationController.navigateTo(SkillsScreenKey)
+        assertEquals(SkillsScreenKey, backStack.lastOrNull())
         assertEquals(1, backStack.size)
 
-        NavigationController.navigateTo(CronJobsScreen)
-        assertEquals(CronJobsScreen, backStack.lastOrNull())
+        NavigationController.navigateTo(CronJobsScreenKey)
+        assertEquals(CronJobsScreenKey, backStack.lastOrNull())
         assertEquals(1, backStack.size)
 
         // Non-clearing drawer screen adds to stack
-        NavigationController.navigateTo(ProfilesScreen)
-        assertEquals(ProfilesScreen, backStack.lastOrNull())
+        NavigationController.navigateTo(ProfilesScreenKey)
+        assertEquals(ProfilesScreenKey, backStack.lastOrNull())
         assertEquals(2, backStack.size)
-        assertEquals(CronJobsScreen, backStack[0])
+        assertEquals(CronJobsScreenKey, backStack[0])
     }
 
     // ── Tier 2: Boundary & Corner Cases (>=5 per feature) ────────────────
@@ -734,15 +734,15 @@ class E2eIntegrationTest {
             advanceUntilIdle()
 
             // Set up drawer/backstack
-            val backStack = NavBackStack<NavKey>(SkillsScreen)
+            val backStack = NavBackStack<NavKey>(SkillsScreenKey)
             NavigationController.backStack = backStack
 
             viewModel.toggleSkill(viewModel.uiState.value.skills[0])
 
             // Transition during action
-            NavigationController.navigateTo(CronJobsScreen)
+            NavigationController.navigateTo(CronJobsScreenKey)
 
-            assertEquals(CronJobsScreen, NavigationController.backStack?.lastOrNull())
+            assertEquals(CronJobsScreenKey, NavigationController.backStack?.lastOrNull())
 
             // Complete the action
             advanceUntilIdle()
@@ -791,11 +791,11 @@ class E2eIntegrationTest {
             assertTrue(connectViewModel.uiState.value.connectionSuccess)
             verify { AuthManager.setToken("valid-token") }
 
-            // Step 2: User navigates to SkillsScreen
-            val backStack = NavBackStack<NavKey>(ChatScreen)
+            // Step 2: User navigates to SkillsScreenKey
+            val backStack = NavBackStack<NavKey>(ChatScreenKey)
             NavigationController.backStack = backStack
-            NavigationController.navigateTo(SkillsScreen)
-            assertEquals(SkillsScreen, NavigationController.backStack?.lastOrNull())
+            NavigationController.navigateTo(SkillsScreenKey)
+            assertEquals(SkillsScreenKey, NavigationController.backStack?.lastOrNull())
 
             // Step 3: User toggles a skill, but API fails
             val skill = Skill("Skill X", "Desc X", "Cat X", false)
@@ -830,9 +830,9 @@ class E2eIntegrationTest {
                     .contains("HTTP 500"),
             )
 
-            // Step 4: User navigates to CronJobsScreen
-            NavigationController.navigateTo(CronJobsScreen)
-            assertEquals(CronJobsScreen, NavigationController.backStack?.lastOrNull())
+            // Step 4: User navigates to CronJobsScreenKey
+            NavigationController.navigateTo(CronJobsScreenKey)
+            assertEquals(CronJobsScreenKey, NavigationController.backStack?.lastOrNull())
 
             // Step 5: User triggers a cron job
             coEvery { mockApiService.triggerCronJob("job-1") } returns Response.success(Unit)

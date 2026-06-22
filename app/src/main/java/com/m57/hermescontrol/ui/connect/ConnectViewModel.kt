@@ -228,29 +228,59 @@ class ConnectViewModel : ViewModel() {
         val trimmed = value.trim()
         if (trimmed.isBlank()) return
 
+        when (val result = PairingStringParser.parse(trimmed)) {
+            is PairingStringParser.Result.Success -> {
+                _uiState.update {
+                    it.copy(
+                        host = result.host,
+                        port = result.port,
+                        token = result.token,
+                        errorMessage = null,
+                    )
+                }
+                connect()
+            }
+            is PairingStringParser.Result.TokenOnly -> {
+                _uiState.update {
+                    it.copy(
+                        token = result.token,
+                        errorMessage = null,
+                    )
+                }
+            }
+            is PairingStringParser.Result.Error -> {
+                _uiState.update {
+                    it.copy(
+                        errorMessage = result.message,
+                    )
+                }
+            }
+        }
+    }
+}
+
+object PairingStringParser {
+    sealed class Result {
+        data class Success(val host: String, val port: String, val token: String) : Result()
+        data class TokenOnly(val token: String) : Result()
+        data class Error(val message: String) : Result()
+    }
+
+    fun parse(value: String): Result {
         try {
-            if (trimmed.startsWith("hermes://connect?", ignoreCase = true)) {
-                val uri = android.net.Uri.parse(trimmed)
+            if (value.startsWith("hermes://connect?", ignoreCase = true)) {
+                val uri = android.net.Uri.parse(value)
                 val host = uri.getQueryParameter("host")
                 val port = uri.getQueryParameter("port")
                 val token = uri.getQueryParameter("token")
                 if (host != null && port != null && token != null) {
-                    _uiState.update {
-                        it.copy(
-                            host = host,
-                            port = port,
-                            token = token,
-                            errorMessage = null,
-                        )
-                    }
-                    connect()
-                    return
+                    return Result.Success(host, port, token)
                 }
             }
 
             // Try decoding as Base64 JSON
             try {
-                val decodedBytes = android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
+                val decodedBytes = android.util.Base64.decode(value, android.util.Base64.DEFAULT)
                 val decodedString = String(decodedBytes, Charsets.UTF_8)
                 if (decodedString.startsWith("{") && decodedString.endsWith("}")) {
                     val json =
@@ -261,50 +291,25 @@ class ConnectViewModel : ViewModel() {
                     val port = json.get("port")?.asInt?.toString() ?: json.get("port")?.asString
                     val token = json.get("token")?.asString
                     if (host != null && port != null && token != null) {
-                        _uiState.update {
-                            it.copy(
-                                host = host,
-                                port = port,
-                                token = token,
-                                errorMessage = null,
-                            )
-                        }
-                        connect()
-                        return
+                        return Result.Success(host, port, token)
                     }
                     // Decoded valid JSON but missing required fields
-                    _uiState.update {
-                        it.copy(
-                            errorMessage = "Malformed pairing string — missing host, port, or token",
-                        )
-                    }
-                    return
+                    return Result.Error("Malformed pairing string — missing host, port, or token")
                 }
                 // Decoded to valid string but not JSON shape — not a pairing string
-                _uiState.update {
-                    it.copy(
-                        errorMessage = "Malformed pairing string — expected URL or Base64-encoded JSON",
-                    )
-                }
-                return
+                return Result.Error("Malformed pairing string — expected URL or Base64-encoded JSON")
             } catch (e: IllegalArgumentException) {
                 // Not valid Base64 — check if input looks like a raw token
-                if (trimmed.length >= 32 && trimmed.matches(Regex("[A-Za-z0-9_\\-]+"))) {
-                    _uiState.update { it.copy(token = trimmed, errorMessage = null) }
+                if (value.length >= 32 && value.matches(Regex("[A-Za-z0-9_\\-]+"))) {
+                    return Result.TokenOnly(value)
                 } else {
-                    _uiState.update {
-                        it.copy(
-                            errorMessage = "Malformed pairing string — expected URL or Base64-encoded JSON",
-                        )
-                    }
+                    return Result.Error("Malformed pairing string — expected URL or Base64-encoded JSON")
                 }
-                return
             } catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = "Failed to parse pairing string: ${e.message}") }
-                return
+                return Result.Error("Failed to parse pairing string: ${e.message}")
             }
         } catch (e: Exception) {
-            _uiState.update { it.copy(errorMessage = "Failed to parse pairing string: ${e.message}") }
+            return Result.Error("Failed to parse pairing string: ${e.message}")
         }
     }
 }

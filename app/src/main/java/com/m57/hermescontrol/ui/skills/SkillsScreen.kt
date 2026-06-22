@@ -120,7 +120,7 @@ fun SkillsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_skills)) },
-        onOpenDrawer = onOpenDrawer,
+        navIcon = onOpenDrawer?.let { com.m57.hermescontrol.ui.common.NavIcon.Menu(it) } ?: com.m57.hermescontrol.ui.common.NavIcon.None,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSkills() },
     ) {
@@ -385,14 +385,13 @@ fun SkillEditorDialog(
         ) {
             HermesScaffold(
                 title = { Text(stringResource(R.string.skills_edit_title, skillName)) },
-                onBack = {
+                navIcon = com.m57.hermescontrol.ui.common.NavIcon.Back {
                     if (hasChanges) {
                         showDiscardConfirm = true
                     } else {
                         onDismiss()
                     }
                 },
-                showBack = true,
                 actions = {
                     if (!isLoading) {
                         IconButton(

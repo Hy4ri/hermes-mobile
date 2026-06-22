@@ -106,6 +106,7 @@ object AuthManager {
                 >() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
+            android.util.Log.e("AuthManager", "Failed to load profiles", e)
             emptyList()
         }
     }
@@ -259,7 +260,7 @@ object AuthManager {
 
     /** Default bottom-nav items (NavKey data-object names). */
     private val DEFAULT_BOTTOM_NAV_ITEMS =
-        listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen")
+        listOf("ChatScreenKey", "SkillsScreenKey", "CronJobsScreenKey", "SystemScreenKey", "SettingsScreenKey")
 
     /** Returns the list of selected bottom-nav item keys (data-object names). */
     fun getBottomNavItems(): List<String> {

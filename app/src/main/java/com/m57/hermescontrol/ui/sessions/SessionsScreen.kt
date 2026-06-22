@@ -28,7 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.m57.hermescontrol.ChatScreen
+import com.m57.hermescontrol.ChatScreenKey
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalSpacing
@@ -65,7 +65,7 @@ fun SessionsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_history)) },
-        onOpenDrawer = onOpenDrawer,
+        navIcon = onOpenDrawer?.let { com.m57.hermescontrol.ui.common.NavIcon.Menu(it) } ?: com.m57.hermescontrol.ui.common.NavIcon.None,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSessions() },
         modifier = modifier,
@@ -110,7 +110,7 @@ fun SessionsScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         NavigationController.pendingSessionId = session.id
-                                        NavigationController.navigateTo(ChatScreen)
+                                        NavigationController.navigateTo(ChatScreenKey)
                                     },
                             colors =
                                 CardDefaults.cardColors(

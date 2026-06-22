@@ -89,7 +89,7 @@ fun KanbanScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.kanban_board_title)) },
-        onOpenDrawer = onOpenDrawer,
+        navIcon = onOpenDrawer?.let { com.m57.hermescontrol.ui.common.NavIcon.Menu(it) } ?: com.m57.hermescontrol.ui.common.NavIcon.None,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
     ) { paddingValues ->

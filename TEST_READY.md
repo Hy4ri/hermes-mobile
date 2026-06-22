@@ -5,7 +5,7 @@ This document provides a summary of test readiness, including test suite executi
 ## Execution and Expected Outcome
 - **Test Runner Command**: `nix develop --command ./gradlew test`
 - **Expected Outcome**: All tests pass successfully.
-- **Total Test Count**: 123 tests
+- **Total Test Count**: 275 tests
 
 ---
 
@@ -22,7 +22,7 @@ This document provides a summary of test readiness, including test suite executi
 | ChatViewModelTest.kt | 9 |
 | AuthManagerTest.kt | 8 |
 | EventParserTest.kt | 6 |
-| **Total** | **123** |
+| **Total** | **275** |
 
 ---
 

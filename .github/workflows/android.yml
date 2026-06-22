@@ -228,7 +228,7 @@ jobs:
       # Cache the AVD to avoid downloading/recreating it from scratch every time
       - name: AVD Cache
         id: avd-cache
-        uses: actions/cache@v7
+        uses: actions/cache@v4
         with:
           path: |
             ~/.android/avd/*

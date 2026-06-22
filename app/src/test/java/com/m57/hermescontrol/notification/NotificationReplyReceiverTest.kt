@@ -105,6 +105,7 @@ class NotificationReplyReceiverTest {
         receiver =
             object : NotificationReplyReceiver() {
                 override fun goAsyncCompat(): BroadcastReceiver.PendingResult = mockPendingResult
+
                 override fun buildReplyNotification(context: Context): Notification = mockNotification
             }
     }

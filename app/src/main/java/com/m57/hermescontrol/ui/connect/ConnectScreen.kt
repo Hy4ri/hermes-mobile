@@ -135,11 +135,9 @@ fun ConnectScreen(
                     ) {
                         Text(
                             text =
-                                if (state.selectedProfile != null) {
-                                    stringResource(R.string.connect_selected_profile, state.selectedProfile!!.name)
-                                } else {
-                                    stringResource(R.string.connect_action_select_profile)
-                                },
+                                state.selectedProfile?.let { p ->
+                                    stringResource(R.string.connect_selected_profile, p.name)
+                                } ?: stringResource(R.string.connect_action_select_profile),
                         )
                     }
                     DropdownMenu(

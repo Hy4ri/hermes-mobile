@@ -79,8 +79,13 @@ android {
 
     packaging {
       resources {
-        excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE.md,LICENSE,NOTICE,NOTICE.md}"
-        excludes += "/META-INF/LICENSE-notice.md"
+        pickFirsts += "META-INF/AL2.0"
+        pickFirsts += "META-INF/LGPL2.1"
+        pickFirsts += "META-INF/LICENSE"
+        pickFirsts += "META-INF/LICENSE.md"
+        pickFirsts += "META-INF/LICENSE-notice.md"
+        pickFirsts += "META-INF/NOTICE"
+        pickFirsts += "META-INF/NOTICE.md"
       }
     }
 }

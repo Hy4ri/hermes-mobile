@@ -1043,13 +1043,13 @@ class ChatViewModel(
                 while (true) {
                     delay(PENDING_REQUEST_TIMEOUT_MS)
                     val now = System.currentTimeMillis()
-                    val stale =
-                        pendingRequests.entries.filter {
-                            now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
+                    val iterator = pendingRequests.entries.iterator()
+                    while (iterator.hasNext()) {
+                        val entry = iterator.next()
+                        if (now - entry.value.createdAt > PENDING_REQUEST_TIMEOUT_MS) {
+                            iterator.remove()
+                            Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
                         }
-                    for (entry in stale) {
-                        pendingRequests.remove(entry.key)
-                        Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
                     }
                 }
             }

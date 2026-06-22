@@ -174,17 +174,18 @@ private fun UserBubble(
             )
         val primary = MaterialTheme.colorScheme.primary
         val secondary = MaterialTheme.colorScheme.secondary
+        val onPrimary = MaterialTheme.colorScheme.onPrimary
         val avgLuminance = (primary.luminance() + secondary.luminance()) / 2f
         val userBubbleTextColor =
             if (avgLuminance > 0.5f) {
-                if (MaterialTheme.colorScheme.onPrimary.luminance() < 0.5f) {
-                    MaterialTheme.colorScheme.onPrimary
+                if (onPrimary.luminance() < 0.5f) {
+                    onPrimary
                 } else {
                     Color(0xFF1A1A24)
                 }
             } else {
-                if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) {
-                    MaterialTheme.colorScheme.onPrimary
+                if (onPrimary.luminance() > 0.5f) {
+                    onPrimary
                 } else {
                     Color.White
                 }
@@ -281,16 +282,17 @@ private fun AssistantBubble(
     modifier: Modifier = Modifier,
 ) {
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
+    val onSurface = MaterialTheme.colorScheme.onSurface
     val textColor =
         if (bubbleColor.luminance() > 0.5f) {
-            if (MaterialTheme.colorScheme.onSurface.luminance() < 0.5f) {
-                MaterialTheme.colorScheme.onSurface
+            if (onSurface.luminance() < 0.5f) {
+                onSurface
             } else {
                 Color(0xFF1A1A24)
             }
         } else {
-            if (MaterialTheme.colorScheme.onSurface.luminance() > 0.5f) {
-                MaterialTheme.colorScheme.onSurface
+            if (onSurface.luminance() > 0.5f) {
+                onSurface
             } else {
                 Color(0xFFE8E6EE)
             }

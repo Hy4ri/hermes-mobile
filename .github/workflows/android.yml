@@ -224,10 +224,8 @@ jobs:
           api-level: 34
           target: google_apis
           arch: x86_64
-          disableemphemeral: true
           disable-animations: true
           force-avd-creation: true
-          emulator-build: 11037416
           script: ./gradlew connectedDebugAndroidTest --no-daemon
 
       - name: Upload instrumented test reports

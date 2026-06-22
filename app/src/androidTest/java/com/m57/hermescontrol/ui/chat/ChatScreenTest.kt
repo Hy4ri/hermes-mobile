@@ -19,7 +19,6 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @MediumTest
 class ChatScreenTest {
-
     @get:Rule
     val composeTestRule = createComposeRule()
 

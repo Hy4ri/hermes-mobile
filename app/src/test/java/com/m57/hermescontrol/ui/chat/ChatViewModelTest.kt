@@ -176,7 +176,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/stop")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.PROMPT_INTERRUPT, any(), any()) }
+            verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
         }
 
     @Test
@@ -200,7 +200,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/interrupt")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.PROMPT_INTERRUPT, any(), any()) }
+            verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
         }
 
     @Test
@@ -254,18 +254,17 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // Stub the API call — without this, mockkObject returns null mock and getStatus call fails
-            every { ApiClient.hermesApi.getStatus() } returns mockk(relaxed = true) {
-                coEvery { execute() } returns mockk {
+            coEvery { ApiClient.hermesApi.getStatus() } returns
+                mockk(relaxed = true) {
                     every { isSuccessful } returns true
                     every { body() } returns null
                 }
-            }
 
             viewModel.sendMessage("/status")
             advanceUntilIdle()
 
             // Should have dispatched the API call
-            verify { ApiClient.hermesApi.getStatus() }
+            coVerify { ApiClient.hermesApi.getStatus() }
         }
 
     @Test
@@ -291,17 +290,16 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            every { ApiClient.hermesApi.getSessions() } returns mockk(relaxed = true) {
-                coEvery { execute() } returns mockk {
+            coEvery { ApiClient.hermesApi.getSessions() } returns
+                mockk(relaxed = true) {
                     every { isSuccessful } returns true
                     every { body() } returns null
                 }
-            }
 
             viewModel.sendMessage("/sessions")
             advanceUntilIdle()
 
-            verify { ApiClient.hermesApi.getSessions() }
+            coVerify { ApiClient.hermesApi.getSessions() }
         }
 
     @Test
@@ -327,17 +325,16 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            every { ApiClient.hermesApi.getSystemStats() } returns mockk(relaxed = true) {
-                coEvery { execute() } returns mockk {
+            coEvery { ApiClient.hermesApi.getSystemStats() } returns
+                mockk(relaxed = true) {
                     every { isSuccessful } returns true
                     every { body() } returns null
                 }
-            }
 
             viewModel.sendMessage("/stats")
             advanceUntilIdle()
 
-            verify { ApiClient.hermesApi.getSystemStats() }
+            coVerify { ApiClient.hermesApi.getSystemStats() }
         }
 
     @Test

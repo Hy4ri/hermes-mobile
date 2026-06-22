@@ -19,7 +19,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -32,10 +31,11 @@ import org.junit.Test
 class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
-    private val testProfiles = listOf(
-        ConnectionProfile("prof-1", "Work", "10.0.0.1", 9119),
-        ConnectionProfile("prof-2", "Home", "10.0.0.2", 9220),
-    )
+    private val testProfiles =
+        listOf(
+            ConnectionProfile("prof-1", "Work", "10.0.0.1", 9119),
+            ConnectionProfile("prof-2", "Home", "10.0.0.2", 9220),
+        )
 
     @Before
     fun setUp() {

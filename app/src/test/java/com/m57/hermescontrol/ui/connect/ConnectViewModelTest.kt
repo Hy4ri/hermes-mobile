@@ -406,9 +406,13 @@ class ConnectViewModelTest {
 
     @Test
     fun testLoadSavedValues_withProfiles_loadsSelected() {
-        val profile = com.m57.hermescontrol.data.model.ConnectionProfile(
-            id = "prof-1", name = "Work", host = "10.0.0.1", port = 9119,
-        )
+        val profile =
+            com.m57.hermescontrol.data.model.ConnectionProfile(
+                id = "prof-1",
+                name = "Work",
+                host = "10.0.0.1",
+                port = 9119,
+            )
         every { AuthManager.getToken() } returns ""
         every { AuthManager.getHost() } returns "127.0.0.1"
         every { AuthManager.getPort() } returns 9119
@@ -427,9 +431,13 @@ class ConnectViewModelTest {
 
     @Test
     fun testLoadSavedValues_withStaleSelectedId_fallsBackToDefaults() {
-        val profile = com.m57.hermescontrol.data.model.ConnectionProfile(
-            id = "prof-1", name = "Work", host = "10.0.0.1", port = 9119,
-        )
+        val profile =
+            com.m57.hermescontrol.data.model.ConnectionProfile(
+                id = "prof-1",
+                name = "Work",
+                host = "10.0.0.1",
+                port = 9119,
+            )
         every { AuthManager.getConnectionProfiles() } returns listOf(profile)
         every { AuthManager.getSelectedProfileId() } returns "nonexistent-id"
 
@@ -445,9 +453,13 @@ class ConnectViewModelTest {
     fun testSelectProfile_withoutToken_usesEmptyString() {
         every { AuthManager.getProfileToken(any()) } returns null
 
-        val profile = com.m57.hermescontrol.data.model.ConnectionProfile(
-            id = "prof-2", name = "NoToken", host = "10.0.0.2", port = 9220,
-        )
+        val profile =
+            com.m57.hermescontrol.data.model.ConnectionProfile(
+                id = "prof-2",
+                name = "NoToken",
+                host = "10.0.0.2",
+                port = 9220,
+            )
         val viewModel = ConnectViewModel()
         viewModel.selectProfile(profile)
 
@@ -466,11 +478,14 @@ class ConnectViewModelTest {
 
             val mockResponse = mockk<Response<StatusResponse>>()
             every { mockResponse.isSuccessful } returns true
-            every { mockResponse.body() } returns StatusResponse(
-                version = "1.0", gateway_running = true,
-                active_sessions = 0, auth_required = false,
-                gateway_platforms = emptyMap(),
-            )
+            every { mockResponse.body() } returns
+                StatusResponse(
+                    version = "1.0",
+                    gateway_running = true,
+                    active_sessions = 0,
+                    auth_required = false,
+                    gateway_platforms = emptyMap(),
+                )
             coEvery { mockApiService.getStatus() } returns mockResponse
 
             viewModel.connect()
@@ -501,10 +516,11 @@ class ConnectViewModelTest {
 
     @Test
     fun testMultipleProfiles_loadedOnInit() {
-        val profiles = listOf(
-            com.m57.hermescontrol.data.model.ConnectionProfile("a", "Alpha", "10.0.0.1", 9119),
-            com.m57.hermescontrol.data.model.ConnectionProfile("b", "Beta", "10.0.0.2", 9220),
-        )
+        val profiles =
+            listOf(
+                com.m57.hermescontrol.data.model.ConnectionProfile("a", "Alpha", "10.0.0.1", 9119),
+                com.m57.hermescontrol.data.model.ConnectionProfile("b", "Beta", "10.0.0.2", 9220),
+            )
         every { AuthManager.getConnectionProfiles() } returns profiles
         every { AuthManager.getSelectedProfileId() } returns null
 
@@ -519,11 +535,14 @@ class ConnectViewModelTest {
         runTest {
             val mockResponse = mockk<Response<StatusResponse>>()
             every { mockResponse.isSuccessful } returns true
-            every { mockResponse.body() } returns StatusResponse(
-                version = "1.0", gateway_running = true,
-                active_sessions = 0, auth_required = false,
-                gateway_platforms = emptyMap(),
-            )
+            every { mockResponse.body() } returns
+                StatusResponse(
+                    version = "1.0",
+                    gateway_running = true,
+                    active_sessions = 0,
+                    auth_required = false,
+                    gateway_platforms = emptyMap(),
+                )
             coEvery { mockApiService.getStatus() } returns mockResponse
 
             val viewModel = ConnectViewModel()

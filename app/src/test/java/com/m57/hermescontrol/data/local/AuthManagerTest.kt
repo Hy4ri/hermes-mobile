@@ -244,16 +244,19 @@ class AuthManagerTest {
 
     @Test
     fun testConnectionProfiles_roundTrip() {
-        val profiles = listOf(
-            com.m57.hermescontrol.data.model.ConnectionProfile("a", "A", "10.0.0.1", 9119),
-            com.m57.hermescontrol.data.model.ConnectionProfile("b", "B", "10.0.0.2", 9220),
-        )
+        val profiles =
+            listOf(
+                com.m57.hermescontrol.data.model.ConnectionProfile("a", "A", "10.0.0.1", 9119),
+                com.m57.hermescontrol.data.model.ConnectionProfile("b", "B", "10.0.0.2", 9220),
+            )
         AuthManager.saveConnectionProfiles(profiles)
 
         verify { mockEditor.putString(eq("connection_profiles"), any()) }
 
         // Mock read-back
-        val json = """[{"id":"a","name":"A","host":"10.0.0.1","port":9119},{"id":"b","name":"B","host":"10.0.0.2","port":9220}]"""
+        val json =
+            """[{"id":"a","name":"A","host":"10.0.0.1","port":9119},""" +
+                """{"id":"b","name":"B","host":"10.0.0.2","port":9220}]"""
         every { mockPrefs.getString("connection_profiles", null) } returns json
 
         val loaded = AuthManager.getConnectionProfiles()

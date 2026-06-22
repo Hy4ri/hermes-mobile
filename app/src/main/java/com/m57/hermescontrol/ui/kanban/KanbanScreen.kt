@@ -156,7 +156,7 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns) { column ->
+                                    items(state.columns, key = { it.name }) { column ->
                                         val colName = column.name
                                         val colTasks =
                                             filteredTasks.filter {
@@ -185,7 +185,7 @@ fun KanbanScreen(
                                                 modifier = Modifier.weight(1f),
                                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
-                                                items(colTasks) { task ->
+                                                items(colTasks, key = { it.id }) { task ->
                                                     TaskCard(
                                                         task = task,
                                                         onMoveLeft =

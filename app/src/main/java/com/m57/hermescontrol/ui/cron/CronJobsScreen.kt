@@ -96,7 +96,7 @@ fun CronJobsScreen(
                     contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {
-                    items(state.jobs) { job ->
+                    items(state.jobs, key = { it.id }) { job ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors =

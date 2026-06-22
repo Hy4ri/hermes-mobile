@@ -126,7 +126,7 @@ fun PluginsScreen(
                                     placeholder = "Search plugins...",
                                 )
                             }
-                            items(filteredPlugins) { plugin ->
+                            items(filteredPlugins, key = { it.name }) { plugin ->
                                 Card(modifier = Modifier.fillMaxWidth()) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(

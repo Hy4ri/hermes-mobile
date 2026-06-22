@@ -199,7 +199,7 @@ fun WebhooksScreen(
                                     }
                                 }
                             } else {
-                                items(filteredSubscriptions) { sub ->
+                                items(filteredSubscriptions, key = { it.name }) { sub ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {

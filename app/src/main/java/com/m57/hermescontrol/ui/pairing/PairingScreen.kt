@@ -128,7 +128,7 @@ fun PairingScreen(
                                     }
                                 }
 
-                                items(pending) { item ->
+                                items(pending, key = { "${it.platform}_${it.code ?: it.user_id}" }) { item ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors =
@@ -208,7 +208,7 @@ fun PairingScreen(
                                     }
                                 }
                             } else {
-                                items(approved) { item ->
+                                items(approved, key = { "${it.platform}_${it.user_id}" }) { item ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {

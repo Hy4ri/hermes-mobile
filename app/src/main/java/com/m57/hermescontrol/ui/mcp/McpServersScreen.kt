@@ -123,7 +123,7 @@ fun McpServersScreen(
                                     placeholder = "Search MCP servers...",
                                 )
                             }
-                            items(filteredServers) { server ->
+                            items(filteredServers, key = { it.name }) { server ->
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors =

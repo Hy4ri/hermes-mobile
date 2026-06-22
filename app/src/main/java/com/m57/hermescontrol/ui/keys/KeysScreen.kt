@@ -132,7 +132,7 @@ fun KeysScreen(
                                     placeholder = "Search keys...",
                                 )
                             }
-                            items(filteredEnvVars.toList()) { (key, config) ->
+                            items(filteredEnvVars.toList(), key = { it.first }) { (key, config) ->
                                 var isEditing by remember { mutableStateOf(false) }
                                 val revealedVal = state.revealedValues[key]
                                 val isRevealed = revealedVal != null

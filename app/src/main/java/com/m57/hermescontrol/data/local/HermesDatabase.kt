@@ -23,7 +23,10 @@ abstract class HermesDatabase : RoomDatabase() {
         private val MIGRATION_1_2 =
             object : Migration(1, 2) {
                 override fun migrate(db: SupportSQLiteDatabase) {
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_session_id_timestamp` ON `chat_messages` (`session_id`, `timestamp`)")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_chat_messages_session_id_timestamp` " +
+                            "ON `chat_messages` (`session_id`, `timestamp`)",
+                    )
                 }
             }
 

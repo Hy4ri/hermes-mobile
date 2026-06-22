@@ -103,6 +103,9 @@ object AuthManager {
                 >() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
+            if (com.m57.hermescontrol.BuildConfig.DEBUG) {
+                android.util.Log.w("AuthManager", "Failed to parse connection profiles", e)
+            }
             emptyList()
         }
     }

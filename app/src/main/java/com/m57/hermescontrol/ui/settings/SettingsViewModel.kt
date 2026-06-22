@@ -154,29 +154,7 @@ class SettingsViewModel : ViewModel() {
     }
 
     /** All screens available for bottom-nav selection (name → display label). */
-    val availableNavItems: List<Pair<String, Int>> =
-        listOf(
-            "ChatScreen" to R.string.screen_chat,
-            "SkillsScreen" to R.string.screen_skills,
-            "CronJobsScreen" to R.string.screen_cron,
-            "SystemScreen" to R.string.screen_system,
-            "SettingsScreen" to R.string.screen_settings,
-            "ProfilesScreen" to R.string.screen_profiles,
-            "WebhooksScreen" to R.string.screen_webhooks,
-            "GatewayScreen" to R.string.screen_gateway,
-            "HistoryScreen" to R.string.screen_history,
-            "ToolsetsScreen" to R.string.screen_toolsets,
-            "PluginsScreen" to R.string.screen_plugins,
-            "ConfigScreen" to R.string.screen_config,
-            "McpServersScreen" to R.string.screen_mcp_servers,
-            "ModelScreen" to R.string.screen_models,
-            "PairingScreen" to R.string.screen_pairing,
-            "KeysScreen" to R.string.screen_keys,
-            "ChannelsScreen" to R.string.screen_channels,
-            "LogsScreen" to R.string.screen_logs,
-            "KanbanScreen" to R.string.screen_kanban,
-            "AchievementsScreen" to R.string.screen_achievements,
-        )
+    val availableNavItems: List<Pair<String, Int>> = com.m57.hermescontrol.ScreenRegistry.ALL_SCREENS.map { it.key::class.simpleName!! to it.labelRes }
 
     /** Add a nav item to the bottom bar (max 5). Auto-saves. */
     fun addNavItem(name: String) {

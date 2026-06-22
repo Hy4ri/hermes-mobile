@@ -401,4 +401,140 @@ class ConnectViewModelTest {
             val state = viewModel.uiState.value
             assertTrue(state.connectionSuccess)
         }
+
+    // ── TEST-06: Profile edge cases ─────────────────────────────────────
+
+    @Test
+    fun testLoadSavedValues_withProfiles_loadsSelected() {
+        val profile = com.m57.hermescontrol.data.model.ConnectionProfile(
+            id = "prof-1", name = "Work", host = "10.0.0.1", port = 9119,
+        )
+        every { AuthManager.getToken() } returns ""
+        every { AuthManager.getHost() } returns "127.0.0.1"
+        every { AuthManager.getPort() } returns 9119
+        every { AuthManager.getConnectionProfiles() } returns listOf(profile)
+        every { AuthManager.getSelectedProfileId() } returns "prof-1"
+
+        val viewModel = ConnectViewModel()
+        val state = viewModel.uiState.value
+
+        assertEquals("Work", state.profileName)
+        assertEquals("10.0.0.1", state.host)
+        assertEquals("9119", state.port)
+        assertEquals(profile, state.selectedProfile)
+        assertEquals(1, state.profiles.size)
+    }
+
+    @Test
+    fun testLoadSavedValues_withStaleSelectedId_fallsBackToDefaults() {
+        val profile = com.m57.hermescontrol.data.model.ConnectionProfile(
+            id = "prof-1", name = "Work", host = "10.0.0.1", port = 9119,
+        )
+        every { AuthManager.getConnectionProfiles() } returns listOf(profile)
+        every { AuthManager.getSelectedProfileId() } returns "nonexistent-id"
+
+        val viewModel = ConnectViewModel()
+        val state = viewModel.uiState.value
+
+        assertNull(state.selectedProfile)
+        assertEquals("", state.profileName)
+        assertEquals("127.0.0.1", state.host)
+    }
+
+    @Test
+    fun testSelectProfile_withoutToken_usesEmptyString() {
+        every { AuthManager.getProfileToken(any()) } returns null
+
+        val profile = com.m57.hermescontrol.data.model.ConnectionProfile(
+            id = "prof-2", name = "NoToken", host = "10.0.0.2", port = 9220,
+        )
+        val viewModel = ConnectViewModel()
+        viewModel.selectProfile(profile)
+
+        assertEquals("", viewModel.uiState.value.token)
+        assertEquals("NoToken", viewModel.uiState.value.profileName)
+    }
+
+    @Test
+    fun testConnect_withoutSaveProfile_clearsSelectedProfile() =
+        runTest {
+            val viewModel = ConnectViewModel()
+            viewModel.onTokenChange("standalone-token")
+            viewModel.onHostChange("10.0.0.1")
+            viewModel.onPortChange("9119")
+            viewModel.onSaveProfileChange(false)
+
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns true
+            every { mockResponse.body() } returns StatusResponse(
+                version = "1.0", gateway_running = true,
+                active_sessions = 0, auth_required = false,
+                gateway_platforms = emptyMap(),
+            )
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            verify { AuthManager.setSelectedProfileId(null) }
+            verify { AuthManager.setToken("standalone-token") }
+            verify { AuthManager.setHost("10.0.0.1") }
+            verify(exactly = 0) { AuthManager.saveConnectionProfiles(any()) }
+        }
+
+    @Test
+    fun testOnProfileNameChange_updatesState() {
+        val viewModel = ConnectViewModel()
+        viewModel.onProfileNameChange("My Profile")
+        assertEquals("My Profile", viewModel.uiState.value.profileName)
+    }
+
+    @Test
+    fun testOnSaveProfileChange_togglesFlag() {
+        val viewModel = ConnectViewModel()
+        assertFalse(viewModel.uiState.value.saveProfile)
+        viewModel.onSaveProfileChange(true)
+        assertTrue(viewModel.uiState.value.saveProfile)
+        viewModel.onSaveProfileChange(false)
+        assertFalse(viewModel.uiState.value.saveProfile)
+    }
+
+    @Test
+    fun testMultipleProfiles_loadedOnInit() {
+        val profiles = listOf(
+            com.m57.hermescontrol.data.model.ConnectionProfile("a", "Alpha", "10.0.0.1", 9119),
+            com.m57.hermescontrol.data.model.ConnectionProfile("b", "Beta", "10.0.0.2", 9220),
+        )
+        every { AuthManager.getConnectionProfiles() } returns profiles
+        every { AuthManager.getSelectedProfileId() } returns null
+
+        val viewModel = ConnectViewModel()
+        assertEquals(2, viewModel.uiState.value.profiles.size)
+        assertEquals("Alpha", viewModel.uiState.value.profiles[0].name)
+        assertEquals("Beta", viewModel.uiState.value.profiles[1].name)
+    }
+
+    @Test
+    fun testOnPairingString_hermesUrl_parsesAndConnects() =
+        runTest {
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns true
+            every { mockResponse.body() } returns StatusResponse(
+                version = "1.0", gateway_running = true,
+                active_sessions = 0, auth_required = false,
+                gateway_platforms = emptyMap(),
+            )
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            val viewModel = ConnectViewModel()
+            viewModel.onPairingString("hermes://connect?host=192.168.1.1&port=8888&token=abc123")
+
+            val state = viewModel.uiState.value
+            assertEquals("192.168.1.1", state.host)
+            assertEquals("8888", state.port)
+            assertEquals("abc123", state.token)
+            // Should have triggered connect
+            advanceUntilIdle()
+            assertTrue(state.connectionSuccess)
+        }
 }

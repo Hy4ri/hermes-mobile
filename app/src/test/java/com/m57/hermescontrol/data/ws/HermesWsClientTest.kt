@@ -339,4 +339,168 @@ class HermesWsClientTest {
         // Wait for the second connection to hit the server
         assertTrue("Failed to reconnect", connect2Latch.await(6, TimeUnit.SECONDS))
     }
+
+    // ── TEST-10: WS reconnect state recovery ────────────────────────────
+
+    @Test
+    fun testBackoffResetsOnSuccessfulConnect() {
+        every { AuthManager.isAutoReconnect() } returns true
+
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
+                        serverLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        val clientLatch = CountDownLatch(1)
+        HermesWsClient.onConnected = { clientLatch.countDown() }
+
+        HermesWsClient.connect()
+        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+
+        // After connect, backoff should be back to initial
+        val backoffField = HermesWsClient::class.java.getDeclaredField("currentBackoff")
+        backoffField.isAccessible = true
+        assertEquals(
+            "Backoff should reset to initial after successful connect",
+            1000L,
+            backoffField.getLong(HermesWsClient),
+        )
+    }
+
+    @Test
+    fun testIntentionalClosePreventsReconnect() {
+        every { AuthManager.isAutoReconnect() } returns true
+
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
+                        serverLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        val clientLatch = CountDownLatch(1)
+        HermesWsClient.onConnected = { clientLatch.countDown() }
+
+        HermesWsClient.connect()
+        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+
+        // Disconnect — this sets intentionalClose = true and cancels reconnect
+        HermesWsClient.disconnect()
+
+        assertFalse(HermesWsClient.isConnected)
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+    }
+
+    @Test
+    fun testDoubleConnect_ignoresSecondCallWhenConnected() {
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
+                        serverLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        val clientLatch = CountDownLatch(1)
+        val connectCount = intArrayOf(0)
+        HermesWsClient.onConnected = {
+            connectCount[0]++
+            clientLatch.countDown()
+        }
+
+        HermesWsClient.connect()
+        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+        assertEquals(1, connectCount[0])
+        assertTrue(HermesWsClient.isConnected)
+
+        // Second connect call should be a no-op
+        HermesWsClient.connect()
+        assertEquals(1, connectCount[0])
+        assertTrue(HermesWsClient.isConnected)
+    }
+
+    @Test
+    fun testStatusTransitionOnConnect() {
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
+                        serverLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+
+        HermesWsClient.connect()
+
+        // After connect(), status should be CONNECTING
+        var status: ConnectionStatus
+        val deadline = System.currentTimeMillis() + 2000
+        do {
+            status = HermesWsClient.connectionStatus.value
+            if (status == ConnectionStatus.CONNECTING) break
+            Thread.sleep(10)
+        } while (System.currentTimeMillis() < deadline)
+        assertEquals(ConnectionStatus.CONNECTING, status)
+
+        // Wait for actual connection
+        val clientLatch = CountDownLatch(1)
+        HermesWsClient.onConnected = { clientLatch.countDown() }
+        assertTrue(clientLatch.await(5, TimeUnit.SECONDS))
+        assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
+    }
+
+    @Test
+    fun testDisconnectWhileReconnecting_transitionsToDisconnected() {
+        every { AuthManager.isAutoReconnect() } returns true
+
+        val connectLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
+                        connectLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        // Enqueue a second response for reconnect attempt
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: okhttp3.Response) {
+                        // No-op — should be cancelled
+                    }
+                },
+            ),
+        )
+
+        val clientConnectedLatch = CountDownLatch(1)
+        HermesWsClient.onConnected = { clientConnectedLatch.countDown() }
+        HermesWsClient.connect()
+        assertTrue(connectLatch.await(5, TimeUnit.SECONDS))
+        assertTrue(clientConnectedLatch.await(5, TimeUnit.SECONDS))
+
+        // Disconnect (sets intentionalClose) — after this, reconnect should be prevented
+        HermesWsClient.disconnect()
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+        assertFalse(HermesWsClient.isConnected)
+    }
 }

@@ -38,7 +38,6 @@ class ChatMessageDaoTest {
         val mockAppInfo = mockk<ApplicationInfo>(relaxed = true)
         every { mockAppInfo.dataDir } returns "/tmp"
         every { mockContext.applicationInfo } returns mockAppInfo
-        every { mockContext.packageManager } returns mockk(relaxed = true)
 
         db =
             Room

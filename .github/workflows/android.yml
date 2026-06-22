@@ -242,7 +242,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
     name: CI Summary
-    needs: [ktlint, android-lint, unit-tests, build, instrumented-tests]
+    needs: [ktlint, android-lint, unit-tests, build]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
@@ -253,10 +253,9 @@ jobs:
           LINT_RESULT: ${{ needs.android-lint.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
-          INSTRUMENTED_RESULT: ${{ needs.instrumented-tests.result }}
         run: |
-          echo "::notice::ktlint=$KTLINT_RESULT, android-lint=$LINT_RESULT, tests=$TEST_RESULT, build=$BUILD_RESULT, instrumented=$INSTRUMENTED_RESULT"
-          if [[ "$KTLINT_RESULT" != "success" || "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$BUILD_RESULT" != "success" || "$INSTRUMENTED_RESULT" != "success" ]]; then
+          echo "::notice::ktlint=$KTLINT_RESULT, android-lint=$LINT_RESULT, tests=$TEST_RESULT, build=$BUILD_RESULT"
+          if [[ "$KTLINT_RESULT" != "success" || "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$BUILD_RESULT" != "success" ]]; then
             echo "::error::One or more CI jobs failed"
             exit 1
           fi

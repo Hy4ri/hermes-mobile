@@ -272,9 +272,17 @@ jobs:
           TEST_RESULT: ${{ needs.unit-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          echo "::notice::ktlint=$KTLINT_RESULT, android-lint=$LINT_RESULT, tests=$TEST_RESULT, build=$BUILD_RESULT"
-          if [[ "$KTLINT_RESULT" != "success" || "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$BUILD_RESULT" != "success" ]]; then
-            echo "::error::One or more CI jobs failed"
+          FAILED=0
+          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT"; do
+            name="${entry%%:*}"
+            result="${entry#*:}"
+            echo "::notice::$name = $result"
+            if [[ "$result" != "success" ]]; then
+              FAILED=1
+            fi
+          done
+          if [[ "$FAILED" -eq 1 ]]; then
+            echo "::error::CI failed — check individual job logs"
             exit 1
           fi
           echo "All CI jobs passed ✅"

@@ -163,7 +163,8 @@ object HermesWsClient {
         val url = AuthManager.wsUrl()
         // B2 (Jun 18 2026, kanban t_8884db16): url contains the auth token
         // as a query param — never stream to logcat in release builds.
-        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $url")
+        val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
         val request = Request.Builder().url(url).build()
         webSocket = okHttpClient.newWebSocket(request, WsListenerImpl())

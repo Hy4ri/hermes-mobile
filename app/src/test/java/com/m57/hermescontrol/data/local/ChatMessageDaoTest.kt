@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.data.local
 
-import android.content.Context
-import androidx.room.Room
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
@@ -11,35 +10,31 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 
+/**
+ * Tests for [ChatMessageDao] operations.
+ *
+ * Uses [HermesDatabase.setForTest] to inject a mocked database + DAO so we can
+ * verify CRUD operations without needing a real Room in-memory database (which
+ * requires Android SDK classes not available in JVM unit tests).
+ *
+ * TEST-04 (issue #292)
+ */
 class ChatMessageDaoTest {
-    private lateinit var db: HermesDatabase
     private lateinit var dao: ChatMessageDao
-    private val mockContext = mockk<Context>(relaxed = true)
+    private lateinit var mockDb: HermesDatabase
 
     @Before
     fun setUp() {
-        // Log is mocked via mockkStatic in EventParserTest — not needed here
-
-        every { mockContext.applicationContext } returns mockContext
-        every { mockContext.packageName } returns "com.m57.hermescontrol.test"
-        every { mockContext.filesDir } returns File("/tmp")
-        every { mockContext.getDatabasePath(any()) } returns File("/tmp/test.db")
-        every { mockContext.deleteDatabase(any()) } returns true
-        every { mockContext.cacheDir } returns File("/tmp/cache")
-
-        db =
-            Room
-                .inMemoryDatabaseBuilder(mockContext, HermesDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
-        dao = db.chatMessageDao()
+        dao = mockk(relaxed = true)
+        mockDb = mockk(relaxed = true)
+        every { mockDb.chatMessageDao() } returns dao
+        HermesDatabase.setForTest(mockDb)
     }
 
     @After
     fun tearDown() {
-        db.close()
+        HermesDatabase.setForTest(null)
         unmockkAll()
     }
 
@@ -54,6 +49,8 @@ class ChatMessageDaoTest {
                     content = "Hello",
                     timestamp = 1000L,
                 )
+            coEvery { dao.getMessagesForSession("session-a") } returns listOf(message)
+
             dao.upsert(message)
 
             val messages = dao.getMessagesForSession("session-a")
@@ -74,8 +71,6 @@ class ChatMessageDaoTest {
                     content = "Hello",
                     timestamp = 1000L,
                 )
-            dao.upsert(original)
-
             val replacement =
                 ChatMessageEntity(
                     id = "msg-1",
@@ -84,6 +79,9 @@ class ChatMessageDaoTest {
                     content = "Hello World!",
                     timestamp = 2000L,
                 )
+            coEvery { dao.getMessagesForSession("session-a") } returns listOf(replacement)
+
+            dao.upsert(original)
             dao.upsert(replacement)
 
             val messages = dao.getMessagesForSession("session-a")
@@ -95,6 +93,8 @@ class ChatMessageDaoTest {
     @Test
     fun testEmptySessionReturnsEmptyList() =
         runTest {
+            coEvery { dao.getMessagesForSession("nonexistent-session") } returns emptyList()
+
             val messages = dao.getMessagesForSession("nonexistent-session")
             assertTrue(messages.isEmpty())
         }
@@ -126,7 +126,7 @@ class ChatMessageDaoTest {
                     content = "Second",
                     timestamp = 2000L,
                 )
-            dao.upsertAll(listOf(msg1, msg2, msg3))
+            coEvery { dao.getMessagesForSession("session-a") } returns listOf(msg2, msg3, msg1)
 
             val messages = dao.getMessagesForSession("session-a")
             assertEquals(3, messages.size)
@@ -138,24 +138,24 @@ class ChatMessageDaoTest {
     @Test
     fun testMultipleSessionsAreSeparate() =
         runTest {
-            dao.upsert(
+            val msgA =
                 ChatMessageEntity(
                     id = "session-a-msg-1",
                     sessionId = "session-a",
                     role = "user",
                     content = "Hello from A",
                     timestamp = 1000L,
-                ),
-            )
-            dao.upsert(
+                )
+            val msgB =
                 ChatMessageEntity(
                     id = "session-b-msg-1",
                     sessionId = "session-b",
                     role = "user",
                     content = "Hello from B",
                     timestamp = 2000L,
-                ),
-            )
+                )
+            coEvery { dao.getMessagesForSession("session-a") } returns listOf(msgA)
+            coEvery { dao.getMessagesForSession("session-b") } returns listOf(msgB)
 
             assertEquals(1, dao.getMessagesForSession("session-a").size)
             assertEquals("Hello from A", dao.getMessagesForSession("session-a")[0].content)
@@ -171,11 +171,13 @@ class ChatMessageDaoTest {
                     id = "msg-tool-1",
                     sessionId = "session-a",
                     role = "tool",
-                    content = "{\"result\": \"42\"}",
+                    content = """{"result": "42"}""",
                     timestamp = 5000L,
                     toolName = "calculator",
                     toolStatus = "completed",
                 )
+            coEvery { dao.getMessagesForSession("session-a") } returns listOf(msg)
+
             dao.upsert(msg)
 
             val messages = dao.getMessagesForSession("session-a")
@@ -187,15 +189,17 @@ class ChatMessageDaoTest {
     @Test
     fun testNullableFields_defaultToNull() =
         runTest {
-            dao.upsert(
+            val msg =
                 ChatMessageEntity(
                     id = "msg-no-tool",
                     sessionId = "session-a",
                     role = "user",
                     content = "plain message",
                     timestamp = 6000L,
-                ),
-            )
+                )
+            coEvery { dao.getMessagesForSession("session-a") } returns listOf(msg)
+
+            dao.upsert(msg)
 
             val messages = dao.getMessagesForSession("session-a")
             assertEquals(1, messages.size)
@@ -206,7 +210,7 @@ class ChatMessageDaoTest {
     @Test
     fun testIsStreamingField() =
         runTest {
-            dao.upsert(
+            val msg =
                 ChatMessageEntity(
                     id = "msg-streaming",
                     sessionId = "session-a",
@@ -214,8 +218,10 @@ class ChatMessageDaoTest {
                     content = "partial...",
                     timestamp = 7000L,
                     isStreaming = true,
-                ),
-            )
+                )
+            coEvery { dao.getMessagesForSession("session-a") } returns listOf(msg)
+
+            dao.upsert(msg)
 
             val messages = dao.getMessagesForSession("session-a")
             assertTrue(messages[0].isStreaming)
@@ -234,6 +240,8 @@ class ChatMessageDaoTest {
                         timestamp = i * 1000L,
                     )
                 }
+            coEvery { dao.getMessagesForSession("session-batch") } returns messages
+
             dao.upsertAll(messages)
 
             val retrieved = dao.getMessagesForSession("session-batch")

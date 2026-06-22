@@ -23,11 +23,6 @@ import org.junit.runner.RunWith
  *
  * Validates that the chat screen renders correctly, its send button is
  * displayed, and the input field accepts text.
- *
- * Mocks ContextCompat.checkSelfPermission to return GRANTED so the
- * POST_NOTIFICATIONS runtime permission dialog isn't launched during
- * composition (it would pause the activity and dispose the compose
- * hierarchy).
  */
 @RunWith(AndroidJUnit4::class)
 @MediumTest
@@ -37,6 +32,10 @@ class ChatScreenTest {
 
     @Before
     fun setUp() {
+        // Suppress the POST_NOTIFICATIONS runtime permission dialog that
+        // the ChatScreen's LaunchedEffect(Unit) would otherwise trigger.
+        // On the emulator this dialog pauses the activity and disposes the
+        // compose hierarchy, making subsequent node lookups fail.
         mockkStatic(ContextCompat::class)
         every {
             ContextCompat.checkSelfPermission(any(), any())
@@ -45,8 +44,14 @@ class ChatScreenTest {
 
     @Test
     fun chatScreen_renders_and_acceptsInput() {
+        // Default ChatUiState has connectionStatus=DISCONNECTED which
+        // disables the input field and hides the send button.  Override
+        // so the interactive controls are active.
+        val uiState = ChatUiState(
+            connectionStatus = ConnectionStatus.CONNECTED,
+        )
         val mockViewModel = mockk<ChatViewModel>(relaxed = true)
-        every { mockViewModel.uiState } returns MutableStateFlow(ChatUiState()).asStateFlow()
+        every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
 
         composeTestRule.setContent {
             ChatScreen(

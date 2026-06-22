@@ -29,7 +29,7 @@ class LogsViewModel : ViewModel() {
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getLogs() }
+                    safeApiCall { ApiClient.hermesApi.getLogs(lines = 1000) }
                 }
             when (result) {
                 is NetworkResult.Success -> {

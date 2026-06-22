@@ -851,7 +851,7 @@ class E2eIntegrationTest {
     @Test
     fun testLogsListing_success() =
         runTest {
-            coEvery { mockApiService.getLogs() } returns
+            coEvery { mockApiService.getLogs(lines = 1000) } returns
                 Response.success(LogResponse(listOf("Log line 1", "Log line 2")))
 
             val viewModel = LogsViewModel()

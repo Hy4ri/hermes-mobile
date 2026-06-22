@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import kotlinx.coroutines.delay
 import retrofit2.Response
 import java.io.IOException
 
@@ -68,6 +69,8 @@ suspend inline fun <reified T> safeApiCall(
             } else {
                 val code = response.code()
                 if (code in 500..599 && attempt < retries) {
+                    val backoff = 500L * (1 shl attempt)
+                    delay(backoff)
                     continue
                 }
                 return NetworkResult.Failure(mapHttpError(code))
@@ -82,6 +85,8 @@ suspend inline fun <reified T> safeApiCall(
                     ),
                 )
             }
+            val backoff = 500L * (1 shl attempt)
+            delay(backoff)
         } catch (e: Exception) {
             return NetworkResult.Failure(
                 NetworkError.Unknown(

@@ -74,6 +74,11 @@ fun KanbanScreen(
                     task.assignedTo?.contains(query, ignoreCase = true) == true
             }
         }
+
+    val tasksByColumn =
+        remember(filteredTasks) {
+            filteredTasks.groupBy { it.status.lowercase() }
+        }
     var showAddTaskDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -156,13 +161,10 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns) { column ->
+                                    items(state.columns.size) { columnIndex ->
+                                        val column = state.columns[columnIndex]
                                         val colName = column.name
-                                        val colTasks =
-                                            filteredTasks.filter {
-                                                it.status.equals(colName, ignoreCase = true)
-                                            }
-                                        val columnIndex = state.columns.indexOf(column)
+                                        val colTasks = tasksByColumn[colName.lowercase()] ?: emptyList()
                                         val prevColumn = state.columns.getOrNull(columnIndex - 1)
                                         val nextColumn = state.columns.getOrNull(columnIndex + 1)
 
@@ -185,7 +187,7 @@ fun KanbanScreen(
                                                 modifier = Modifier.weight(1f),
                                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
-                                                items(colTasks) { task ->
+                                                items(colTasks, key = { it.id }) { task ->
                                                     TaskCard(
                                                         task = task,
                                                         onMoveLeft =

@@ -212,7 +212,10 @@ interface HermesApiService {
     suspend fun getModelOptions(): Response<ModelOptionsResponse>
 
     @GET("api/logs")
-    suspend fun getLogs(): Response<LogResponse>
+    suspend fun getLogs(
+        @Query("limit") limit: Int? = null,
+        @Query("lines") lines: Int? = null,
+    ): Response<LogResponse>
 
     @GET("api/dashboard/plugins/hub")
     suspend fun getPlugins(): Response<PluginsHubResponse>

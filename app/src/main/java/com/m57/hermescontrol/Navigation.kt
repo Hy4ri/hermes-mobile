@@ -345,6 +345,8 @@ fun MainNavigation(sessionId: String? = null) {
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
     val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
+    val drawerEntriesBySection = remember { DRAWER_ENTRIES.groupBy { it.section } }
+
     // Sync primary screens to NavigationController
     LaunchedEffect(bottomNavKeys) {
         NavigationController.updatePrimaryScreens(bottomNavKeys)
@@ -418,9 +420,7 @@ fun MainNavigation(sessionId: String? = null) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        DRAWER_ENTRIES
-                            .filter { it.section == section }
-                            .forEach { entry ->
+                        drawerEntriesBySection[section]?.forEach { entry ->
                                 NavigationDrawerItem(
                                     icon = { Icon(entry.icon, contentDescription = null) },
                                     label = { Text(stringResource(entry.labelRes)) },

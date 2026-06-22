@@ -72,12 +72,12 @@ class ConnectViewModelTest {
         every { mockApp.getString(R.string.connect_error_403) } returns "Access denied (403 Forbidden)"
         every {
             mockApp.getString(R.string.connect_error_http_code, any())
-        } answers { "Server returned HTTP ${firstArg<Int>()}" }
+        } answers { "Server returned HTTP ${secondArg<Any>()}" }
         every { mockApp.getString(R.string.connect_error_refused) } returns "Connection refused – is Hermes running?"
         every { mockApp.getString(R.string.connect_error_timeout) } returns "Connection timed out"
         every {
             mockApp.getString(R.string.connect_error_connection_failed, any())
-        } answers { "Connection failed: ${firstArg<String>()}" }
+        } answers { "Connection failed: ${secondArg<Any>()}" }
         every {
             mockApp.getString(R.string.connect_error_malformed)
         } returns "Malformed pairing string — expected URL or Base64-encoded JSON"
@@ -86,7 +86,7 @@ class ConnectViewModelTest {
         } returns "Malformed pairing string — missing host, port, or token"
         every {
             mockApp.getString(R.string.connect_error_parse_failed, any())
-        } answers { "Failed to parse pairing string: ${firstArg<String>()}" }
+        } answers { "Failed to parse pairing string: ${secondArg<Any>()}" }
     }
 
     @After

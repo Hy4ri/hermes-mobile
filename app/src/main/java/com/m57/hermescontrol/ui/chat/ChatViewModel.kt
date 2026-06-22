@@ -57,6 +57,9 @@ data class ChatUiState(
     val searchQuery: String = "",
     val searchMatchIndices: List<Int> = emptyList(),
     val currentSearchMatchIndex: Int = -1,
+    // Cached settings
+    val typingEffectEnabled: Boolean = true,
+    val typingEffectDelayMs: Int = 30,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -112,6 +115,7 @@ class ChatViewModel(
         )
 
     init {
+        refreshSettings()
         connectWebSocket()
         viewModelScope.launch {
             wsClient.events.collect { event ->
@@ -811,6 +815,15 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId ?: return
         loadCachedMessages(sessionId)
         loadSessionMessages(sessionId)
+    }
+
+    fun refreshSettings() {
+        _uiState.update { state ->
+            state.copy(
+                typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
+                typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
+            )
+        }
     }
 
     fun switchSession(sessionId: String) {

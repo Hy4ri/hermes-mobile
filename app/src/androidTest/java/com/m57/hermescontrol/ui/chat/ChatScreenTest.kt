@@ -7,13 +7,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
-import com.m57.hermescontrol.theme.HermesControlTheme
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,6 +20,10 @@ import org.junit.runner.RunWith
  *
  * Tests validate that the chat screen renders correctly and handles
  * user input. Requires an instrumented Android environment.
+ *
+ * Uses createAndroidComposeRule<ComponentActivity> for explicit Activity lifecycle
+ * management across test methods — avoids the "No compose hierarchies found"
+ * issue that createComposeRule() has on the emulator with multiple test methods.
  */
 @RunWith(AndroidJUnit4::class)
 @MediumTest
@@ -30,40 +31,31 @@ class ChatScreenTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    @After
-    fun tearDown() {
-        unmockkAll()
-    }
-
-    private fun createMockViewModel(): ChatViewModel {
-        val mock = mockk<ChatViewModel>(relaxed = true)
-        every { mock.uiState } returns MutableStateFlow(ChatUiState()).asStateFlow()
-        return mock
-    }
-
     @Test
     fun chatScreen_rendersWithoutCrashing() {
+        val mockViewModel = mockk<ChatViewModel>(relaxed = true)
+        every { mockViewModel.uiState } returns MutableStateFlow(ChatUiState()).asStateFlow()
+
         composeTestRule.setContent {
-            HermesControlTheme {
-                ChatScreen(
-                    onOpenDrawer = {},
-                    sessionId = null,
-                    viewModel = createMockViewModel(),
-                )
-            }
+            ChatScreen(
+                onOpenDrawer = {},
+                sessionId = null,
+                viewModel = mockViewModel,
+            )
         }
     }
 
     @Test
     fun chatScreen_inputField_acceptsText() {
+        val mockViewModel = mockk<ChatViewModel>(relaxed = true)
+        every { mockViewModel.uiState } returns MutableStateFlow(ChatUiState()).asStateFlow()
+
         composeTestRule.setContent {
-            HermesControlTheme {
-                ChatScreen(
-                    onOpenDrawer = {},
-                    sessionId = null,
-                    viewModel = createMockViewModel(),
-                )
-            }
+            ChatScreen(
+                onOpenDrawer = {},
+                sessionId = null,
+                viewModel = mockViewModel,
+            )
         }
 
         composeTestRule.onNodeWithTag("chat_input").performTextInput("Hello Hermes")
@@ -71,14 +63,15 @@ class ChatScreenTest {
 
     @Test
     fun chatScreen_sendButton_isDisplayed() {
+        val mockViewModel = mockk<ChatViewModel>(relaxed = true)
+        every { mockViewModel.uiState } returns MutableStateFlow(ChatUiState()).asStateFlow()
+
         composeTestRule.setContent {
-            HermesControlTheme {
-                ChatScreen(
-                    onOpenDrawer = {},
-                    sessionId = null,
-                    viewModel = createMockViewModel(),
-                )
-            }
+            ChatScreen(
+                onOpenDrawer = {},
+                sessionId = null,
+                viewModel = mockViewModel,
+            )
         }
 
         composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()

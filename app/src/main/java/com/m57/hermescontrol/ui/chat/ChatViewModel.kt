@@ -4,10 +4,8 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.Gson
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
-import com.m57.hermescontrol.data.local.toEntity
 import com.m57.hermescontrol.data.local.toUiModel
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -86,6 +84,16 @@ class ChatViewModel(
     private val wsClient = HermesWsClient
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
     private val dao = HermesDatabase.get(application).chatMessageDao()
+    private val persistenceRepository = ChatPersistenceRepository(dao)
+    private val searchController = ChatSearchController(viewModelScope, _uiState)
+    private val slashCommandDispatcher =
+        SlashCommandDispatcher(
+            scope = viewModelScope,
+            onInterrupt = { interruptSession() },
+            onNewSession = { createNewSession() },
+            addAssistantMessage = { text -> addAssistantMessage(text) },
+        )
+    private val wsEventReducer = ChatWsEventReducer()
 
     /** Tracks the ID of the currently streaming assistant message. */
     @Volatile
@@ -148,6 +156,31 @@ class ChatViewModel(
     var initialSessionId: String? = null
 
     private fun handleWsEvent(event: WsEvent) {
+        val (reducerResult, newStreamingId) = wsEventReducer.reduce(_uiState.value, event, streamingMessageId)
+        streamingMessageId = newStreamingId
+        _uiState.value = reducerResult.state
+
+        reducerResult.messageToPersist?.let { msg ->
+            val sid = reducerResult.sessionIdToPersist ?: _uiState.value.currentSessionId
+            if (sid != null) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    persistenceRepository.saveMessage(msg, sid)
+                }
+            }
+        }
+
+        if (reducerResult.reloadSessions) {
+            loadSessions()
+        }
+
+        reducerResult.trackRpcResultId?.let { id ->
+            handleRpcResult(id, (event as WsEvent.RpcResult).result)
+        }
+
+        reducerResult.trackRpcErrorId?.let { id ->
+            handleRpcError(id, (event as WsEvent.RpcError).error)
+        }
+
         when (event) {
             is WsEvent.GatewayReady -> {
                 _uiState.update { it.copy(isLoading = false) }
@@ -163,66 +196,7 @@ class ChatViewModel(
                     }
                 }
             }
-
-            is WsEvent.SessionInfo -> {}
-
-            is WsEvent.MessageStart -> {
-                handleMessageStart(event)
-            }
-
-            is WsEvent.MessageToken -> {
-                handleMessageToken(event)
-            }
-
-            is WsEvent.ThinkingDelta -> {
-                handleThinkingDelta(event)
-            }
-
-            is WsEvent.MessageComplete -> {
-                handleMessageComplete(event)
-            }
-
-            is WsEvent.MessageDone -> {
-                handleMessageDone(event)
-            }
-
-            is WsEvent.ToolStart -> {
-                handleToolStart(event)
-            }
-
-            is WsEvent.ToolComplete -> {
-                handleToolComplete(event)
-            }
-
-            is WsEvent.ClarifyRequest -> {
-                if (!isCurrentSession(event.sessionId)) return
-                _uiState.update {
-                    it.copy(
-                        clarifyRequest =
-                            ClarifyUi(
-                                text = event.text.orEmpty(),
-                                options = event.options.orEmpty(),
-                                clarifyId = event.clarifyId,
-                            ),
-                    )
-                }
-            }
-
-            is WsEvent.StatusUpdate -> {}
-
-            is WsEvent.SessionUpdated -> {
-                loadSessions()
-            }
-
-            is WsEvent.RpcResult -> {
-                handleRpcResult(event.id, event.result)
-            }
-
-            is WsEvent.RpcError -> {
-                handleRpcError(event.id, event.error)
-            }
-
-            is WsEvent.Unknown -> {}
+            else -> {}
         }
     }
 
@@ -232,255 +206,8 @@ class ChatViewModel(
      * Checks if an incoming WS event belongs to the currently active
      * session. Returns true if the event should be processed.
      */
-    private fun isCurrentSession(eventSessionId: String?): Boolean {
-        // If the event has no session ID, process it (legacy compatibility)
-        if (eventSessionId == null) return true
-        return eventSessionId == _uiState.value.currentSessionId
-    }
-
-    private fun handleMessageStart(event: WsEvent.MessageStart) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        var orphanToPersist: ChatMessage? = null
-        val sessionId = _uiState.value.currentSessionId
-
-        // Create the streaming message as a standalone state field.
-        val msg =
-            ChatMessage(
-                role = MessageRole.ASSISTANT,
-                content = "",
-                isStreaming = true,
-            )
-        streamingMessageId = msg.id
-
-        _uiState.update { state ->
-            val messages = state.messages.toMutableList()
-            val existing = state.streamingMessage
-            if (existing != null && existing.content.isNotEmpty()) {
-                val finalized = existing.copy(isStreaming = false)
-                messages.add(finalized)
-                orphanToPersist = finalized
-            }
-            state.copy(
-                messages = messages,
-                isAgentTyping = true,
-                streamingMessage = msg,
-                isThinking = false,
-                thinkingText = "",
-            )
-        }
-
-        // Persist — OUTSIDE update{}
-        val orphan = orphanToPersist
-        if (orphan != null && sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(orphan.toEntity(sessionId))
-            }
-        }
-    }
-
-    private fun handleMessageToken(event: WsEvent.MessageToken) {
-        if (!isCurrentSession(event.sessionId)) return
-        _uiState.update { state ->
-            val current = state.streamingMessage
-            if (current != null) {
-                state.copy(
-                    streamingMessage =
-                        current.copy(
-                            content = current.content + event.token,
-                        ),
-                    isThinking = false,
-                )
-            } else {
-                // Fallback: no MessageStart was received — create one now
-                val msg =
-                    ChatMessage(
-                        role = MessageRole.ASSISTANT,
-                        content = event.token,
-                        isStreaming = true,
-                    )
-                streamingMessageId = msg.id
-                state.copy(
-                    streamingMessage = msg,
-                    isAgentTyping = true,
-                    isThinking = false,
-                )
-            }
-        }
-    }
-
-    private fun handleThinkingDelta(event: WsEvent.ThinkingDelta) {
-        if (!isCurrentSession(event.sessionId)) return
-        _uiState.update { state ->
-            state.copy(
-                isThinking = true,
-                thinkingText = state.thinkingText + event.token,
-            )
-        }
-    }
-
-    private fun handleMessageComplete(event: WsEvent.MessageComplete) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        var finalizedMsg: ChatMessage? = null
-        var sessionId: String? = null
-
-        _uiState.update { state ->
-            val streaming = state.streamingMessage
-            val msg =
-                if (streaming != null) {
-                    streaming.copy(
-                        content = event.text,
-                        isStreaming = false,
-                    )
-                } else {
-                    ChatMessage(
-                        role = MessageRole.ASSISTANT,
-                        content = event.text,
-                    )
-                }
-            finalizedMsg = msg
-            sessionId = state.currentSessionId
-            state.copy(
-                messages = state.messages + msg,
-                streamingMessage = null,
-                isAgentTyping = false,
-                isThinking = false,
-                thinkingText = "",
-            )
-        }
-        streamingMessageId = null
-
-        // Persist finalized message — OUTSIDE update{} to avoid CAS retry
-        val msgToPersist = finalizedMsg
-        val sid = sessionId ?: _uiState.value.currentSessionId
-        if (msgToPersist != null && sid != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msgToPersist.toEntity(sid))
-            }
-        }
-        // Refresh session list to catch newly generated titles
-        loadSessions()
-    }
-
-    private fun handleMessageDone(event: WsEvent.MessageDone) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        // If we still have an un-finalized streaming message (no MessageComplete
-        // was sent, which happens on interrupts), fold it into the list.
-        var orphan: ChatMessage? = null
-        var sessionId: String? = null
-
-        _uiState.update { state ->
-            val streaming = state.streamingMessage
-            val msg = streaming?.copy(isStreaming = false)
-            orphan = msg
-            sessionId = state.currentSessionId
-            if (msg != null) {
-                state.copy(
-                    messages = state.messages + msg,
-                    streamingMessage = null,
-                    isAgentTyping = false,
-                    isThinking = false,
-                    thinkingText = "",
-                )
-            } else {
-                state.copy(
-                    isAgentTyping = false,
-                    isThinking = false,
-                    thinkingText = "",
-                )
-            }
-        }
-        streamingMessageId = null
-
-        // Persist orphaned streaming message
-        val msgToPersist = orphan
-        val sid = sessionId ?: _uiState.value.currentSessionId
-        if (msgToPersist != null && sid != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msgToPersist.toEntity(sid))
-            }
-        }
-    }
 
     // ── Tool events ──────────────────────────────────────────────────────
-
-    private fun handleToolStart(event: WsEvent.ToolStart) {
-        if (!isCurrentSession(event.sessionId)) return
-        var orphanToPersist: ChatMessage? = null
-        val sessionId = _uiState.value.currentSessionId
-
-        val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
-        val toolMessage =
-            ChatMessage(
-                role = MessageRole.TOOL,
-                content = contentJson,
-                toolName = event.name,
-                toolStatus = ToolStatus.RUNNING,
-            )
-
-        _uiState.update { state ->
-            val messages = state.messages.toMutableList()
-            val existing = state.streamingMessage
-            if (existing != null && existing.content.isNotEmpty()) {
-                val finalized = existing.copy(isStreaming = false)
-                messages.add(finalized)
-                orphanToPersist = finalized
-            }
-            messages.add(toolMessage)
-            state.copy(
-                messages = messages,
-                streamingMessage = null,
-            )
-        }
-
-        // Persist — OUTSIDE update{}
-        val orphan = orphanToPersist
-        if (sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                if (orphan != null) {
-                    dao.upsert(orphan.toEntity(sessionId))
-                }
-                dao.upsert(toolMessage.toEntity(sessionId))
-            }
-        }
-    }
-
-    private fun handleToolComplete(event: WsEvent.ToolComplete) {
-        if (!isCurrentSession(event.sessionId)) return
-        var completedTool: ChatMessage? = null
-
-        _uiState.update { state ->
-            val messages = state.messages.toMutableList()
-            val toolIdx =
-                messages.indexOfLast {
-                    it.role == MessageRole.TOOL &&
-                        it.toolName == event.name &&
-                        it.toolStatus == ToolStatus.RUNNING
-                }
-            if (toolIdx >= 0) {
-                val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
-                val updated =
-                    messages[toolIdx].copy(
-                        toolStatus = ToolStatus.COMPLETED,
-                        content = contentJson,
-                    )
-                messages[toolIdx] = updated
-                completedTool = updated
-            }
-            state.copy(messages = messages)
-        }
-
-        // Persist — OUTSIDE update{}
-        val tool = completedTool
-        val sessionId = _uiState.value.currentSessionId
-        if (tool != null && sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(tool.toEntity(sessionId))
-            }
-        }
-    }
 
     // ── RPC response handling ────────────────────────────────────────────
 
@@ -590,7 +317,23 @@ class ChatViewModel(
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
-            handleSlashCommand(trimmed)
+            val userMsg = ChatMessage(role = MessageRole.USER, content = trimmed)
+            val sessionId = _uiState.value.currentSessionId
+
+            _uiState.update { state ->
+                state.copy(
+                    messages = state.messages + userMsg,
+                    isAgentTyping = true,
+                )
+            }
+
+            if (sessionId != null) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    persistenceRepository.saveMessage(userMsg, sessionId)
+                }
+            }
+            slashCommandDispatcher.dispatch(trimmed)
+            _uiState.update { it.copy(isAgentTyping = false) }
             return
         }
 
@@ -610,7 +353,7 @@ class ChatViewModel(
 
         // Persist to Room — OUTSIDE update{}
         viewModelScope.launch(Dispatchers.IO) {
-            dao.upsert(userMessage.toEntity(sessionId))
+            persistenceRepository.saveMessage(userMessage, sessionId)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -622,138 +365,6 @@ class ChatViewModel(
         }
     }
 
-    private fun handleSlashCommand(command: String) {
-        val userMsg = ChatMessage(role = MessageRole.USER, content = command)
-        val sessionId = _uiState.value.currentSessionId
-
-        _uiState.update { it.copy(messages = it.messages + userMsg) }
-
-        // Persist — OUTSIDE update{}
-        if (sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(userMsg.toEntity(sessionId))
-            }
-        }
-
-        val parts = command.split(" ")
-        val cmd = parts[0].lowercase()
-
-        when (cmd) {
-            "/stop", "/interrupt" -> {
-                interruptSession()
-            }
-
-            "/new" -> {
-                createNewSession()
-            }
-
-            "/help" -> {
-                val helpText =
-                    """
-                    **Available Commands:**
-                    • `/help` - Show this help menu
-                    • `/status` - Check gateway and platform status
-                    • `/sessions` - List all chat sessions
-                    • `/stats` or `/system` - Check system resource usage
-                    • `/new` - Create a new chat session
-                    • `/stop` or `/interrupt` - Interrupt the active run
-                    """.trimIndent()
-                addAssistantMessage(helpText)
-            }
-
-            "/status" -> {
-                viewModelScope.launch {
-                    val result =
-                        withContext(Dispatchers.IO) {
-                            safeApiCall { ApiClient.hermesApi.getStatus() }
-                        }
-                    when (result) {
-                        is NetworkResult.Success -> {
-                            val body = result.data
-                            val platformsStr =
-                                body.gateway_platforms?.entries?.joinToString("\n") { (k, v) ->
-                                    "  • **$k**: ${v.state ?: "Unknown"}${if (v.error_code != null) " (Error: ${v.error_code})" else ""}"
-                                } ?: "No active platforms"
-
-                            val statusText =
-                                """
-                                **Hermes Gateway Status:**
-                                • **Version:** ${body.version ?: "Unknown"}
-                                • **Gateway Running:** ${body.gateway_running ?: false}
-                                • **Active Sessions:** ${body.active_sessions ?: 0}
-                                • **Auth Required:** ${body.auth_required ?: false}
-
-                                **Platforms:**
-                                $platformsStr
-                                """.trimIndent()
-                            addAssistantMessage(statusText)
-                        }
-
-                        is NetworkResult.Failure -> {
-                            addAssistantMessage("Failed to retrieve status: ${result.error.message}")
-                        }
-                    }
-                }
-            }
-
-            "/sessions" -> {
-                viewModelScope.launch {
-                    val result =
-                        withContext(Dispatchers.IO) {
-                            safeApiCall { ApiClient.hermesApi.getSessions() }
-                        }
-                    when (result) {
-                        is NetworkResult.Success -> {
-                            val body = result.data
-                            val sessionsStr =
-                                body.sessions.joinToString("\n") { s ->
-                                    "• **${s.title ?: "Untitled"}** (ID: `${s.id}`, Messages: ${s.message_count ?: 0})"
-                                }
-                            addAssistantMessage("**Sessions List:**\n$sessionsStr")
-                        }
-
-                        is NetworkResult.Failure -> {
-                            addAssistantMessage("Failed to list sessions: ${result.error.message}")
-                        }
-                    }
-                }
-            }
-
-            "/stats", "/system" -> {
-                viewModelScope.launch {
-                    val result =
-                        withContext(Dispatchers.IO) {
-                            safeApiCall { ApiClient.hermesApi.getSystemStats() }
-                        }
-                    when (result) {
-                        is NetworkResult.Success -> {
-                            val body = result.data
-                            val cpuPct = body.cpuPercent?.let { String.format("%.1f%%", it) } ?: "N/A"
-                            val memPct = body.memoryPercent?.let { String.format("%.1f%%", it) } ?: "N/A"
-                            val uptimeVal = body.uptime ?: "N/A"
-                            val statsText =
-                                """
-                                **System Resource Stats:**
-                                • **CPU Usage:** $cpuPct
-                                • **Memory Usage:** $memPct
-                                • **Uptime:** $uptimeVal
-                                """.trimIndent()
-                            addAssistantMessage(statsText)
-                        }
-
-                        is NetworkResult.Failure -> {
-                            addAssistantMessage("Failed to retrieve system stats: ${result.error.message}")
-                        }
-                    }
-                }
-            }
-
-            else -> {
-                addAssistantMessage("Unknown command: `$cmd`. Type `/help` to view a list of available commands.")
-            }
-        }
-    }
-
     private fun addAssistantMessage(text: String) {
         val msg = ChatMessage(role = MessageRole.ASSISTANT, content = text)
         _uiState.update { it.copy(messages = it.messages + msg) }
@@ -762,7 +373,7 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId
         if (sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msg.toEntity(sessionId))
+                persistenceRepository.saveMessage(msg, sessionId)
             }
         }
     }
@@ -896,10 +507,7 @@ class ChatViewModel(
                             )
                         }
                     // Persist loaded messages to Room for offline access
-                    val entities = chatMessages.map { it.toEntity(sessionId) }
-                    withContext(Dispatchers.IO) {
-                        dao.upsertAll(entities)
-                    }
+                    persistenceRepository.saveMessages(chatMessages, sessionId)
                     _uiState.update { state ->
                         // Only update if still on the same session
                         if (state.currentSessionId != sessionId) return@update state
@@ -960,7 +568,7 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            dao.upsert(userMessage.toEntity(sessionId))
+            persistenceRepository.saveMessage(userMessage, sessionId)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -1014,7 +622,7 @@ class ChatViewModel(
         // Persist — OUTSIDE update{}
         if (persist && sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msg.toEntity(sessionId))
+                persistenceRepository.saveMessage(msg, sessionId)
             }
         }
     }
@@ -1057,83 +665,13 @@ class ChatViewModel(
 
     // ── Search ────────────────────────────────────────────────────────────
 
-    fun toggleSearch() {
-        val current = _uiState.value
-        if (current.isSearchActive) {
-            clearSearch()
-        } else {
-            _uiState.update { it.copy(isSearchActive = true, searchQuery = "") }
-        }
-    }
+    fun toggleSearch() = searchController.toggleSearch()
 
-    private var searchJob: Job? = null
+    fun setSearchQuery(query: String) = searchController.setSearchQuery(query)
 
-    fun setSearchQuery(query: String) {
-        searchJob?.cancel()
+    fun navigateSearchMatch(direction: Int) = searchController.navigateSearchMatch(direction)
 
-        if (query.isBlank()) {
-            _uiState.update {
-                it.copy(
-                    searchQuery = query,
-                    searchMatchIndices = emptyList(),
-                    currentSearchMatchIndex = -1,
-                )
-            }
-            return
-        }
-
-        // Keep local state in sync immediately so UI feels responsive.
-        _uiState.update {
-            it.copy(searchQuery = query)
-        }
-
-        searchJob =
-            viewModelScope.launch(Dispatchers.Default) {
-                val messages = _uiState.value.messages
-                val indices =
-                    messages.indices.filter { idx ->
-                        messages[idx].content.contains(query, ignoreCase = true)
-                    }
-
-                _uiState.update {
-                    // Only update indices if the search query hasn't changed in the meantime
-                    if (it.searchQuery == query) {
-                        it.copy(
-                            searchMatchIndices = indices,
-                            currentSearchMatchIndex = if (indices.isNotEmpty()) 0 else -1,
-                        )
-                    } else {
-                        it
-                    }
-                }
-            }
-    }
-
-    fun navigateSearchMatch(direction: Int) {
-        _uiState.update { state ->
-            val indices = state.searchMatchIndices
-            if (indices.isEmpty()) return@update state
-            val current = state.currentSearchMatchIndex
-            val newIdx =
-                when (direction) {
-                    1 -> if (current >= indices.lastIndex) 0 else current + 1
-                    -1 -> if (current <= 0) indices.lastIndex else current - 1
-                    else -> current
-                }
-            state.copy(currentSearchMatchIndex = newIdx)
-        }
-    }
-
-    fun clearSearch() {
-        _uiState.update {
-            it.copy(
-                isSearchActive = false,
-                searchQuery = "",
-                searchMatchIndices = emptyList(),
-                currentSearchMatchIndex = -1,
-            )
-        }
-    }
+    fun clearSearch() = searchController.clearSearch()
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
 

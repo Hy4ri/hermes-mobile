@@ -75,7 +75,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -104,7 +103,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
@@ -141,8 +139,9 @@ fun ChatScreen(
     // during composition — BEFORE any WebSocket event (GatewayReady) can be
     // processed. This ensures GatewayReady sees the pending session and
     // resumes it instead of creating a new empty chat (issue #240).
-    SideEffect {
+    remember(sessionId) {
         viewModel.initialSessionId = sessionId
+        true
     }
 
     // Switch to the session from a notification tap or history screen when provided.
@@ -174,6 +173,7 @@ fun ChatScreen(
                     androidx.lifecycle.Lifecycle.Event.ON_START -> {
                         NotificationHelper.setAppForeground(context, true)
                         NotificationHelper.stop(context)
+                        viewModel.refreshSettings()
                         viewModel.refreshCurrentSession()
                     }
 
@@ -212,7 +212,7 @@ fun ChatScreen(
     }
 
     // Auto-scroll to bottom on new messages
-    LaunchedEffect(state.messages.size, state.streamingMessage?.content?.length, state.isThinking) {
+    LaunchedEffect(state.messages.size, state.streamingMessage != null, state.isThinking) {
         val totalItems =
             state.messages.size +
                 (if (state.streamingMessage != null) 1 else 0) +
@@ -245,15 +245,21 @@ fun ChatScreen(
         )
     }
 
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+    val primaryColor = MaterialTheme.colorScheme.primary
+
     val backgroundGradient =
-        Brush.verticalGradient(
-            colors =
-                listOf(
-                    MaterialTheme.colorScheme.background,
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                ),
-        )
+        remember(backgroundColor, surfaceVariantColor, primaryColor) {
+            Brush.verticalGradient(
+                colors =
+                    listOf(
+                        backgroundColor,
+                        surfaceVariantColor.copy(alpha = 0.3f),
+                        primaryColor.copy(alpha = 0.05f),
+                    ),
+            )
+        }
 
     // Scroll to current search match
     LaunchedEffect(state.isSearchActive, state.currentSearchMatchIndex, state.searchMatchIndices) {
@@ -441,13 +447,15 @@ fun ChatScreen(
 
                         val isLastMessage = index == state.messages.lastIndex
                         val isAssistant = message.role == MessageRole.ASSISTANT
-                        val typingEnabled = AuthManager.isTypingEffectEnabled()
-                        val typingDelayMs = AuthManager.getTypingEffectDelayMs()
 
-                        if (typingEnabled && isLastMessage && isAssistant && lastAnimatedMessageId != message.id) {
+                        if (state.typingEffectEnabled &&
+                            isLastMessage &&
+                            isAssistant &&
+                            lastAnimatedMessageId != message.id
+                        ) {
                             StreamingBubbleWithTypingEffect(
                                 streaming = message,
-                                typingDelayMs = typingDelayMs,
+                                typingDelayMs = state.typingEffectDelayMs,
                                 isDark = isDark,
                                 onAnimationComplete = {
                                     lastAnimatedMessageId = message.id
@@ -466,13 +474,10 @@ fun ChatScreen(
                     // Streaming message — rendered separately for O(1) updates
                     state.streamingMessage?.let { streaming ->
                         item(key = "streaming-${streaming.id}") {
-                            val typingEnabled = AuthManager.isTypingEffectEnabled()
-                            val typingDelayMs = AuthManager.getTypingEffectDelayMs()
-
-                            if (typingEnabled && streaming.isStreaming) {
+                            if (state.typingEffectEnabled && streaming.isStreaming) {
                                 StreamingBubbleWithTypingEffect(
                                     streaming = streaming,
-                                    typingDelayMs = typingDelayMs,
+                                    typingDelayMs = state.typingEffectDelayMs,
                                     isDark = isDark,
                                 )
                             } else {
@@ -716,7 +721,7 @@ private fun ChatInputBar(
                             LazyColumn(
                                 modifier = Modifier.heightIn(max = 200.dp),
                             ) {
-                                items(filteredCommands) { cmd ->
+                                items(filteredCommands, key = { it }) { cmd ->
                                     val description =
                                         when (cmd) {
                                             "/help" -> stringResource(R.string.command_help_desc)

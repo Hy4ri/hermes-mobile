@@ -246,7 +246,7 @@ fun FilterChipRow(
             ),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
-        items(chips) { chip ->
+        items(chips, key = { it }) { chip ->
             FilterChip(
                 selected = chip == selectedChip,
                 onClick = { onChipSelected(chip) },

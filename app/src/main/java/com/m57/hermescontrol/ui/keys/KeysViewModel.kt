@@ -8,8 +8,6 @@ import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,31 +24,37 @@ data class KeysUiState(
     val toastMessage: String? = null,
 )
 
-class KeysViewModel : ViewModel(), ToastHost {
+class KeysViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(KeysUiState())
     val uiState: StateFlow<KeysUiState> = _uiState.asStateFlow()
 
     fun loadKeys(reveal: Boolean = false) {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getEnvVars() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        envVars = data.orEmpty(),
-                    )
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getEnvVars() }
                 }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load keys: $errorMsg",
-                    )
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            envVars = result.data.orEmpty(),
+                        )
+                    }
                 }
-            },
-        )
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load keys: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun revealKey(key: String) {
@@ -106,7 +110,7 @@ class KeysViewModel : ViewModel(), ToastHost {
         }
     }
 
-    override fun clearToast() {
+    fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

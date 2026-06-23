@@ -21,10 +21,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Foreground service that keeps the WebSocket connection alive while the app
@@ -59,10 +57,11 @@ class ChatNotificationService : Service() {
         internal const val NOTIFICATION_ID = 1
         internal const val PENDING_NOTIFICATION_ID = 2
 
-        private val isAppInForeground = AtomicBoolean(false)
+        @Volatile
+        private var isAppInForeground = false
 
         fun setAppForeground(foreground: Boolean) {
-            isAppInForeground.set(foreground)
+            isAppInForeground = foreground
         }
     }
 
@@ -80,27 +79,22 @@ class ChatNotificationService : Service() {
         eventCollector =
             serviceScope.launch {
                 HermesWsClient.events.collect { event ->
-                    if (!isAppInForeground.get()) {
-                        launch {
-                            delay(500)
-                            if (!isAppInForeground.get()) {
-                                when (event) {
-                                    is WsEvent.MessageComplete -> {
-                                        val preview =
-                                            event.text
-                                                .take(100)
-                                                .replace("\n", " ")
-                                                .ifBlank { getString(R.string.notif_new_message) }
-                                        showReplyNotification(preview, event.sessionId)
-                                    }
-
-                                    is WsEvent.ClarifyRequest -> {
-                                        showReplyNotification(getString(R.string.notif_clarification_needed), null)
-                                    }
-
-                                    else -> {}
-                                }
+                    if (!isAppInForeground) {
+                        when (event) {
+                            is WsEvent.MessageComplete -> {
+                                val preview =
+                                    event.text
+                                        .take(100)
+                                        .replace("\n", " ")
+                                        .ifBlank { getString(R.string.notif_new_message) }
+                                showReplyNotification(preview, event.sessionId)
                             }
+
+                            is WsEvent.ClarifyRequest -> {
+                                showReplyNotification(getString(R.string.notif_clarification_needed), null)
+                            }
+
+                            else -> {}
                         }
                     }
                 }
@@ -119,7 +113,6 @@ class ChatNotificationService : Service() {
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setAutoCancel(true)
                 .setContentIntent(buildContentIntent(sessionId))
 

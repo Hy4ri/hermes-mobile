@@ -6,8 +6,6 @@ import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,27 +21,33 @@ data class PluginsUiState(
     val toastMessage: String? = null,
 )
 
-class PluginsViewModel : ViewModel(), ToastHost {
+class PluginsViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(PluginsUiState())
     val uiState: StateFlow<PluginsUiState> = _uiState.asStateFlow()
 
     fun loadPlugins() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getPlugins() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                val plugins = data.plugins.orEmpty()
-                _uiState.update { it.copy(isLoading = false, plugins = plugins) }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load plugins: $errorMsg",
-                    )
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getPlugins() }
                 }
-            },
-        )
+            when (result) {
+                is NetworkResult.Success -> {
+                    val plugins = result.data.plugins.orEmpty()
+                    _uiState.update { it.copy(isLoading = false, plugins = plugins) }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load plugins: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun togglePlugin(plugin: PluginInfo) {
@@ -161,7 +165,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
         }
     }
 
-    override fun clearToast() {
+    fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

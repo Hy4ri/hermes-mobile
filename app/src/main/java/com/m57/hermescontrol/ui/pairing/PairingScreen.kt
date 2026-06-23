@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.pairing
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,7 +37,6 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
-import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,12 +46,18 @@ fun PairingScreen(
     viewModel: PairingViewModel = viewModel { PairingViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.loadPairing()
     }
 
-    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.clearToast()
+        }
+    }
 
     HermesScaffold(
         title = { Text(stringResource(R.string.pairing_screen_title)) },
@@ -121,7 +128,7 @@ fun PairingScreen(
                                     }
                                 }
 
-                                items(pending, key = { "${it.platform}_${it.code ?: it.user_id}" }) { item ->
+                                items(pending) { item ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors =
@@ -201,7 +208,7 @@ fun PairingScreen(
                                     }
                                 }
                             } else {
-                                items(approved, key = { "${it.platform}_${it.user_id}" }) { item ->
+                                items(approved) { item ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {

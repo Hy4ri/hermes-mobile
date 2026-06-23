@@ -7,8 +7,6 @@ import com.m57.hermescontrol.data.model.WebhooksToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,34 +25,40 @@ data class WebhooksUiState(
     val toastMessage: String? = null,
 )
 
-class WebhooksViewModel : ViewModel(), ToastHost {
+class WebhooksViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(WebhooksUiState())
     val uiState: StateFlow<WebhooksUiState> = _uiState.asStateFlow()
 
     fun loadWebhooks() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getWebhooks() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                val body = data
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        enabled = body.enabled,
-                        baseUrl = body.base_url,
-                        subscriptions = body.subscriptions.orEmpty(),
-                    )
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getWebhooks() }
                 }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load webhooks: $errorMsg",
-                    )
+            when (result) {
+                is NetworkResult.Success -> {
+                    val body = result.data
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            enabled = body.enabled,
+                            baseUrl = body.base_url,
+                            subscriptions = body.subscriptions.orEmpty(),
+                        )
+                    }
                 }
-            },
-        )
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load webhooks: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun toggleWebhooks(targetEnabled: Boolean) {
@@ -88,7 +92,7 @@ class WebhooksViewModel : ViewModel(), ToastHost {
         }
     }
 
-    override fun clearToast() {
+    fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

@@ -6,8 +6,6 @@ import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,26 +21,32 @@ data class CronJobsUiState(
     val toastMessage: String? = null,
 )
 
-class CronJobsViewModel : ViewModel(), ToastHost {
+class CronJobsViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(CronJobsUiState())
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
 
     fun loadCronJobs() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                _uiState.update { it.copy(isLoading = false, jobs = data.orEmpty()) }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load cron jobs: $errorMsg",
-                    )
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getCronJobs() }
                 }
-            },
-        )
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update { it.copy(isLoading = false, jobs = result.data.orEmpty()) }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load cron jobs: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun pauseCronJob(id: String) {
@@ -131,7 +135,7 @@ class CronJobsViewModel : ViewModel(), ToastHost {
         _uiState.update { it.copy(jobs = originalJobs, toastMessage = errorMsg) }
     }
 
-    override fun clearToast() {
+    fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

@@ -64,8 +64,6 @@ class ChatViewModelTest {
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
         every { AuthManager.getToken() } returns "test-token"
-        every { AuthManager.isTypingEffectEnabled() } returns true
-        every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
         every { HermesWsClient.connect() } returns Unit
@@ -875,10 +873,7 @@ class ChatViewModelTest {
             var state = viewModel.uiState.value
             assertEquals(2, state.messages.size)
             assertEquals(MessageRole.TOOL, state.messages[1].role)
-            assertEquals(
-                "Tool execution: calculator\nArgs: {\"input\":\"2+2\",\"nested\":{\"key\":\"value\"}}",
-                state.messages[1].content,
-            )
+            assertEquals("{\"input\":\"2+2\",\"nested\":{\"key\":\"value\"}}", state.messages[1].content)
             assertEquals(ToolStatus.RUNNING, state.messages[1].toolStatus)
 
             // Complete tool call

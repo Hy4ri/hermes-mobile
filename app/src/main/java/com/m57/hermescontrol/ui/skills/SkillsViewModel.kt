@@ -7,8 +7,6 @@ import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,26 +27,32 @@ data class SkillsUiState(
     val saveContentSuccess: Boolean = false,
 )
 
-class SkillsViewModel : ViewModel(), ToastHost {
+class SkillsViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(SkillsUiState())
     val uiState: StateFlow<SkillsUiState> = _uiState.asStateFlow()
 
     fun loadSkills() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getSkills() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                _uiState.update { it.copy(isLoading = false, skills = data.orEmpty()) }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load skills: $errorMsg",
-                    )
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getSkills() }
                 }
-            },
-        )
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update { it.copy(isLoading = false, skills = result.data.orEmpty()) }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load skills: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun toggleSkill(skill: Skill) {
@@ -187,7 +191,7 @@ class SkillsViewModel : ViewModel(), ToastHost {
         _uiState.update { it.copy(saveContentSuccess = false) }
     }
 
-    override fun clearToast() {
+    fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

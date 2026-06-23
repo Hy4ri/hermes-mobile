@@ -326,8 +326,7 @@ private fun appEntryProvider(
 
 @Composable
 fun MainNavigation(sessionId: String? = null) {
-    val token by AuthManager.tokenFlow.collectAsState()
-    val hasToken = !token.isNullOrBlank()
+    val hasToken = !AuthManager.getToken().isNullOrBlank()
     val startScreen: NavKey = if (hasToken) ChatScreen else ConnectScreen
 
     val backStack = rememberNavBackStack(startScreen)

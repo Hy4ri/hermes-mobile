@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.model
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,7 +46,6 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
-import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +55,7 @@ fun ModelScreen(
     viewModel: ModelViewModel = viewModel { ModelViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var expandedProviderSlug by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
 
@@ -72,7 +74,12 @@ fun ModelScreen(
         viewModel.loadModelOptions()
     }
 
-    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.clearToast()
+        }
+    }
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_models)) },
@@ -134,7 +141,7 @@ fun ModelScreen(
                                     placeholder = "Search models...",
                                 )
                             }
-                            items(filteredProviders, key = { it.slug }) { provider ->
+                            items(filteredProviders) { provider ->
                                 val isExpanded = expandedProviderSlug == provider.slug
                                 val isCurrent = provider.is_current == true
 

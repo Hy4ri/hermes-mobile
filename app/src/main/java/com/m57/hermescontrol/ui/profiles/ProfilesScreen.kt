@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.profiles
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,7 +48,6 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
-import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +57,7 @@ fun ProfilesScreen(
     viewModel: ProfilesViewModel = viewModel { ProfilesViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     var soulEditProfileName by remember { mutableStateOf<String?>(null) }
     var modelEditProfileName by remember { mutableStateOf<String?>(null) }
@@ -66,7 +68,12 @@ fun ProfilesScreen(
         viewModel.loadProfiles()
     }
 
-    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.clearToast()
+        }
+    }
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_profiles)) },
@@ -90,7 +97,7 @@ fun ProfilesScreen(
             state.profiles.isEmpty() -> {
                 EmptyState(
                     title = stringResource(R.string.profiles_empty_title),
-                    subtitle = stringResource(R.string.profiles_empty_desc),
+                    subtitle = stringResource(R.string.toolsets_empty_desc),
                     onAction = { viewModel.loadProfiles() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
                     modifier = Modifier.padding(paddingValues),
@@ -118,7 +125,7 @@ fun ProfilesScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            items(state.profiles, key = { it.name }) { profile ->
+                            items(state.profiles) { profile ->
                                 val isActive = profile.name == state.activeProfileName
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),

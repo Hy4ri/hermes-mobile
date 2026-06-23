@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.channels
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,7 +39,6 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
-import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 
@@ -48,6 +49,7 @@ fun ChannelsScreen(
     viewModel: ChannelsViewModel = viewModel { ChannelsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     var query by remember { mutableStateOf("") }
 
@@ -62,23 +64,29 @@ fun ChannelsScreen(
         viewModel.loadPlatforms()
     }
 
-    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.clearToast()
+        }
+    }
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_channels)) },
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlatforms() },
-    ) {
+    ) { paddingValues ->
         when {
             state.isLoading && state.platforms.isEmpty() -> {
-                LoadingState()
+                LoadingState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadPlatforms() },
+                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
@@ -86,12 +94,13 @@ fun ChannelsScreen(
                 EmptyState(
                     title = stringResource(R.string.channels_empty_title),
                     subtitle = stringResource(R.string.channels_empty_desc),
+                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
                     contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {

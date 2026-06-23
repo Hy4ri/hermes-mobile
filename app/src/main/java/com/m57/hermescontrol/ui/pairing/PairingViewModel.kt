@@ -8,8 +8,6 @@ import com.m57.hermescontrol.data.model.PairingRevokeRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,26 +24,32 @@ data class PairingUiState(
     val toastMessage: String? = null,
 )
 
-class PairingViewModel : ViewModel(), ToastHost {
+class PairingViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(PairingUiState())
     val uiState: StateFlow<PairingUiState> = _uiState.asStateFlow()
 
     fun loadPairing() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                _uiState.update { it.copy(isLoading = false, pairing = data) }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load pairing info: $errorMsg",
-                    )
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getPairing() }
                 }
-            },
-        )
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update { it.copy(isLoading = false, pairing = result.data) }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load pairing info: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun approvePairing(
@@ -102,7 +106,7 @@ class PairingViewModel : ViewModel(), ToastHost {
         }
     }
 
-    override fun clearToast() {
+    fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

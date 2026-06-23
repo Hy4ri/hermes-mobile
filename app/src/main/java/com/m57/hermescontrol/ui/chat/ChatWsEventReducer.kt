@@ -227,11 +227,14 @@ class ChatWsEventReducer {
                 }
                 currentStreamingMessageId = null
 
+                val gson = com.google.gson.GsonBuilder().create()
+                val dataJson = if (event.data != null) gson.toJson(event.data) else "{}"
                 val msg =
                     ChatMessage(
                         role = MessageRole.TOOL,
-                        content = "Tool execution: ${event.name}\nArgs: ${com.google.gson.Gson().toJson(event.data)}",
+                        content = dataJson,
                         isStreaming = false,
+                        toolStatus = ToolStatus.RUNNING,
                     )
                 messages.add(msg)
 
@@ -261,14 +264,14 @@ class ChatWsEventReducer {
                 if (messages.isNotEmpty() && messages.last().role == MessageRole.TOOL) {
                     messages[messages.lastIndex] =
                         messages.last().copy(
-                            content = com.google.gson.Gson().toJson(event.data),
+                            content = com.google.gson.Gson().toJson(event.data ?: mapOf<String, Any>()),
                             toolStatus = ToolStatus.COMPLETED,
                         )
                 } else {
                     messages.add(
                         ChatMessage(
                             role = MessageRole.TOOL,
-                            content = com.google.gson.Gson().toJson(event.data),
+                            content = com.google.gson.Gson().toJson(event.data ?: mapOf<String, Any>()),
                             isStreaming = false,
                             toolStatus = ToolStatus.COMPLETED,
                         ),

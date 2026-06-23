@@ -219,6 +219,35 @@ class ConnectViewModelTest {
             viewModel.connect()
             advanceUntilIdle()
 
+            verify { AuthManager.setToken(null) }
+
+            val state = viewModel.uiState.value
+            assertFalse(state.isConnecting)
+            assertFalse(state.connectionSuccess)
+            assertEquals("Invalid token (401 Unauthorized)", state.errorMessage)
+        }
+
+    @Test
+    fun testConnect_failure_unauthorized_clearsProfileToken() =
+        runTest {
+            every { AuthManager.getSelectedProfileId() } returns "prof-1"
+
+            val viewModel = ConnectViewModel(mockApp)
+            viewModel.onTokenChange("invalid-token")
+            viewModel.onHostChange("127.0.0.1")
+            viewModel.onPortChange("9119")
+
+            val mockResponse = mockk<Response<StatusResponse>>()
+            every { mockResponse.isSuccessful } returns false
+            every { mockResponse.code() } returns 401
+            coEvery { mockApiService.getStatus() } returns mockResponse
+
+            viewModel.connect()
+            advanceUntilIdle()
+
+            verify { AuthManager.setToken(null) }
+            verify { AuthManager.setProfileToken("prof-1", null) }
+
             val state = viewModel.uiState.value
             assertFalse(state.isConnecting)
             assertFalse(state.connectionSuccess)

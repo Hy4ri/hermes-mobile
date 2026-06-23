@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -74,9 +75,15 @@ object HermesWsClient {
     @Volatile
     private var reconnectJob: Job? = null
 
+    // SEC-11: No certificate pinning is configured by default since the app
+    // intentionally uses HTTP for LAN and hosts are dynamic.
+    // CertificatePinner infrastructure is provided here if HTTPS is used with a known host.
+    private val certificatePinner = CertificatePinner.Builder().build()
+
     private val okHttpClient =
         OkHttpClient
             .Builder()
+            .certificatePinner(certificatePinner)
             .readTimeout(0, TimeUnit.MILLISECONDS) // keep-alive forever
             .pingInterval(30, TimeUnit.SECONDS)
             .build()
@@ -163,7 +170,8 @@ object HermesWsClient {
         val url = AuthManager.wsUrl()
         // B2 (Jun 18 2026, kanban t_8884db16): url contains the auth token
         // as a query param — never stream to logcat in release builds.
-        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $url")
+        val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
         val request = Request.Builder().url(url).build()
         webSocket = okHttpClient.newWebSocket(request, WsListenerImpl())

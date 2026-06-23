@@ -275,6 +275,27 @@ class NotificationReplyReceiverTest {
         verify { mockPendingResult.finish() }
     }
 
+    @Test
+    fun `Room hang triggers timeout and finishes pending result`() {
+        givenValidReply("session-abc", "Hello")
+
+        // Make upsert hang indefinitely
+        coEvery { mockDao.upsert(any<ChatMessageEntity>()) } coAnswers {
+            kotlinx.coroutines.delay(10000)
+        }
+
+        receiver.onReceive(mockContext, mockIntent)
+
+        // Wait longer than the 5-second timeout, but less than the 10-second delay
+        Thread.sleep(6000)
+
+        // Timeout should be caught in catch block and logged
+        verify { android.util.Log.e("NotificationReply", any<String>(), any()) }
+
+        // Pending result must still finish after timeout
+        verify { mockPendingResult.finish() }
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private fun givenValidReply(

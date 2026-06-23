@@ -1,0 +1,51 @@
+name: Check PR for linked issue
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-issue-link:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get PR number and check for issue linkage
+        id: check-link
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
+          echo "Checking PR #$PR_NUMBER in $REPO for issue linkage..."
+          
+          # Fetch PR data
+          PR_DATA=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER")
+          
+          # Extract title and body
+          TITLE=$(echo "$PR_DATA" | jq -r '.title // ""')
+          BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
+          COMBINED="$TITLE\n$BODY"
+          
+          echo "Title: $TITLE"
+          echo "Body: $BODY"
+          
+          # Extract issue numbers using patterns like #123, closes #123, fixes #456, etc.
+          # We'll look for numbers preceded by # and optionally by words like closes, fixes, resolves (case insensitive)
+          ISSUE_NUMBERS=$(echo "$COMBINED" | grep -ioE '(closes?|fixes?|resolves?)\s*#?[0-9]+' | grep -ioE '[0-9]+' | sort -u)
+          
+          # Also catch plain #123 patterns (without keywords)
+          PLAIN_NUMBERS=$(echo "$COMBINED" | grep -ioE '#[0-9]+' | grep -ioE '[0-9]+' | sort -u)
+          
+          # Combine and deduplicate
+          ALL_NUMBERS=$(echo -e "$ISSUE_NUMBERS\n$PLAIN_NUMBERS" | sort -u | tr '\n' ' ' | sed 's/ $//')
+          
+          if [ -z "$ALL_NUMBERS" ]; then
+            echo "No issue number found in PR title or description."
+            echo "Please link an issue using keywords like 'closes #123', 'fixes #456', or simply '#789'."
+            exit 1
+          else
+            echo "Found issue numbers: $ALL_NUMBERS"
+            # Set output for potential use in other steps
+            echo "issue_numbers=$ALL_NUMBERS" >> $GITHUB_OUTPUT
+          fi

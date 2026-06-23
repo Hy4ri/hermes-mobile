@@ -612,14 +612,12 @@ class ConnectViewModelTest {
             val viewModel = ConnectViewModel(mockApp)
             viewModel.onPairingString("hermes://connect?host=192.168.1.1&port=8888&token=abc123")
 
-            // Wait for parsing coroutine to finish
-            advanceUntilIdle()
-
             val state = viewModel.uiState.value
             assertEquals("192.168.1.1", state.host)
             assertEquals("8888", state.port)
             assertEquals("abc123", state.token)
             // Should have triggered connect
+            advanceUntilIdle()
             assertTrue("connection should succeed after pairing", viewModel.uiState.value.connectionSuccess)
         }
 }

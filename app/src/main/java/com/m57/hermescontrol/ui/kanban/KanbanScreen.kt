@@ -85,16 +85,17 @@ fun KanbanScreen(
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
-    ) {
+    ) { paddingValues ->
         when {
             state.isLoading && state.boards.isEmpty() -> {
-                LoadingState()
+                LoadingState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadBoards() },
+                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
@@ -106,10 +107,11 @@ fun KanbanScreen(
                         Text(
                             text = state.errorMessage ?: "",
                             color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(paddingValues),
                         )
                     } else {
                         Column(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().padding(paddingValues),
                         ) {
                             SearchBar(
                                 query = query,

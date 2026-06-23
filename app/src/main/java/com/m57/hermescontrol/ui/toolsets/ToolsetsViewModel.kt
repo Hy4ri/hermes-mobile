@@ -7,6 +7,8 @@ import com.m57.hermescontrol.data.model.ToolsetToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,32 +24,26 @@ data class ToolsetsUiState(
     val toastMessage: String? = null,
 )
 
-class ToolsetsViewModel : ViewModel() {
+class ToolsetsViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(ToolsetsUiState())
     val uiState: StateFlow<ToolsetsUiState> = _uiState.asStateFlow()
 
     fun loadToolsets() {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getToolsets() }
+        safeLaunchLoad(
+            apiCall = { safeApiCall { ApiClient.hermesApi.getToolsets() } },
+            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+            onSuccess = { data ->
+                _uiState.update { it.copy(isLoading = false, toolsets = data.orEmpty()) }
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to load toolsets: $errorMsg",
+                    )
                 }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(isLoading = false, toolsets = result.data.orEmpty()) }
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load toolsets: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
+            },
+        )
     }
 
     fun toggleToolset(toolset: Toolset) {
@@ -91,7 +87,7 @@ class ToolsetsViewModel : ViewModel() {
         }
     }
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

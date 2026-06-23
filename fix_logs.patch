@@ -1,0 +1,32 @@
+--- app/src/main/java/com/m57/hermescontrol/ui/logs/LogsViewModel.kt
++++ app/src/main/java/com/m57/hermescontrol/ui/logs/LogsViewModel.kt
+@@ -23,30 +23,19 @@
+     val uiState: StateFlow<LogsUiState> = _uiState.asStateFlow()
+
+     fun loadLogs() {
+-<<<<<<< HEAD
+-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+-        viewModelScope.launch {
+-            val result =
+-                withContext(Dispatchers.IO) {
+-                    safeApiCall { ApiClient.hermesApi.getLogs(lines = 1000) }
+-=======
+         safeLaunchLoad(
+-            apiCall = { safeApiCall { ApiClient.hermesApi.getLogs() } },
++            apiCall = { safeApiCall { ApiClient.hermesApi.getLogs(lines = 1000) } },
+             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+             onSuccess = { data ->
+                 val body = data
+                 val logsList = body.lines ?: body.logs ?: emptyList()
+                 _uiState.update { it.copy(isLoading = false, logs = logsList) }
+             },
+             onError = { errorMsg ->
+                 _uiState.update {
+                     it.copy(
+                         isLoading = false,
+                         errorMessage = "Failed to load logs: $errorMsg",
+                     )
+->>>>>>> origin/main
+                 }
+             },
+         )

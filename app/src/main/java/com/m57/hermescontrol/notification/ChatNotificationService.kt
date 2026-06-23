@@ -113,6 +113,7 @@ class ChatNotificationService : Service() {
                 .setContentText(text)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setAutoCancel(true)
                 .setContentIntent(buildContentIntent(sessionId))
 

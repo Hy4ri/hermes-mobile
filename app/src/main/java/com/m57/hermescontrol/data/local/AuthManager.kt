@@ -57,6 +57,10 @@ object AuthManager {
 
     private val _bottomNavDisplayModeFlow = MutableStateFlow<BottomNavDisplayMode>(BottomNavDisplayMode.ICON_AND_TEXT)
     val bottomNavDisplayModeFlow: StateFlow<BottomNavDisplayMode> = _bottomNavDisplayModeFlow.asStateFlow()
+
+    private val _tokenFlow = MutableStateFlow<String?>(null)
+    val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
+
     private val gson = com.google.gson.Gson()
 
     /**
@@ -84,6 +88,7 @@ object AuthManager {
             _useDynamicColorsFlow.value = isUseDynamicColors()
             _themePresetFlow.value = getThemePreset()
             _bottomNavDisplayModeFlow.value = getBottomNavDisplayMode()
+            _tokenFlow.value = getToken()
         }
     }
 
@@ -122,6 +127,9 @@ object AuthManager {
         token: String?,
     ) {
         requirePrefs().edit().putString("token_$profileId", token).apply()
+        if (getSelectedProfileId() == profileId) {
+            _tokenFlow.value = token
+        }
     }
 
     fun getSelectedProfileId(): String? {
@@ -131,6 +139,7 @@ object AuthManager {
 
     fun setSelectedProfileId(id: String?) {
         requirePrefs().edit().putString(KEY_SELECTED_PROFILE_ID, id).apply()
+        _tokenFlow.value = getToken()
     }
 
     // ── Token ────────────────────────────────────────────────────────────
@@ -138,8 +147,7 @@ object AuthManager {
     fun getToken(): String? {
         val selectedId = getSelectedProfileId()
         if (selectedId != null) {
-            val token = getProfileToken(selectedId)
-            if (token != null) return token
+            return getProfileToken(selectedId)
         }
         return requirePrefs().getString(KEY_TOKEN, null)
     }
@@ -150,6 +158,7 @@ object AuthManager {
             setProfileToken(selectedId, token)
         } else {
             requirePrefs().edit().putString(KEY_TOKEN, token).apply()
+            _tokenFlow.value = token
         }
     }
 

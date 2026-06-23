@@ -75,7 +75,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -140,8 +139,9 @@ fun ChatScreen(
     // during composition — BEFORE any WebSocket event (GatewayReady) can be
     // processed. This ensures GatewayReady sees the pending session and
     // resumes it instead of creating a new empty chat (issue #240).
-    SideEffect {
+    remember(sessionId) {
         viewModel.initialSessionId = sessionId
+        true
     }
 
     // Switch to the session from a notification tap or history screen when provided.
@@ -212,7 +212,7 @@ fun ChatScreen(
     }
 
     // Auto-scroll to bottom on new messages
-    LaunchedEffect(state.messages.size, state.streamingMessage?.content?.length, state.isThinking) {
+    LaunchedEffect(state.messages.size, state.streamingMessage != null, state.isThinking) {
         val totalItems =
             state.messages.size +
                 (if (state.streamingMessage != null) 1 else 0) +
@@ -245,15 +245,21 @@ fun ChatScreen(
         )
     }
 
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+    val primaryColor = MaterialTheme.colorScheme.primary
+
     val backgroundGradient =
-        Brush.verticalGradient(
-            colors =
-                listOf(
-                    MaterialTheme.colorScheme.background,
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                ),
-        )
+        remember(backgroundColor, surfaceVariantColor, primaryColor) {
+            Brush.verticalGradient(
+                colors =
+                    listOf(
+                        backgroundColor,
+                        surfaceVariantColor.copy(alpha = 0.3f),
+                        primaryColor.copy(alpha = 0.05f),
+                    ),
+            )
+        }
 
     // Scroll to current search match
     LaunchedEffect(state.isSearchActive, state.currentSearchMatchIndex, state.searchMatchIndices) {

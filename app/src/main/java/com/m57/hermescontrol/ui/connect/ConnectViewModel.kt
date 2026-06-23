@@ -188,6 +188,9 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                                 when (err.code) {
                                     401 -> {
                                         AuthManager.setToken(null)
+                                        if (AuthManager.getSelectedProfileId() != null) {
+                                            AuthManager.setProfileToken(AuthManager.getSelectedProfileId()!!, null)
+                                        }
                                         app.getString(R.string.connect_error_401)
                                     }
 

@@ -6,6 +6,8 @@ import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,38 +25,32 @@ data class ConfigUiState(
     val toastMessage: String? = null,
 )
 
-class ConfigViewModel : ViewModel() {
+class ConfigViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(ConfigUiState())
     val uiState: StateFlow<ConfigUiState> = _uiState.asStateFlow()
 
     fun loadRawConfig() {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getRawConfig() }
+        safeLaunchLoad(
+            apiCall = { safeApiCall { ApiClient.hermesApi.getRawConfig() } },
+            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+            onSuccess = { data ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        path = data.path,
+                        yamlText = data.yaml,
+                    )
                 }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            path = result.data.path,
-                            yamlText = result.data.yaml,
-                        )
-                    }
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to load config: $errorMsg",
+                    )
                 }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load config: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
+            },
+        )
     }
 
     fun saveRawConfig(yamlText: String) {
@@ -87,7 +83,7 @@ class ConfigViewModel : ViewModel() {
         }
     }
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

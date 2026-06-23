@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.config
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -35,6 +33,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,19 +43,13 @@ fun ConfigScreen(
     viewModel: ConfigViewModel = viewModel { ConfigViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     var editingText by remember(state.yamlText) { mutableStateOf(state.yamlText ?: "") }
 
     LaunchedEffect(Unit) {
         viewModel.loadRawConfig()
     }
 
-    LaunchedEffect(state.toastMessage) {
-        state.toastMessage?.let { msg ->
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            viewModel.clearToast()
-        }
-    }
+    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     HermesScaffold(
         title = { Text(stringResource(R.string.config_screen_title)) },

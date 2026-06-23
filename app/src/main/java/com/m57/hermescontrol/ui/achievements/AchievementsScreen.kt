@@ -101,7 +101,7 @@ fun AchievementsScreen(
                             placeholder = "Search achievements...",
                         )
                     }
-                    items(filteredAchievements) { achievement ->
+                    items(filteredAchievements, key = { it.id }) { achievement ->
                         val pct = achievement.progress_pct?.toFloat()?.div(100f) ?: 0f
 
                         Card(

@@ -246,7 +246,7 @@ fun FilterChipRow(
             ),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
-        items(chips) { chip ->
+        items(chips, key = { it }) { chip ->
             FilterChip(
                 selected = chip == selectedChip,
                 onClick = { onChipSelected(chip) },
@@ -341,5 +341,21 @@ fun InfoRow(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
         )
+    }
+}
+
+// ── ToastEffect — helper for one-shot toast messages ───────────────────
+
+@Composable
+fun ToastEffect(
+    toastMessage: String?,
+    onClearToast: () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(toastMessage) {
+        toastMessage?.let { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            onClearToast()
+        }
     }
 }

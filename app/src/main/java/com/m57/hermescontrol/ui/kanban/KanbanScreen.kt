@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.kanban
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,6 +48,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.ToastEffect
 
 private const val DEFAULT_COLUMN = "todo"
 
@@ -61,7 +60,6 @@ fun KanbanScreen(
     viewModel: KanbanViewModel = viewModel { KanbanViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     var query by remember { mutableStateOf("") }
 
@@ -80,12 +78,7 @@ fun KanbanScreen(
         viewModel.loadBoards()
     }
 
-    LaunchedEffect(state.toastMessage) {
-        state.toastMessage?.let { msg ->
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            viewModel.clearToast()
-        }
-    }
+    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     HermesScaffold(
         title = { Text(stringResource(R.string.kanban_board_title)) },
@@ -156,7 +149,7 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns) { column ->
+                                    items(state.columns, key = { it.name }) { column ->
                                         val colName = column.name
                                         val colTasks =
                                             filteredTasks.filter {
@@ -185,7 +178,7 @@ fun KanbanScreen(
                                                 modifier = Modifier.weight(1f),
                                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
-                                                items(colTasks) { task ->
+                                                items(colTasks, key = { it.id }) { task ->
                                                     TaskCard(
                                                         task = task,
                                                         onMoveLeft =

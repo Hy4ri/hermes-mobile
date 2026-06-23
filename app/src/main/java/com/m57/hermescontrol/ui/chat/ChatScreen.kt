@@ -104,7 +104,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
@@ -174,6 +173,7 @@ fun ChatScreen(
                     androidx.lifecycle.Lifecycle.Event.ON_START -> {
                         NotificationHelper.setAppForeground(context, true)
                         NotificationHelper.stop(context)
+                        viewModel.refreshSettings()
                         viewModel.refreshCurrentSession()
                     }
 
@@ -441,13 +441,15 @@ fun ChatScreen(
 
                         val isLastMessage = index == state.messages.lastIndex
                         val isAssistant = message.role == MessageRole.ASSISTANT
-                        val typingEnabled = AuthManager.isTypingEffectEnabled()
-                        val typingDelayMs = AuthManager.getTypingEffectDelayMs()
 
-                        if (typingEnabled && isLastMessage && isAssistant && lastAnimatedMessageId != message.id) {
+                        if (state.typingEffectEnabled &&
+                            isLastMessage &&
+                            isAssistant &&
+                            lastAnimatedMessageId != message.id
+                        ) {
                             StreamingBubbleWithTypingEffect(
                                 streaming = message,
-                                typingDelayMs = typingDelayMs,
+                                typingDelayMs = state.typingEffectDelayMs,
                                 isDark = isDark,
                                 onAnimationComplete = {
                                     lastAnimatedMessageId = message.id
@@ -466,13 +468,10 @@ fun ChatScreen(
                     // Streaming message — rendered separately for O(1) updates
                     state.streamingMessage?.let { streaming ->
                         item(key = "streaming-${streaming.id}") {
-                            val typingEnabled = AuthManager.isTypingEffectEnabled()
-                            val typingDelayMs = AuthManager.getTypingEffectDelayMs()
-
-                            if (typingEnabled && streaming.isStreaming) {
+                            if (state.typingEffectEnabled && streaming.isStreaming) {
                                 StreamingBubbleWithTypingEffect(
                                     streaming = streaming,
-                                    typingDelayMs = typingDelayMs,
+                                    typingDelayMs = state.typingEffectDelayMs,
                                     isDark = isDark,
                                 )
                             } else {
@@ -716,7 +715,7 @@ private fun ChatInputBar(
                             LazyColumn(
                                 modifier = Modifier.heightIn(max = 200.dp),
                             ) {
-                                items(filteredCommands) { cmd ->
+                                items(filteredCommands, key = { it }) { cmd ->
                                     val description =
                                         when (cmd) {
                                             "/help" -> stringResource(R.string.command_help_desc)

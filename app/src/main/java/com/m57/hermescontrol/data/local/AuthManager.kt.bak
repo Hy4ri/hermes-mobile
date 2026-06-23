@@ -139,10 +139,13 @@ object AuthManager {
 
     fun setSelectedProfileId(id: String?) {
         requirePrefs().edit().putString(KEY_SELECTED_PROFILE_ID, id).apply()
+<<<<<<< HEAD
+        _tokenFlow.value = getToken()
+=======
         synchronized(this) {
             tokenInitialized = false
         }
-        _tokenFlow.value = getToken()
+>>>>>>> d6b9504 (fix: implement in-memory token caching to avoid redundant prefs decryptions)
     }
 
     // ── Token ────────────────────────────────────────────────────────────

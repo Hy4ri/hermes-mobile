@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.system
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -26,7 +25,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -42,6 +40,7 @@ import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
+import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -51,7 +50,6 @@ fun SystemScreen(
     viewModel: SystemViewModel = viewModel { SystemViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
 
@@ -59,12 +57,7 @@ fun SystemScreen(
         viewModel.loadSystemData()
     }
 
-    LaunchedEffect(state.toastMessage) {
-        state.toastMessage?.let { msg ->
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            viewModel.clearToast()
-        }
-    }
+    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_system)) },

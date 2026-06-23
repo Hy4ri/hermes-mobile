@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +25,7 @@ data class ModelUiState(
     val toastMessage: String? = null,
 )
 
-class ModelViewModel : ViewModel() {
+class ModelViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(ModelUiState())
     val uiState: StateFlow<ModelUiState> = _uiState.asStateFlow()
 
@@ -130,7 +131,7 @@ class ModelViewModel : ViewModel() {
         }
     }
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

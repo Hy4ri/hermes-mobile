@@ -376,7 +376,7 @@ class ConnectViewModelTest {
         every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
 
         // A string that is >= 32 chars and alphanumeric matching the raw token regex
-        val validToken = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+        val validToken = "dummy_token_value_that_is_long_enough_to_pass_validation_123"
         viewModel.onPairingString(validToken)
 
         val state = viewModel.uiState.value

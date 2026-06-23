@@ -152,7 +152,10 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns.size, key = { index -> state.columns[index].name }) { columnIndex ->
+                                    items(state.columns.size, key = {
+                                            index ->
+                                        state.columns[index].name
+                                    }) { columnIndex ->
                                         val column = state.columns[columnIndex]
                                         val colName = column.name
                                         val colTasks = tasksByColumn[colName.lowercase()] ?: emptyList()

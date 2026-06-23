@@ -104,7 +104,7 @@ fun SettingsScreen(
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.ordinal,
                 modifier = Modifier.fillMaxWidth(),
-                edgePadding = 16.dp,
+                edgePadding = 0.dp,
             ) {
                 SettingsTab.entries.forEach { tab ->
                     Tab(

@@ -58,8 +58,8 @@ class AuthManagerTest {
 
     @Test
     fun testGetAndSetToken() {
-        every { mockPrefs.getString("auth_token", null) } returns "my_secret_token"
-        assertEquals("my_secret_token", AuthManager.getToken())
+        every { mockPrefs.getString("auth_token", null) } returns "my_auth_token"
+        assertEquals("my_auth_token", AuthManager.getToken())
 
         AuthManager.setToken("new_token")
         verify { mockEditor.putString("auth_token", "new_token") }

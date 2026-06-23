@@ -52,16 +52,16 @@ android {
                     // in CI where keystore secrets aren't set.
                     logger.warn("Release signing config missing env vars — signing deferred to release workflow")
                     storeFile = file("dummy.keystore")
-                    storePassword = "android"
-                    keyAlias = "android"
-                    keyPassword = "android"
+                    storePassword = "android" // ggignore
+                    keyAlias = "android" // ggignore
+                    keyPassword = "android" // ggignore
                 }
             } else {
                 // Dummy values for evaluation configuration during non-release builds
                 storeFile = file("dummy.keystore")
-                storePassword = "android"
-                keyAlias = "android"
-                keyPassword = "android"
+                storePassword = "android" // ggignore
+                keyAlias = "android" // ggignore
+                keyPassword = "android" // ggignore
             }
         }
     }

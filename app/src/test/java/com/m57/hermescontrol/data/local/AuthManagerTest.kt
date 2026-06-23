@@ -139,11 +139,11 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_returnsNullWhenProfileTokenMissing() {
+    fun testGetToken_fallsBackToGlobalWhenProfileTokenMissing() {
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
         every { mockPrefs.getString("token_prof-1", null) } returns null // no profile token
         every { mockPrefs.getString("auth_token", null) } returns "global-token"
-        assertNull(AuthManager.getToken())
+        assertEquals("global-token", AuthManager.getToken())
     }
 
     @Test
@@ -293,18 +293,18 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_returnsNullWhenSelectedProfileLacksToken() {
-        // Profile A is selected but has no token → should return null, not global
+    fun testGetToken_fallsBackToGlobalWhenSelectedProfileLacksToken() {
+        // Profile A is selected but has no token → falls back to global
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
         every { mockPrefs.getString("token_prof-a", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns "shared-global-token"
 
-        assertNull(AuthManager.getToken())
+        assertEquals("shared-global-token", AuthManager.getToken())
 
-        // Switch to Profile B, which also has no token → should return null
+        // Switch to Profile B, which also has no token → same global fallback
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns null
-        assertNull(AuthManager.getToken())
+        assertEquals("shared-global-token", AuthManager.getToken())
     }
 
     @Test
@@ -314,11 +314,11 @@ class AuthManagerTest {
         every { mockPrefs.getString("token_prof-a", null) } returns "token-a"
         assertEquals("token-a", AuthManager.getToken())
 
-        // Profile B has no token, but global exists → should return null
+        // Profile B has no token, but global exists
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns "fallback"
-        assertNull(AuthManager.getToken())
+        assertEquals("fallback", AuthManager.getToken())
 
         // Profile C has its own token too
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-c"

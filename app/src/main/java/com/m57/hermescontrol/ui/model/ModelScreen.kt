@@ -134,7 +134,7 @@ fun ModelScreen(
                                     placeholder = "Search models...",
                                 )
                             }
-                            items(filteredProviders, key = { it.slug }) { provider ->
+                            items(filteredProviders) { provider ->
                                 val isExpanded = expandedProviderSlug == provider.slug
                                 val isCurrent = provider.is_current == true
 

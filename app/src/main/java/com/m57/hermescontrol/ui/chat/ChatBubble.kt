@@ -10,9 +10,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +53,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
@@ -129,6 +129,7 @@ fun ChatBubble(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(
     message: ChatMessage,
@@ -173,18 +174,17 @@ private fun UserBubble(
             )
         val primary = MaterialTheme.colorScheme.primary
         val secondary = MaterialTheme.colorScheme.secondary
-        val onPrimary = MaterialTheme.colorScheme.onPrimary
         val avgLuminance = (primary.luminance() + secondary.luminance()) / 2f
         val userBubbleTextColor =
             if (avgLuminance > 0.5f) {
-                if (onPrimary.luminance() < 0.5f) {
-                    onPrimary
+                if (MaterialTheme.colorScheme.onPrimary.luminance() < 0.5f) {
+                    MaterialTheme.colorScheme.onPrimary
                 } else {
                     Color(0xFF1A1A24)
                 }
             } else {
-                if (onPrimary.luminance() > 0.5f) {
-                    onPrimary
+                if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) {
+                    MaterialTheme.colorScheme.onPrimary
                 } else {
                     Color.White
                 }
@@ -203,13 +203,13 @@ private fun UserBubble(
                             ),
                         ).background(brush = gradientBrush)
                         .testTag("chat_bubble_user")
-                        .pointerInput(message.id) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    showCopyButton = true
-                                },
-                            )
-                        },
+                        .combinedClickable(
+                            role = Role.Button,
+                            onClick = {},
+                            onLongClick = {
+                                showCopyButton = true
+                            },
+                        ),
                 color = Color.Transparent,
                 tonalElevation = 0.dp,
             ) {
@@ -270,6 +270,7 @@ private fun UserBubble(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AssistantBubble(
     message: ChatMessage,
@@ -280,17 +281,16 @@ private fun AssistantBubble(
     modifier: Modifier = Modifier,
 ) {
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
-    val onSurface = MaterialTheme.colorScheme.onSurface
     val textColor =
         if (bubbleColor.luminance() > 0.5f) {
-            if (onSurface.luminance() < 0.5f) {
-                onSurface
+            if (MaterialTheme.colorScheme.onSurface.luminance() < 0.5f) {
+                MaterialTheme.colorScheme.onSurface
             } else {
                 Color(0xFF1A1A24)
             }
         } else {
-            if (onSurface.luminance() > 0.5f) {
-                onSurface
+            if (MaterialTheme.colorScheme.onSurface.luminance() > 0.5f) {
+                MaterialTheme.colorScheme.onSurface
             } else {
                 Color(0xFFE8E6EE)
             }
@@ -318,7 +318,7 @@ private fun AssistantBubble(
                 modifier =
                     Modifier
                         .widthIn(max = maxWidth)
-                        .let { if (!message.isStreaming) it.animateContentSize() else it }
+                        .animateContentSize()
                         .clip(
                             RoundedCornerShape(
                                 topStart = 4.dp,
@@ -327,13 +327,13 @@ private fun AssistantBubble(
                                 bottomEnd = 16.dp,
                             ),
                         ).testTag("chat_bubble_assistant")
-                        .pointerInput(message.id) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    showCopyButton = true
-                                },
-                            )
-                        },
+                        .combinedClickable(
+                            role = Role.Button,
+                            onClick = {},
+                            onLongClick = {
+                                showCopyButton = true
+                            },
+                        ),
                 color = bubbleColor,
                 border =
                     BorderStroke(

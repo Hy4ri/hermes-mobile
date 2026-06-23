@@ -3,7 +3,7 @@ package com.m57.hermescontrol.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -68,16 +68,13 @@ object AuthManager {
         synchronized(this) {
             if (prefs != null) return
             val masterKey =
-                MasterKey
-                    .Builder(context.applicationContext)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build()
+                MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
 
             prefs =
                 EncryptedSharedPreferences.create(
-                    context.applicationContext,
                     PREFS_FILE,
                     masterKey,
+                    context.applicationContext,
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
                 )
@@ -106,7 +103,6 @@ object AuthManager {
                 >() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
-            android.util.Log.e("AuthManager", "Failed to load profiles", e)
             emptyList()
         }
     }
@@ -260,7 +256,7 @@ object AuthManager {
 
     /** Default bottom-nav items (NavKey data-object names). */
     private val DEFAULT_BOTTOM_NAV_ITEMS =
-        listOf("ChatScreenKey", "SkillsScreenKey", "CronJobsScreenKey", "SystemScreenKey", "SettingsScreenKey")
+        listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen")
 
     /** Returns the list of selected bottom-nav item keys (data-object names). */
     fun getBottomNavItems(): List<String> {

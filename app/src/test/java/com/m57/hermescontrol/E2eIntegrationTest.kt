@@ -1,5 +1,6 @@
 package com.m57.hermescontrol
 
+import android.app.Application
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
@@ -56,6 +57,7 @@ import java.io.IOException
 class E2eIntegrationTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApiService: HermesApiService
+    private val mockApp = mockk<Application>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -85,6 +87,9 @@ class E2eIntegrationTest {
         every { AuthManager.getProfileToken(any()) } returns null
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
         every { AuthManager.saveConnectionProfiles(any()) } returns Unit
+
+        // Application stubs
+        every { mockApp.getString(R.string.connect_error_401) } returns "Invalid token (401 Unauthorized)"
     }
 
     @After
@@ -503,24 +508,24 @@ class E2eIntegrationTest {
     // Navigation Drawer:
     @Test
     fun testNavigationDrawerTransitions() {
-        val backStack = NavBackStack<NavKey>(ChatScreenKey)
+        val backStack = NavBackStack<NavKey>(ChatScreen)
         NavigationController.backStack = backStack
 
-        assertEquals(ChatScreenKey, backStack.lastOrNull())
+        assertEquals(ChatScreen, backStack.lastOrNull())
 
-        NavigationController.navigateTo(SkillsScreenKey)
-        assertEquals(SkillsScreenKey, backStack.lastOrNull())
+        NavigationController.navigateTo(SkillsScreen)
+        assertEquals(SkillsScreen, backStack.lastOrNull())
         assertEquals(1, backStack.size)
 
-        NavigationController.navigateTo(CronJobsScreenKey)
-        assertEquals(CronJobsScreenKey, backStack.lastOrNull())
+        NavigationController.navigateTo(CronJobsScreen)
+        assertEquals(CronJobsScreen, backStack.lastOrNull())
         assertEquals(1, backStack.size)
 
         // Non-clearing drawer screen adds to stack
-        NavigationController.navigateTo(ProfilesScreenKey)
-        assertEquals(ProfilesScreenKey, backStack.lastOrNull())
+        NavigationController.navigateTo(ProfilesScreen)
+        assertEquals(ProfilesScreen, backStack.lastOrNull())
         assertEquals(2, backStack.size)
-        assertEquals(CronJobsScreenKey, backStack[0])
+        assertEquals(CronJobsScreen, backStack[0])
     }
 
     // ── Tier 2: Boundary & Corner Cases (>=5 per feature) ────────────────
@@ -734,15 +739,15 @@ class E2eIntegrationTest {
             advanceUntilIdle()
 
             // Set up drawer/backstack
-            val backStack = NavBackStack<NavKey>(SkillsScreenKey)
+            val backStack = NavBackStack<NavKey>(SkillsScreen)
             NavigationController.backStack = backStack
 
             viewModel.toggleSkill(viewModel.uiState.value.skills[0])
 
             // Transition during action
-            NavigationController.navigateTo(CronJobsScreenKey)
+            NavigationController.navigateTo(CronJobsScreen)
 
-            assertEquals(CronJobsScreenKey, NavigationController.backStack?.lastOrNull())
+            assertEquals(CronJobsScreen, NavigationController.backStack?.lastOrNull())
 
             // Complete the action
             advanceUntilIdle()
@@ -760,7 +765,7 @@ class E2eIntegrationTest {
             val mockResponse = createErrorResponse<StatusResponse>(401)
             coEvery { mockApiService.getStatus() } returns mockResponse
 
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("expired-token")
             viewModel.connect()
             advanceUntilIdle()
@@ -781,7 +786,7 @@ class E2eIntegrationTest {
             val statusResponse = mockk<StatusResponse>()
             coEvery { mockApiService.getStatus() } returns Response.success(statusResponse)
 
-            val connectViewModel = ConnectViewModel()
+            val connectViewModel = ConnectViewModel(mockApp)
             connectViewModel.onTokenChange("valid-token")
             connectViewModel.onHostChange("127.0.0.1")
             connectViewModel.onPortChange("9119")
@@ -791,11 +796,11 @@ class E2eIntegrationTest {
             assertTrue(connectViewModel.uiState.value.connectionSuccess)
             verify { AuthManager.setToken("valid-token") }
 
-            // Step 2: User navigates to SkillsScreenKey
-            val backStack = NavBackStack<NavKey>(ChatScreenKey)
+            // Step 2: User navigates to SkillsScreen
+            val backStack = NavBackStack<NavKey>(ChatScreen)
             NavigationController.backStack = backStack
-            NavigationController.navigateTo(SkillsScreenKey)
-            assertEquals(SkillsScreenKey, NavigationController.backStack?.lastOrNull())
+            NavigationController.navigateTo(SkillsScreen)
+            assertEquals(SkillsScreen, NavigationController.backStack?.lastOrNull())
 
             // Step 3: User toggles a skill, but API fails
             val skill = Skill("Skill X", "Desc X", "Cat X", false)
@@ -830,9 +835,9 @@ class E2eIntegrationTest {
                     .contains("HTTP 500"),
             )
 
-            // Step 4: User navigates to CronJobsScreenKey
-            NavigationController.navigateTo(CronJobsScreenKey)
-            assertEquals(CronJobsScreenKey, NavigationController.backStack?.lastOrNull())
+            // Step 4: User navigates to CronJobsScreen
+            NavigationController.navigateTo(CronJobsScreen)
+            assertEquals(CronJobsScreen, NavigationController.backStack?.lastOrNull())
 
             // Step 5: User triggers a cron job
             coEvery { mockApiService.triggerCronJob("job-1") } returns Response.success(Unit)
@@ -1069,7 +1074,7 @@ class E2eIntegrationTest {
             val statusResponse = mockk<StatusResponse>()
             coEvery { mockApiService.getStatus() } returns Response.success(statusResponse)
 
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onPairingString("hermes://connect?host=192.168.1.5&port=9119&token=TEST_TOKEN")
             advanceUntilIdle()
 
@@ -1095,7 +1100,7 @@ class E2eIntegrationTest {
             val statusResponse = mockk<StatusResponse>()
             coEvery { mockApiService.getStatus() } returns Response.success(statusResponse)
 
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onPairingString(base64Str)
             advanceUntilIdle()
 

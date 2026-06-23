@@ -82,7 +82,8 @@ fun SettingsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
-        navIcon = com.m57.hermescontrol.ui.common.NavIcon.Back(onBack),
+        showBack = true,
+        onBack = onBack,
     ) {
         Column(
             modifier =

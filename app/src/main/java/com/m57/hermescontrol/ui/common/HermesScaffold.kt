@@ -24,29 +24,28 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.m57.hermescontrol.R
 
-sealed class NavIcon {
-    data class Menu(val onOpenDrawer: () -> Unit) : NavIcon()
-    data class Back(val onBack: () -> Unit) : NavIcon()
-    data object None : NavIcon()
-}
-
 /**
  * Shared Scaffold wrapper that standardizes the TopAppBar.
  *
  * Improvements (v2):
  *  - Scroll-aware top bar (pinned collapse on scroll)
  *  - Uses Spacing tokens internally
- *  - Simplified API: navIcon parameter instead of flags
+ *  - Simplified API: onOpenDrawer OR showBack (mutually exclusive)
  *  - Safe-area aware via Scaffold insets
+ *
+ * Screens that still need a Back arrow instead of a Menu icon can set
+ * `showBack = true` and pass an `onBack` lambda.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HermesScaffold(
     modifier: Modifier = Modifier,
     title: @Composable () -> Unit,
-    navIcon: NavIcon = NavIcon.None,
+    onOpenDrawer: (() -> Unit)? = null,
     onRefresh: (() -> Unit)? = null,
     isRefreshing: Boolean = false,
+    onBack: (() -> Unit)? = null,
+    showBack: Boolean = false,
     pinTopBar: Boolean = false,
     snackbarHost: @Composable () -> Unit = {},
     actions: @Composable () -> Unit = {},
@@ -67,9 +66,9 @@ fun HermesScaffold(
             TopAppBar(
                 title = title,
                 navigationIcon = {
-                    when (navIcon) {
-                        is NavIcon.Back -> {
-                            IconButton(onClick = navIcon.onBack) {
+                    when {
+                        showBack && onBack != null -> {
+                            IconButton(onClick = onBack) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = stringResource(R.string.content_desc_back),
@@ -78,8 +77,8 @@ fun HermesScaffold(
                             }
                         }
 
-                        is NavIcon.Menu -> {
-                            IconButton(onClick = navIcon.onOpenDrawer) {
+                        onOpenDrawer != null -> {
+                            IconButton(onClick = onOpenDrawer) {
                                 Icon(
                                     imageVector = Icons.Filled.Menu,
                                     contentDescription = stringResource(R.string.content_desc_open_drawer),
@@ -87,8 +86,6 @@ fun HermesScaffold(
                                 )
                             }
                         }
-
-                        is NavIcon.None -> {}
                     }
                 },
                 actions = {

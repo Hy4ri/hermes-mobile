@@ -73,27 +73,27 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import kotlinx.coroutines.launch
-import com.m57.hermescontrol.ui.achievements.AchievementsScreen
-import com.m57.hermescontrol.ui.channels.ChannelsScreen
-import com.m57.hermescontrol.ui.chat.ChatScreen
-import com.m57.hermescontrol.ui.config.ConfigScreen
-import com.m57.hermescontrol.ui.connect.ConnectScreen
-import com.m57.hermescontrol.ui.cron.CronJobsScreen
-import com.m57.hermescontrol.ui.gateway.GatewayScreen
-import com.m57.hermescontrol.ui.kanban.KanbanScreen
-import com.m57.hermescontrol.ui.keys.KeysScreen
-import com.m57.hermescontrol.ui.logs.LogsScreen
-import com.m57.hermescontrol.ui.mcp.McpServersScreen
-import com.m57.hermescontrol.ui.model.ModelScreen
-import com.m57.hermescontrol.ui.pairing.PairingScreen
-import com.m57.hermescontrol.ui.plugins.PluginsScreen
-import com.m57.hermescontrol.ui.profiles.ProfilesScreen
-import com.m57.hermescontrol.ui.sessions.SessionsScreen
-import com.m57.hermescontrol.ui.settings.SettingsScreen
-import com.m57.hermescontrol.ui.skills.SkillsScreen
-import com.m57.hermescontrol.ui.system.SystemScreen
-import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen
-import com.m57.hermescontrol.ui.webhooks.WebhooksScreen
+import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
+import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
+import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
+import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
+import com.m57.hermescontrol.ui.connect.ConnectScreen as ConnectScreenContent
+import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
+import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
+import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
+import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
+import com.m57.hermescontrol.ui.logs.LogsScreen as LogsScreenContent
+import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
+import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
+import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
+import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
+import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
+import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
+import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
+import com.m57.hermescontrol.ui.skills.SkillsScreen as SkillsScreenContent
+import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
+import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
+import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
 
 // ── Bottom-nav item model ──────────────────────────────────────────────
 
@@ -106,26 +106,26 @@ private data class BottomNavItem(
 /** Master list of ALL screens available for bottom-nav selection. */
 private val ALL_NAV_ITEMS: List<BottomNavItem> =
     listOf(
-        BottomNavItem(ChatScreenKey, R.string.screen_chat, Icons.AutoMirrored.Filled.Chat),
-        BottomNavItem(SkillsScreenKey, R.string.screen_skills, Icons.Filled.Extension),
-        BottomNavItem(CronJobsScreenKey, R.string.screen_cron, Icons.Filled.Schedule),
-        BottomNavItem(SystemScreenKey, R.string.screen_system, Icons.Filled.Info),
-        BottomNavItem(SettingsScreenKey, R.string.screen_settings, Icons.Filled.Settings),
-        BottomNavItem(ProfilesScreenKey, R.string.screen_profiles, Icons.Filled.AccountCircle),
-        BottomNavItem(WebhooksScreenKey, R.string.screen_webhooks, Icons.Filled.Webhook),
-        BottomNavItem(GatewayScreenKey, R.string.screen_gateway, Icons.Filled.Bolt),
-        BottomNavItem(ToolsetsScreenKey, R.string.screen_toolsets, Icons.Filled.Build),
-        BottomNavItem(PluginsScreenKey, R.string.screen_plugins, Icons.Filled.Memory),
-        BottomNavItem(ConfigScreenKey, R.string.screen_config, Icons.Filled.Code),
-        BottomNavItem(McpServersScreenKey, R.string.screen_mcp_servers, Icons.Filled.Dashboard),
-        BottomNavItem(ModelScreenKey, R.string.screen_models, Icons.Filled.Psychology),
-        BottomNavItem(PairingScreenKey, R.string.screen_pairing, Icons.Filled.Devices),
-        BottomNavItem(KeysScreenKey, R.string.screen_keys, Icons.Filled.Key),
-        BottomNavItem(ChannelsScreenKey, R.string.screen_channels, Icons.AutoMirrored.Filled.ListAlt),
-        BottomNavItem(LogsScreenKey, R.string.screen_logs, Icons.Filled.HistoryEdu),
-        BottomNavItem(KanbanScreenKey, R.string.screen_kanban, Icons.Filled.Dashboard),
-        BottomNavItem(AchievementsScreenKey, R.string.screen_achievements, Icons.Filled.Info),
-        BottomNavItem(HistoryScreenKey, R.string.screen_history, Icons.Filled.History),
+        BottomNavItem(ChatScreen, R.string.screen_chat, Icons.AutoMirrored.Filled.Chat),
+        BottomNavItem(SkillsScreen, R.string.screen_skills, Icons.Filled.Extension),
+        BottomNavItem(CronJobsScreen, R.string.screen_cron, Icons.Filled.Schedule),
+        BottomNavItem(SystemScreen, R.string.screen_system, Icons.Filled.Info),
+        BottomNavItem(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings),
+        BottomNavItem(ProfilesScreen, R.string.screen_profiles, Icons.Filled.AccountCircle),
+        BottomNavItem(WebhooksScreen, R.string.screen_webhooks, Icons.Filled.Webhook),
+        BottomNavItem(GatewayScreen, R.string.screen_gateway, Icons.Filled.Bolt),
+        BottomNavItem(ToolsetsScreen, R.string.screen_toolsets, Icons.Filled.Build),
+        BottomNavItem(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory),
+        BottomNavItem(ConfigScreen, R.string.screen_config, Icons.Filled.Code),
+        BottomNavItem(McpServersScreen, R.string.screen_mcp_servers, Icons.Filled.Dashboard),
+        BottomNavItem(ModelScreen, R.string.screen_models, Icons.Filled.Psychology),
+        BottomNavItem(PairingScreen, R.string.screen_pairing, Icons.Filled.Devices),
+        BottomNavItem(KeysScreen, R.string.screen_keys, Icons.Filled.Key),
+        BottomNavItem(ChannelsScreen, R.string.screen_channels, Icons.AutoMirrored.Filled.ListAlt),
+        BottomNavItem(LogsScreen, R.string.screen_logs, Icons.Filled.HistoryEdu),
+        BottomNavItem(KanbanScreen, R.string.screen_kanban, Icons.Filled.Dashboard),
+        BottomNavItem(AchievementsScreen, R.string.screen_achievements, Icons.Filled.Info),
+        BottomNavItem(HistoryScreen, R.string.screen_history, Icons.Filled.History),
     )
 
 /** Lookup: data-object simple name → NavKey (used by bottom-nav config). */
@@ -157,34 +157,34 @@ private data class DrawerEntry(
 private val DRAWER_ENTRIES =
     listOf(
         // Converse
-        DrawerEntry(ChatScreenKey, R.string.screen_chat, Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
-        DrawerEntry(HistoryScreenKey, R.string.screen_history, Icons.Filled.History, DrawerSection.CONVERSE),
-        DrawerEntry(ProfilesScreenKey, R.string.screen_profiles, Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
+        DrawerEntry(ChatScreen, R.string.screen_chat, Icons.AutoMirrored.Filled.Chat, DrawerSection.CONVERSE),
+        DrawerEntry(HistoryScreen, R.string.screen_history, Icons.Filled.History, DrawerSection.CONVERSE),
+        DrawerEntry(ProfilesScreen, R.string.screen_profiles, Icons.Filled.AccountCircle, DrawerSection.CONVERSE),
         // Automate
-        DrawerEntry(CronJobsScreenKey, R.string.screen_cron, Icons.Filled.Schedule, DrawerSection.AUTOMATE),
-        DrawerEntry(WebhooksScreenKey, R.string.screen_webhooks, Icons.Filled.Webhook, DrawerSection.AUTOMATE),
-        DrawerEntry(GatewayScreenKey, R.string.screen_gateway, Icons.Filled.Bolt, DrawerSection.AUTOMATE),
+        DrawerEntry(CronJobsScreen, R.string.screen_cron, Icons.Filled.Schedule, DrawerSection.AUTOMATE),
+        DrawerEntry(WebhooksScreen, R.string.screen_webhooks, Icons.Filled.Webhook, DrawerSection.AUTOMATE),
+        DrawerEntry(GatewayScreen, R.string.screen_gateway, Icons.Filled.Bolt, DrawerSection.AUTOMATE),
         // Configure
-        DrawerEntry(SkillsScreenKey, R.string.screen_skills, Icons.Filled.Extension, DrawerSection.CONFIGURE),
-        DrawerEntry(ToolsetsScreenKey, R.string.screen_toolsets, Icons.Filled.Build, DrawerSection.CONFIGURE),
-        DrawerEntry(PluginsScreenKey, R.string.screen_plugins, Icons.Filled.Memory, DrawerSection.CONFIGURE),
-        DrawerEntry(ConfigScreenKey, R.string.screen_config, Icons.Filled.Code, DrawerSection.CONFIGURE),
-        DrawerEntry(McpServersScreenKey, R.string.screen_mcp_servers, Icons.Filled.Dashboard, DrawerSection.CONFIGURE),
-        DrawerEntry(ModelScreenKey, R.string.screen_models, Icons.Filled.Psychology, DrawerSection.CONFIGURE),
-        DrawerEntry(PairingScreenKey, R.string.screen_pairing, Icons.Filled.Devices, DrawerSection.CONFIGURE),
-        DrawerEntry(KeysScreenKey, R.string.screen_keys, Icons.Filled.Key, DrawerSection.CONFIGURE),
+        DrawerEntry(SkillsScreen, R.string.screen_skills, Icons.Filled.Extension, DrawerSection.CONFIGURE),
+        DrawerEntry(ToolsetsScreen, R.string.screen_toolsets, Icons.Filled.Build, DrawerSection.CONFIGURE),
+        DrawerEntry(PluginsScreen, R.string.screen_plugins, Icons.Filled.Memory, DrawerSection.CONFIGURE),
+        DrawerEntry(ConfigScreen, R.string.screen_config, Icons.Filled.Code, DrawerSection.CONFIGURE),
+        DrawerEntry(McpServersScreen, R.string.screen_mcp_servers, Icons.Filled.Dashboard, DrawerSection.CONFIGURE),
+        DrawerEntry(ModelScreen, R.string.screen_models, Icons.Filled.Psychology, DrawerSection.CONFIGURE),
+        DrawerEntry(PairingScreen, R.string.screen_pairing, Icons.Filled.Devices, DrawerSection.CONFIGURE),
+        DrawerEntry(KeysScreen, R.string.screen_keys, Icons.Filled.Key, DrawerSection.CONFIGURE),
         DrawerEntry(
-            ChannelsScreenKey,
+            ChannelsScreen,
             R.string.screen_channels,
             Icons.AutoMirrored.Filled.ListAlt,
             DrawerSection.CONFIGURE,
         ),
         // Inspect
-        DrawerEntry(SystemScreenKey, R.string.screen_system, Icons.Filled.Info, DrawerSection.INSPECT),
-        DrawerEntry(LogsScreenKey, R.string.screen_logs, Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
-        DrawerEntry(KanbanScreenKey, R.string.screen_kanban, Icons.Filled.Dashboard, DrawerSection.INSPECT),
-        DrawerEntry(AchievementsScreenKey, R.string.screen_achievements, Icons.Filled.Info, DrawerSection.INSPECT),
-        DrawerEntry(SettingsScreenKey, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.INSPECT),
+        DrawerEntry(SystemScreen, R.string.screen_system, Icons.Filled.Info, DrawerSection.INSPECT),
+        DrawerEntry(LogsScreen, R.string.screen_logs, Icons.Filled.HistoryEdu, DrawerSection.INSPECT),
+        DrawerEntry(KanbanScreen, R.string.screen_kanban, Icons.Filled.Dashboard, DrawerSection.INSPECT),
+        DrawerEntry(AchievementsScreen, R.string.screen_achievements, Icons.Filled.Info, DrawerSection.INSPECT),
+        DrawerEntry(SettingsScreen, R.string.screen_settings, Icons.Filled.Settings, DrawerSection.INSPECT),
     )
 
 private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ALL_NAV_ITEMS.mapTo(mutableSetOf()) { it.key }
@@ -193,132 +193,132 @@ private fun appEntryProvider(
     sessionId: String?,
     openDrawer: () -> Unit,
 ) = entryProvider {
-    entry<ConnectScreenKey> {
-        ConnectScreen(
+    entry<ConnectScreen> {
+        ConnectScreenContent(
             onConnected = {
-                NavigationController.resetTo(ChatScreenKey)
+                NavigationController.resetTo(ChatScreen)
             },
             modifier = Modifier.safeDrawingPadding(),
         )
     }
 
-    entry<ChatScreenKey> {
-        ChatScreen(
+    entry<ChatScreen> {
+        ChatScreenContent(
             onOpenDrawer = openDrawer,
             sessionId = sessionId,
         )
     }
 
-    entry<HistoryScreenKey> {
-        SessionsScreen(
+    entry<HistoryScreen> {
+        HistoryScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<SettingsScreenKey> {
-        SettingsScreen(
+    entry<SettingsScreen> {
+        SettingsScreenContent(
             onBack = { NavigationController.goBack() },
         )
     }
 
-    entry<SkillsScreenKey> {
-        SkillsScreen(
+    entry<SkillsScreen> {
+        SkillsScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<CronJobsScreenKey> {
-        CronJobsScreen(
+    entry<CronJobsScreen> {
+        CronJobsScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<ProfilesScreenKey> {
-        ProfilesScreen(
+    entry<ProfilesScreen> {
+        ProfilesScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<ToolsetsScreenKey> {
-        ToolsetsScreen(
+    entry<ToolsetsScreen> {
+        ToolsetsScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<AchievementsScreenKey> {
-        AchievementsScreen(
+    entry<AchievementsScreen> {
+        AchievementsScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<PairingScreenKey> {
-        PairingScreen(
+    entry<PairingScreen> {
+        PairingScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<ConfigScreenKey> {
-        ConfigScreen(
+    entry<ConfigScreen> {
+        ConfigScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<McpServersScreenKey> {
-        McpServersScreen(
+    entry<McpServersScreen> {
+        McpServersScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<WebhooksScreenKey> {
-        WebhooksScreen(
+    entry<WebhooksScreen> {
+        WebhooksScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<ModelScreenKey> {
-        ModelScreen(
+    entry<ModelScreen> {
+        ModelScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<GatewayScreenKey> {
-        GatewayScreen(
+    entry<GatewayScreen> {
+        GatewayScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<LogsScreenKey> {
-        LogsScreen(
+    entry<LogsScreen> {
+        LogsScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<PluginsScreenKey> {
-        PluginsScreen(
+    entry<PluginsScreen> {
+        PluginsScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<ChannelsScreenKey> {
-        ChannelsScreen(
+    entry<ChannelsScreen> {
+        ChannelsScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<KeysScreenKey> {
-        KeysScreen(
+    entry<KeysScreen> {
+        KeysScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<SystemScreenKey> {
-        SystemScreen(
+    entry<SystemScreen> {
+        SystemScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
 
-    entry<KanbanScreenKey> {
-        KanbanScreen(
+    entry<KanbanScreen> {
+        KanbanScreenContent(
             onOpenDrawer = openDrawer,
         )
     }
@@ -327,7 +327,7 @@ private fun appEntryProvider(
 @Composable
 fun MainNavigation(sessionId: String? = null) {
     val hasToken = !AuthManager.getToken().isNullOrBlank()
-    val startScreen: NavKey = if (hasToken) ChatScreenKey else ConnectScreenKey
+    val startScreen: NavKey = if (hasToken) ChatScreen else ConnectScreen
 
     val backStack = rememberNavBackStack(startScreen)
     NavigationController.backStack = backStack
@@ -350,7 +350,7 @@ fun MainNavigation(sessionId: String? = null) {
         NavigationController.updatePrimaryScreens(bottomNavKeys)
     }
 
-    val showBottomBar = currentScreen != ConnectScreenKey
+    val showBottomBar = currentScreen != ConnectScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
@@ -364,16 +364,17 @@ fun MainNavigation(sessionId: String? = null) {
                 ) {
                     // Brand header with connection status
                     val connectionStatus by HermesWsClient.connectionStatus.collectAsState()
-                    val statusColors = com.m57.hermescontrol.theme.LocalHermesStatusColors.current
                     val statusColor =
                         when (connectionStatus) {
-                            ConnectionStatus.CONNECTED -> statusColors.success
+                            ConnectionStatus.CONNECTED -> Color(0xFF4CAF50)
 
+                            // green
                             ConnectionStatus.CONNECTING,
                             ConnectionStatus.RECONNECTING,
-                            -> statusColors.warning
+                            -> Color(0xFFFFC107)
 
-                            ConnectionStatus.DISCONNECTED -> statusColors.error
+                            // yellow
+                            ConnectionStatus.DISCONNECTED -> Color(0xFFF44336) // red
                         }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

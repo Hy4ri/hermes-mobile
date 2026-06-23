@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.logs
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +19,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -34,6 +32,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.ToastEffect
 
 @Composable
 fun LogsScreen(
@@ -42,7 +41,6 @@ fun LogsScreen(
     viewModel: LogsViewModel = viewModel { LogsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val spacing = LocalSpacing.current
     val listState = rememberLazyListState()
 
@@ -59,12 +57,7 @@ fun LogsScreen(
         viewModel.loadLogs()
     }
 
-    LaunchedEffect(state.toastMessage) {
-        state.toastMessage?.let { msg ->
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            viewModel.clearToast()
-        }
-    }
+    ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     // Auto scroll to bottom when new logs arrive
     LaunchedEffect(filteredLogs.size) {
@@ -75,7 +68,7 @@ fun LogsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_logs)) },
-        navIcon = onOpenDrawer?.let { com.m57.hermescontrol.ui.common.NavIcon.Menu(it) } ?: com.m57.hermescontrol.ui.common.NavIcon.None,
+        onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadLogs() },
     ) {

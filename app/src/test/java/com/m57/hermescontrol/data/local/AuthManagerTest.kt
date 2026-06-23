@@ -3,7 +3,7 @@ package com.m57.hermescontrol.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import io.mockk.*
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,18 +31,16 @@ class AuthManagerTest {
         mockkStatic(EncryptedSharedPreferences::class)
         every {
             EncryptedSharedPreferences.create(
-                any<Context>(),
                 any<String>(),
-                any<MasterKey>(),
+                any<String>(),
+                any<Context>(),
                 any<EncryptedSharedPreferences.PrefKeyEncryptionScheme>(),
                 any<EncryptedSharedPreferences.PrefValueEncryptionScheme>(),
             )
         } returns mockPrefs
 
-        // Mock MasterKey.Builder constructor and its build method
-        mockkConstructor(MasterKey.Builder::class)
-        val mockMasterKey = mockk<MasterKey>(relaxed = true)
-        every { anyConstructed<MasterKey.Builder>().build() } returns mockMasterKey
+        mockkStatic(MasterKeys::class)
+        every { MasterKeys.getOrCreate(any()) } returns "mockMasterKey"
 
         // Reset prefs singleton instance using reflection
         val field = AuthManager::class.java.getDeclaredField("prefs")

@@ -10,8 +10,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,11 +53,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -126,6 +129,7 @@ fun ChatBubble(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(
     message: ChatMessage,
@@ -198,13 +202,14 @@ private fun UserBubble(
                                 bottomEnd = 4.dp,
                             ),
                         ).background(brush = gradientBrush)
-                        .pointerInput(message.content) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    showCopyButton = true
-                                },
-                            )
-                        },
+                        .testTag("chat_bubble_user")
+                        .combinedClickable(
+                            role = Role.Button,
+                            onClick = {},
+                            onLongClick = {
+                                showCopyButton = true
+                            },
+                        ),
                 color = Color.Transparent,
                 tonalElevation = 0.dp,
             ) {
@@ -265,6 +270,7 @@ private fun UserBubble(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AssistantBubble(
     message: ChatMessage,
@@ -320,13 +326,14 @@ private fun AssistantBubble(
                                 bottomStart = 16.dp,
                                 bottomEnd = 16.dp,
                             ),
-                        ).pointerInput(message.content) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    showCopyButton = true
-                                },
-                            )
-                        },
+                        ).testTag("chat_bubble_assistant")
+                        .combinedClickable(
+                            role = Role.Button,
+                            onClick = {},
+                            onLongClick = {
+                                showCopyButton = true
+                            },
+                        ),
                 color = bubbleColor,
                 border =
                     BorderStroke(
@@ -677,9 +684,9 @@ private fun ToolBubble(
                                         textDecoration = TextDecoration.Underline,
                                     ),
                                 modifier =
-                                    Modifier.pointerInput(Unit) {
-                                        detectTapGestures(onTap = { showRawJson = true })
-                                    },
+                                    Modifier
+                                        .testTag("chat_tool_show_raw")
+                                        .clickable(role = Role.Button) { showRawJson = true },
                             )
                         } else {
                             Text(
@@ -702,9 +709,9 @@ private fun ToolBubble(
                                             textDecoration = TextDecoration.Underline,
                                         ),
                                     modifier =
-                                        Modifier.pointerInput(Unit) {
-                                            detectTapGestures(onTap = { showRawJson = false })
-                                        },
+                                        Modifier
+                                            .testTag("chat_tool_show_parsed")
+                                            .clickable(role = Role.Button) { showRawJson = false },
                                 )
                             }
                         }

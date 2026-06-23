@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.connect
 
+import android.app.Application
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -25,6 +27,7 @@ import retrofit2.Response
 class ConnectViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApiService: HermesApiService
+    private val mockApp = mockk<Application>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -60,6 +63,24 @@ class ConnectViewModelTest {
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
         every { AuthManager.getSelectedProfileId() } returns null
         every { AuthManager.setSelectedProfileId(any()) } returns Unit
+
+        // Mock Application string resources
+        every { mockApp.getString(R.string.connect_error_token_required) } returns "Token is required"
+        every { mockApp.getString(R.string.connect_error_host_required) } returns "Host is required"
+        every { mockApp.getString(R.string.connect_error_port_invalid) } returns "Port must be between 1 and 65535"
+        every { mockApp.getString(R.string.connect_error_401) } returns "Invalid token (401 Unauthorized)"
+        every { mockApp.getString(R.string.connect_error_403) } returns "Access denied (403 Forbidden)"
+        every { mockApp.getString(R.string.connect_error_http_code) } returns "Server returned HTTP %1\$d"
+        every { mockApp.getString(R.string.connect_error_refused) } returns "Connection refused – is Hermes running?"
+        every { mockApp.getString(R.string.connect_error_timeout) } returns "Connection timed out"
+        every { mockApp.getString(R.string.connect_error_connection_failed) } returns "Connection failed: %1\$s"
+        every {
+            mockApp.getString(R.string.connect_error_malformed)
+        } returns "Malformed pairing string — expected URL or Base64-encoded JSON"
+        every {
+            mockApp.getString(R.string.connect_error_missing_fields)
+        } returns "Malformed pairing string — missing host, port, or token"
+        every { mockApp.getString(R.string.connect_error_parse_failed) } returns "Failed to parse pairing string: %1\$s"
     }
 
     @After
@@ -74,7 +95,7 @@ class ConnectViewModelTest {
         every { AuthManager.getHost() } returns "hermes.local"
         every { AuthManager.getPort() } returns 8888
 
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         val state = viewModel.uiState.value
 
         assertEquals("saved-token", state.token)
@@ -87,7 +108,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testOnTokenChange() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.onTokenChange("  new-token  ")
         assertEquals("new-token", viewModel.uiState.value.token)
         assertNull(viewModel.uiState.value.errorMessage)
@@ -95,7 +116,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testOnHostChange() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.onHostChange("  192.168.1.50  ")
         assertEquals("192.168.1.50", viewModel.uiState.value.host)
         assertNull(viewModel.uiState.value.errorMessage)
@@ -103,7 +124,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testOnPortChange() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.onPortChange("90abc90")
         assertEquals("9090", viewModel.uiState.value.port)
         assertNull(viewModel.uiState.value.errorMessage)
@@ -111,7 +132,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testConnect_blankToken_showsError() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.onTokenChange("")
         viewModel.connect()
         assertEquals("Token is required", viewModel.uiState.value.errorMessage)
@@ -119,7 +140,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testConnect_blankHost_showsError() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.onTokenChange("valid-token")
         viewModel.onHostChange("")
         viewModel.connect()
@@ -128,7 +149,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testConnect_invalidPortBounds_showsError() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.onTokenChange("valid-token")
         viewModel.onHostChange("127.0.0.1")
 
@@ -148,7 +169,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_success() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("valid-token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -185,7 +206,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_failure_unauthorized() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("invalid-token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -207,7 +228,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_failure_forbidden() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("invalid-token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -229,7 +250,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_failure_otherHttpCode() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -251,7 +272,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_exception_connectionRefused() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -270,7 +291,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_exception_timeout() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -289,7 +310,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_exception_unknown() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -307,7 +328,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testOnPairingString_malformedBase64_showsError() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
 
         // Mock Base64.decode to throw IllegalArgumentException for an invalid short string
         every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
@@ -320,7 +341,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testOnPairingString_malformedBase64_validRawToken() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
 
         // Mock Base64.decode to throw IllegalArgumentException
         every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
@@ -345,7 +366,7 @@ class ConnectViewModelTest {
             )
         every { AuthManager.getProfileToken("test-id") } returns "profile-token"
 
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.selectProfile(profile)
 
         val state = viewModel.uiState.value
@@ -360,7 +381,7 @@ class ConnectViewModelTest {
 
     @Test
     fun testSelectProfile_null_clearsState() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.selectProfile(null)
 
         val state = viewModel.uiState.value
@@ -376,7 +397,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_saveProfile_savesAndSelects() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("valid-token")
             viewModel.onHostChange("127.0.0.1")
             viewModel.onPortChange("9119")
@@ -424,7 +445,7 @@ class ConnectViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns listOf(profile)
         every { AuthManager.getSelectedProfileId() } returns "prof-1"
 
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         val state = viewModel.uiState.value
 
         assertEquals("Work", state.profileName)
@@ -446,7 +467,7 @@ class ConnectViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns listOf(profile)
         every { AuthManager.getSelectedProfileId() } returns "nonexistent-id"
 
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         val state = viewModel.uiState.value
 
         assertNull(state.selectedProfile)
@@ -465,7 +486,7 @@ class ConnectViewModelTest {
                 host = "10.0.0.2",
                 port = 9220,
             )
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.selectProfile(profile)
 
         assertEquals("", viewModel.uiState.value.token)
@@ -475,7 +496,7 @@ class ConnectViewModelTest {
     @Test
     fun testConnect_withoutSaveProfile_clearsSelectedProfile() =
         runTest {
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("standalone-token")
             viewModel.onHostChange("10.0.0.1")
             viewModel.onPortChange("9119")
@@ -504,14 +525,14 @@ class ConnectViewModelTest {
 
     @Test
     fun testOnProfileNameChange_updatesState() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         viewModel.onProfileNameChange("My Profile")
         assertEquals("My Profile", viewModel.uiState.value.profileName)
     }
 
     @Test
     fun testOnSaveProfileChange_togglesFlag() {
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         assertFalse(viewModel.uiState.value.saveProfile)
         viewModel.onSaveProfileChange(true)
         assertTrue(viewModel.uiState.value.saveProfile)
@@ -529,7 +550,7 @@ class ConnectViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns profiles
         every { AuthManager.getSelectedProfileId() } returns null
 
-        val viewModel = ConnectViewModel()
+        val viewModel = ConnectViewModel(mockApp)
         assertEquals(2, viewModel.uiState.value.profiles.size)
         assertEquals("Alpha", viewModel.uiState.value.profiles[0].name)
         assertEquals("Beta", viewModel.uiState.value.profiles[1].name)
@@ -559,7 +580,7 @@ class ConnectViewModelTest {
                 )
             coEvery { mockApiService.getStatus() } returns mockResponse
 
-            val viewModel = ConnectViewModel()
+            val viewModel = ConnectViewModel(mockApp)
             viewModel.onPairingString("hermes://connect?host=192.168.1.1&port=8888&token=abc123")
 
             val state = viewModel.uiState.value

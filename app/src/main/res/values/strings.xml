@@ -102,6 +102,7 @@
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_interrupt">Interrupt</string>
     <string name="content_desc_copy">Copy</string>
+    <string name="content_desc_edit">Edit</string>
 
     <!-- Settings Screen -->
     <string name="settings_sec_connection">Connection</string>
@@ -165,6 +166,22 @@
     <string name="connect_selected_profile">Profile: %1$s</string>
     <string name="connect_action_select_profile">Select Saved Profile</string>
     <string name="connect_profile_none">None (Standalone)</string>
+
+    <!-- Connect Error Messages -->
+    <string name="connect_error_token_required">Token is required</string>
+    <string name="connect_error_host_required">Host is required</string>
+    <string name="connect_error_port_invalid">Port must be between 1 and 65535</string>
+    <string name="connect_error_401">Invalid token (401 Unauthorized)</string>
+    <string name="connect_error_403">Access denied (403 Forbidden)</string>
+    <string name="connect_error_http_code">Server returned HTTP %1$d</string>
+    <string name="connect_error_timeout">Connection timed out</string>
+    <string name="connect_error_refused">Connection refused – is Hermes running?</string>
+    <string name="connect_error_resolve">Could not resolve host</string>
+    <string name="connect_error_connection_failed">Connection failed: %1$s</string>
+    <string name="connect_error_missing_fields">Malformed pairing string — missing host, port, or token</string>
+    <string name="connect_error_malformed">Malformed pairing string — expected URL or Base64-encoded JSON</string>
+    <string name="connect_error_parse_failed">Failed to parse pairing string: %1$s</string>
+
     <string name="connect_pairing_string">Pairing string</string>
     <string name="connect_placeholder_pairing">Paste hermes://\u2026 or Base64 config</string>
     <string name="connect_save_profile">Save connection profile</string>
@@ -270,6 +287,7 @@
 
     <!-- Profiles Screen -->
     <string name="profiles_empty_title">No profiles available</string>
+    <string name="profiles_empty_desc">Connection profiles from Hermes will appear here.</string>
     <string name="profiles_label_model">Model: %1$s</string>
     <string name="profiles_label_provider">Provider: %1$s</string>
     <string name="profiles_action_edit_soul">Edit Soul</string>
@@ -319,6 +337,7 @@
 
     <!-- Keys Screen -->
     <string name="keys_empty_title">No environment keys reported</string>
+    <string name="keys_empty_desc">Environment keys from Hermes will appear here.</string>
     <string name="keys_label_not_configured">Not configured</string>
     <string name="keys_action_toggle_visibility">Toggle Visibility</string>
 

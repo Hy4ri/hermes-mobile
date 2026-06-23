@@ -18,9 +18,10 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,6 +69,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -88,10 +90,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -111,6 +113,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier,
@@ -269,7 +272,6 @@ fun ChatScreen(
     HermesScaffold(
         modifier = modifier,
         pinTopBar = true,
-        navIcon = onOpenDrawer?.let { com.m57.hermescontrol.ui.common.NavIcon.Menu(it) } ?: com.m57.hermescontrol.ui.common.NavIcon.None,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -294,6 +296,7 @@ fun ChatScreen(
                 }
             }
         },
+        onOpenDrawer = onOpenDrawer,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
@@ -832,6 +835,7 @@ private fun ChatInputBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ClarifyDialog(
     clarify: ClarifyUi,
@@ -856,20 +860,34 @@ private fun ClarifyDialog(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     clarify.options.forEach { option ->
-                        FilledTonalButton(
-                            onClick = { /* onTap handled by pointerInput */ },
+                        Surface(
+                            onClick = { typedText = option },
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .pointerInput(option) {
-                                        detectTapGestures(
-                                            onTap = { typedText = option },
-                                            onLongPress = { onOptionSelected(option) },
-                                        )
-                                    },
+                                    .testTag("clarify_option"),
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
                         ) {
-                            Text(option)
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .combinedClickable(
+                                            role = Role.Button,
+                                            onClick = { typedText = option },
+                                            onLongClick = { onOptionSelected(option) },
+                                        )
+                                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = option,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
                 }
 

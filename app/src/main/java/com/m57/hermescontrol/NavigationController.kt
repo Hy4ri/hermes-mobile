@@ -23,11 +23,11 @@ object NavigationController {
     // Default matches the default 5 bottom-nav items.
     private val primaryScreens: MutableSet<NavKey> =
         mutableSetOf(
-            ChatScreenKey,
-            SkillsScreenKey,
-            CronJobsScreenKey,
-            SystemScreenKey,
-            SettingsScreenKey,
+            ChatScreen,
+            SkillsScreen,
+            CronJobsScreen,
+            SystemScreen,
+            SettingsScreen,
         )
 
     /** Returns whether the given key is a primary (bottom-nav) screen. */
@@ -61,7 +61,7 @@ object NavigationController {
      * Navigate back one step, or fall back to [fallback] when the stack has only one item.
      * Never leaves the stack empty.
      */
-    fun goBack(fallback: NavKey = ChatScreenKey) {
+    fun goBack(fallback: NavKey = ChatScreen) {
         val stack = backStack ?: return
         if (stack.size > 1) {
             stack.removeLastOrNull()

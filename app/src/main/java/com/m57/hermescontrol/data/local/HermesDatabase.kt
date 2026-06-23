@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.m57.hermescontrol.BuildConfig
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Database(
     entities = [ChatMessageEntity::class],
@@ -32,17 +33,17 @@ abstract class HermesDatabase : RoomDatabase() {
 
         fun get(context: Context): HermesDatabase =
             instance ?: synchronized(this) {
+                val factory = SupportOpenHelperFactory(AuthManager.getDatabasePassword())
+
                 instance ?: Room
                     .databaseBuilder(
                         context.applicationContext,
                         HermesDatabase::class.java,
                         "hermes_control.db",
-                    ).addMigrations(MIGRATION_1_2)
-                    .apply {
-                        if (BuildConfig.DEBUG) {
-                            fallbackToDestructiveMigration(false)
-                        }
-                    }.build()
+                    ).openHelperFactory(factory)
+                    .addMigrations(MIGRATION_1_2)
+                    .fallbackToDestructiveMigration()
+                    .build()
                     .also { instance = it }
             }
 

@@ -31,16 +31,6 @@ data class ConnectUiState(
     val selectedProfile: com.m57.hermescontrol.data.model.ConnectionProfile? = null,
 )
 
-class ConnectViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ConnectViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return ConnectViewModel(application) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}
-
 class ConnectViewModel(private val app: Application) : ViewModel() {
     private val _uiState = MutableStateFlow(ConnectUiState())
     val uiState: StateFlow<ConnectUiState> = _uiState.asStateFlow()
@@ -48,6 +38,22 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
     init {
         loadSavedValues()
     }
+
+    private suspend fun isHostAllowed(host: String): Boolean =
+        withContext(Dispatchers.IO) {
+            if (host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0") return@withContext false
+            if (host.startsWith("169.254.")) return@withContext false
+            if (host == "metadata.google.internal") return@withContext false
+            try {
+                val address = java.net.InetAddress.getByName(host)
+                if (address.isLoopbackAddress || address.isAnyLocalAddress || address.isLinkLocalAddress) {
+                    return@withContext false
+                }
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
 
     fun loadSavedValues() {
         val savedToken = AuthManager.getToken() ?: ""
@@ -198,6 +204,9 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                                 when (err.code) {
                                     401 -> {
                                         AuthManager.setToken(null)
+                                        if (AuthManager.getSelectedProfileId() != null) {
+                                            AuthManager.setProfileToken(AuthManager.getSelectedProfileId()!!, null)
+                                        }
                                         app.getString(R.string.connect_error_401)
                                     }
 
@@ -267,59 +276,39 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
         val trimmed = value.trim()
         if (trimmed.isBlank()) return
 
-        when (val result = PairingStringParser.parse(trimmed, app)) {
-            is PairingStringParser.Result.Success -> {
-                _uiState.update {
-                    it.copy(
-                        host = result.host,
-                        port = result.port,
-                        token = result.token,
-                        errorMessage = null,
-                    )
-                }
-                connect()
-            }
-            is PairingStringParser.Result.TokenOnly -> {
-                _uiState.update {
-                    it.copy(
-                        token = result.token,
-                        errorMessage = null,
-                    )
-                }
-            }
-            is PairingStringParser.Result.Error -> {
-                _uiState.update {
-                    it.copy(
-                        errorMessage = result.message,
-                    )
-                }
-            }
-        }
-    }
-}
-
-object PairingStringParser {
-    sealed class Result {
-        data class Success(val host: String, val port: String, val token: String) : Result()
-        data class TokenOnly(val token: String) : Result()
-        data class Error(val message: String) : Result()
-    }
-
-    fun parse(value: String, app: android.app.Application): Result {
         try {
-            if (value.startsWith("hermes://connect?", ignoreCase = true)) {
-                val uri = android.net.Uri.parse(value)
+            if (trimmed.startsWith("hermes://connect?", ignoreCase = true)) {
+                val uri = android.net.Uri.parse(trimmed)
                 val host = uri.getQueryParameter("host")
                 val port = uri.getQueryParameter("port")
                 val token = uri.getQueryParameter("token")
                 if (host != null && port != null && token != null) {
-                    return Result.Success(host, port, token)
+                    viewModelScope.launch {
+                        if (!isHostAllowed(host)) {
+                            _uiState.update {
+                                it.copy(
+                                    errorMessage = app.getString(R.string.connect_error_invalid_host),
+                                )
+                            }
+                            return@launch
+                        }
+                        _uiState.update {
+                            it.copy(
+                                host = host,
+                                port = port,
+                                token = token,
+                                errorMessage = null,
+                            )
+                        }
+                        connect()
+                    }
+                    return
                 }
             }
 
             // Try decoding as Base64 JSON
             try {
-                val decodedBytes = android.util.Base64.decode(value, android.util.Base64.DEFAULT)
+                val decodedBytes = android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
                 val decodedString = String(decodedBytes, Charsets.UTF_8)
                 if (decodedString.startsWith("{") && decodedString.endsWith("}")) {
                     val json =
@@ -330,25 +319,81 @@ object PairingStringParser {
                     val port = json.get("port")?.asInt?.toString() ?: json.get("port")?.asString
                     val token = json.get("token")?.asString
                     if (host != null && port != null && token != null) {
-                        return Result.Success(host, port, token)
+                        viewModelScope.launch {
+                            if (!isHostAllowed(host)) {
+                                _uiState.update {
+                                    it.copy(
+                                        errorMessage = app.getString(R.string.connect_error_invalid_host),
+                                    )
+                                }
+                                return@launch
+                            }
+                            _uiState.update {
+                                it.copy(
+                                    host = host,
+                                    port = port,
+                                    token = token,
+                                    errorMessage = null,
+                                )
+                            }
+                            connect()
+                        }
+                        return
                     }
                     // Decoded valid JSON but missing required fields
-                    return Result.Error(app.getString(com.m57.hermescontrol.R.string.connect_error_missing_fields))
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = app.getString(R.string.connect_error_missing_fields),
+                        )
+                    }
+                    return
                 }
                 // Decoded to valid string but not JSON shape — not a pairing string
-                return Result.Error(app.getString(com.m57.hermescontrol.R.string.connect_error_malformed))
+                _uiState.update {
+                    it.copy(
+                        errorMessage = app.getString(R.string.connect_error_malformed),
+                    )
+                }
+                return
             } catch (e: IllegalArgumentException) {
                 // Not valid Base64 — check if input looks like a raw token
-                if (value.length >= 32 && value.matches(Regex("[A-Za-z0-9_\\-]+"))) {
-                    return Result.TokenOnly(value)
+                if (trimmed.length >= 32 && trimmed.matches(Regex("[A-Za-z0-9_\\-]+"))) {
+                    _uiState.update { it.copy(token = trimmed, errorMessage = null) }
                 } else {
-                    return Result.Error(app.getString(com.m57.hermescontrol.R.string.connect_error_malformed))
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = app.getString(R.string.connect_error_malformed),
+                        )
+                    }
                 }
+                return
             } catch (e: Exception) {
-                return Result.Error(String.format(app.getString(com.m57.hermescontrol.R.string.connect_error_parse_failed), e.message ?: ""))
+                _uiState.update {
+                    it.copy(
+                        errorMessage =
+                            String.format(
+                                app.getString(R.string.connect_error_parse_failed),
+                                e.message ?: "",
+                            ),
+                    )
+                }
+                return
             }
         } catch (e: Exception) {
-            return Result.Error(String.format(app.getString(com.m57.hermescontrol.R.string.connect_error_parse_failed), e.message ?: ""))
+            _uiState.update {
+                it.copy(
+                    errorMessage = String.format(app.getString(R.string.connect_error_parse_failed), e.message ?: ""),
+                )
+            }
         }
+    }
+}
+
+class ConnectViewModelFactory(
+    private val app: Application,
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return ConnectViewModel(app) as T
     }
 }

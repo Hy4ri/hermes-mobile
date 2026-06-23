@@ -2,7 +2,6 @@ package com.m57.hermescontrol.notification
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.lang.reflect.Modifier
 
 /**
  * Unit tests for [ChatNotificationService] companion object — specifically
@@ -25,11 +24,13 @@ class ChatNotificationServiceTest {
                 .getDeclaredField("isAppInForeground")
         field.isAccessible = true
 
+        val atomicBoolean = field.get(null) as java.util.concurrent.atomic.AtomicBoolean
+
         // Reset to known state
-        field.setBoolean(null, false)
+        atomicBoolean.set(false)
         ChatNotificationService.setAppForeground(true)
 
-        assertEquals("flag should be true after setAppForeground(true)", true, field.getBoolean(null))
+        assertEquals("flag should be true after setAppForeground(true)", true, atomicBoolean.get())
     }
 
     @Test
@@ -39,11 +40,13 @@ class ChatNotificationServiceTest {
                 .getDeclaredField("isAppInForeground")
         field.isAccessible = true
 
+        val atomicBoolean = field.get(null) as java.util.concurrent.atomic.AtomicBoolean
+
         // Set to known state
-        field.setBoolean(null, true)
+        atomicBoolean.set(true)
         ChatNotificationService.setAppForeground(false)
 
-        assertEquals("flag should be false after setAppForeground(false)", false, field.getBoolean(null))
+        assertEquals("flag should be false after setAppForeground(false)", false, atomicBoolean.get())
     }
 
     @Test
@@ -53,26 +56,17 @@ class ChatNotificationServiceTest {
                 .getDeclaredField("isAppInForeground")
         field.isAccessible = true
 
-        // Ensure it's in a clean state
-        field.setBoolean(null, false)
+        val atomicBoolean = field.get(null) as java.util.concurrent.atomic.AtomicBoolean
 
-        assertEquals("initial value should be false", false, field.getBoolean(null))
+        // Ensure it's in a clean state
+        atomicBoolean.set(false)
+
+        assertEquals("initial value should be false", false, atomicBoolean.get())
     }
 
     @Test
     fun `isAppInForeground field is volatile for thread safety`() {
-        val field =
-            ChatNotificationService::class.java
-                .getDeclaredField("isAppInForeground")
-        val modifiers = field.modifiers
-
-        assertEquals(
-            "isAppInForeground must be @Volatile — it is read from a background " +
-                "coroutine (event collection) and written from the UI thread " +
-                "(setAppForeground called from ChatScreen lifecycle)",
-            true,
-            Modifier.isVolatile(modifiers),
-        )
+        // Obsolete test as the type is now AtomicBoolean which guarantees thread safety implicitly
     }
 
     @Test
@@ -82,10 +76,12 @@ class ChatNotificationServiceTest {
                 .getDeclaredField("isAppInForeground")
         field.isAccessible = true
 
+        val atomicBoolean = field.get(null) as java.util.concurrent.atomic.AtomicBoolean
+
         // Set true twice
         ChatNotificationService.setAppForeground(true)
         ChatNotificationService.setAppForeground(true)
-        assertEquals("flag should remain true after consecutive setAppForeground(true)", true, field.getBoolean(null))
+        assertEquals("flag should remain true after consecutive setAppForeground(true)", true, atomicBoolean.get())
 
         // Set false twice
         ChatNotificationService.setAppForeground(false)
@@ -93,7 +89,7 @@ class ChatNotificationServiceTest {
         assertEquals(
             "flag should remain false after consecutive setAppForeground(false)",
             false,
-            field.getBoolean(null),
+            atomicBoolean.get(),
         )
     }
 }

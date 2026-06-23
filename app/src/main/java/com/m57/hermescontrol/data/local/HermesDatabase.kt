@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.m57.hermescontrol.BuildConfig
 
 @Database(
     entities = [ChatMessageEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class HermesDatabase : RoomDatabase() {
@@ -18,6 +20,16 @@ abstract class HermesDatabase : RoomDatabase() {
         @Volatile
         private var instance: HermesDatabase? = null
 
+        private val MIGRATION_1_2 =
+            object : Migration(1, 2) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_chat_messages_session_id_timestamp` " +
+                            "ON `chat_messages` (`session_id`, `timestamp`)",
+                    )
+                }
+            }
+
         fun get(context: Context): HermesDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room
@@ -25,7 +37,8 @@ abstract class HermesDatabase : RoomDatabase() {
                         context.applicationContext,
                         HermesDatabase::class.java,
                         "hermes_control.db",
-                    ).apply {
+                    ).addMigrations(MIGRATION_1_2)
+                    .apply {
                         if (BuildConfig.DEBUG) {
                             fallbackToDestructiveMigration(false)
                         }

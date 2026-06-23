@@ -237,7 +237,7 @@ fun SkillsScreen(
                             }
                         }
                     } else {
-                        items(filtered) { skill ->
+                        items(filtered, key = { it.name }) { skill ->
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors =

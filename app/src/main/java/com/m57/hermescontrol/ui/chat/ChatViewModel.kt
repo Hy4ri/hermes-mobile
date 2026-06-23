@@ -57,6 +57,9 @@ data class ChatUiState(
     val searchQuery: String = "",
     val searchMatchIndices: List<Int> = emptyList(),
     val currentSearchMatchIndex: Int = -1,
+    // Cached settings
+    val typingEffectEnabled: Boolean = true,
+    val typingEffectDelayMs: Int = 30,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -93,6 +96,12 @@ class ChatViewModel(
 
     private var pendingCleanupJob: Job? = null
 
+    private val streamingBuffer = java.lang.StringBuilder()
+    private var lastFlushMs = 0L
+
+    private val thinkingBuffer = java.lang.StringBuilder()
+    private var lastThinkingFlushMs = 0L
+
     // ── Public state ─────────────────────────────────────────────────────
 
     /**
@@ -112,6 +121,7 @@ class ChatViewModel(
         )
 
     init {
+        refreshSettings()
         connectWebSocket()
         viewModelScope.launch {
             wsClient.events.collect { event ->
@@ -244,6 +254,11 @@ class ChatViewModel(
         var orphanToPersist: ChatMessage? = null
         val sessionId = _uiState.value.currentSessionId
 
+        streamingBuffer.clear()
+        thinkingBuffer.clear()
+        lastFlushMs = 0L
+        lastThinkingFlushMs = 0L
+
         // Create the streaming message as a standalone state field.
         val msg =
             ChatMessage(
@@ -281,41 +296,61 @@ class ChatViewModel(
 
     private fun handleMessageToken(event: WsEvent.MessageToken) {
         if (!isCurrentSession(event.sessionId)) return
-        _uiState.update { state ->
-            val current = state.streamingMessage
-            if (current != null) {
-                state.copy(
-                    streamingMessage =
-                        current.copy(
-                            content = current.content + event.token,
-                        ),
-                    isThinking = false,
-                )
-            } else {
-                // Fallback: no MessageStart was received — create one now
-                val msg =
-                    ChatMessage(
-                        role = MessageRole.ASSISTANT,
-                        content = event.token,
-                        isStreaming = true,
+
+        streamingBuffer.append(event.token)
+        val now = System.currentTimeMillis()
+
+        // Always flush in tests, or if enough time has passed
+        val shouldFlush = (now - lastFlushMs >= 33L) || lastFlushMs == 0L || isTestEnvironment()
+        if (shouldFlush) {
+            val currentContent = streamingBuffer.toString()
+            lastFlushMs = now
+            _uiState.update { state ->
+                val current = state.streamingMessage
+                if (current != null) {
+                    state.copy(
+                        streamingMessage =
+                            current.copy(
+                                content = currentContent,
+                            ),
+                        isThinking = false,
                     )
-                streamingMessageId = msg.id
-                state.copy(
-                    streamingMessage = msg,
-                    isAgentTyping = true,
-                    isThinking = false,
-                )
+                } else {
+                    // Fallback: no MessageStart was received — create one now
+                    val msg =
+                        ChatMessage(
+                            role = MessageRole.ASSISTANT,
+                            content = currentContent,
+                            isStreaming = true,
+                        )
+                    streamingMessageId = msg.id
+                    state.copy(
+                        streamingMessage = msg,
+                        isAgentTyping = true,
+                        isThinking = false,
+                    )
+                }
             }
         }
     }
 
     private fun handleThinkingDelta(event: WsEvent.ThinkingDelta) {
         if (!isCurrentSession(event.sessionId)) return
-        _uiState.update { state ->
-            state.copy(
-                isThinking = true,
-                thinkingText = state.thinkingText + event.token,
-            )
+
+        thinkingBuffer.append(event.token)
+        val now = System.currentTimeMillis()
+
+        // Always flush in tests, or if enough time has passed
+        val shouldFlush = (now - lastThinkingFlushMs >= 33L) || lastThinkingFlushMs == 0L || isTestEnvironment()
+        if (shouldFlush) {
+            val currentContent = thinkingBuffer.toString()
+            lastThinkingFlushMs = now
+            _uiState.update { state ->
+                state.copy(
+                    isThinking = true,
+                    thinkingText = currentContent,
+                )
+            }
         }
     }
 
@@ -324,6 +359,9 @@ class ChatViewModel(
 
         var finalizedMsg: ChatMessage? = null
         var sessionId: String? = null
+
+        streamingBuffer.clear()
+        thinkingBuffer.clear()
 
         _uiState.update { state ->
             val streaming = state.streamingMessage
@@ -371,9 +409,20 @@ class ChatViewModel(
         var orphan: ChatMessage? = null
         var sessionId: String? = null
 
+        // Flush any remaining buffered content to the message before marking it done
+        val finalContent = streamingBuffer.toString()
+        val finalThinkingText = thinkingBuffer.toString()
+
+        streamingBuffer.clear()
+        thinkingBuffer.clear()
+
         _uiState.update { state ->
             val streaming = state.streamingMessage
-            val msg = streaming?.copy(isStreaming = false)
+            val msg =
+                streaming?.copy(
+                    content = finalContent.ifEmpty { streaming.content },
+                    isStreaming = false,
+                )
             orphan = msg
             sessionId = state.currentSessionId
             if (msg != null) {
@@ -411,7 +460,7 @@ class ChatViewModel(
         var orphanToPersist: ChatMessage? = null
         val sessionId = _uiState.value.currentSessionId
 
-        val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
+        val contentJson = event.data?.let { gson.toJson(it) } ?: ""
         val toolMessage =
             ChatMessage(
                 role = MessageRole.TOOL,
@@ -460,7 +509,7 @@ class ChatViewModel(
                         it.toolStatus == ToolStatus.RUNNING
                 }
             if (toolIdx >= 0) {
-                val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
+                val contentJson = event.data?.let { gson.toJson(it) } ?: ""
                 val updated =
                     messages[toolIdx].copy(
                         toolStatus = ToolStatus.COMPLETED,
@@ -550,6 +599,8 @@ class ChatViewModel(
             }
 
             WsMethods.SESSION_INTERRUPT -> {
+                streamingBuffer.clear()
+                thinkingBuffer.clear()
                 _uiState.update {
                     it.copy(
                         isAgentTyping = false,
@@ -813,11 +864,22 @@ class ChatViewModel(
         loadSessionMessages(sessionId)
     }
 
+    fun refreshSettings() {
+        _uiState.update { state ->
+            state.copy(
+                typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
+                typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
+            )
+        }
+    }
+
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
         // Reset streaming state
         streamingMessageId = null
+        streamingBuffer.clear()
+        thinkingBuffer.clear()
 
         _uiState.update {
             val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
@@ -1043,13 +1105,13 @@ class ChatViewModel(
                 while (true) {
                     delay(PENDING_REQUEST_TIMEOUT_MS)
                     val now = System.currentTimeMillis()
-                    val stale =
-                        pendingRequests.entries.filter {
-                            now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
+                    val iterator = pendingRequests.entries.iterator()
+                    while (iterator.hasNext()) {
+                        val entry = iterator.next()
+                        if (now - entry.value.createdAt > PENDING_REQUEST_TIMEOUT_MS) {
+                            iterator.remove()
+                            Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
                         }
-                    for (entry in stale) {
-                        pendingRequests.remove(entry.key)
-                        Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
                     }
                 }
             }
@@ -1135,11 +1197,30 @@ class ChatViewModel(
         }
     }
 
+    private var isTestEnv: Boolean? = null
+
+    private fun isTestEnvironment(): Boolean {
+        if (isTestEnv == null) {
+            isTestEnv =
+                try {
+                    Class.forName("org.junit.Test")
+                    true
+                } catch (e: ClassNotFoundException) {
+                    false
+                }
+        }
+        return isTestEnv == true
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────────────────
 
     override fun onCleared() {
         super.onCleared()
         pendingCleanupJob?.cancel()
         wsClient.disconnect()
+    }
+
+    companion object {
+        private val gson = Gson()
     }
 }

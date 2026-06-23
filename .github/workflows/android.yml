@@ -23,7 +23,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ktlint:
     name: ktlint — Code Style
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -82,7 +82,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   android-lint:
     name: Android Lint — Static Analysis
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -119,7 +119,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit & Integration Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -157,7 +157,7 @@ jobs:
   build:
     name: Build Debug APK
     needs: [ktlint, android-lint, unit-tests]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -230,7 +230,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   instrumented-tests:
     name: Instrumented Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -294,7 +294,7 @@ jobs:
   ci-summary:
     name: CI Summary
     needs: [ktlint, android-lint, unit-tests, build, release-compile]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
     steps:

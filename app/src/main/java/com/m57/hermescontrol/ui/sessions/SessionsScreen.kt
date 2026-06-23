@@ -105,7 +105,7 @@ fun SessionsScreen(
                             placeholder = "Search sessions...",
                         )
                     }
-                    items(filteredSessions) { session ->
+                    items(filteredSessions, key = { it.id }) { session ->
                         Card(
                             modifier =
                                 Modifier

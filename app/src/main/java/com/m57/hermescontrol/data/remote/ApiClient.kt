@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import okhttp3.CertificatePinner
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -22,6 +23,8 @@ object ApiClient {
 
     @Volatile
     private var service: HermesApiService? = null
+
+    private val connectionPool = okhttp3.ConnectionPool()
 
     /** The current [HermesApiService] instance. Lazily created on first access. */
     val hermesApi: HermesApiService
@@ -72,11 +75,18 @@ object ApiClient {
                 chain.proceed(request)
             }
 
+        // SEC-11: No certificate pinning is configured by default since the app
+        // intentionally uses HTTP for LAN and hosts are dynamic.
+        // CertificatePinner infrastructure is provided here if HTTPS is used with a known host.
+        val certificatePinner = CertificatePinner.Builder().build()
+
         val okHttp =
             OkHttpClient
                 .Builder()
+                .connectionPool(connectionPool)
                 .addInterceptor(authInterceptor)
                 .addInterceptor(logging)
+                .certificatePinner(certificatePinner)
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(15, TimeUnit.SECONDS)

@@ -69,17 +69,16 @@ fun ChannelsScreen(
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlatforms() },
-    ) { paddingValues ->
+    ) {
         when {
             state.isLoading && state.platforms.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                LoadingState()
             }
 
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadPlatforms() },
-                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
@@ -87,13 +86,12 @@ fun ChannelsScreen(
                 EmptyState(
                     title = stringResource(R.string.channels_empty_title),
                     subtitle = stringResource(R.string.channels_empty_desc),
-                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {

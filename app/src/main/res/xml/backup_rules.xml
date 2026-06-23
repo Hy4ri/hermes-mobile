@@ -6,8 +6,6 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="database" path="hermes_control.db" />
+    <exclude domain="sharedpref" path="hermes_secure_prefs.xml" />
 </full-backup-content>

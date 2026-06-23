@@ -13,9 +13,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
@@ -92,10 +96,23 @@ object HermesWsClient {
 
     // ── Public observable stream ─────────────────────────────────────────
 
-    private val _events = MutableSharedFlow<WsEvent>(extraBufferCapacity = 64)
+    private val rawMessages = MutableSharedFlow<String>(extraBufferCapacity = 64)
 
     /** Collect this from ViewModels to receive all parsed [WsEvent]s. */
-    val events: SharedFlow<WsEvent> = _events.asSharedFlow()
+    val events: SharedFlow<WsEvent> =
+        rawMessages
+            .buffer()
+            .map { text ->
+                try {
+                    val rpc = gson.fromJson(text, JsonRpcResponse::class.java)
+                    EventParser.parse(rpc, text)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse message", e)
+                    WsEvent.Unknown(text)
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .shareIn(wsScope, SharingStarted.Eagerly)
 
     // ── Connection status flow ──────────────────────────────────────────
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
@@ -178,7 +195,8 @@ object HermesWsClient {
         val url = AuthManager.wsUrl()
         // B2 (Jun 18 2026, kanban t_8884db16): url contains the auth token
         // as a query param — never stream to logcat in release builds.
-        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $url")
+        val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
         val request = Request.Builder().url(url).build()
         webSocket = okHttpClient.newWebSocket(request, WsListenerImpl())
@@ -224,10 +242,6 @@ object HermesWsClient {
             }
     }
 
-    private fun emit(event: WsEvent) {
-        _events.tryEmit(event)
-    }
-
     // ── Listener ─────────────────────────────────────────────────────────
 
     private class WsListenerImpl : WebSocketListener() {
@@ -257,14 +271,7 @@ object HermesWsClient {
             // AI reply tokens and tool output — never stream to logcat in
             // release builds.
             if (BuildConfig.DEBUG) Log.d(TAG, "← $text")
-            try {
-                val rpc = gson.fromJson(text, JsonRpcResponse::class.java)
-                val event = EventParser.parse(rpc, text)
-                emit(event)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse message", e)
-                emit(WsEvent.Unknown(text))
-            }
+            rawMessages.tryEmit(text)
         }
 
         override fun onClosing(

@@ -24,6 +24,8 @@ object ApiClient {
     @Volatile
     private var service: HermesApiService? = null
 
+    private val connectionPool = okhttp3.ConnectionPool()
+
     /** The current [HermesApiService] instance. Lazily created on first access. */
     val hermesApi: HermesApiService
         get() {
@@ -81,6 +83,7 @@ object ApiClient {
         val okHttp =
             OkHttpClient
                 .Builder()
+                .connectionPool(connectionPool)
                 .addInterceptor(authInterceptor)
                 .addInterceptor(logging)
                 .certificatePinner(certificatePinner)

@@ -57,6 +57,9 @@ data class ChatUiState(
     val searchQuery: String = "",
     val searchMatchIndices: List<Int> = emptyList(),
     val currentSearchMatchIndex: Int = -1,
+    // Cached settings
+    val typingEffectEnabled: Boolean = true,
+    val typingEffectDelayMs: Int = 30,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -118,6 +121,7 @@ class ChatViewModel(
         )
 
     init {
+        refreshSettings()
         connectWebSocket()
         viewModelScope.launch {
             wsClient.events.collect { event ->
@@ -456,7 +460,7 @@ class ChatViewModel(
         var orphanToPersist: ChatMessage? = null
         val sessionId = _uiState.value.currentSessionId
 
-        val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
+        val contentJson = event.data?.let { gson.toJson(it) } ?: ""
         val toolMessage =
             ChatMessage(
                 role = MessageRole.TOOL,
@@ -505,7 +509,7 @@ class ChatViewModel(
                         it.toolStatus == ToolStatus.RUNNING
                 }
             if (toolIdx >= 0) {
-                val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
+                val contentJson = event.data?.let { gson.toJson(it) } ?: ""
                 val updated =
                     messages[toolIdx].copy(
                         toolStatus = ToolStatus.COMPLETED,
@@ -860,6 +864,15 @@ class ChatViewModel(
         loadSessionMessages(sessionId)
     }
 
+    fun refreshSettings() {
+        _uiState.update { state ->
+            state.copy(
+                typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
+                typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
+            )
+        }
+    }
+
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
@@ -1092,13 +1105,13 @@ class ChatViewModel(
                 while (true) {
                     delay(PENDING_REQUEST_TIMEOUT_MS)
                     val now = System.currentTimeMillis()
-                    val stale =
-                        pendingRequests.entries.filter {
-                            now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
+                    val iterator = pendingRequests.entries.iterator()
+                    while (iterator.hasNext()) {
+                        val entry = iterator.next()
+                        if (now - entry.value.createdAt > PENDING_REQUEST_TIMEOUT_MS) {
+                            iterator.remove()
+                            Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
                         }
-                    for (entry in stale) {
-                        pendingRequests.remove(entry.key)
-                        Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
                     }
                 }
             }
@@ -1205,5 +1218,9 @@ class ChatViewModel(
         super.onCleared()
         pendingCleanupJob?.cancel()
         wsClient.disconnect()
+    }
+
+    companion object {
+        private val gson = Gson()
     }
 }

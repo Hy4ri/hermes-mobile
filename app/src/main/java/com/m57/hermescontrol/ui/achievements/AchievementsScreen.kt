@@ -65,17 +65,16 @@ fun AchievementsScreen(
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadAchievements() },
-    ) { paddingValues ->
+    ) {
         when {
             state.isLoading && state.achievements.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                LoadingState()
             }
 
             state.errorMessage != null && state.achievements.isEmpty() -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAchievements() },
-                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
@@ -84,13 +83,12 @@ fun AchievementsScreen(
                     title = stringResource(R.string.achievements_empty_title),
                     subtitle = stringResource(R.string.achievements_empty_desc),
                     icon = Icons.Filled.Refresh,
-                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -101,7 +99,7 @@ fun AchievementsScreen(
                             placeholder = "Search achievements...",
                         )
                     }
-                    items(filteredAchievements) { achievement ->
+                    items(filteredAchievements, key = { it.id }) { achievement ->
                         val pct = achievement.progress_pct?.toFloat()?.div(100f) ?: 0f
 
                         Card(

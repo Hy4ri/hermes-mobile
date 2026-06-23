@@ -90,17 +90,16 @@ fun KanbanScreen(
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
-    ) { paddingValues ->
+    ) {
         when {
             state.isLoading && state.boards.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                LoadingState()
             }
 
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadBoards() },
-                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
@@ -112,11 +111,10 @@ fun KanbanScreen(
                         Text(
                             text = state.errorMessage ?: "",
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(paddingValues),
                         )
                     } else {
                         Column(
-                            modifier = Modifier.fillMaxSize().padding(paddingValues),
+                            modifier = Modifier.fillMaxSize(),
                         ) {
                             SearchBar(
                                 query = query,
@@ -154,7 +152,7 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns.size) { columnIndex ->
+                                    items(state.columns.size, key = { index -> state.columns[index].name }) { columnIndex ->
                                         val column = state.columns[columnIndex]
                                         val colName = column.name
                                         val colTasks = tasksByColumn[colName.lowercase()] ?: emptyList()

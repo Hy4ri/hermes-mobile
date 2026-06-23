@@ -39,6 +39,47 @@ object ApiClient {
         }
     }
 
+    /** Creates a standalone, temporary [HermesApiService] without modifying the global instance. */
+    fun createTempService(
+        host: String,
+        port: Int,
+        token: String,
+    ): HermesApiService {
+        val tempAuthInterceptor =
+            Interceptor { chain ->
+                val request =
+                    if (token.isNotBlank()) {
+                        chain
+                            .request()
+                            .newBuilder()
+                            .addHeader("Authorization", "Bearer $token")
+                            .build()
+                    } else {
+                        chain.request()
+                    }
+                chain.proceed(request)
+            }
+
+        val tempOkHttp =
+            OkHttpClient
+                .Builder()
+                .addInterceptor(tempAuthInterceptor)
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
+                .build()
+
+        val tempRetrofit =
+            Retrofit
+                .Builder()
+                .baseUrl("http://$host:$port/")
+                .client(tempOkHttp)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+
+        return tempRetrofit.create(HermesApiService::class.java)
+    }
+
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun buildService(): HermesApiService {

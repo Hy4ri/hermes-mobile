@@ -48,6 +48,7 @@ class ConnectViewModelTest {
 
         mockApiService = mockk()
         every { ApiClient.hermesApi } returns mockApiService
+        every { ApiClient.createTempService(any(), any(), any()) } returns mockApiService
         every { ApiClient.rebuild() } returns Unit
 
         // Default AuthManager stubs

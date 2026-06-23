@@ -39,22 +39,6 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
         loadSavedValues()
     }
 
-    private suspend fun isHostAllowed(host: String): Boolean =
-        withContext(Dispatchers.IO) {
-            if (host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0") return@withContext false
-            if (host.startsWith("169.254.")) return@withContext false
-            if (host == "metadata.google.internal") return@withContext false
-            try {
-                val address = java.net.InetAddress.getByName(host)
-                if (address.isLoopbackAddress || address.isAnyLocalAddress || address.isLinkLocalAddress) {
-                    return@withContext false
-                }
-                true
-            } catch (e: Exception) {
-                false
-            }
-        }
-
     fun loadSavedValues() {
         val savedToken = AuthManager.getToken() ?: ""
         val savedHost = AuthManager.getHost()
@@ -281,25 +265,15 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                 val port = uri.getQueryParameter("port")
                 val token = uri.getQueryParameter("token")
                 if (host != null && port != null && token != null) {
-                    viewModelScope.launch {
-                        if (!isHostAllowed(host)) {
-                            _uiState.update {
-                                it.copy(
-                                    errorMessage = app.getString(R.string.connect_error_invalid_host),
-                                )
-                            }
-                            return@launch
-                        }
-                        _uiState.update {
-                            it.copy(
-                                host = host,
-                                port = port,
-                                token = token,
-                                errorMessage = null,
-                            )
-                        }
-                        connect()
+                    _uiState.update {
+                        it.copy(
+                            host = host,
+                            port = port,
+                            token = token,
+                            errorMessage = null,
+                        )
                     }
+                    connect()
                     return
                 }
             }
@@ -317,25 +291,15 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                     val port = json.get("port")?.asInt?.toString() ?: json.get("port")?.asString
                     val token = json.get("token")?.asString
                     if (host != null && port != null && token != null) {
-                        viewModelScope.launch {
-                            if (!isHostAllowed(host)) {
-                                _uiState.update {
-                                    it.copy(
-                                        errorMessage = app.getString(R.string.connect_error_invalid_host),
-                                    )
-                                }
-                                return@launch
-                            }
-                            _uiState.update {
-                                it.copy(
-                                    host = host,
-                                    port = port,
-                                    token = token,
-                                    errorMessage = null,
-                                )
-                            }
-                            connect()
+                        _uiState.update {
+                            it.copy(
+                                host = host,
+                                port = port,
+                                token = token,
+                                errorMessage = null,
+                            )
                         }
+                        connect()
                         return
                     }
                     // Decoded valid JSON but missing required fields

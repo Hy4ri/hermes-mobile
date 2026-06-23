@@ -118,7 +118,7 @@ fun ProfilesScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            items(state.profiles, key = { it.name }) { profile ->
+                            items(state.profiles) { profile ->
                                 val isActive = profile.name == state.activeProfileName
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),

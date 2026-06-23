@@ -64,8 +64,6 @@ class ChatViewModelTest {
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
         every { AuthManager.getToken() } returns "test-token"
-        every { AuthManager.isTypingEffectEnabled() } returns true
-        every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
         every { HermesWsClient.connect() } returns Unit

@@ -133,7 +133,7 @@ fun ToolsetsScreen(
                                     placeholder = "Search toolsets...",
                                 )
                             }
-                            items(filteredToolsets, key = { it.name }) { toolset ->
+                            items(filteredToolsets) { toolset ->
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors =

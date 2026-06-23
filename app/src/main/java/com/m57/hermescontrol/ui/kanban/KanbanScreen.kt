@@ -85,16 +85,17 @@ fun KanbanScreen(
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
-    ) {
+    ) { paddingValues ->
         when {
             state.isLoading && state.boards.isEmpty() -> {
-                LoadingState()
+                LoadingState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadBoards() },
+                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
@@ -106,10 +107,11 @@ fun KanbanScreen(
                         Text(
                             text = state.errorMessage ?: "",
                             color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(paddingValues),
                         )
                     } else {
                         Column(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().padding(paddingValues),
                         ) {
                             SearchBar(
                                 query = query,
@@ -147,7 +149,7 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns, key = { it.name }) { column ->
+                                    items(state.columns) { column ->
                                         val colName = column.name
                                         val colTasks =
                                             filteredTasks.filter {
@@ -176,7 +178,7 @@ fun KanbanScreen(
                                                 modifier = Modifier.weight(1f),
                                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
-                                                items(colTasks, key = { it.id }) { task ->
+                                                items(colTasks) { task ->
                                                     TaskCard(
                                                         task = task,
                                                         onMoveLeft =

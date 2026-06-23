@@ -41,21 +41,15 @@ android {
                 val alias = System.getenv("KEY_ALIAS")
                 val keyPass = System.getenv("KEY_PASSWORD")
 
-                if (storePath != null && storePass != null && alias != null && keyPass != null) {
-                    storeFile = file(storePath)
-                    storePassword = storePass
-                    keyAlias = alias
-                    keyPassword = keyPass
-                } else {
-                    // Env vars missing — signing deferred to release workflow.
-                    // Don't hard-require(): that would break compileReleaseKotlin
-                    // in CI where keystore secrets aren't set.
-                    logger.warn("Release signing config missing env vars — signing deferred to release workflow")
-                    storeFile = file("dummy.keystore")
-                    storePassword = "dummy"
-                    keyAlias = "dummy"
-                    keyPassword = "dummy"
-                }
+                require(!storePath.isNullOrEmpty()) { "KEYSTORE_PATH environment variable is not set" }
+                require(!storePass.isNullOrEmpty()) { "KEYSTORE_PASSWORD environment variable is not set" }
+                require(!alias.isNullOrEmpty()) { "KEY_ALIAS environment variable is not set" }
+                require(!keyPass.isNullOrEmpty()) { "KEY_PASSWORD environment variable is not set" }
+
+                storeFile = file(storePath)
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
             } else {
                 // Dummy values for evaluation configuration during non-release builds
                 storeFile = file("dummy.keystore")
@@ -134,7 +128,7 @@ dependencies {
 
     // Networking
     implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
+    debugImplementation(libs.okhttp.logging)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.gson)

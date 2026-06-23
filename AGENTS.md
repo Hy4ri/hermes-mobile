@@ -42,7 +42,6 @@ find app/src -name '*.kt' | xargs ./ktlint --format   # fix all
 | `android-lint` | Android Lint |
 | `unit-tests` | JUnit |
 | `build` | assembleDebug (gated by the 3 above) |
-| `release-compile` | compileReleaseKotlin — catches release-variant compilation issues (e.g. debugImplementation-scoped deps referenced in main source) |
 | `ci-summary` | Aggregator (`if: always()`) — branch protection gates on THIS check |
 
 Every Gradle job validates `gradle-wrapper.jar` and uses the remote build cache
@@ -146,12 +145,6 @@ gh pr create --title "fix(#N): description" --body "Closes #N"
   `val` at the composable scope first.
 - Don't add new screens without checking if an existing one already covers the
   functionality (19+ screens exist). Extend rather than duplicate.
-- **⚠ Never scope a dependency to `debugImplementation` if its import is used in
-  `main/` source code.** The CI `release-compile` job catches this, but save the
-  cycle. `okhttp3.logging.HttpLoggingInterceptor` is the classic example — it's
-  imported in `ApiClient.kt` (main source) so it must be `implementation`, not
-  `debugImplementation`. If you want it debug-only, wrap the usage in
-  `if (BuildConfig.DEBUG)` or extract it behind an interface.
 
 ## Project Layout
 

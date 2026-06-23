@@ -105,6 +105,10 @@
     <string name="content_desc_edit">Edit</string>
 
     <!-- Settings Screen -->
+    <string name="settings_tab_connection">Connection</string>
+    <string name="settings_tab_appearance">Appearance</string>
+    <string name="settings_tab_behavior">Behavior</string>
+    <string name="settings_tab_about">About</string>
     <string name="settings_sec_connection">Connection</string>
     <string name="settings_item_profile">Connection Profile</string>
     <string name="settings_profile_default">Standalone / Default</string>

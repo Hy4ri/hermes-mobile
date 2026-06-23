@@ -118,7 +118,7 @@ class AuthManagerTest {
         every { mockPrefs.getString("host", "127.0.0.1") } returns "hermes.local"
         every { mockPrefs.getInt("port", 9119) } returns 1234
         every { mockPrefs.getString("auth_token", null) } returns "token123"
-        assertEquals("ws://hermes.local:1234/api/ws?token=token123", AuthManager.wsUrl())
+        assertEquals("ws://hermes.local:1234/api/ws", AuthManager.wsUrl())
     }
 
     @Test
@@ -126,7 +126,7 @@ class AuthManagerTest {
         every { mockPrefs.getString("host", "127.0.0.1") } returns "hermes.local"
         every { mockPrefs.getInt("port", 9119) } returns 1234
         every { mockPrefs.getString("auth_token", null) } returns null
-        assertEquals("ws://hermes.local:1234/api/ws?token=", AuthManager.wsUrl())
+        assertEquals("ws://hermes.local:1234/api/ws", AuthManager.wsUrl())
     }
 
     // ── TEST-08: Token routing through selected profile ─────────────────

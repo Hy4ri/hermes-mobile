@@ -75,7 +75,6 @@ object ApiClient {
         val okHttp =
             OkHttpClient
                 .Builder()
-                .addInterceptor(LocalNetworkCleartextInterceptor())
                 .addInterceptor(authInterceptor)
                 .addInterceptor(logging)
                 .connectTimeout(15, TimeUnit.SECONDS)

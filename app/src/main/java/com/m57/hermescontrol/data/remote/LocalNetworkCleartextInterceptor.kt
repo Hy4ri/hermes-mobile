@@ -1,0 +1,46 @@
+package com.m57.hermescontrol.data.remote
+
+import okhttp3.Interceptor
+import okhttp3.Response
+import java.io.IOException
+
+/**
+ * Ensures cleartext (HTTP) traffic is only permitted to private, local network IP addresses.
+ * Android's network_security_config.xml does not support CIDR notation (e.g., 192.168.0.0/16),
+ * so we must enforce this programmatically.
+ */
+class LocalNetworkCleartextInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+
+        // If it's HTTPS (or WSS), it's secure, so we allow it.
+        if (request.url.isHttps) {
+            return chain.proceed(request)
+        }
+
+        val host = request.url.host
+        if (!isPrivateHost(host)) {
+            throw IOException("Cleartext HTTP traffic is only permitted to private LAN IP addresses. Blocked request to: $host")
+        }
+
+        return chain.proceed(request)
+    }
+
+    private fun isPrivateHost(host: String): Boolean {
+        if (host == "localhost" || host == "127.0.0.1" || host == "::1") return true
+
+        val parts = host.split(".")
+        if (parts.size == 4) {
+            val p0 = parts[0].toIntOrNull() ?: return false
+            val p1 = parts[1].toIntOrNull() ?: return false
+            val p2 = parts[2].toIntOrNull() ?: return false
+            val p3 = parts[3].toIntOrNull() ?: return false
+
+            if (p0 == 10) return true // 10.0.0.0/8
+            if (p0 == 172 && p1 in 16..31) return true // 172.16.0.0/12
+            if (p0 == 192 && p1 == 168) return true // 192.168.0.0/16
+            if (p0 == 127) return true // 127.0.0.0/8
+        }
+        return false
+    }
+}

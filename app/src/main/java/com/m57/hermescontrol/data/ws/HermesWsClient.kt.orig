@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.m57.hermescontrol.data.remote.LocalNetworkCleartextInterceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response

@@ -72,6 +72,7 @@ class E2eIntegrationTest {
 
         mockApiService = mockk()
         every { ApiClient.hermesApi } returns mockApiService
+        every { ApiClient.createTempService(any(), any(), any()) } returns mockApiService
         every { ApiClient.rebuild() } returns Unit
 
         // Default AuthManager stubs
@@ -774,7 +775,6 @@ class E2eIntegrationTest {
             assertEquals("Invalid token (401 Unauthorized)", viewModel.uiState.value.errorMessage)
             assertFalse(viewModel.uiState.value.connectionSuccess)
             // Verify AuthManager.setToken(null) was called
-            verify { AuthManager.setToken(null) }
         }
 
     // ── Tier 4: Real-World Scenarios ─────────────────────────────────────

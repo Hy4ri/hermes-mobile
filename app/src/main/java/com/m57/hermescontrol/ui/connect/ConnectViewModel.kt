@@ -147,15 +147,17 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    // Update ApiClient temporarily with current inputs to verify connection
+                    val tempApi = ApiClient.createTempService(state.host, port, state.token)
+                    safeApiCall { tempApi.getStatus() }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    // Only persist credentials to global state upon successful verification
                     AuthManager.setToken(state.token)
                     AuthManager.setHost(state.host)
                     AuthManager.setPort(port)
                     ApiClient.rebuild()
-                    safeApiCall { ApiClient.hermesApi.getStatus() }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
+
                     if (state.saveProfile) {
                         val currentProfiles = AuthManager.getConnectionProfiles()
                         val existingIndex =

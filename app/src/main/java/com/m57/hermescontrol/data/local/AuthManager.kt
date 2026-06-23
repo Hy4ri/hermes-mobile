@@ -166,7 +166,7 @@ object AuthManager {
             val selectedId = getSelectedProfileId()
             val token =
                 if (selectedId != null) {
-                    getProfileToken(selectedId)
+                    getProfileToken(selectedId) ?: requirePrefs().getString(KEY_TOKEN, null)
                 } else {
                     requirePrefs().getString(KEY_TOKEN, null)
                 }

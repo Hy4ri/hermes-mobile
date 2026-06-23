@@ -149,7 +149,8 @@ fun SettingsScreen(
                                         onClick = { profilesExpanded = true },
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {
-                                        val activeProfile = state.profiles.firstOrNull { it.id == state.selectedProfileId }
+                                        val activeProfile =
+                                            state.profiles.firstOrNull { it.id == state.selectedProfileId }
                                         Text(
                                             text =
                                                 activeProfile?.name ?: stringResource(
@@ -733,7 +734,8 @@ fun SettingsScreen(
                             }
 
                             if (state.selectedNavItems.size < 5) {
-                                val available = viewModel.availableNavItems.filter { it.first !in state.selectedNavItems }
+                                val available =
+                                    viewModel.availableNavItems.filter { it.first !in state.selectedNavItems }
                                 if (available.isNotEmpty()) {
                                     var expanded by remember { mutableStateOf(false) }
                                     Box {

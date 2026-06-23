@@ -84,6 +84,7 @@ class NotificationReplyReceiverTest {
             upsertCallCount++
             Unit
         }
+        coEvery { mockDao.sessionExists(any<String>()) } returns true
         mockDb = mockk(relaxed = true)
         every { mockDb.chatMessageDao() } returns mockDao
         HermesDatabase.setForTest(mockDb)
@@ -123,6 +124,7 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500) // Need to wait for coroutine
 
         verify { HermesWsClient.sendMessage("session-abc", "Hello") }
     }
@@ -153,6 +155,7 @@ class NotificationReplyReceiverTest {
         givenValidReply("session-abc", "Hello")
 
         receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500) // Need to wait for coroutine
 
         verify {
             mockNotificationManager.notify(
@@ -233,6 +236,26 @@ class NotificationReplyReceiverTest {
 
         verify(inverse = true) { HermesWsClient.sendMessage(any(), any()) }
         assertFalse("upsert should NOT be called for null remote input", upsertCallCount > 0)
+    }
+
+    @Test
+    fun `reply with unknown sessionId does nothing`() {
+        givenValidReply("unknown-session", "Hello")
+
+        // Mock sessionExists to return false
+        coEvery { mockDao.sessionExists("unknown-session") } returns false
+
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500)
+
+        // HermesWsClient should not be called
+        verify(inverse = true) { HermesWsClient.sendMessage(any(), any()) }
+        // DB upsert should not be called
+        assertFalse("upsert should NOT be called for unknown sessionId", upsertCallCount > 0)
+        // Pending result should still be finished
+        verify { mockPendingResult.finish() }
+        // Warning should be logged
+        verify { android.util.Log.w("NotificationReply", "Ignoring reply for unknown session: unknown-session") }
     }
 
     @Test

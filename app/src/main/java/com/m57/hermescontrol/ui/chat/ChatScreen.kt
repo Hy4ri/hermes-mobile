@@ -715,7 +715,7 @@ private fun ChatInputBar(
                             LazyColumn(
                                 modifier = Modifier.heightIn(max = 200.dp),
                             ) {
-                                items(filteredCommands) { cmd ->
+                                items(filteredCommands, key = { it }) { cmd ->
                                     val description =
                                         when (cmd) {
                                             "/help" -> stringResource(R.string.command_help_desc)

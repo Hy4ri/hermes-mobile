@@ -460,7 +460,7 @@ class ChatViewModel(
         var orphanToPersist: ChatMessage? = null
         val sessionId = _uiState.value.currentSessionId
 
-        val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
+        val contentJson = event.data?.let { gson.toJson(it) } ?: ""
         val toolMessage =
             ChatMessage(
                 role = MessageRole.TOOL,
@@ -509,7 +509,7 @@ class ChatViewModel(
                         it.toolStatus == ToolStatus.RUNNING
                 }
             if (toolIdx >= 0) {
-                val contentJson = event.data?.let { Gson().toJson(it) } ?: ""
+                val contentJson = event.data?.let { gson.toJson(it) } ?: ""
                 val updated =
                     messages[toolIdx].copy(
                         toolStatus = ToolStatus.COMPLETED,
@@ -1218,5 +1218,9 @@ class ChatViewModel(
         super.onCleared()
         pendingCleanupJob?.cancel()
         wsClient.disconnect()
+    }
+
+    companion object {
+        private val gson = Gson()
     }
 }

@@ -56,7 +56,6 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             com.m57.hermescontrol.data.local.HermesDatabase
                                 .get(context)
                         val dao = db.chatMessageDao()
-
                         if (!dao.sessionExists(sessionId)) {
                             android.util.Log.w("NotificationReply", "Ignoring reply for unknown session: $sessionId")
                             return@withTimeout

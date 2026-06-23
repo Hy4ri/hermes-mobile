@@ -875,7 +875,10 @@ class ChatViewModelTest {
             var state = viewModel.uiState.value
             assertEquals(2, state.messages.size)
             assertEquals(MessageRole.TOOL, state.messages[1].role)
-            assertEquals("{\"input\":\"2+2\",\"nested\":{\"key\":\"value\"}}", state.messages[1].content)
+            assertEquals(
+                "Tool execution: calculator\nArgs: {\"input\":\"2+2\",\"nested\":{\"key\":\"value\"}}",
+                state.messages[1].content,
+            )
             assertEquals(ToolStatus.RUNNING, state.messages[1].toolStatus)
 
             // Complete tool call

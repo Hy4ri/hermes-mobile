@@ -191,7 +191,40 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────
-  # Job 5: Instrumented tests — runs on Android emulator.
+  # Job 5: Release Compile — verifies release variant compiles.
+  # Catches issues like debugImplementation-scoped dependencies that
+  # main source code depends on (e.g. okhttp3.logging.HttpLoggingInterceptor).
+  # debug-only CI jobs (ktlint, lint, tests) won't catch these.
+  # ─────────────────────────────────────────────────────────────────────
+  release-compile:
+    name: Release Compile Check
+    needs: [ktlint, android-lint, unit-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          validate-wrappers: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTED_KEY }}
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Compile release Kotlin
+        run: ./gradlew compileReleaseKotlin
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 6: Instrumented tests — runs on Android emulator.
   # Required for Compose UI tests (TEST-09, TEST-14) and Navigation3 tests
   # that need a real Activity lifecycle. Cannot run on JVM.
   # ─────────────────────────────────────────────────────────────────────
@@ -256,11 +289,11 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────────
-  # Job 6: PR status summary — aggregates all checks.
+  # Job 7: PR status summary — aggregates all checks.
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
     name: CI Summary
-    needs: [ktlint, android-lint, unit-tests, build]
+    needs: [ktlint, android-lint, unit-tests, build, release-compile]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     if: always()
@@ -271,9 +304,10 @@ jobs:
           LINT_RESULT: ${{ needs.android-lint.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          RELEASE_COMPILE_RESULT: ${{ needs.release-compile.result }}
         run: |
           FAILED=0
-          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT"; do
+          for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT"; do
             name="${entry%%:*}"
             result="${entry#*:}"
             echo "::notice::$name = $result"

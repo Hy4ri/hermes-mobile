@@ -8,6 +8,8 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,38 +28,32 @@ data class KanbanUiState(
     val toastMessage: String? = null,
 )
 
-class KanbanViewModel : ViewModel() {
+class KanbanViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(KanbanUiState())
     val uiState: StateFlow<KanbanUiState> = _uiState.asStateFlow()
 
     fun loadBoards() {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getKanbanBoards() }
+        safeLaunchLoad(
+            apiCall = { safeApiCall { ApiClient.hermesApi.getKanbanBoards() } },
+            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+            onSuccess = { data ->
+                val boards = data.boards.orEmpty()
+                _uiState.update { it.copy(isLoading = false, boards = boards) }
+                val currentSlug = data.current
+                val currentBoard = boards.find { it.id == currentSlug } ?: boards.firstOrNull()
+                if (currentBoard != null) {
+                    selectBoard(currentBoard)
                 }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val boards = result.data.boards.orEmpty()
-                    _uiState.update { it.copy(isLoading = false, boards = boards) }
-                    val currentSlug = result.data.current
-                    val currentBoard = boards.find { it.id == currentSlug } ?: boards.firstOrNull()
-                    if (currentBoard != null) {
-                        selectBoard(currentBoard)
-                    }
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to load Kanban boards: $errorMsg",
+                    )
                 }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load Kanban boards: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
+            },
+        )
     }
 
     fun selectBoard(board: KanbanBoard) {
@@ -183,7 +179,7 @@ class KanbanViewModel : ViewModel() {
         }
     }
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

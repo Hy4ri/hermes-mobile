@@ -102,6 +102,7 @@
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_interrupt">Interrupt</string>
     <string name="content_desc_copy">Copy</string>
+    <string name="content_desc_edit">Edit</string>
 
     <!-- Settings Screen -->
     <string name="settings_sec_connection">Connection</string>
@@ -286,6 +287,7 @@
 
     <!-- Profiles Screen -->
     <string name="profiles_empty_title">No profiles available</string>
+    <string name="profiles_empty_desc">Connection profiles from Hermes will appear here.</string>
     <string name="profiles_label_model">Model: %1$s</string>
     <string name="profiles_label_provider">Provider: %1$s</string>
     <string name="profiles_action_edit_soul">Edit Soul</string>
@@ -335,6 +337,7 @@
 
     <!-- Keys Screen -->
     <string name="keys_empty_title">No environment keys reported</string>
+    <string name="keys_empty_desc">Environment keys from Hermes will appear here.</string>
     <string name="keys_label_not_configured">Not configured</string>
     <string name="keys_action_toggle_visibility">Toggle Visibility</string>
 

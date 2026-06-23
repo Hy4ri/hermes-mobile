@@ -1,17 +1,14 @@
 package com.m57.hermescontrol.ui.logs
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import kotlinx.coroutines.Dispatchers
+import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 data class LogsUiState(
     val isLoading: Boolean = false,
@@ -20,37 +17,31 @@ data class LogsUiState(
     val toastMessage: String? = null,
 )
 
-class LogsViewModel : ViewModel() {
+class LogsViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(LogsUiState())
     val uiState: StateFlow<LogsUiState> = _uiState.asStateFlow()
 
     fun loadLogs() {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getLogs() }
+        safeLaunchLoad(
+            apiCall = { safeApiCall { ApiClient.hermesApi.getLogs() } },
+            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+            onSuccess = { data ->
+                val body = data
+                val logsList = body.lines ?: body.logs ?: emptyList()
+                _uiState.update { it.copy(isLoading = false, logs = logsList) }
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to load logs: $errorMsg",
+                    )
                 }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val body = result.data
-                    val logsList = body.lines ?: body.logs ?: emptyList()
-                    _uiState.update { it.copy(isLoading = false, logs = logsList) }
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load logs: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
+            },
+        )
     }
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

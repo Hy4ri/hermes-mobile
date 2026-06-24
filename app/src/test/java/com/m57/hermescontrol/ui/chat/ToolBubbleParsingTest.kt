@@ -26,7 +26,7 @@ class ToolBubbleParsingTest {
         assertTrue(parsed.isTerminal)
         assertEquals("Build succeeded!", parsed.stdout)
         assertEquals(0, parsed.exitCode)
-        assertEquals(5.2, parsed.durationSec, 0.01)
+        assertEquals(5.2, parsed.durationSec!!, 0.01)
         assertEquals("$ npm run build", parsed.summaryText)
     }
 

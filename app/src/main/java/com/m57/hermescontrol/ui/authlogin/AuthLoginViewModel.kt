@@ -114,7 +114,8 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             _uiState.update {
                 it.copy(
                     probing = false,
-                    authMode = result,
+                    authMode = result?.authMode,
+                    token = result?.extractedToken ?: it.token,
                     errorMessage =
                         if (result == null) {
                             app.getString(R.string.auth_login_error_unreachable)
@@ -127,13 +128,23 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
     }
 
     /**
+     * Result of probing the dashboard.
+     */
+    private data class ProbeResult(
+        val authMode: DashboardAuthMode,
+        val extractedToken: String? = null,
+    )
+
+    /**
      * Probes the dashboard to determine [DashboardAuthMode].
      * Returns null if the dashboard is unreachable.
+     * When [ProbeResult.extractedToken] is non-null, the session token
+     * was found embedded in the dashboard SPA HTML and can be auto-populated.
      */
     private fun probeDashboardInternal(
         host: String,
         port: Int,
-    ): DashboardAuthMode? {
+    ): ProbeResult? {
         val baseUrl = "http://$host:$port"
 
         // Step 1: Check if dashboard is reachable via /api/status (always public)
@@ -143,7 +154,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 val resp = probeClient.newCall(req).execute()
                 resp.isSuccessful
             } catch (e: Exception) {
-                Log.w("AuthLoginVM", "Status probe failed: ${e.message}")
+                Log.w(TAG, "Status probe failed: ${e.message}")
                 return null // Dashboard unreachable
             }
 
@@ -159,32 +170,38 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 // 302 to /login means basic auth is active
                 code == 302 && location?.contains("/login", ignoreCase = true) == true
             } catch (e: Exception) {
-                Log.w("AuthLoginVM", "SPA probe failed: ${e.message}")
+                Log.w(TAG, "SPA probe failed: ${e.message}")
                 false
             }
 
-        // Step 3: Try extracting token from SPA
-        val hasTokenInSpa =
-            if (!needsBasicAuth) {
-                try {
-                    val req = Request.Builder().url(baseUrl).get().build()
-                    val resp = probeClient.newCall(req).execute()
-                    val body = resp.body?.string() ?: ""
-                    body.contains("__HERMES_SESSION_TOKEN__")
-                } catch (e: Exception) {
-                    false
+        // Step 3: Extract token from SPA HTML (if reachable without redirect)
+        var extractedToken: String? = null
+        if (!needsBasicAuth) {
+            try {
+                val req = Request.Builder().url(baseUrl).get().build()
+                val resp = probeClient.newCall(req).execute()
+                val body = resp.body?.string() ?: ""
+                // Extract __HERMES_SESSION_TOKEN__ from the SPA HTML
+                val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__\s*=\s*"([^"]+)"""").find(body)
+                extractedToken = tokenMatch?.groupValues?.getOrNull(1)
+                if (extractedToken == null) {
+                    Log.w(TAG, "SPA has no __HERMES_SESSION_TOKEN__ — mode might require both auth")
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "SPA token extraction failed: ${e.message}")
+            }
+        }
+
+        val authMode =
+            if (needsBasicAuth) {
+                DashboardAuthMode.ALL
+            } else if (extractedToken != null) {
+                DashboardAuthMode.TOKEN_ONLY
             } else {
-                false
+                DashboardAuthMode.ALL
             }
 
-        return if (needsBasicAuth) {
-            DashboardAuthMode.ALL
-        } else if (hasTokenInSpa) {
-            DashboardAuthMode.TOKEN_ONLY
-        } else {
-            DashboardAuthMode.ALL
-        }
+        return ProbeResult(authMode = authMode, extractedToken = extractedToken)
     }
 
     /**

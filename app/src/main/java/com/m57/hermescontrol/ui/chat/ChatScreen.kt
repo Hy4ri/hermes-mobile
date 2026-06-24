@@ -237,187 +237,42 @@ fun ChatScreen(
                 onReconnect = viewModel::reconnect,
             )
 
-            androidx.compose.animation.AnimatedVisibility(
-                visible = state.isSearchActive,
-                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-            ) {
-                androidx.compose.material3.Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    tonalElevation = 2.dp,
-                    border =
-                        BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
-                        ),
-                ) {
-                    Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        SearchBarRow(
-                            searchQuery = state.searchQuery,
-                            onQueryChange = { viewModel.setSearchQuery(it) },
-                            searchMatchCount = state.searchMatchIndices.size,
-                            currentMatchIndex = state.currentSearchMatchIndex,
-                            onNavigateUp = { viewModel.navigateSearchMatch(-1) },
-                            onNavigateDown = { viewModel.navigateSearchMatch(1) },
-                            onClose = { viewModel.clearSearch() },
-                        )
-                    }
-                }
-            }
-
             Box(
                 modifier =
                     Modifier
                         .weight(1f)
                         .fillMaxWidth(),
             ) {
-                if (state.messages.isEmpty() && !state.isLoading) {
-                    EmptyState(
-                        title = stringResource(R.string.chat_empty_title),
-                        subtitle = stringResource(R.string.chat_empty_subtitle),
-                    )
-                }
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp),
-                ) {
-                    itemsIndexed(
-                        items = state.messages,
-                        key = { _, message -> message.id },
-                    ) { index, message ->
-                        val isCurrentMatch =
-                            state.isSearchActive &&
-                                state.currentSearchMatchIndex >= 0 &&
-                                state.currentSearchMatchIndex < state.searchMatchIndices.size &&
-                                state.searchMatchIndices[state.currentSearchMatchIndex] == index
-
-                        val isLastMessage = index == state.messages.lastIndex
-                        val isAssistant = message.role == MessageRole.ASSISTANT
-
-                        if (state.typingEffectEnabled &&
-                            isLastMessage &&
-                            isAssistant &&
-                            lastAnimatedMessageId != message.id
-                        ) {
-                            StreamingBubbleWithTypingEffect(
-                                streaming = message,
-                                typingDelayMs = state.typingEffectDelayMs,
-                                isDark = isDark,
-                                onAnimationComplete = {
-                                    lastAnimatedMessageId = message.id
-                                },
-                            )
-                        } else {
-                            ChatBubble(
-                                message = message,
-                                isDarkTheme = isDark,
-                                searchQuery = if (state.isSearchActive) state.searchQuery else "",
-                                isCurrentMatch = isCurrentMatch,
-                            )
-                        }
-                    }
-
-                    // Streaming message — rendered separately for O(1) updates
-                    state.streamingMessage?.let { streaming ->
-                        item(key = "streaming-${streaming.id}") {
-                            if (state.typingEffectEnabled && streaming.isStreaming) {
-                                StreamingBubbleWithTypingEffect(
-                                    streaming = streaming,
-                                    typingDelayMs = state.typingEffectDelayMs,
-                                    isDark = isDark,
-                                )
-                            } else {
-                                ChatBubble(
-                                    message = streaming,
-                                    isDarkTheme = isDark,
-                                    searchQuery = "",
-                                    isCurrentMatch = false,
-                                )
-                            }
-                        }
-                    }
-
-                    // Thinking indicator
-                    if (state.isThinking) {
-                        item(key = "thinking") {
-                            ThinkingIndicator(state.thinkingText)
-                        }
-                    }
-                }
+                ChatMessageList(
+                    messages = state.messages,
+                    streamingMessage = state.streamingMessage,
+                    isThinking = state.isThinking,
+                    thinkingText = state.thinkingText,
+                    isSearchActive = state.isSearchActive,
+                    searchQuery = state.searchQuery,
+                    currentSearchMatchIndex = state.currentSearchMatchIndex,
+                    searchMatchIndices = state.searchMatchIndices,
+                    typingEffectEnabled = state.typingEffectEnabled,
+                    typingEffectDelayMs = state.typingEffectDelayMs,
+                    isDark = isDark,
+                    listState = listState,
+                    lastAnimatedMessageId = lastAnimatedMessageId,
+                    onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
+                    viewModel = viewModel,
+                )
 
                 // Loading overlay
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = state.isLoading,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Card(
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                ),
-                            elevation = CardDefaults.cardElevation(4.dp),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                CircularProgressIndicator(
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = stringResource(R.string.chat_status_connecting),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                            }
-                        }
-                    }
-                }
+                ChatLoadingOverlay(isLoading = state.isLoading)
 
                 // Scroll-to-bottom FAB
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = showScrollToBottom,
-                    enter = fadeIn() + scaleIn(),
-                    exit = fadeOut() + scaleOut(),
-                    modifier =
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 16.dp),
-                ) {
-                    FloatingActionButton(
-                        onClick = {
-                            scrollScope.launch {
-                                val totalItems =
-                                    state.messages.size +
-                                        (if (state.streamingMessage != null) 1 else 0) +
-                                        (if (state.isThinking) 1 else 0)
-                                if (totalItems > 0) {
-                                    listState.animateScrollToItem(totalItems - 1)
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(40.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.content_desc_scroll_to_bottom),
-                        )
-                    }
-                }
+                ChatScrollToBottomFab(
+                    showScrollToBottom = showScrollToBottom,
+                    scrollScope = scrollScope,
+                    listState = listState,
+                    messages = state.messages,
+                    streamingMessage = state.streamingMessage,
+                    isThinking = state.isThinking,
+                )
             }
 
             ChatInputBar(
@@ -1155,6 +1010,211 @@ private fun ChatTopBanner(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ChatMessageList(
+    messages: List<ChatMessage>,
+    streamingMessage: ChatMessage?,
+    isThinking: Boolean,
+    thinkingText: String,
+    isSearchActive: Boolean,
+    searchQuery: String,
+    currentSearchMatchIndex: Int,
+    searchMatchIndices: List<Int>,
+    typingEffectEnabled: Boolean,
+    typingEffectDelayMs: Int,
+    isDark: Boolean,
+    listState: LazyListState,
+    lastAnimatedMessageId: String?,
+    onLastAnimatedMessageIdChange: (String?) -> Unit,
+    viewModel: ChatViewModel,
+) {
+    // Search bar
+    androidx.compose.animation.AnimatedVisibility(
+        visible = isSearchActive,
+        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+    ) {
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 2.dp,
+            border =
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                ),
+        ) {
+            Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                SearchBarRow(
+                    searchQuery = searchQuery,
+                    onQueryChange = { viewModel.setSearchQuery(it) },
+                    searchMatchCount = searchMatchIndices.size,
+                    currentMatchIndex = currentSearchMatchIndex,
+                    onNavigateUp = { viewModel.navigateSearchMatch(-1) },
+                    onNavigateDown = { viewModel.navigateSearchMatch(1) },
+                    onClose = { viewModel.clearSearch() },
+                )
+            }
+        }
+    }
+
+    if (messages.isEmpty() && !viewModel.uiState.value.isLoading) {
+        EmptyState(
+            title = stringResource(R.string.chat_empty_title),
+            subtitle = stringResource(R.string.chat_empty_subtitle),
+        )
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 8.dp),
+    ) {
+        itemsIndexed(
+            items = messages,
+            key = { _, message -> message.id },
+        ) { index, message ->
+            val isCurrentMatch =
+                isSearchActive &&
+                    currentSearchMatchIndex >= 0 &&
+                    currentSearchMatchIndex < searchMatchIndices.size &&
+                    searchMatchIndices[currentSearchMatchIndex] == index
+
+            val isLastMessage = index == messages.lastIndex
+            val isAssistant = message.role == MessageRole.ASSISTANT
+
+            if (typingEffectEnabled && isLastMessage && isAssistant &&
+                lastAnimatedMessageId != message.id
+            ) {
+                StreamingBubbleWithTypingEffect(
+                    streaming = message,
+                    typingDelayMs = typingEffectDelayMs,
+                    isDark = isDark,
+                    onAnimationComplete = {
+                        onLastAnimatedMessageIdChange(message.id)
+                    },
+                )
+            } else {
+                ChatBubble(
+                    message = message,
+                    isDarkTheme = isDark,
+                    searchQuery = if (isSearchActive) searchQuery else "",
+                    isCurrentMatch = isCurrentMatch,
+                )
+            }
+        }
+
+        // Streaming message
+        streamingMessage?.let { streaming ->
+            item(key = "streaming-${streaming.id}") {
+                if (typingEffectEnabled && streaming.isStreaming) {
+                    StreamingBubbleWithTypingEffect(
+                        streaming = streaming,
+                        typingDelayMs = typingEffectDelayMs,
+                        isDark = isDark,
+                    )
+                } else {
+                    ChatBubble(
+                        message = streaming,
+                        isDarkTheme = isDark,
+                        searchQuery = "",
+                        isCurrentMatch = false,
+                    )
+                }
+            }
+        }
+
+        // Thinking indicator
+        if (isThinking) {
+            item(key = "thinking") {
+                ThinkingIndicator(thinkingText)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatLoadingOverlay(isLoading: Boolean) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = isLoading,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                elevation = CardDefaults.cardElevation(4.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.chat_status_connecting),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatScrollToBottomFab(
+    showScrollToBottom: Boolean,
+    scrollScope: kotlinx.coroutines.CoroutineScope,
+    listState: LazyListState,
+    messages: List<ChatMessage>,
+    streamingMessage: ChatMessage?,
+    isThinking: Boolean,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showScrollToBottom,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut(),
+        modifier =
+            Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 16.dp),
+    ) {
+        FloatingActionButton(
+            onClick = {
+                scrollScope.launch {
+                    val totalItems =
+                        messages.size +
+                            (if (streamingMessage != null) 1 else 0) +
+                            (if (isThinking) 1 else 0)
+                    if (totalItems > 0) {
+                        listState.animateScrollToItem(totalItems - 1)
+                    }
+                }
+            },
+            modifier = Modifier.size(40.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.content_desc_scroll_to_bottom),
+            )
         }
     }
 }

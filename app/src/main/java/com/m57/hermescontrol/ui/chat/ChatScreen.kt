@@ -1002,7 +1002,7 @@ private fun ChatTopBanner(
                     TextButton(
                         onClick = onReconnect,
                         colors =
-                            ButtonDefaults.textButtonColors(
+                            androidx.compose.material3.ButtonDefaults.textButtonColors(
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer,
                             ),
                     ) {
@@ -1178,7 +1178,7 @@ private fun ChatLoadingOverlay(isLoading: Boolean) {
 }
 
 @Composable
-private fun ChatScrollToBottomFab(
+private fun BoxScope.ChatScrollToBottomFab(
     showScrollToBottom: Boolean,
     scrollScope: kotlinx.coroutines.CoroutineScope,
     listState: LazyListState,

@@ -260,8 +260,8 @@ object AuthManager {
      *  Exposing the host to a hostile LAN risks token interception. */
     fun baseUrl(): String = "http://${getHost()}:${getPort()}/"
 
-    /** Convenience: build the WebSocket URL. */
-    fun wsUrl(): String = "ws://${getHost()}:${getPort()}/api/ws"
+    /** Convenience: build the WebSocket URL with token query param. */
+    fun wsUrl(): String = "ws://${getHost()}:${getPort()}/api/ws?token=${getToken().orEmpty()}"
 
     // ── Bottom nav bar items ──────────────────────────────────────────────
 

@@ -44,8 +44,8 @@ enum class ConnectionStatus {
 /**
  * WebSocket client for the Hermes Dashboard JSON-RPC 2.0 interface.
  *
- * Connects to `ws://HOST:PORT/api/ws`, passing the token via `Sec-WebSocket-Protocol` header,
- * auto-reconnects with exponential backoff, and emits parsed [WsEvent]s via [events] SharedFlow
+ * Connects to `ws://HOST:PORT/api/ws?token=TOKEN`, auto-reconnects with
+ * exponential backoff, and emits parsed [WsEvent]s via [events] SharedFlow
  * as well as direct callbacks.
  */
 object HermesWsClient {
@@ -185,15 +185,10 @@ object HermesWsClient {
 
     private fun openSocket() {
         val url = AuthManager.wsUrl()
-        // B2 (Jun 18 2026, kanban t_8884db16): url used to contain auth token.
-        // Token is now passed via Sec-WebSocket-Protocol header to avoid leakage.
-        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $url")
+        val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
+        if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
-        val request =
-            Request.Builder()
-                .url(url)
-                .header("Sec-WebSocket-Protocol", "bearer.${AuthManager.getToken().orEmpty()}")
-                .build()
+        val request = Request.Builder().url(url).build()
         webSocket = okHttpClient.newWebSocket(request, WsListenerImpl())
     }
 

@@ -63,9 +63,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -196,10 +196,10 @@ private fun appEntryProvider(
     entry<LandingScreen> {
         LandingScreenContent(
             onAuthLogin = {
-                NavigationController.navigateTo(AuthLoginScreen)
+                NavigationController.backStack?.add(AuthLoginScreen)
             },
             onPairingLogin = {
-                NavigationController.navigateTo(PairingScreen)
+                NavigationController.backStack?.add(PairingScreen)
             },
         )
     }
@@ -351,7 +351,15 @@ fun MainNavigation(sessionId: String? = null) {
     val hasToken = !token.isNullOrBlank()
     val startScreen: NavKey = if (hasToken) ChatScreen else LandingScreen
 
-    val backStack = rememberNavBackStack(startScreen)
+    val backStack = remember { NavBackStack(startScreen) }
+    LaunchedEffect(startScreen) {
+        // When start screen changes (e.g., logout → LandingScreen, or
+        // fresh login → ChatScreen), reset the backstack atomically.
+        if (backStack.lastOrNull() != startScreen) {
+            backStack.clear()
+            backStack.add(startScreen)
+        }
+    }
     NavigationController.backStack = backStack
 
     val currentScreen = backStack.lastOrNull() ?: startScreen

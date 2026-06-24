@@ -134,182 +134,12 @@ fun SettingsScreen(
             ) {
                 when (selectedTab) {
                     SettingsTab.CONNECTION -> {
-                        // Connection section
-                        SectionCard(title = stringResource(R.string.settings_sec_connection)) {
-                            // Connection Profiles management in Settings
-                            if (state.profiles.isNotEmpty()) {
-                                var profilesExpanded by remember { mutableStateOf(false) }
-                                Text(
-                                    text = stringResource(R.string.settings_item_profile),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                    OutlinedButton(
-                                        onClick = { profilesExpanded = true },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        val activeProfile =
-                                            state.profiles.firstOrNull { it.id == state.selectedProfileId }
-                                        Text(
-                                            text =
-                                                activeProfile?.name ?: stringResource(
-                                                    R.string.settings_profile_default,
-                                                ),
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = profilesExpanded,
-                                        onDismissRequest = { profilesExpanded = false },
-                                        modifier = Modifier.fillMaxWidth(0.85f),
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.settings_profile_none)) },
-                                            onClick = {
-                                                viewModel.selectProfile(null)
-                                                profilesExpanded = false
-                                            },
-                                        )
-                                        state.profiles.forEach { profile ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                    ) {
-                                                        Text(profile.name)
-                                                        IconButton(
-                                                            onClick = {
-                                                                viewModel.deleteProfile(profile.id)
-                                                                profilesExpanded = false
-                                                            },
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Filled.Close,
-                                                                contentDescription =
-                                                                    stringResource(
-                                                                        R.string.content_desc_delete_profile,
-                                                                    ),
-                                                                tint = MaterialTheme.colorScheme.error,
-                                                            )
-                                                        }
-                                                    }
-                                                },
-                                                onClick = {
-                                                    viewModel.selectProfile(profile.id)
-                                                    profilesExpanded = false
-                                                },
-                                            )
-                                        }
-                                    }
-                                }
-
-                                if (state.selectedProfileId != null) {
-                                    OutlinedTextField(
-                                        value = state.renameProfileName,
-                                        onValueChange = viewModel::onRenameProfileNameChange,
-                                        label = { Text(stringResource(R.string.settings_action_rename_profile)) },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        trailingIcon = {
-                                            Button(
-                                                onClick = viewModel::renameProfile,
-                                                modifier = Modifier.padding(end = 4.dp),
-                                            ) {
-                                                Text(stringResource(R.string.action_rename))
-                                            }
-                                        },
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                }
-                            }
-
-                            OutlinedTextField(
-                                value = state.host,
-                                onValueChange = viewModel::onHostChange,
-                                label = { Text(stringResource(R.string.settings_field_host)) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                    OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        cursorColor = MaterialTheme.colorScheme.primary,
-                                    ),
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = state.port,
-                                onValueChange = viewModel::onPortChange,
-                                label = { Text(stringResource(R.string.settings_field_port)) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                    OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        cursorColor = MaterialTheme.colorScheme.primary,
-                                    ),
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = state.token,
-                                onValueChange = viewModel::onTokenChange,
-                                label = { Text(stringResource(R.string.settings_field_token)) },
-                                singleLine = true,
-                                visualTransformation =
-                                    if (passwordVisible) {
-                                        VisualTransformation.None
-                                    } else {
-                                        PasswordVisualTransformation()
-                                    },
-                                trailingIcon = {
-                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                        Icon(
-                                            imageVector =
-                                                if (passwordVisible) {
-                                                    Icons.Filled.Visibility
-                                                } else {
-                                                    Icons.Filled.VisibilityOff
-                                                },
-                                            contentDescription =
-                                                if (passwordVisible) {
-                                                    stringResource(R.string.content_desc_hide_token)
-                                                } else {
-                                                    stringResource(R.string.content_desc_show_token)
-                                                },
-                                        )
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors =
-                                    OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        cursorColor = MaterialTheme.colorScheme.primary,
-                                    ),
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // B7 (Jun 18 2026): one-tap escape hatch for when the stored
-                            // token is corrupted / rejected. Clears the token field and
-                            // persists the empty value immediately so a stress-free
-                            // re-pair is possible without manually selecting-and-deleting
-                            // the masked password field character by character.
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.onTokenChange("")
-                                    viewModel.save()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(stringResource(R.string.settings_action_clear_token))
-                            }
-                        }
+                        ConnectionSection(
+                            state = state,
+                            viewModel = viewModel,
+                            passwordVisible = passwordVisible,
+                            onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
+                        )
 
                         // Test result
                         AnimatedVisibility(
@@ -883,6 +713,189 @@ private fun SectionCard(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             content()
+        }
+    }
+}
+
+@Composable
+private fun ConnectionSection(
+    state: SettingsUiState,
+    viewModel: SettingsViewModel,
+    passwordVisible: Boolean,
+    onPasswordVisibilityToggle: () -> Unit,
+) {
+    SectionCard(title = stringResource(R.string.settings_sec_connection)) {
+        if (state.profiles.isNotEmpty()) {
+            var profilesExpanded by remember { mutableStateOf(false) }
+            Text(
+                text = stringResource(R.string.settings_item_profile),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                OutlinedButton(
+                    onClick = { profilesExpanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    val activeProfile =
+                        state.profiles.firstOrNull { it.id == state.selectedProfileId }
+                    Text(
+                        text =
+                            activeProfile?.name ?: stringResource(
+                                R.string.settings_profile_default,
+                            ),
+                    )
+                }
+                DropdownMenu(
+                    expanded = profilesExpanded,
+                    onDismissRequest = { profilesExpanded = false },
+                    modifier = Modifier.fillMaxWidth(0.85f),
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.settings_profile_none)) },
+                        onClick = {
+                            viewModel.selectProfile(null)
+                            profilesExpanded = false
+                        },
+                    )
+                    state.profiles.forEach { profile ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(profile.name)
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.deleteProfile(profile.id)
+                                            profilesExpanded = false
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription =
+                                                stringResource(
+                                                    R.string.content_desc_delete_profile,
+                                                ),
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                viewModel.selectProfile(profile.id)
+                                profilesExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            if (state.selectedProfileId != null) {
+                OutlinedTextField(
+                    value = state.renameProfileName,
+                    onValueChange = viewModel::onRenameProfileNameChange,
+                    label = { Text(stringResource(R.string.settings_action_rename_profile)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        Button(
+                            onClick = viewModel::renameProfile,
+                            modifier = Modifier.padding(end = 4.dp),
+                        ) {
+                            Text(stringResource(R.string.action_rename))
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+
+        OutlinedTextField(
+            value = state.host,
+            onValueChange = viewModel::onHostChange,
+            label = { Text(stringResource(R.string.settings_field_host)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = state.port,
+            onValueChange = viewModel::onPortChange,
+            label = { Text(stringResource(R.string.settings_field_port)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = state.token,
+            onValueChange = viewModel::onTokenChange,
+            label = { Text(stringResource(R.string.settings_field_token)) },
+            singleLine = true,
+            visualTransformation =
+                if (passwordVisible) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+            trailingIcon = {
+                IconButton(onClick = onPasswordVisibilityToggle) {
+                    Icon(
+                        imageVector =
+                            if (passwordVisible) {
+                                Icons.Filled.Visibility
+                            } else {
+                                Icons.Filled.VisibilityOff
+                            },
+                        contentDescription =
+                            if (passwordVisible) {
+                                stringResource(R.string.content_desc_hide_token)
+                            } else {
+                                stringResource(R.string.content_desc_show_token)
+                            },
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // B7 (Jun 18 2026): one-tap escape hatch for when the stored
+        // token is corrupted / rejected. Clears the token field and
+        // persists the empty value immediately so a stress-free
+        // re-pair is possible without manually selecting-and-deleting
+        // the masked password field character by character.
+        OutlinedButton(
+            onClick = {
+                viewModel.onTokenChange("")
+                viewModel.save()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.settings_action_clear_token))
         }
     }
 }

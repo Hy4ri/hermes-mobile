@@ -294,9 +294,9 @@ object AuthManager {
     /** Convenience: build the WebSocket URL with token query param.
      *  NOTE: Token in query string — trusted local network only. */
     fun wsUrl(): String {
-        val authParam = pref.getString(KEY_WS_AUTH_PARAM, "token") ?: "token"
+        val authParam = requirePrefs().getString(KEY_WS_AUTH_PARAM, "token") ?: "token"
         val credential = getToken().orEmpty()
-        return "ws://${getHost()}:${getPort()}/api/ws?$authParam=$credential"
+        return "ws://${getHost()}:${getPort()}/api/ws?$authParam=${credential}"
     }
 
     // ── Bottom nav bar items ──────────────────────────────────────────────

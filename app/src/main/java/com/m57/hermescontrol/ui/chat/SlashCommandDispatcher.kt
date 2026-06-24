@@ -7,7 +7,6 @@ package com.m57.hermescontrol.ui.chat
  * Pure logic — no I/O, no Android dependencies.
  */
 class SlashCommandDispatcher {
-
     fun dispatch(command: String): SlashResult {
         val parts = command.split(" ")
         val cmd = parts[0].lowercase()
@@ -24,7 +23,8 @@ class SlashCommandDispatcher {
     }
 
     companion object {
-        val HELP_TEXT = """
+        val HELP_TEXT =
+            """
             **Available Commands:**
             • `/help` - Show this help menu
             • `/status` - Check gateway and platform status
@@ -32,7 +32,7 @@ class SlashCommandDispatcher {
             • `/stats` or `/system` - Check system resource usage
             • `/new` - Create a new chat session
             • `/stop` or `/interrupt` - Interrupt the active run
-        """.trimIndent()
+            """.trimIndent()
     }
 }
 

@@ -159,26 +159,43 @@ class ChatViewModel(
     var initialSessionId: String? = null
 
     private fun handleWsEvent(event: WsEvent) {
+        // First, let the reducer compute the new state and any effects
+        val result = ChatWsEventReducer.reduce(_uiState.value, event)
+
+        // Apply the new state
+        _uiState.update { result.state }
+
+        // Process side-effects from the reducer
+        for (effect in result.effects) {
+            when (effect) {
+                is ReducerEffect.PersistMessage -> {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        repo.persistMessage(effect.message, effect.sessionId)
+                    }
+                }
+                is ReducerEffect.CreateNewSession -> {
+                    createNewSession()
+                }
+                is ReducerEffect.LoadSessions -> {
+                    loadSessions()
+                }
+                is ReducerEffect.RefreshSessions -> {
+                    loadSessions()
+                }
+            }
+        }
+
+        // Handle complex events that need ViewModel-specific context
         when (event) {
             is WsEvent.GatewayReady -> {
-                _uiState.update { it.copy(isLoading = false) }
                 addSystemMessage("Connected to Hermes")
-                loadSessions()
                 if (_uiState.value.currentSessionId == null) {
                     val initial = initialSessionId
                     if (!initial.isNullOrBlank()) {
                         initialSessionId = null
                         switchSession(initial)
-                    } else {
-                        createNewSession()
                     }
                 }
-            }
-
-            is WsEvent.SessionInfo -> {}
-
-            is WsEvent.MessageStart -> {
-                handleMessageStart(event)
             }
 
             is WsEvent.MessageToken -> {
@@ -189,40 +206,31 @@ class ChatViewModel(
                 handleThinkingDelta(event)
             }
 
+            is WsEvent.MessageStart -> {
+                streamingMessageId = event.messageId ?: event.id
+                streamingBuffer.clear()
+                thinkingBuffer.clear()
+                lastFlushMs = 0L
+                lastThinkingFlushMs = 0L
+            }
+
             is WsEvent.MessageComplete -> {
-                handleMessageComplete(event)
+                // Buffers cleared before reduce; ViewModel resets them after
+                streamingMessageId = null
+                streamingBuffer.clear()
+                thinkingBuffer.clear()
             }
 
             is WsEvent.MessageDone -> {
-                handleMessageDone(event)
+                streamingMessageId = null
+                streamingBuffer.clear()
+                thinkingBuffer.clear()
             }
 
             is WsEvent.ToolStart -> {
-                handleToolStart(event)
-            }
-
-            is WsEvent.ToolComplete -> {
-                handleToolComplete(event)
-            }
-
-            is WsEvent.ClarifyRequest -> {
-                if (!isCurrentSession(event.sessionId)) return
-                _uiState.update {
-                    it.copy(
-                        clarifyRequest =
-                            ClarifyUi(
-                                text = event.text.orEmpty(),
-                                options = event.options.orEmpty(),
-                                clarifyId = event.clarifyId,
-                            ),
-                    )
-                }
-            }
-
-            is WsEvent.StatusUpdate -> {}
-
-            is WsEvent.SessionUpdated -> {
-                loadSessions()
+                // Reset streaming state when a tool starts
+                streamingBuffer.clear()
+                thinkingBuffer.clear()
             }
 
             is WsEvent.RpcResult -> {
@@ -233,7 +241,19 @@ class ChatViewModel(
                 handleRpcError(event.id, event.error)
             }
 
-            is WsEvent.Unknown -> {}
+            is WsEvent.SessionUpdated -> {
+                loadSessions()
+            }
+
+            is WsEvent.ClarifyRequest -> {
+                _uiState.update {
+                    it.copy(
+                        isAgentTyping = false,
+                    )
+                }
+            }
+
+            else -> { /* reducer handles these */ }
         }
     }
 
@@ -247,52 +267,6 @@ class ChatViewModel(
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
         return eventSessionId == _uiState.value.currentSessionId
-    }
-
-    private fun handleMessageStart(event: WsEvent.MessageStart) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        var orphanToPersist: ChatMessage? = null
-        val sessionId = _uiState.value.currentSessionId
-
-        streamingBuffer.clear()
-        thinkingBuffer.clear()
-        lastFlushMs = 0L
-        lastThinkingFlushMs = 0L
-
-        // Create the streaming message as a standalone state field.
-        val msg =
-            ChatMessage(
-                role = MessageRole.ASSISTANT,
-                content = "",
-                isStreaming = true,
-            )
-        streamingMessageId = msg.id
-
-        _uiState.update { state ->
-            val messages = state.messages.toMutableList()
-            val existing = state.streamingMessage
-            if (existing != null && existing.content.isNotEmpty()) {
-                val finalized = existing.copy(isStreaming = false)
-                messages.add(finalized)
-                orphanToPersist = finalized
-            }
-            state.copy(
-                messages = messages,
-                isAgentTyping = true,
-                streamingMessage = msg,
-                isThinking = false,
-                thinkingText = "",
-            )
-        }
-
-        // Persist — OUTSIDE update{}
-        val orphan = orphanToPersist
-        if (orphan != null && sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                repo.persistMessage(orphan, sessionId)
-            }
-        }
     }
 
     private fun handleMessageToken(event: WsEvent.MessageToken) {
@@ -351,183 +325,6 @@ class ChatViewModel(
                     isThinking = true,
                     thinkingText = currentContent,
                 )
-            }
-        }
-    }
-
-    private fun handleMessageComplete(event: WsEvent.MessageComplete) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        var finalizedMsg: ChatMessage? = null
-        var sessionId: String? = null
-
-        streamingBuffer.clear()
-        thinkingBuffer.clear()
-
-        _uiState.update { state ->
-            val streaming = state.streamingMessage
-            val msg =
-                if (streaming != null) {
-                    streaming.copy(
-                        content = event.text,
-                        isStreaming = false,
-                    )
-                } else {
-                    ChatMessage(
-                        role = MessageRole.ASSISTANT,
-                        content = event.text,
-                    )
-                }
-            finalizedMsg = msg
-            sessionId = state.currentSessionId
-            state.copy(
-                messages = state.messages + msg,
-                streamingMessage = null,
-                isAgentTyping = false,
-                isThinking = false,
-                thinkingText = "",
-            )
-        }
-        streamingMessageId = null
-
-        // Persist finalized message — OUTSIDE update{} to avoid CAS retry
-        val msgToPersist = finalizedMsg
-        val sid = sessionId ?: _uiState.value.currentSessionId
-        if (msgToPersist != null && sid != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                repo.persistMessage(msgToPersist, sid)
-            }
-        }
-        // Refresh session list to catch newly generated titles
-        loadSessions()
-    }
-
-    private fun handleMessageDone(event: WsEvent.MessageDone) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        // If we still have an un-finalized streaming message (no MessageComplete
-        // was sent, which happens on interrupts), fold it into the list.
-        var orphan: ChatMessage? = null
-        var sessionId: String? = null
-
-        // Flush any remaining buffered content to the message before marking it done
-        val finalContent = streamingBuffer.toString()
-        val finalThinkingText = thinkingBuffer.toString()
-
-        streamingBuffer.clear()
-        thinkingBuffer.clear()
-
-        _uiState.update { state ->
-            val streaming = state.streamingMessage
-            val msg =
-                streaming?.copy(
-                    content = finalContent.ifEmpty { streaming.content },
-                    isStreaming = false,
-                )
-            orphan = msg
-            sessionId = state.currentSessionId
-            if (msg != null) {
-                state.copy(
-                    messages = state.messages + msg,
-                    streamingMessage = null,
-                    isAgentTyping = false,
-                    isThinking = false,
-                    thinkingText = "",
-                )
-            } else {
-                state.copy(
-                    isAgentTyping = false,
-                    isThinking = false,
-                    thinkingText = "",
-                )
-            }
-        }
-        streamingMessageId = null
-
-        // Persist orphaned streaming message
-        val msgToPersist = orphan
-        val sid = sessionId ?: _uiState.value.currentSessionId
-        if (msgToPersist != null && sid != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                repo.persistMessage(msgToPersist, sid)
-            }
-        }
-    }
-
-    // ── Tool events ──────────────────────────────────────────────────────
-
-    private fun handleToolStart(event: WsEvent.ToolStart) {
-        if (!isCurrentSession(event.sessionId)) return
-        var orphanToPersist: ChatMessage? = null
-        val sessionId = _uiState.value.currentSessionId
-
-        val contentJson = event.data?.let { gson.toJson(it) } ?: ""
-        val toolMessage =
-            ChatMessage(
-                role = MessageRole.TOOL,
-                content = contentJson,
-                toolName = event.name,
-                toolStatus = ToolStatus.RUNNING,
-            )
-
-        _uiState.update { state ->
-            val messages = state.messages.toMutableList()
-            val existing = state.streamingMessage
-            if (existing != null && existing.content.isNotEmpty()) {
-                val finalized = existing.copy(isStreaming = false)
-                messages.add(finalized)
-                orphanToPersist = finalized
-            }
-            messages.add(toolMessage)
-            state.copy(
-                messages = messages,
-                streamingMessage = null,
-            )
-        }
-
-        // Persist — OUTSIDE update{}
-        val orphan = orphanToPersist
-        if (sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                if (orphan != null) {
-                    repo.persistMessage(orphan, sessionId)
-                }
-                repo.persistMessage(toolMessage, sessionId)
-            }
-        }
-    }
-
-    private fun handleToolComplete(event: WsEvent.ToolComplete) {
-        if (!isCurrentSession(event.sessionId)) return
-        var completedTool: ChatMessage? = null
-
-        _uiState.update { state ->
-            val messages = state.messages.toMutableList()
-            val toolIdx =
-                messages.indexOfLast {
-                    it.role == MessageRole.TOOL &&
-                        it.toolName == event.name &&
-                        it.toolStatus == ToolStatus.RUNNING
-                }
-            if (toolIdx >= 0) {
-                val contentJson = event.data?.let { gson.toJson(it) } ?: ""
-                val updated =
-                    messages[toolIdx].copy(
-                        toolStatus = ToolStatus.COMPLETED,
-                        content = contentJson,
-                    )
-                messages[toolIdx] = updated
-                completedTool = updated
-            }
-            state.copy(messages = messages)
-        }
-
-        // Persist — OUTSIDE update{}
-        val tool = completedTool
-        val sessionId = _uiState.value.currentSessionId
-        if (tool != null && sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                repo.persistMessage(tool, sessionId)
             }
         }
     }

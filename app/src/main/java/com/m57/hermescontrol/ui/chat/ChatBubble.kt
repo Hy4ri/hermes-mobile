@@ -462,43 +462,52 @@ fun parseToolOutput(
         if (!element.isJsonObject) return null
         val obj = element.asJsonObject
 
-        // Extract args sub-object if present (gateway sends it in tool.complete)
+        // Resolve tool name — from parameter first, then from payload (old sessions)
+        val resolvedToolName =
+            toolName
+                ?: obj.get("name")?.takeIf { !it.isJsonNull }?.asString
+
+        val config = ToolSchemaRegistry.getDisplayConfig(resolvedToolName)
+
+        // Extract args sub-object if present (new tool.complete format)
         val argsObj = obj.get("args")?.takeIf { !it.isJsonNull && it.isJsonObject }?.asJsonObject
         val args: Map<String, Any?> =
             argsObj?.entrySet()?.associate { entry ->
                 entry.key to (if (entry.value.isJsonPrimitive) entry.value.asString else entry.value.toString())
             } ?: emptyMap()
 
-        // Extract result sub-object if present
+        // Extract result sub-object if present, fall back to top-level (old format)
         val resultObj = obj.get("result")?.takeIf { !it.isJsonNull && it.isJsonObject }?.asJsonObject
+        val dataSource = resultObj ?: obj
 
-        // Build summary line from args using ToolSchemaRegistry
-        val config = ToolSchemaRegistry.getDisplayConfig(toolName)
+        // Build summary line from args (new format) or context field (old tool.start)
         val summaryText =
             if (config.summaryArgKey != null) {
                 val raw = args[config.summaryArgKey]?.toString() ?: ""
                 val truncated = if (raw.length > 100) raw.take(100) + "…" else raw
                 if (truncated.isNotBlank()) "${config.summaryPrefix}$truncated" else null
             } else {
-                null
+                null ?: obj.get("context")?.takeIf { !it.isJsonNull }?.asString
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { "${config.summaryPrefix}$it" }
             }
 
-        // Check if this looks like a terminal result
-        val hasStdout = resultObj?.has("stdout") == true
-        val hasStderr = resultObj?.has("stderr") == true
-        val hasExitCode = resultObj?.has("exit_code") == true || resultObj?.has("exitCode") == true
+        // Check if this looks like a terminal result (check dataSource for backward compat)
+        val hasStdout = dataSource.has("stdout")
+        val hasStderr = dataSource.has("stderr")
+        val hasExitCode = dataSource.has("exit_code") || dataSource.has("exitCode")
 
         if (hasStdout || hasStderr || hasExitCode) {
-            val stdout = resultObj?.get("stdout")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
-            val stderr = resultObj?.get("stderr")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
-            val exitCode = (resultObj?.get("exit_code") ?: resultObj?.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
-            val error = resultObj?.get("error")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val stdout = dataSource.get("stdout")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val stderr = dataSource.get("stderr")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val exitCode = (dataSource.get("exit_code") ?: dataSource.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
+            val error = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
 
             ParsedToolData(
-                toolName = toolName ?: "",
+                toolName = resolvedToolName ?: "",
                 args = args,
-                result = resultObj?.entrySet()?.associate { it.key to it.value.toString() } ?: emptyMap(),
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 isTerminal = true,
                 stdout = stdout,
                 stderr = stderr,
@@ -511,16 +520,19 @@ fun parseToolOutput(
         } else {
             // Generic tool display
             val mainOutput =
-                resultObj?.let { r ->
-                    (r.get("output") ?: r.get("result") ?: r.get("content") ?: r.get("text"))
-                        ?.takeIf { !it.isJsonNull }
-                        ?.let { if (it.isJsonPrimitive) it.asString else it.toString() }
-                        ?.takeIf { it.isNotEmpty() }
-                }
+                dataSource
+                    .let { r ->
+                        (r.get("output") ?: r.get("result") ?: r.get("content") ?: r.get("text"))
+                            ?.takeIf { !it.isJsonNull }
+                            ?.let { if (it.isJsonPrimitive) it.asString else it.toString() }
+                            ?.takeIf { it.isNotEmpty() }
+                    }
 
             val extraFields = mutableMapOf<String, String>()
-            resultObj?.entrySet()?.forEach { (key, value) ->
-                if (key != "output" && key != "result" && key != "content" && key != "text" && !value.isJsonNull) {
+            dataSource.entrySet().forEach { (key, value) ->
+                if (key != "output" && key != "result" && key != "content" && key != "text" &&
+                    key != "name" && key != "tool_id" && key != "context" && !value.isJsonNull
+                ) {
                     val valStr = if (value.isJsonPrimitive) value.asString else value.toString()
                     if (valStr.isNotEmpty() && valStr != "null") {
                         extraFields[key] = valStr
@@ -531,9 +543,9 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
 
             ParsedToolData(
-                toolName = toolName ?: "",
+                toolName = resolvedToolName ?: "",
                 args = args,
-                result = resultObj?.entrySet()?.associate { it.key to it.value.toString() } ?: emptyMap(),
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 extraFields = extraFields,

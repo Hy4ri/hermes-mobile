@@ -232,49 +232,10 @@ fun ChatScreen(
                     .background(backgroundGradient)
                     .imePadding(),
         ) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible =
-                    state.connectionStatus == ConnectionStatus.RECONNECTING ||
-                        state.connectionStatus == ConnectionStatus.DISCONNECTED,
-                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-            ) {
-                androidx.compose.material3.Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                ) {
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text =
-                                if (state.connectionStatus == ConnectionStatus.RECONNECTING) {
-                                    stringResource(R.string.chat_status_reconnecting)
-                                } else {
-                                    stringResource(R.string.chat_status_disconnected)
-                                },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        if (state.connectionStatus == ConnectionStatus.DISCONNECTED) {
-                            TextButton(
-                                onClick = { viewModel.reconnect() },
-                                colors =
-                                    androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                    ),
-                            ) {
-                                Text(stringResource(R.string.chat_action_reconnect))
-                            }
-                        }
-                    }
-                }
-            }
+            ChatTopBanner(
+                connectionStatus = state.connectionStatus,
+                onReconnect = viewModel::reconnect,
+            )
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = state.isSearchActive,
@@ -1144,6 +1105,56 @@ private fun ChatLifecycleEffects(
             listState.animateScrollToItem(
                 targetIndex.coerceIn(0, messages.lastIndex),
             )
+        }
+    }
+}
+
+@Composable
+private fun ChatTopBanner(
+    connectionStatus: ConnectionStatus,
+    onReconnect: () -> Unit,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible =
+            connectionStatus == ConnectionStatus.RECONNECTING ||
+                connectionStatus == ConnectionStatus.DISCONNECTED,
+        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+    ) {
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text =
+                        if (connectionStatus == ConnectionStatus.RECONNECTING) {
+                            stringResource(R.string.chat_status_reconnecting)
+                        } else {
+                            stringResource(R.string.chat_status_disconnected)
+                        },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (connectionStatus == ConnectionStatus.DISCONNECTED) {
+                    TextButton(
+                        onClick = onReconnect,
+                        colors =
+                            ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
+                    ) {
+                        Text(stringResource(R.string.chat_action_reconnect))
+                    }
+                }
+            }
         }
     }
 }

@@ -138,9 +138,11 @@ fun MainNavigation(sessionId: String? = null) {
                     val statusColor =
                         when (connectionStatus) {
                             ConnectionStatus.CONNECTED -> Color(0xFF4CAF50)
+
                             ConnectionStatus.CONNECTING,
                             ConnectionStatus.RECONNECTING,
                             -> Color(0xFFFFC107)
+
                             ConnectionStatus.DISCONNECTED -> Color(0xFFF44336)
                         }
                     Row(

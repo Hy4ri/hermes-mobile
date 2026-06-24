@@ -8,7 +8,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Database(
     entities = [ChatMessageEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class HermesDatabase : RoomDatabase() {
@@ -28,7 +28,8 @@ abstract class HermesDatabase : RoomDatabase() {
                         HermesDatabase::class.java,
                         "hermes_control.db",
                     ).openHelperFactory(factory)
-                    .addMigrations(MIGRATION_1_2)
+                    // Must destroy old plaintext DB so SQLCipher can create
+                    // an encrypted replacement — only happens on v1→v2 upgrade
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

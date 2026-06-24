@@ -66,6 +66,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -423,88 +424,122 @@ private fun SystemBubble(
     }
 }
 
-private data class ParsedToolOutput(
+/**
+ * Cleanly parsed representation of a tool call, extracted from the
+ * tool.complete JSON payload (which contains both args and result).
+ */
+data class ParsedToolData(
+    val toolName: String = "",
+    val args: Map<String, Any?> = emptyMap(),
+    val result: Map<String, Any?> = emptyMap(),
     val isTerminal: Boolean = false,
     val stdout: String? = null,
     val stderr: String? = null,
     val exitCode: Int? = null,
     val error: String? = null,
+    val summaryText: String? = null,
+    val durationSec: Double? = null,
     val mainOutput: String? = null,
-    val genericFields: Map<String, String> = emptyMap(),
+    val extraFields: Map<String, String> = emptyMap(),
+    val isRunning: Boolean = false,
 )
 
-private fun parseToolOutput(content: String): ParsedToolOutput? {
+/**
+ * Parses the tool.complete JSON payload into a [ParsedToolData].
+ * The gateway sends a payload with `args` and `result` sub-objects
+ * (see tui_gateway/server.py `_on_tool_complete`). We extract both
+ * and use the tool name to build a one-line summary from the relevant arg.
+ */
+fun parseToolOutput(
+    content: String,
+    toolName: String?,
+    isRunning: Boolean,
+): ParsedToolData? {
     val trimmed = content.trim()
     if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
     return try {
-        val element =
-            com.google.gson.JsonParser
-                .parseString(trimmed)
-        if (element.isJsonObject) {
-            val obj = element.asJsonObject
+        val element = com.google.gson.JsonParser.parseString(trimmed)
+        if (!element.isJsonObject) return null
+        val obj = element.asJsonObject
 
-            val hasStdout = obj.has("stdout")
-            val hasStderr = obj.has("stderr")
-            val hasExitCode = obj.has("exit_code") || obj.has("exitCode")
+        // Extract args sub-object if present (gateway sends it in tool.complete)
+        val argsObj = obj.get("args")?.takeIf { !it.isJsonNull && it.isJsonObject }?.asJsonObject
+        val args: Map<String, Any?> =
+            argsObj?.entrySet()?.associate { entry ->
+                entry.key to (if (entry.value.isJsonPrimitive) entry.value.asString else entry.value.toString())
+            } ?: emptyMap()
 
-            if (hasStdout || hasStderr || hasExitCode) {
-                val stdout =
-                    obj
-                        .get("stdout")
-                        ?.takeIf { !it.isJsonNull }
-                        ?.asString
-                        ?.takeIf { it.isNotEmpty() }
-                val stderr =
-                    obj
-                        .get("stderr")
-                        ?.takeIf { !it.isJsonNull }
-                        ?.asString
-                        ?.takeIf { it.isNotEmpty() }
-                val exitCode = (obj.get("exit_code") ?: obj.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
-                val error =
-                    obj
-                        .get("error")
-                        ?.takeIf { !it.isJsonNull }
-                        ?.asString
-                        ?.takeIf { it.isNotEmpty() }
+        // Extract result sub-object if present
+        val resultObj = obj.get("result")?.takeIf { !it.isJsonNull && it.isJsonObject }?.asJsonObject
 
-                ParsedToolOutput(
-                    isTerminal = true,
-                    stdout = stdout,
-                    stderr = stderr,
-                    exitCode = exitCode,
-                    error = error,
-                )
+        // Build summary line from args using ToolSchemaRegistry
+        val config = ToolSchemaRegistry.getDisplayConfig(toolName)
+        val summaryText =
+            if (config.summaryArgKey != null) {
+                val raw = args[config.summaryArgKey]?.toString() ?: ""
+                val truncated = if (raw.length > 100) raw.take(100) + "…" else raw
+                if (truncated.isNotBlank()) "${config.summaryPrefix}$truncated" else null
             } else {
-                val mainOutput =
-                    (obj.get("output") ?: obj.get("result") ?: obj.get("content") ?: obj.get("text"))
-                        ?.takeIf { !it.isJsonNull }
-                        ?.let {
-                            if (it.isJsonPrimitive) it.asString else it.toString()
-                        }?.takeIf { it.isNotEmpty() }
-
-                val genericFields = mutableMapOf<String, String>()
-                obj.entrySet().forEach { (key, value) ->
-                    if (key != "output" && key != "result" && key != "content" && key != "text" && !value.isJsonNull) {
-                        val valStr = if (value.isJsonPrimitive) value.asString else value.toString()
-                        if (valStr.isNotEmpty() && valStr != "null") {
-                            genericFields[key] = valStr
-                        }
-                    }
-                }
-
-                ParsedToolOutput(
-                    mainOutput = mainOutput,
-                    genericFields = genericFields,
-                )
+                null
             }
-        } else if (element.isJsonArray) {
-            val arr = element.asJsonArray
-            ParsedToolOutput(
-                mainOutput = arr.toString(),
+
+        // Check if this looks like a terminal result
+        val hasStdout = resultObj?.has("stdout") == true
+        val hasStderr = resultObj?.has("stderr") == true
+        val hasExitCode = resultObj?.has("exit_code") == true || resultObj?.has("exitCode") == true
+
+        if (hasStdout || hasStderr || hasExitCode) {
+            val stdout = resultObj?.get("stdout")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val stderr = resultObj?.get("stderr")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val exitCode = (resultObj?.get("exit_code") ?: resultObj?.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
+            val error = resultObj?.get("error")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+
+            ParsedToolData(
+                toolName = toolName ?: "",
+                args = args,
+                result = resultObj?.entrySet()?.associate { it.key to it.value.toString() } ?: emptyMap(),
+                isTerminal = true,
+                stdout = stdout,
+                stderr = stderr,
+                exitCode = exitCode,
+                error = error,
+                summaryText = summaryText,
+                durationSec = duration,
+                isRunning = isRunning,
             )
         } else {
-            null
+            // Generic tool display
+            val mainOutput =
+                resultObj?.let { r ->
+                    (r.get("output") ?: r.get("result") ?: r.get("content") ?: r.get("text"))
+                        ?.takeIf { !it.isJsonNull }
+                        ?.let { if (it.isJsonPrimitive) it.asString else it.toString() }
+                        ?.takeIf { it.isNotEmpty() }
+                }
+
+            val extraFields = mutableMapOf<String, String>()
+            resultObj?.entrySet()?.forEach { (key, value) ->
+                if (key != "output" && key != "result" && key != "content" && key != "text" && !value.isJsonNull) {
+                    val valStr = if (value.isJsonPrimitive) value.asString else value.toString()
+                    if (valStr.isNotEmpty() && valStr != "null") {
+                        extraFields[key] = valStr
+                    }
+                }
+            }
+
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+
+            ParsedToolData(
+                toolName = toolName ?: "",
+                args = args,
+                result = resultObj?.entrySet()?.associate { it.key to it.value.toString() } ?: emptyMap(),
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                extraFields = extraFields,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
         }
     } catch (e: Exception) {
         null
@@ -512,12 +547,27 @@ private fun parseToolOutput(content: String): ParsedToolOutput? {
 }
 
 @Composable
-private fun ParsedToolContent(
-    parsed: ParsedToolOutput,
+private fun ExpandedToolContent(
+    parsed: ParsedToolData,
     contentColor: Color,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Summary line at top of expanded view
+        if (parsed.summaryText != null) {
+            Text(
+                text = parsed.summaryText,
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        color = contentColor.copy(alpha = 0.7f),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                    ),
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+        }
+
         if (parsed.isTerminal) {
+            // ── Terminal output ──
             parsed.stdout?.let {
                 Text(
                     text = it,
@@ -564,7 +614,19 @@ private fun ParsedToolContent(
                     )
                 }
             }
+
+            // Duration footer for terminal
+            parsed.durationSec?.let { dur ->
+                Text(
+                    text = "Duration: ${"%.1f".format(dur)}s",
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            color = contentColor.copy(alpha = 0.5f),
+                        ),
+                )
+            }
         } else {
+            // ── Generic tool output ──
             parsed.mainOutput?.let {
                 Text(
                     text = it,
@@ -575,7 +637,7 @@ private fun ParsedToolContent(
                         ),
                 )
             }
-            parsed.genericFields.forEach { (key, value) ->
+            parsed.extraFields.forEach { (key, value) ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -598,6 +660,17 @@ private fun ParsedToolContent(
                     )
                 }
             }
+
+            // Duration footer
+            parsed.durationSec?.let { dur ->
+                Text(
+                    text = "Duration: ${"%.1f".format(dur)}s",
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            color = contentColor.copy(alpha = 0.5f),
+                        ),
+                )
+            }
         }
     }
 }
@@ -613,7 +686,22 @@ private fun ToolBubble(
     val chipColor = if (isDarkTheme) ToolChipColor else ToolChipColorLight
     val contentColor = if (isDarkTheme) Color.White else Color.Black
 
-    val parsedOutput = remember(message.content) { parseToolOutput(message.content) }
+    val parsed =
+        remember(message.content, message.toolName, message.toolStatus) {
+            parseToolOutput(message.content, message.toolName, message.toolStatus == ToolStatus.RUNNING)
+        }
+    val config = ToolSchemaRegistry.getDisplayConfig(message.toolName)
+
+    val clipboardManager = LocalClipboardManager.current
+    var showCopyButton by remember { mutableStateOf(false) }
+
+    // Auto-dismiss copy button after 4 seconds
+    LaunchedEffect(showCopyButton) {
+        if (showCopyButton) {
+            delay(4000)
+            showCopyButton = false
+        }
+    }
 
     Box(
         modifier =
@@ -633,98 +721,209 @@ private fun ToolBubble(
                         .animateContentSize()
                         .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val (icon, tint) =
-                        when (message.toolStatus) {
-                            ToolStatus.RUNNING -> Icons.Filled.Build to MaterialTheme.colorScheme.secondary
-                            ToolStatus.COMPLETED -> Icons.Filled.CheckCircle to StatusGreen
-                            ToolStatus.FAILED -> Icons.Filled.Error to StatusRed
-                            null -> Icons.Filled.Build to contentColor.copy(alpha = 0.6f)
-                        }
+                // ── Header row: icon + tool name ──
+                HeaderRow(message, config, contentColor)
 
-                    if (message.toolStatus == ToolStatus.RUNNING) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.secondary,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = tint,
-                        )
-                    }
-
+                // ── Summary line (always visible when collapsed) ──
+                if (!expanded && parsed?.summaryText != null) {
                     Text(
-                        text = message.toolName ?: stringResource(R.string.chat_tool_fallback),
+                        text = parsed.summaryText,
                         style =
-                            MaterialTheme.typography.labelMedium.copy(
-                                color = contentColor,
+                            MaterialTheme.typography.bodySmall.copy(
+                                color = contentColor.copy(alpha = 0.7f),
                                 fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
                             ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp, start = 22.dp),
                     )
                 }
 
-                if (expanded && message.content.isNotBlank()) {
-                    Column(modifier = Modifier.padding(top = 6.dp)) {
-                        if (parsedOutput != null && !showRawJson) {
-                            ParsedToolContent(parsedOutput, contentColor)
+                // ── Expanded content ──
+                if (expanded) {
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = stringResource(R.string.chat_tool_show_raw),
-                                style =
-                                    MaterialTheme.typography.labelSmall.copy(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        textDecoration = TextDecoration.Underline,
-                                    ),
-                                modifier =
-                                    Modifier
-                                        .testTag("chat_tool_show_raw")
-                                        .clickable(role = Role.Button) { showRawJson = true },
-                            )
-                        } else {
-                            Text(
-                                text = message.content,
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        color = contentColor.copy(alpha = 0.8f),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                    ),
-                            )
-
-                            if (parsedOutput != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                    if (showRawJson) {
+                        // Raw JSON view — selectable + copy button
+                        Box {
+                            SelectionContainer {
                                 Text(
-                                    text = stringResource(R.string.chat_tool_show_parsed),
+                                    text = message.content,
                                     style =
-                                        MaterialTheme.typography.labelSmall.copy(
-                                            color = MaterialTheme.colorScheme.primary,
-                                            textDecoration = TextDecoration.Underline,
+                                        MaterialTheme.typography.bodySmall.copy(
+                                            color = contentColor.copy(alpha = 0.8f),
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 11.sp,
                                         ),
-                                    modifier =
-                                        Modifier
-                                            .testTag("chat_tool_show_parsed")
-                                            .clickable(role = Role.Button) { showRawJson = false },
                                 )
                             }
+                            CopyButton(
+                                visible = showCopyButton,
+                                textToCopy = message.content,
+                                clipboardManager = clipboardManager,
+                                onCopy = { showCopyButton = false },
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.chat_tool_show_parsed),
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textDecoration = TextDecoration.Underline,
+                                ),
+                            modifier =
+                                Modifier
+                                    .testTag("chat_tool_show_parsed")
+                                    .clickable(role = Role.Button) { showRawJson = false },
+                        )
+                    } else if (parsed != null) {
+                        // Clean structured expanded view
+                        Box {
+                            SelectionContainer {
+                                ExpandedToolContent(parsed, contentColor)
+                            }
+                            CopyButton(
+                                visible = showCopyButton,
+                                textToCopy = message.content,
+                                clipboardManager = clipboardManager,
+                                onCopy = { showCopyButton = false },
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.chat_tool_show_raw),
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textDecoration = TextDecoration.Underline,
+                                ),
+                            modifier =
+                                Modifier
+                                    .testTag("chat_tool_show_raw")
+                                    .clickable(role = Role.Button) { showRawJson = true },
+                        )
+                    } else {
+                        // Unparseable content — show raw JSON, selectable
+                        Box {
+                            SelectionContainer {
+                                Text(
+                                    text = message.content,
+                                    style =
+                                        MaterialTheme.typography.bodySmall.copy(
+                                            color = contentColor.copy(alpha = 0.8f),
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 11.sp,
+                                        ),
+                                )
+                            }
+                            CopyButton(
+                                visible = showCopyButton,
+                                textToCopy = message.content,
+                                clipboardManager = clipboardManager,
+                                onCopy = { showCopyButton = false },
+                            )
                         }
                     }
                 }
 
-                // Timestamp — consistent with UserBubble/AssistantBubble
-                val textColor = if (isDarkTheme) Color.White else Color.Black
+                // ── Timestamp ──
                 Text(
                     text = formatTimestamp(message.timestamp),
-                    color = textColor.copy(alpha = 0.5f),
+                    color = contentColor.copy(alpha = 0.5f),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderRow(
+    message: ChatMessage,
+    config: ToolDisplayConfig,
+    contentColor: Color,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Status icon or spinner
+        if (message.toolStatus == ToolStatus.RUNNING) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(14.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        } else {
+            val icon =
+                when (message.toolStatus) {
+                    ToolStatus.COMPLETED -> Icons.Filled.CheckCircle
+                    ToolStatus.FAILED -> Icons.Filled.Error
+                    else -> Icons.Filled.Build
+                }
+            val tint =
+                when (message.toolStatus) {
+                    ToolStatus.COMPLETED -> StatusGreen
+                    ToolStatus.FAILED -> StatusRed
+                    else -> contentColor.copy(alpha = 0.6f)
+                }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = tint,
+            )
+        }
+
+        Text(
+            text = message.toolName ?: stringResource(R.string.chat_tool_fallback),
+            style =
+                MaterialTheme.typography.labelMedium.copy(
+                    color = contentColor,
+                    fontFamily = FontFamily.Monospace,
+                ),
+        )
+    }
+}
+
+@Composable
+private fun CopyButton(
+    visible: Boolean,
+    textToCopy: String,
+    clipboardManager: androidx.compose.ui.platform.ClipboardManager,
+    onCopy: () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut(),
+        modifier =
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 8.dp, y = (-8).dp),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+            shadowElevation = 6.dp,
+        ) {
+            IconButton(
+                onClick = {
+                    clipboardManager.setText(AnnotatedString(textToCopy))
+                    onCopy()
+                },
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    Icons.Filled.ContentCopy,
+                    contentDescription = stringResource(R.string.content_desc_copy),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

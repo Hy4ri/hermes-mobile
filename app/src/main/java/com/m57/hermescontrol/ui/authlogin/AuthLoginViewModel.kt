@@ -205,6 +205,16 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
     }
 
     /**
+     * Result of a successful connect attempt.
+     */
+    private data class ConnectResult(
+        /** WS credential: session token (loopback) or WS ticket (gated). */
+        val wsCredential: String,
+        /** Session cookie for REST API auth in gated mode (null in loopback). */
+        val sessionCookie: String? = null,
+    )
+
+    /**
      * Step 2: Connect using the detected auth mode.
      */
     fun connect() {
@@ -217,17 +227,13 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             val result =
                 withContext(Dispatchers.IO) {
                     when (state.authMode) {
-                        DashboardAuthMode.TOKEN_ONLY -> connectTokenOnly(state.host, port, state.token)
+                        DashboardAuthMode.TOKEN_ONLY -> {
+                            val token = connectTokenOnly(state.host, port, state.token)
+                            if (token != null) ConnectResult(wsCredential = token) else null
+                        }
                         DashboardAuthMode.BASIC_AUTH ->
-                            connectBasicAuth(
-                                state.host,
-                                port,
-                                state.username,
-                                state.password,
-                            )
+                            connectBasicAuth(state.host, port, state.username, state.password)
                         DashboardAuthMode.ALL -> {
-                            // All fields: first authenticate with basic auth,
-                            // then use the token for WS connection
                             connectBasicAuth(state.host, port, state.username, state.password)
                         }
                         null -> null
@@ -237,9 +243,13 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             if (result != null) {
                 AuthManager.setHost(state.host)
                 AuthManager.setPort(port)
-                AuthManager.setToken(result)
-                if (state.authMode == DashboardAuthMode.BASIC_AUTH || state.authMode == DashboardAuthMode.ALL) {
+                AuthManager.setToken(result.wsCredential)
+                if (result.sessionCookie != null) {
+                    AuthManager.setSessionCookie(result.sessionCookie)
                     AuthManager.setWsAuthParam("ticket")
+                } else {
+                    AuthManager.setSessionCookie(null)
+                    AuthManager.setWsAuthParam("token")
                 }
                 ApiClient.rebuild()
                 _uiState.update { it.copy(isLoading = false, connectionSuccess = true) }
@@ -293,14 +303,15 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
     }
 
     /**
-     * Authenticate with basic auth, then extract the session token from the SPA.
+     * Authenticate with basic auth, then mint a WS ticket.
+     * Returns the WS ticket and the session cookie for REST auth.
      */
     private fun connectBasicAuth(
         host: String,
         port: Int,
         username: String,
         password: String,
-    ): String? {
+    ): ConnectResult? {
         if (username.isBlank()) {
             _uiState.update {
                 it.copy(isLoading = false, errorMessage = app.getString(R.string.auth_login_error_username_required))
@@ -345,12 +356,27 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 return null
             }
 
-            // Step 2: Extract session cookie from Set-Cookie headers
+            // Step 2: Extract hermes_session_at cookie from Set-Cookie headers
             val setCookieHeaders = loginResp.headers("Set-Cookie")
-            val cookieHeader =
-                setCookieHeaders.joinToString("; ") { header ->
-                    header.split(";")[0].trim()
+            var sessionAccessToken: String? = null
+            for (header in setCookieHeaders) {
+                if (header.startsWith("hermes_session_at=")) {
+                    sessionAccessToken = header.split(";")[0].removePrefix("hermes_session_at=").trim()
+                    break
                 }
+            }
+
+            if (sessionAccessToken.isNullOrBlank()) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Login succeeded but no session cookie received",
+                    )
+                }
+                return null
+            }
+
+            val cookieHeader = "hermes_session_at=$sessionAccessToken"
 
             // Step 3: Mint a WebSocket ticket using the session cookie
             val ticketClient =
@@ -391,7 +417,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 return null
             }
 
-            return ticket
+            return ConnectResult(wsCredential = ticket, sessionCookie = sessionAccessToken)
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(

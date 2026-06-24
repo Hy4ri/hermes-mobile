@@ -31,6 +31,7 @@ object AuthManager {
     private const val KEY_CONNECTION_PROFILES = "connection_profiles"
     private const val KEY_SELECTED_PROFILE_ID = "selected_profile_id"
     private const val KEY_WS_AUTH_PARAM = "ws_auth_param"
+    private const val KEY_SESSION_COOKIE = "session_cookie"
     private const val KEY_USE_DYNAMIC_COLORS = "use_dynamic_colors"
     private const val KEY_THEME_PRESET = "theme_preset"
     private const val KEY_BOTTOM_NAV_DISPLAY_MODE = "bottom_nav_display_mode"
@@ -98,6 +99,20 @@ object AuthManager {
 
     fun setWsAuthParam(param: String) {
         requirePrefs().edit().putString(KEY_WS_AUTH_PARAM, param).apply()
+    }
+
+    // ── Session Cookie (for gated/dashboard REST API) ────────────────────
+
+    /**
+     * In gated mode (basic auth), the dashboard authenticates REST API
+     * requests via the `hermes_session_at` cookie, not via
+     * `Authorization: *** We store it here so [ApiClient]'s
+     * authInterceptor can add it as a `Cookie` header.
+     */
+    fun getSessionCookie(): String? = requirePrefs().getString(KEY_SESSION_COOKIE, null)
+
+    fun setSessionCookie(cookie: String?) {
+        requirePrefs().edit().putString(KEY_SESSION_COOKIE, cookie).apply()
     }
 
     // ── Connection Profiles ──────────────────────────────────────────────

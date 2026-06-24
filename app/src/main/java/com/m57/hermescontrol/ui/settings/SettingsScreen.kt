@@ -158,132 +158,14 @@ fun SettingsScreen(
                         )
                     }
                     SettingsTab.APPEARANCE -> {
-                        // Appearance section
-                        SectionCard(title = stringResource(R.string.settings_sec_appearance)) {
-                            Text(
-                                text = stringResource(R.string.settings_item_theme),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                ThemePreference.entries.forEachIndexed { index, pref ->
-                                    SegmentedButton(
-                                        selected = state.themePreference == pref,
-                                        onClick = { viewModel.onThemeChange(pref) },
-                                        shape =
-                                            SegmentedButtonDefaults.itemShape(
-                                                index = index,
-                                                count = ThemePreference.entries.size,
-                                            ),
-                                    ) {
-                                        Text(
-                                            when (pref) {
-                                                ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
-                                                ThemePreference.LIGHT -> stringResource(R.string.theme_light)
-                                                ThemePreference.DARK -> stringResource(R.string.theme_dark)
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(R.string.settings_item_use_dynamic_colors),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.settings_desc_use_dynamic_colors),
-                                        style =
-                                            MaterialTheme.typography.bodySmall.copy(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ),
-                                    )
-                                }
-                                Switch(
-                                    checked = state.useDynamicColors,
-                                    onCheckedChange = viewModel::onUseDynamicColorsChange,
-                                    colors =
-                                        SwitchDefaults.colors(
-                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                        ),
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = stringResource(R.string.settings_item_theme_preset),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            var presetsExpanded by remember { mutableStateOf(false) }
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedButton(
-                                    onClick = { presetsExpanded = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(
-                                        when (state.themePreset) {
-                                            ThemePreset.DEFAULT -> stringResource(R.string.theme_preset_default)
-                                            ThemePreset.MONOCHROME -> stringResource(R.string.theme_preset_monochrome)
-                                            ThemePreset.GRUVBOX -> stringResource(R.string.theme_preset_gruvbox)
-                                            ThemePreset.CATPPUCCIN -> stringResource(R.string.theme_preset_catppuccin)
-                                            ThemePreset.AMOLED -> stringResource(R.string.theme_preset_amoled)
-                                        },
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = presetsExpanded,
-                                    onDismissRequest = { presetsExpanded = false },
-                                    modifier = Modifier.fillMaxWidth(0.85f),
-                                ) {
-                                    ThemePreset.entries.forEach { preset ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    when (preset) {
-                                                        ThemePreset.DEFAULT ->
-                                                            stringResource(
-                                                                R.string.theme_preset_default,
-                                                            )
-                                                        ThemePreset.MONOCHROME ->
-                                                            stringResource(
-                                                                R.string.theme_preset_monochrome,
-                                                            )
-                                                        ThemePreset.GRUVBOX ->
-                                                            stringResource(
-                                                                R.string.theme_preset_gruvbox,
-                                                            )
-                                                        ThemePreset.CATPPUCCIN ->
-                                                            stringResource(
-                                                                R.string.theme_preset_catppuccin,
-                                                            )
-                                                        ThemePreset.AMOLED ->
-                                                            stringResource(
-                                                                R.string.theme_preset_amoled,
-                                                            )
-                                                    },
-                                                )
-                                            },
-                                            onClick = {
-                                                viewModel.onThemePresetChange(preset)
-                                                presetsExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        AppearanceSection(
+                            themePreference = state.themePreference,
+                            onThemeChange = viewModel::onThemeChange,
+                            useDynamicColors = state.useDynamicColors,
+                            onUseDynamicColorsChange = viewModel::onUseDynamicColorsChange,
+                            themePreset = state.themePreset,
+                            onThemePresetChange = viewModel::onThemePresetChange,
+                        )
 
                         // Chat section
                         SectionCard(title = stringResource(R.string.settings_sec_chat)) {
@@ -924,6 +806,142 @@ private fun BehaviorSection(
                         checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
                     ),
             )
+        }
+    }
+}
+
+@Composable
+private fun AppearanceSection(
+    themePreference: ThemePreference,
+    onThemeChange: (ThemePreference) -> Unit,
+    useDynamicColors: Boolean,
+    onUseDynamicColorsChange: (Boolean) -> Unit,
+    themePreset: ThemePreset,
+    onThemePresetChange: (ThemePreset) -> Unit,
+) {
+    SectionCard(title = stringResource(R.string.settings_sec_appearance)) {
+        Text(
+            text = stringResource(R.string.settings_item_theme),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            ThemePreference.entries.forEachIndexed { index, pref ->
+                SegmentedButton(
+                    selected = themePreference == pref,
+                    onClick = { onThemeChange(pref) },
+                    shape =
+                        SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = ThemePreference.entries.size,
+                        ),
+                ) {
+                    Text(
+                        when (pref) {
+                            ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
+                            ThemePreference.LIGHT -> stringResource(R.string.theme_light)
+                            ThemePreference.DARK -> stringResource(R.string.theme_dark)
+                        },
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_item_use_dynamic_colors),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_desc_use_dynamic_colors),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+            }
+            Switch(
+                checked = useDynamicColors,
+                onCheckedChange = onUseDynamicColorsChange,
+                colors =
+                    SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = stringResource(R.string.settings_item_theme_preset),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        var presetsExpanded by remember { mutableStateOf(false) }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { presetsExpanded = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    when (themePreset) {
+                        ThemePreset.DEFAULT -> stringResource(R.string.theme_preset_default)
+                        ThemePreset.MONOCHROME -> stringResource(R.string.theme_preset_monochrome)
+                        ThemePreset.GRUVBOX -> stringResource(R.string.theme_preset_gruvbox)
+                        ThemePreset.CATPPUCCIN -> stringResource(R.string.theme_preset_catppuccin)
+                        ThemePreset.AMOLED -> stringResource(R.string.theme_preset_amoled)
+                    },
+                )
+            }
+            DropdownMenu(
+                expanded = presetsExpanded,
+                onDismissRequest = { presetsExpanded = false },
+                modifier = Modifier.fillMaxWidth(0.85f),
+            ) {
+                ThemePreset.entries.forEach { preset ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                when (preset) {
+                                    ThemePreset.DEFAULT ->
+                                        stringResource(
+                                            R.string.theme_preset_default,
+                                        )
+                                    ThemePreset.MONOCHROME ->
+                                        stringResource(
+                                            R.string.theme_preset_monochrome,
+                                        )
+                                    ThemePreset.GRUVBOX ->
+                                        stringResource(
+                                            R.string.theme_preset_gruvbox,
+                                        )
+                                    ThemePreset.CATPPUCCIN ->
+                                        stringResource(
+                                            R.string.theme_preset_catppuccin,
+                                        )
+                                    ThemePreset.AMOLED ->
+                                        stringResource(
+                                            R.string.theme_preset_amoled,
+                                        )
+                                },
+                            )
+                        },
+                        onClick = {
+                            onThemePresetChange(preset)
+                            presetsExpanded = false
+                        },
+                    )
+                }
+            }
         }
     }
 }

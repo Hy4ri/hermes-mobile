@@ -137,20 +137,17 @@ object HermesWsClient {
             Log.d(TAG, "Already connected — skipping")
             return
         }
-        // In gated mode, the stored WS ticket is a single-use 30s ticket.
-        // Mint a fresh one before connecting.
-        refreshWsTicketIfNeeded()
         intentionalClose.set(false)
         currentBackoff = INITIAL_BACKOFF_MS
         _connectionStatus.value = ConnectionStatus.CONNECTING
+        refreshWsTicketIfNeeded()
         openSocket()
     }
 
     /**
      * If a session cookie is present (gated mode), mint a fresh WS ticket
      * from the dashboard. The ticket is single-use and has a 30-second TTL,
-     * so we must mint a new one on every app launch (and after every
-     * disconnect/reconnect).
+     * so we must mint a new one on every connect (first launch and reconnect).
      */
     private fun refreshWsTicketIfNeeded() {
         val sessionCookie = AuthManager.getSessionCookie()
@@ -243,6 +240,7 @@ object HermesWsClient {
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun openSocket() {
+        refreshWsTicketIfNeeded()
         val url = AuthManager.wsUrl()
         // B2 (Jun 18 2026, kanban t_8884db16): url contains the auth token
         // as a query param — never stream to logcat in release builds.

@@ -249,7 +249,7 @@ fun AuthLoginScreen(
             Button(
                 onClick = {
                     if (state.authMode == null) {
-                        viewModel.probeDashboard()
+                        viewModel.probe()
                     } else {
                         viewModel.connect()
                     }

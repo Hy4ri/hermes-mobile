@@ -162,7 +162,7 @@ class ChatViewModel(
 
     private fun handleWsEvent(event: WsEvent) {
         // First, let the reducer compute the new state and any effects
-        val result = ChatWsEventReducer.reduce(_uiState.value, event)
+        val result = ChatWsEventReducer.reduce(_uiState.value, event, _uiState.value.currentSessionId)
 
         // Apply the new state
         _uiState.update { result.state }

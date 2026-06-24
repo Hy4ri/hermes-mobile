@@ -93,7 +93,26 @@ object ChatWsEventReducer {
         val effects = mutableListOf<ReducerEffect>()
 
         // Build new state: finalize any orphan streaming message, then set the new one
-        val (newState, orphan) = finalizeStreamingMessage(state, msg)
+        var orphan: ChatMessage? = null
+        val preState =
+            if (state.streamingMessage?.content?.isNotEmpty() == true) {
+                val finalized = state.streamingMessage!!.copy(isStreaming = false)
+                orphan = finalized
+                state.copy(
+                    messages = state.messages + finalized,
+                    streamingMessage = null,
+                    isAgentTyping = true,
+                    isThinking = false,
+                    thinkingText = "",
+                )
+            } else {
+                state.copy(
+                    isAgentTyping = true,
+                    isThinking = false,
+                    thinkingText = "",
+                )
+            }
+        val newState = preState.copy(streamingMessage = msg)
         val sid = newState.currentSessionId
         if (orphan != null && sid != null) {
             effects.add(ReducerEffect.PersistMessage(orphan, sid))
@@ -119,8 +138,14 @@ object ChatWsEventReducer {
         state: ChatUiState,
         event: WsEvent.ThinkingDelta,
     ): ReducerResult {
-        // Accumulation is handled by the ViewModel's thinking buffer.
-        return ReducerResult(state)
+        val currentContent = state.thinkingText + event.token
+        return ReducerResult(
+            state =
+                state.copy(
+                    isThinking = true,
+                    thinkingText = currentContent,
+                ),
+        )
     }
 
     // ── MessageComplete ───────────────────────────────────────────────

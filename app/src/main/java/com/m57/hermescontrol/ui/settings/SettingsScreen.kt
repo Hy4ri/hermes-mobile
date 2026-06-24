@@ -69,6 +69,7 @@ import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.ui.common.HermesScaffold
+import com.m57.hermescontrol.ui.common.NavIcon
 
 enum class SettingsTab {
     CONNECTION,
@@ -93,8 +94,7 @@ fun SettingsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
-        showBack = true,
-        onBack = onBack,
+        navigationIcon = NavIcon.Back(onBack),
     ) {
         Column(
             modifier =

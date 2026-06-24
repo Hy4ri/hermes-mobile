@@ -35,6 +35,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +55,7 @@ fun PairingScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.pairing_screen_title)) },
-        onOpenDrawer = onOpenDrawer,
+        navigationIcon = NavIcon.Menu(onOpenDrawer),
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPairing() },
     ) { paddingValues ->

@@ -36,6 +36,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.InfoRow
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
@@ -61,7 +62,7 @@ fun SystemScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_system)) },
-        onOpenDrawer = onOpenDrawer,
+        navigationIcon = NavIcon.Menu(onOpenDrawer),
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSystemData() },
     ) {

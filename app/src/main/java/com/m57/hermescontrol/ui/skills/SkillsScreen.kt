@@ -49,6 +49,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.FilterChipRow
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
@@ -113,7 +114,7 @@ fun SkillsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_skills)) },
-        onOpenDrawer = onOpenDrawer,
+        navigationIcon = NavIcon.Menu(onOpenDrawer),
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSkills() },
     ) {
@@ -378,14 +379,16 @@ fun SkillEditorDialog(
         ) {
             HermesScaffold(
                 title = { Text(stringResource(R.string.skills_edit_title, skillName)) },
-                onBack = {
-                    if (hasChanges) {
-                        showDiscardConfirm = true
-                    } else {
-                        onDismiss()
-                    }
-                },
-                showBack = true,
+                navigationIcon =
+                    NavIcon.Back(
+                        onBack = {
+                            if (hasChanges) {
+                                showDiscardConfirm = true
+                            } else {
+                                onDismiss()
+                            }
+                        },
+                    ),
                 actions = {
                     if (!isLoading) {
                         IconButton(

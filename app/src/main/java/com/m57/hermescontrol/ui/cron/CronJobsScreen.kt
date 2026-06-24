@@ -35,6 +35,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -59,7 +60,7 @@ fun CronJobsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_cron)) },
-        onOpenDrawer = onOpenDrawer,
+        navigationIcon = NavIcon.Menu(onOpenDrawer),
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadCronJobs() },
     ) {

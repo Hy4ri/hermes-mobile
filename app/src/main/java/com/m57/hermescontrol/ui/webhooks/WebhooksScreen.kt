@@ -39,6 +39,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
@@ -71,7 +72,7 @@ fun WebhooksScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_webhooks)) },
-        onOpenDrawer = onOpenDrawer,
+        navigationIcon = NavIcon.Menu(onOpenDrawer),
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadWebhooks() },
     ) { paddingValues ->

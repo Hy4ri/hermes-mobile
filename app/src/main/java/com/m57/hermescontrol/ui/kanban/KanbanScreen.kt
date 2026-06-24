@@ -47,6 +47,7 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 
@@ -87,7 +88,7 @@ fun KanbanScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.kanban_board_title)) },
-        onOpenDrawer = onOpenDrawer,
+        navigationIcon = NavIcon.Menu(onOpenDrawer),
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
     ) { paddingValues ->

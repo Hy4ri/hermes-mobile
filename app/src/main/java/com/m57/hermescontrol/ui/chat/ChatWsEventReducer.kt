@@ -16,6 +16,29 @@ object ChatWsEventReducer {
     fun reduce(
         state: ChatUiState,
         event: WsEvent,
+        currentSessionId: String? = null,
+    ): ReducerResult {
+        val eventSessionId =
+            when (event) {
+                is WsEvent.MessageStart -> event.sessionId
+                is WsEvent.MessageToken -> event.sessionId
+                is WsEvent.ThinkingDelta -> event.sessionId
+                is WsEvent.MessageComplete -> event.sessionId
+                is WsEvent.MessageDone -> event.sessionId
+                is WsEvent.ToolStart -> event.sessionId
+                is WsEvent.ToolComplete -> event.sessionId
+                is WsEvent.ClarifyRequest -> event.sessionId
+                else -> null
+            }
+        if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
+            return ReducerResult(state)
+        }
+        return reduceInternal(state, event)
+    }
+
+    private fun reduceInternal(
+        state: ChatUiState,
+        event: WsEvent,
     ): ReducerResult =
         when (event) {
             is WsEvent.GatewayReady -> onGatewayReady(state)
@@ -178,12 +201,23 @@ object ChatWsEventReducer {
             )
 
         // Finalize any orphan streaming message
-        val (newState, orphan) = finalizeStreamingMessage(state, toolMessage)
+        var orphanToPersist: ChatMessage? = null
+        val newState =
+            if (state.streamingMessage?.content?.isNotEmpty() == true) {
+                val finalized = state.streamingMessage!!.copy(isStreaming = false)
+                orphanToPersist = finalized
+                state.copy(
+                    messages = state.messages + finalized,
+                    streamingMessage = null,
+                )
+            } else {
+                state.copy(streamingMessage = null)
+            }
         val sid = newState.currentSessionId
         val effects = mutableListOf<ReducerEffect>()
         if (sid != null) {
-            if (orphan != null) {
-                effects.add(ReducerEffect.PersistMessage(orphan, sid))
+            if (orphanToPersist != null) {
+                effects.add(ReducerEffect.PersistMessage(orphanToPersist, sid))
             }
             effects.add(ReducerEffect.PersistMessage(toolMessage, sid))
         }

@@ -41,9 +41,8 @@ data class AuthLoginUiState(
     val token: String = "",
     val username: String = "",
     val password: String = "",
-    val passwordVisible: Boolean = false,
     val isLoading: Boolean = false,
-    val probing: Boolean = false,
+    val isProbing: Boolean = false,
     val authMode: DashboardAuthMode? = null,
     val connectionSuccess: Boolean = false,
     val errorMessage: String? = null,
@@ -52,6 +51,10 @@ data class AuthLoginUiState(
 class AuthLoginViewModel(private val app: Application) : ViewModel() {
     private val _uiState = MutableStateFlow(AuthLoginUiState())
     val uiState: StateFlow<AuthLoginUiState> = _uiState.asStateFlow()
+
+    companion object {
+        private const val TAG = "AuthLoginVM"
+    }
 
     private val probeClient: OkHttpClient =
         OkHttpClient.Builder()
@@ -86,14 +89,10 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         _uiState.update { it.copy(password = value, errorMessage = null) }
     }
 
-    fun onPasswordVisibilityToggle() {
-        _uiState.update { it.copy(passwordVisible = !it.passwordVisible) }
-    }
-
     /**
      * Step 1: Probe the dashboard to detect what auth it needs.
      */
-    fun probeDashboard() {
+    fun probe() {
         val state = _uiState.value
         if (state.host.isBlank()) {
             _uiState.update { it.copy(errorMessage = app.getString(R.string.auth_login_error_host_required)) }
@@ -105,7 +104,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             return
         }
 
-        _uiState.update { it.copy(probing = true, errorMessage = null, authMode = null) }
+        _uiState.update { it.copy(isProbing = true, errorMessage = null, authMode = null) }
 
         viewModelScope.launch {
             val result =
@@ -114,7 +113,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 }
             _uiState.update {
                 it.copy(
-                    probing = false,
+                    isProbing = false,
                     authMode = result,
                     errorMessage =
                         if (result == null) {
@@ -144,7 +143,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 val resp = probeClient.newCall(req).execute()
                 resp.isSuccessful
             } catch (e: Exception) {
-                Log.w(TAG, "Status probe failed: ${e.message}")
+                Log.w("AuthLoginVM", "Status probe failed: ${e.message}")
                 return null // Dashboard unreachable
             }
 
@@ -160,8 +159,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 // 302 to /login means basic auth is active
                 code == 302 && location?.contains("/login", ignoreCase = true) == true
             } catch (e: Exception) {
-                Log.w(TAG, "SPA probe failed: ${e.message}")
-                // Assume token-only if we can't determine
+                Log.w("AuthLoginVM", "SPA probe failed: ${e.message}")
                 false
             }
 
@@ -181,21 +179,16 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             }
 
         return if (needsBasicAuth) {
-            // Dashboard has basic auth — we may also need a token after login
             DashboardAuthMode.BASIC_AUTH
         } else if (hasTokenInSpa) {
             DashboardAuthMode.TOKEN_ONLY
         } else {
-            // Fallback: dashboard is reachable but we couldn't determine auth mode
-            // Ask for credentials and let the user figure it out
             DashboardAuthMode.BASIC_AUTH
         }
     }
 
     /**
      * Step 2: Connect using the detected auth mode.
-     * For BASIC_AUTH: authenticates via basic auth, then extracts the session token from the SPA.
-     * For TOKEN_ONLY: validates the token, then saves it.
      */
     fun connect() {
         val state = _uiState.value
@@ -221,21 +214,19 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 }
 
             if (result != null) {
-                // Save credentials
                 AuthManager.setHost(state.host)
                 AuthManager.setPort(port)
                 AuthManager.setToken(result)
                 ApiClient.rebuild()
                 _uiState.update { it.copy(isLoading = false, connectionSuccess = true) }
             }
-            // Error message is set by the connect method
         }
     }
 
     /**
      * Validate the token by calling /api/status with it.
      */
-    private fun connectTokenOnly(
+    private suspend fun connectTokenOnly(
         host: String,
         port: Int,
         token: String,
@@ -304,7 +295,6 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         val authHeader = "Basic $credentials"
 
         try {
-            // Step 1: Authenticate by hitting / with basic auth
             val authReq =
                 Request.Builder()
                     .url(baseUrl)
@@ -324,13 +314,12 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 return null
             }
 
-            // Step 2: Extract session token from the SPA HTML
+            // Extract session token from the SPA HTML
             val body = authResp.body?.string() ?: ""
             val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__="([^"]+)"""").find(body)
             val sessionToken = tokenMatch?.groupValues?.getOrNull(1)
 
             if (sessionToken.isNullOrBlank()) {
-                // Token not in HTML — might need separate token field
                 if (_uiState.value.token.isNotBlank()) {
                     return _uiState.value.token
                 }

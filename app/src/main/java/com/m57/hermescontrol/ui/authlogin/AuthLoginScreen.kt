@@ -141,7 +141,7 @@ fun AuthLoginScreen(
             )
 
             // Probe / probing indicator
-            if (state.isProbing) {
+            if (state.probing) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 Text(
                     text = stringResource(R.string.auth_login_probing_dashboard),
@@ -154,11 +154,11 @@ fun AuthLoginScreen(
 
             // ── Dynamic fields based on auth mode ──
 
-            // Token field — shown for TOKEN_ONLY and BOTH
+            // Token field — shown for TOKEN_ONLY and ALL
             AnimatedVisibility(
                 visible =
                     state.authMode == DashboardAuthMode.TOKEN_ONLY ||
-                        state.authMode == DashboardAuthMode.BOTH,
+                        state.authMode == DashboardAuthMode.ALL,
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
@@ -190,11 +190,11 @@ fun AuthLoginScreen(
                 )
             }
 
-            // Username field — shown for BASIC_AUTH and BOTH
+            // Username field — shown for BASIC_AUTH and ALL
             AnimatedVisibility(
                 visible =
                     state.authMode == DashboardAuthMode.BASIC_AUTH ||
-                        state.authMode == DashboardAuthMode.BOTH,
+                        state.authMode == DashboardAuthMode.ALL,
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
@@ -207,11 +207,11 @@ fun AuthLoginScreen(
                 )
             }
 
-            // Password field — shown for BASIC_AUTH and BOTH
+            // Password field — shown for BASIC_AUTH and ALL
             AnimatedVisibility(
                 visible =
                     state.authMode == DashboardAuthMode.BASIC_AUTH ||
-                        state.authMode == DashboardAuthMode.BOTH,
+                        state.authMode == DashboardAuthMode.ALL,
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
@@ -245,19 +245,19 @@ fun AuthLoginScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Connect button
+            // Connect / Probe button
             Button(
                 onClick = {
                     if (state.authMode == null) {
-                        viewModel.probe()
+                        viewModel.probeDashboard()
                     } else {
                         viewModel.connect()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !state.isConnecting && !state.isProbing,
+                enabled = !state.isLoading && !state.probing,
             ) {
-                if (state.isConnecting) {
+                if (state.isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,

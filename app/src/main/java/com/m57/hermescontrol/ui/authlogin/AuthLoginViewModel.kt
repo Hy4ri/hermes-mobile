@@ -295,13 +295,20 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         val authHeader = "Basic $credentials"
 
         try {
+            // Use a client that follows redirects — / always redirects to /login
+            val authClient =
+                OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .followRedirects(true)
+                    .build()
             val authReq =
                 Request.Builder()
-                    .url(baseUrl)
+                    .url("$baseUrl/login")
                     .header("Authorization", authHeader)
                     .get()
                     .build()
-            val authResp = probeClient.newCall(authReq).execute()
+            val authResp = authClient.newCall(authReq).execute()
 
             if (!authResp.isSuccessful) {
                 val msg =

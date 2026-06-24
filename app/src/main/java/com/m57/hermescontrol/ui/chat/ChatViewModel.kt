@@ -91,6 +91,7 @@ class ChatViewModel(
             HermesDatabase.get(application).chatMessageDao(),
         )
     private val slashDispatcher = SlashCommandDispatcher()
+    private val searchController = ChatSearchController()
 
     /** Tracks the ID of the currently streaming assistant message. */
     @Volatile
@@ -926,10 +927,7 @@ class ChatViewModel(
         searchJob =
             viewModelScope.launch(Dispatchers.Default) {
                 val messages = _uiState.value.messages
-                val indices =
-                    messages.indices.filter { idx ->
-                        messages[idx].content.contains(query, ignoreCase = true)
-                    }
+                val indices = searchController.findMatches(messages, query)
 
                 _uiState.update {
                     // Only update indices if the search query hasn't changed in the meantime
@@ -949,13 +947,12 @@ class ChatViewModel(
         _uiState.update { state ->
             val indices = state.searchMatchIndices
             if (indices.isEmpty()) return@update state
-            val current = state.currentSearchMatchIndex
             val newIdx =
-                when (direction) {
-                    1 -> if (current >= indices.lastIndex) 0 else current + 1
-                    -1 -> if (current <= 0) indices.lastIndex else current - 1
-                    else -> current
-                }
+                searchController.navigate(
+                    currentIndex = state.currentSearchMatchIndex,
+                    matchCount = indices.size,
+                    direction = direction,
+                )
             state.copy(currentSearchMatchIndex = newIdx)
         }
     }

@@ -167,222 +167,22 @@ fun SettingsScreen(
                             onThemePresetChange = viewModel::onThemePresetChange,
                         )
 
-                        // Chat section
-                        SectionCard(title = stringResource(R.string.settings_sec_chat)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column {
-                                    Text(
-                                        text = stringResource(R.string.settings_item_typing_effect),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.settings_desc_typing_effect),
-                                        style =
-                                            MaterialTheme.typography.bodySmall.copy(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ),
-                                    )
-                                }
-                                Switch(
-                                    checked = state.typingEffectEnabled,
-                                    onCheckedChange = viewModel::onTypingEffectEnabledChange,
-                                    colors =
-                                        SwitchDefaults.colors(
-                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                        ),
-                                )
-                            }
+                        ChatSection(
+                            typingEffectEnabled = state.typingEffectEnabled,
+                            onTypingEffectEnabledChange = viewModel::onTypingEffectEnabledChange,
+                            typingEffectDelayMs = state.typingEffectDelayMs,
+                            onTypingEffectDelayMsChange = viewModel::onTypingEffectDelayMsChange,
+                        )
 
-                            // Delay slider — only visible when effect is enabled
-                            AnimatedVisibility(visible = state.typingEffectEnabled) {
-                                Column(modifier = Modifier.padding(top = 12.dp)) {
-                                    Text(
-                                        text =
-                                            stringResource(
-                                                R.string.settings_item_typing_delay,
-                                                state.typingEffectDelayMs,
-                                            ),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Slider(
-                                        value = state.typingEffectDelayMs.toFloat(),
-                                        onValueChange = { viewModel.onTypingEffectDelayMsChange(it.toInt()) },
-                                        valueRange = 10f..100f,
-                                        steps = 8, // 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.settings_delay_10ms),
-                                            style =
-                                                MaterialTheme.typography.labelSmall.copy(
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                ),
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.settings_delay_100ms),
-                                            style =
-                                                MaterialTheme.typography.labelSmall.copy(
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                ),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Navigation Bar section
-                        SectionCard(title = stringResource(R.string.settings_sec_nav_bar)) {
-                            Text(
-                                text = stringResource(R.string.settings_item_bottom_nav_display_mode),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                                BottomNavDisplayMode.entries.forEachIndexed { index, mode ->
-                                    SegmentedButton(
-                                        selected = state.bottomNavDisplayMode == mode,
-                                        onClick = { viewModel.onBottomNavDisplayModeChange(mode) },
-                                        shape =
-                                            SegmentedButtonDefaults.itemShape(
-                                                index = index,
-                                                count = BottomNavDisplayMode.entries.size,
-                                            ),
-                                    ) {
-                                        Text(
-                                            when (mode) {
-                                                BottomNavDisplayMode.ICON_AND_TEXT -> {
-                                                    stringResource(
-                                                        R.string.settings_display_mode_icon_and_text,
-                                                    )
-                                                }
-
-                                                BottomNavDisplayMode.ICON_ONLY -> {
-                                                    stringResource(
-                                                        R.string.settings_display_mode_icon_only,
-                                                    )
-                                                }
-
-                                                BottomNavDisplayMode.TEXT_ONLY -> {
-                                                    stringResource(
-                                                        R.string.settings_display_mode_text_only,
-                                                    )
-                                                }
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = stringResource(R.string.settings_item_nav_items, state.selectedNavItems.size),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            state.selectedNavItems.forEachIndexed { index, name ->
-                                val labelRes = viewModel.availableNavItems.firstOrNull { it.first == name }?.second
-                                val label = if (labelRes != null) stringResource(labelRes) else name
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        IconButton(
-                                            onClick = {
-                                                val list = state.selectedNavItems.toMutableList()
-                                                val temp = list[index]
-                                                list[index] = list[index - 1]
-                                                list[index - 1] = temp
-                                                viewModel.reorderNavItems(list)
-                                            },
-                                            enabled = index > 0,
-                                        ) {
-                                            Icon(
-                                                Icons.Filled.KeyboardArrowUp,
-                                                contentDescription = stringResource(R.string.content_desc_move_up),
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = {
-                                                val list = state.selectedNavItems.toMutableList()
-                                                val temp = list[index]
-                                                list[index] = list[index + 1]
-                                                list[index + 1] = temp
-                                                viewModel.reorderNavItems(list)
-                                            },
-                                            enabled = index < state.selectedNavItems.lastIndex,
-                                        ) {
-                                            Icon(
-                                                Icons.Filled.KeyboardArrowDown,
-                                                contentDescription = stringResource(R.string.content_desc_move_down),
-                                            )
-                                        }
-                                        IconButton(onClick = { viewModel.removeNavItem(name) }) {
-                                            Icon(
-                                                Icons.Filled.Close,
-                                                contentDescription =
-                                                    stringResource(
-                                                        R.string.content_desc_remove_item,
-                                                        label,
-                                                    ),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (state.selectedNavItems.size < 5) {
-                                val available =
-                                    viewModel.availableNavItems.filter { it.first !in state.selectedNavItems }
-                                if (available.isNotEmpty()) {
-                                    var expanded by remember { mutableStateOf(false) }
-                                    Box {
-                                        OutlinedButton(onClick = { expanded = true }) {
-                                            Icon(Icons.Filled.Add, contentDescription = null)
-                                            Spacer(Modifier.size(4.dp))
-                                            Text(stringResource(R.string.settings_action_add_item))
-                                        }
-                                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                                            available.forEach { (name, labelRes) ->
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(labelRes)) },
-                                                    onClick = {
-                                                        viewModel.addNavItem(name)
-                                                        expanded = false
-                                                    },
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Text(
-                                    text = stringResource(R.string.settings_nav_max_reached),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
+                        NavBarSection(
+                            bottomNavDisplayMode = state.bottomNavDisplayMode,
+                            onBottomNavDisplayModeChange = viewModel::onBottomNavDisplayModeChange,
+                            selectedNavItems = state.selectedNavItems,
+                            availableNavItems = viewModel.availableNavItems,
+                            onReorderNavItems = viewModel::reorderNavItems,
+                            onRemoveNavItem = viewModel::removeNavItem,
+                            onAddNavItem = viewModel::addNavItem,
+                        )
                     }
                     SettingsTab.ABOUT -> {
                         // ── About section ─────────────────────────────────────────
@@ -1022,6 +822,160 @@ private fun ChatSection(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NavBarSection(
+    bottomNavDisplayMode: BottomNavDisplayMode,
+    onBottomNavDisplayModeChange: (BottomNavDisplayMode) -> Unit,
+    selectedNavItems: List<String>,
+    availableNavItems: List<Pair<String, Int>>,
+    onReorderNavItems: (List<String>) -> Unit,
+    onRemoveNavItem: (String) -> Unit,
+    onAddNavItem: (String) -> Unit,
+) {
+    SectionCard(title = stringResource(R.string.settings_sec_nav_bar)) {
+        Text(
+            text = stringResource(R.string.settings_item_bottom_nav_display_mode),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            BottomNavDisplayMode.entries.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = bottomNavDisplayMode == mode,
+                    onClick = { onBottomNavDisplayModeChange(mode) },
+                    shape =
+                        SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = BottomNavDisplayMode.entries.size,
+                        ),
+                ) {
+                    Text(
+                        when (mode) {
+                            BottomNavDisplayMode.ICON_AND_TEXT -> {
+                                stringResource(
+                                    R.string.settings_display_mode_icon_and_text,
+                                )
+                            }
+
+                            BottomNavDisplayMode.ICON_ONLY -> {
+                                stringResource(
+                                    R.string.settings_display_mode_icon_only,
+                                )
+                            }
+
+                            BottomNavDisplayMode.TEXT_ONLY -> {
+                                stringResource(
+                                    R.string.settings_display_mode_text_only,
+                                )
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = stringResource(R.string.settings_item_nav_items, selectedNavItems.size),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        selectedNavItems.forEachIndexed { index, name ->
+            val labelRes = availableNavItems.firstOrNull { it.first == name }?.second
+            val label = if (labelRes != null) stringResource(labelRes) else name
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(
+                        onClick = {
+                            val list = selectedNavItems.toMutableList()
+                            val temp = list[index]
+                            list[index] = list[index - 1]
+                            list[index - 1] = temp
+                            onReorderNavItems(list)
+                        },
+                        enabled = index > 0,
+                    ) {
+                        Icon(
+                            Icons.Filled.KeyboardArrowUp,
+                            contentDescription = stringResource(R.string.content_desc_move_up),
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            val list = selectedNavItems.toMutableList()
+                            val temp = list[index]
+                            list[index] = list[index + 1]
+                            list[index + 1] = temp
+                            onReorderNavItems(list)
+                        },
+                        enabled = index < selectedNavItems.lastIndex,
+                    ) {
+                        Icon(
+                            Icons.Filled.KeyboardArrowDown,
+                            contentDescription = stringResource(R.string.content_desc_move_down),
+                        )
+                    }
+                    IconButton(onClick = { onRemoveNavItem(name) }) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription =
+                                stringResource(
+                                    R.string.content_desc_remove_item,
+                                    label,
+                                ),
+                        )
+                    }
+                }
+            }
+        }
+
+        if (selectedNavItems.size < 5) {
+            val available =
+                availableNavItems.filter { it.first !in selectedNavItems }
+            if (available.isNotEmpty()) {
+                var expanded by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { expanded = true }) {
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Spacer(Modifier.size(4.dp))
+                        Text(stringResource(R.string.settings_action_add_item))
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        available.forEach { (name, labelRes) ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(labelRes)) },
+                                onClick = {
+                                    onAddNavItem(name)
+                                    expanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            Text(
+                text = stringResource(R.string.settings_nav_max_reached),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -94,12 +94,11 @@ fun SettingsScreen(
         title = { Text(stringResource(R.string.screen_settings)) },
         showBack = true,
         onBack = onBack,
-    ) { paddingValues ->
+    ) {
         Column(
             modifier =
                 Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
+                    .fillMaxSize(),
         ) {
             ScrollableTabRow(
                 selectedTabIndex = selectedTab.ordinal,

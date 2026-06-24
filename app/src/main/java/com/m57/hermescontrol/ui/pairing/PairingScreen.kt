@@ -55,7 +55,7 @@ fun PairingScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.pairing_screen_title)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPairing() },
     ) { paddingValues ->

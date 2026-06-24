@@ -68,7 +68,7 @@ fun SessionsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_history)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSessions() },
         modifier = modifier,

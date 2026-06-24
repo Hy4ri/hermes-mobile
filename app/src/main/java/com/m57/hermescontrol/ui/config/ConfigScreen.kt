@@ -54,7 +54,7 @@ fun ConfigScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.config_screen_title)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadRawConfig() },
     ) { paddingValues ->

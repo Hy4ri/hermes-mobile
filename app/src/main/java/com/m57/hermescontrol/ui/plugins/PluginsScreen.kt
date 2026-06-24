@@ -70,7 +70,7 @@ fun PluginsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_plugins)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlugins() },
     ) { paddingValues ->

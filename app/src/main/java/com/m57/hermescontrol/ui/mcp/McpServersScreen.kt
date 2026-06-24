@@ -72,7 +72,7 @@ fun McpServersScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_mcp_servers)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadServers() },
     ) { paddingValues ->

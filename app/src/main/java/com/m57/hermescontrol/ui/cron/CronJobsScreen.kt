@@ -60,7 +60,7 @@ fun CronJobsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_cron)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadCronJobs() },
     ) {

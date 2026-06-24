@@ -62,7 +62,7 @@ fun SystemScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_system)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSystemData() },
     ) {

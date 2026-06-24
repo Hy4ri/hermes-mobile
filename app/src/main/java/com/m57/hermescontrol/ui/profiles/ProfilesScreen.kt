@@ -71,7 +71,7 @@ fun ProfilesScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_profiles)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadProfiles() },
     ) { paddingValues ->

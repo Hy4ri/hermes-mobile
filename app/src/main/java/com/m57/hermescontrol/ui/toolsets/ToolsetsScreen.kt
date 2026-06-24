@@ -76,7 +76,7 @@ fun ToolsetsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_toolsets)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadToolsets() },
     ) { paddingValues ->

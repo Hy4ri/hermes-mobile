@@ -77,7 +77,7 @@ fun ModelScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_models)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadModelOptions() },
     ) { paddingValues ->

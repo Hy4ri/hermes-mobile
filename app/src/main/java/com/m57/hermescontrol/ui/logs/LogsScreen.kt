@@ -69,7 +69,7 @@ fun LogsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_logs)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadLogs() },
     ) {

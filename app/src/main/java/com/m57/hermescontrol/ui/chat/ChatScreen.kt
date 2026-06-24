@@ -297,7 +297,7 @@ fun ChatScreen(
                 }
             }
         },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(

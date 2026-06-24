@@ -67,7 +67,7 @@ fun ChannelsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_channels)) },
-        navigationIcon = NavIcon.Menu(onOpenDrawer),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadPlatforms() },
     ) { paddingValues ->

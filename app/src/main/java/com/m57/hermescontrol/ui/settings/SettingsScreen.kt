@@ -152,37 +152,10 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                     SettingsTab.BEHAVIOR -> {
-                        // Behavior section
-                        SectionCard(title = stringResource(R.string.settings_sec_behavior)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column {
-                                    Text(
-                                        text = stringResource(R.string.settings_item_auto_reconnect),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.settings_desc_auto_reconnect),
-                                        style =
-                                            MaterialTheme.typography.bodySmall.copy(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ),
-                                    )
-                                }
-                                Switch(
-                                    checked = state.autoReconnect,
-                                    onCheckedChange = viewModel::onAutoReconnectChange,
-                                    colors =
-                                        SwitchDefaults.colors(
-                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                        ),
-                                )
-                            }
-                        }
+                        BehaviorSection(
+                            autoReconnect = state.autoReconnect,
+                            onAutoReconnectChange = viewModel::onAutoReconnectChange,
+                        )
                     }
                     SettingsTab.APPEARANCE -> {
                         // Appearance section
@@ -914,6 +887,43 @@ private fun SettingsActionButtons(
                 ),
         ) {
             Text(stringResource(R.string.action_save))
+        }
+    }
+}
+
+@Composable
+private fun BehaviorSection(
+    autoReconnect: Boolean,
+    onAutoReconnectChange: (Boolean) -> Unit,
+) {
+    SectionCard(title = stringResource(R.string.settings_sec_behavior)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    text = stringResource(R.string.settings_item_auto_reconnect),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_desc_auto_reconnect),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+            }
+            Switch(
+                checked = autoReconnect,
+                onCheckedChange = onAutoReconnectChange,
+                colors =
+                    SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+            )
         }
     }
 }

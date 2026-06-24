@@ -86,7 +86,7 @@ private fun appEntryProvider(
     }
 
     ScreenRegistry.ALL_SCREENS.forEach { screen ->
-        entry(screen.key::class) {
+        addEntryProvider(clazz = screen.key::class) {
             screen.content(sessionId, openDrawer)
         }
     }

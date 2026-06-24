@@ -29,6 +29,8 @@ abstract class HermesDatabase : RoomDatabase() {
                     dbFile.delete()
                 }
 
+                // Load SQLCipher native library before creating the factory
+                System.loadLibrary("sqlcipher")
                 val factory = SupportOpenHelperFactory(AuthManager.getDatabasePassword())
 
                 instance ?: Room

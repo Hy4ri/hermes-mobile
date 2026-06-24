@@ -153,6 +153,14 @@ class SettingsViewModel : ViewModel() {
         _uiState.update { it.copy(typingEffectDelayMs = delayMs, isSaved = false) }
     }
 
+    /** Clear all auth credentials — logs out and returns to landing screen. */
+    fun logout() {
+        AuthManager.setToken(null)
+        AuthManager.setSessionCookie(null)
+        AuthManager.setWsAuthParam("token")
+        // Don't rebuild ApiClient here — let the navigation complete first
+    }
+
     /** All screens available for bottom-nav selection (name → display label). */
     val availableNavItems: List<Pair<String, Int>> =
         listOf(

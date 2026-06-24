@@ -81,6 +81,7 @@ enum class SettingsTab {
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
@@ -810,6 +811,24 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.primary,
                                     ),
                             )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                onClick = {
+                                    viewModel.logout()
+                                    onLogout()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                    ),
+                            ) {
+                                Text(stringResource(R.string.settings_logout))
+                            }
                         }
                     }
                 }

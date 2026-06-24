@@ -50,6 +50,7 @@ class ApiClientTest {
     fun testAuthInterceptor_addsBearerTokenWhenPresent() =
         runTest {
             every { AuthManager.getToken() } returns "test-token-123"
+            every { AuthManager.getSessionCookie() } returns null
 
             // Rebuild to pick up the new mock values
             ApiClient.rebuild()
@@ -71,6 +72,7 @@ class ApiClientTest {
     fun testAuthInterceptor_omitsBearerWhenTokenBlank() =
         runTest {
             every { AuthManager.getToken() } returns ""
+            every { AuthManager.getSessionCookie() } returns null
 
             ApiClient.rebuild()
 
@@ -91,6 +93,7 @@ class ApiClientTest {
     fun testAuthInterceptor_omitsBearerWhenTokenNull() =
         runTest {
             every { AuthManager.getToken() } returns null
+            every { AuthManager.getSessionCookie() } returns null
 
             ApiClient.rebuild()
 
@@ -111,6 +114,7 @@ class ApiClientTest {
         runTest {
             val rawToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-token"
             every { AuthManager.getToken() } returns rawToken
+            every { AuthManager.getSessionCookie() } returns null
 
             ApiClient.rebuild()
 

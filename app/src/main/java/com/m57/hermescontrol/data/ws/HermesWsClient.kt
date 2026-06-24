@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -139,7 +140,49 @@ object HermesWsClient {
         intentionalClose.set(false)
         currentBackoff = INITIAL_BACKOFF_MS
         _connectionStatus.value = ConnectionStatus.CONNECTING
+        refreshWsTicketIfNeeded()
         openSocket()
+    }
+
+    /**
+     * If a session cookie is present (gated mode), mint a fresh WS ticket
+     * from the dashboard. The ticket is single-use and has a 30-second TTL,
+     * so we must mint a new one on every connect (first launch and reconnect).
+     */
+    private fun refreshWsTicketIfNeeded() {
+        val sessionCookie = AuthManager.getSessionCookie()
+        if (sessionCookie.isNullOrBlank()) {
+            // Loopback mode — the stored token IS a session token, not a
+            // WS ticket, so no refresh needed.
+            return
+        }
+        try {
+            val client =
+                OkHttpClient.Builder()
+                    .connectTimeout(5, TimeUnit.SECONDS)
+                    .readTimeout(5, TimeUnit.SECONDS)
+                    .build()
+            val request =
+                Request.Builder()
+                    .url("http://${AuthManager.getHost()}:${AuthManager.getPort()}/api/auth/ws-ticket")
+                    .header("Cookie", "hermes_session_at=$sessionCookie")
+                    .post(RequestBody.create(null, "{}"))
+                    .build()
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                val ticketMatch = Regex(""""ticket":"([^"]+)"""").find(body)
+                val ticket = ticketMatch?.groupValues?.getOrNull(1)
+                if (!ticket.isNullOrBlank()) {
+                    AuthManager.setToken(ticket)
+                    if (BuildConfig.DEBUG) Log.d(TAG, "WS ticket refreshed")
+                }
+            } else {
+                Log.w(TAG, "WS ticket refresh failed: HTTP ${response.code}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "WS ticket refresh failed: ${e.message}")
+        }
     }
 
     /** Cleanly close the WebSocket and stop auto-reconnect. */
@@ -197,6 +240,7 @@ object HermesWsClient {
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun openSocket() {
+        refreshWsTicketIfNeeded()
         val url = AuthManager.wsUrl()
         // B2 (Jun 18 2026, kanban t_8884db16): url contains the auth token
         // as a query param — never stream to logcat in release builds.

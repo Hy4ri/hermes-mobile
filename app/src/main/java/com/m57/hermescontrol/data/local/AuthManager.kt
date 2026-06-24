@@ -30,6 +30,7 @@ object AuthManager {
     private const val KEY_TYPING_EFFECT_DELAY_MS = "typing_effect_delay_ms"
     private const val KEY_CONNECTION_PROFILES = "connection_profiles"
     private const val KEY_SELECTED_PROFILE_ID = "selected_profile_id"
+    private const val KEY_WS_AUTH_PARAM = "ws_auth_param"
     private const val KEY_USE_DYNAMIC_COLORS = "use_dynamic_colors"
     private const val KEY_THEME_PRESET = "theme_preset"
     private const val KEY_BOTTOM_NAV_DISPLAY_MODE = "bottom_nav_display_mode"
@@ -93,9 +94,11 @@ object AuthManager {
     }
 
     private fun requirePrefs(): SharedPreferences =
-        prefs ?: throw IllegalStateException(
-            "AuthManager not initialised – call AuthManager.init(context) first",
-        )
+        prefs ?: throw IllegalStateException("AuthManager not initialized. Call init(context) first.")
+
+    fun setWsAuthParam(param: String) {
+        requirePrefs().edit().putString(KEY_WS_AUTH_PARAM, param).apply()
+    }
 
     // ── Connection Profiles ──────────────────────────────────────────────
 
@@ -290,7 +293,11 @@ object AuthManager {
 
     /** Convenience: build the WebSocket URL with token query param.
      *  NOTE: Token in query string — trusted local network only. */
-    fun wsUrl(): String = "ws://${getHost()}:${getPort()}/api/ws?token=${getToken().orEmpty()}"
+    fun wsUrl(): String {
+        val authParam = pref.getString(KEY_WS_AUTH_PARAM, "token") ?: "token"
+        val credential = getToken().orEmpty()
+        return "ws://${getHost()}:${getPort()}/api/ws?$authParam=$credential"
+    }
 
     // ── Bottom nav bar items ──────────────────────────────────────────────
 

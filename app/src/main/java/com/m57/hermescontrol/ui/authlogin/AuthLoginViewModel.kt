@@ -221,6 +221,9 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 AuthManager.setHost(state.host)
                 AuthManager.setPort(port)
                 AuthManager.setToken(result)
+                if (state.authMode == DashboardAuthMode.BASIC_AUTH || state.authMode == DashboardAuthMode.ALL) {
+                    AuthManager.setWsAuthParam("ticket")
+                }
                 ApiClient.rebuild()
                 _uiState.update { it.copy(isLoading = false, connectionSuccess = true) }
             }
@@ -332,50 +335,46 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                     header.split(";")[0].trim()
                 }
 
-            // Step 3: Fetch the SPA with the session cookie to get the embedded token
-            val spaClient =
+            // Step 3: Mint a WebSocket ticket using the session cookie
+            val ticketClient =
                 OkHttpClient.Builder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.SECONDS)
                     .build()
 
-            val spaReq =
+            val ticketReq =
                 Request.Builder()
-                    .url(baseUrl)
+                    .url("$baseUrl/api/auth/ws-ticket")
                     .header("Cookie", cookieHeader)
-                    .get()
+                    .post(RequestBody.create(null, "{}"))
                     .build()
-            val spaResp = spaClient.newCall(spaReq).execute()
+            val ticketResp = ticketClient.newCall(ticketReq).execute()
 
-            if (!spaResp.isSuccessful) {
+            if (!ticketResp.isSuccessful) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = app.getString(R.string.connect_error_http_code, spaResp.code),
+                        errorMessage = app.getString(R.string.connect_error_http_code, ticketResp.code),
                     )
                 }
                 return null
             }
 
-            // Step 4: Extract session token from the SPA HTML
-            val body = spaResp.body?.string() ?: ""
-            val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__="([^"]+)"""").find(body)
-            val sessionToken = tokenMatch?.groupValues?.getOrNull(1)
+            val ticketBody = ticketResp.body?.string() ?: ""
+            val ticketMatch = Regex(""""ticket":"([^"]+)"""").find(ticketBody)
+            val ticket = ticketMatch?.groupValues?.getOrNull(1)
 
-            if (sessionToken.isNullOrBlank()) {
-                if (_uiState.value.token.isNotBlank()) {
-                    return _uiState.value.token
-                }
+            if (ticket.isNullOrBlank()) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "Session token not found — enter it manually",
+                        errorMessage = "Failed to obtain WebSocket ticket",
                     )
                 }
                 return null
             }
 
-            return sessionToken
+            return ticket
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(

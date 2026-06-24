@@ -173,6 +173,31 @@ class EventParserTest {
         assertEquals(listOf("Yes", "No"), clarifyEvent.options)
     }
 
+    @Test
+    fun testParseClarifyRequest_withQuestionFields_parsesSuccessfully() {
+        val response =
+            WsResponse(
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "clarify.request",
+                        "payload" to
+                            mapOf(
+                                "question" to "Which environment?",
+                                "choices" to listOf("staging", "production"),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ClarifyRequest)
+        val clarifyEvent = event as WsEvent.ClarifyRequest
+        assertEquals("Which environment?", clarifyEvent.text)
+        assertEquals(listOf("staging", "production"), clarifyEvent.options)
+    }
+
     // ── TEST-07: Untested subtypes ─────────────────────────────────────
 
     @Test

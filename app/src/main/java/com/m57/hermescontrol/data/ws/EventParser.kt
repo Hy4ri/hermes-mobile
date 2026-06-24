@@ -81,8 +81,14 @@ object EventParser {
             }
 
             "clarify.request" -> {
-                val text = payload?.get("text") as? String
-                val rawOptions = payload?.get("options")
+                // Gateway sends "question"/"choices" — fall back to "text"/"options" for any
+                // older client or test that still uses the legacy field names. (Issue #206)
+                val text =
+                    payload?.get("question") as? String
+                        ?: payload?.get("text") as? String
+                val rawOptions =
+                    payload?.get("choices")
+                        ?: payload?.get("options")
                 val clarifyId = payload?.get("clarify_id") as? String ?: payload?.get("request_id") as? String
 
                 @Suppress("UNCHECKED_CAST")

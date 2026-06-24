@@ -945,3 +945,83 @@ private fun AppearanceSection(
         }
     }
 }
+
+@Composable
+private fun ChatSection(
+    typingEffectEnabled: Boolean,
+    onTypingEffectEnabledChange: (Boolean) -> Unit,
+    typingEffectDelayMs: Int,
+    onTypingEffectDelayMsChange: (Int) -> Unit,
+) {
+    SectionCard(title = stringResource(R.string.settings_sec_chat)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    text = stringResource(R.string.settings_item_typing_effect),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    text = stringResource(R.string.settings_desc_typing_effect),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+            }
+            Switch(
+                checked = typingEffectEnabled,
+                onCheckedChange = onTypingEffectEnabledChange,
+                colors =
+                    SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+            )
+        }
+
+        // Delay slider — only visible when effect is enabled
+        AnimatedVisibility(visible = typingEffectEnabled) {
+            Column(modifier = Modifier.padding(top = 12.dp)) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.settings_item_typing_delay,
+                            typingEffectDelayMs,
+                        ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Slider(
+                    value = typingEffectDelayMs.toFloat(),
+                    onValueChange = { onTypingEffectDelayMsChange(it.toInt()) },
+                    valueRange = 10f..100f,
+                    steps = 8, // 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_delay_10ms),
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_delay_100ms),
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}

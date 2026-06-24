@@ -106,11 +106,14 @@ object ChatWsEventReducer {
         state: ChatUiState,
         event: WsEvent.MessageComplete,
     ): ReducerResult {
-        val streaming = state.streamingMessage ?: return ReducerResult(state)
+        val streaming = state.streamingMessage
         val msg =
-            streaming.copy(
+            streaming?.copy(
                 content = event.text ?: streaming.content,
                 isStreaming = false,
+            ) ?: ChatMessage(
+                role = MessageRole.ASSISTANT,
+                content = event.text ?: "",
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId

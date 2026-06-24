@@ -116,7 +116,7 @@ fun KanbanScreen(
                         )
                     } else {
                         Column(
-                            modifier = Modifier.fillMaxSize().padding(paddingValues),
+                            modifier = Modifier.fillMaxSize(),
                         ) {
                             SearchBar(
                                 query = query,

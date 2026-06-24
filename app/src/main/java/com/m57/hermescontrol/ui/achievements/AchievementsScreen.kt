@@ -90,7 +90,7 @@ fun AchievementsScreen(
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(paddingValues),
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {

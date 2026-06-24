@@ -1,0 +1,115 @@
+name: Merge Conflict Detector
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit lands — no point checking stale state
+concurrency:
+  group: merge-conflict-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  detect-and-label:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Ensure label exists
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const LABEL = 'has-conflicts';
+            const { data: labels } = await github.rest.issues.listLabelsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            if (!labels.some(l => l.name === LABEL)) {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: LABEL,
+                color: 'd73a4a',
+                description: 'This PR has merge conflicts that need to be resolved',
+              });
+            }
+
+      - name: Check PRs and label conflicts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const LABEL = 'has-conflicts';
+
+            async function checkAndLabel(prNumber) {
+              // Fetch PR with mergeable status
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+
+              // mergeable: true = clean, false = conflicts, null = still computing
+              const hasConflicts = pr.mergeable === false;
+              const currentLabels = pr.labels.map(l => l.name);
+              const hasLabel = currentLabels.includes(LABEL);
+
+              core.info(
+                `PR #${prNumber}: mergeable=${pr.mergeable}, ` +
+                `hasLabel=${hasLabel}, conflicts=${hasConflicts}`
+              );
+
+              if (hasConflicts && !hasLabel) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  labels: [LABEL],
+                });
+                core.info(`✅ Added "${LABEL}" to PR #${prNumber}`);
+              } else if (!hasConflicts && hasLabel) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  name: LABEL,
+                });
+                core.info(`✅ Removed "${LABEL}" from PR #${prNumber}`);
+              } else if (pr.mergeable === null) {
+                core.warning(
+                  `PR #${prNumber}: mergeable is null (still computing). ` +
+                  `Label left as-is. The next event will recheck.`
+                );
+              }
+            }
+
+            // ── Single PR (pull_request event) ─────────────────────────
+            if (context.eventName === 'pull_request') {
+              await checkAndLabel(context.issue.number);
+              return;
+            }
+
+            // ── Bulk check all open PRs (push to main event) ───────────
+            if (context.eventName === 'push') {
+              const { data: prs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                base: 'main',
+                per_page: 100,
+              });
+              core.info(`Checking ${prs.length} open PR(s) base on main...`);
+              for (const pr of prs) {
+                await checkAndLabel(pr.number);
+              }
+            }

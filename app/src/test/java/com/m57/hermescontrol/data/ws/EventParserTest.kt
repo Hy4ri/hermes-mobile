@@ -176,7 +176,8 @@ class EventParserTest {
     @Test
     fun testParseClarifyRequest_withQuestionFields_parsesSuccessfully() {
         val response =
-            WsResponse(
+            JsonRpcResponse(
+                jsonrpc = "2.0",
                 id = null,
                 result = null,
                 error = null,

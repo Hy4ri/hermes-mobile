@@ -243,7 +243,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         }
 
         val tempApi = ApiClient.createTempService(host, port, token)
-        val result = safeApiCall { tempApi.getStatus() }
+        val result = safeApiCall { tempApi.getSessions() }
 
         return when (result) {
             is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {

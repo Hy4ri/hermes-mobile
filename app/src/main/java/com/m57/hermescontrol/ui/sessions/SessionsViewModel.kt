@@ -81,19 +81,21 @@ class SessionsViewModel : ViewModel() {
                         order = "recent",
                     )
                 }
-            result.onSuccess { data ->
+            val data = result.getOrNull()
+            if (data != null) {
                 _uiState.update {
                     it.copy(
                         isLoadingMore = false,
-                        sessions = it.sessions + data?.sessions.orEmpty(),
-                        total = data?.total ?: it.total,
+                        sessions = it.sessions + data.sessions,
+                        total = data.total,
                     )
                 }
-            }.onFailure { error ->
+            } else {
+                val error = result.exceptionOrNull()
                 _uiState.update {
                     it.copy(
                         isLoadingMore = false,
-                        errorMessage = "Failed to load more: ${error.message}",
+                        errorMessage = "Failed to load more: ${error?.message}",
                     )
                 }
             }

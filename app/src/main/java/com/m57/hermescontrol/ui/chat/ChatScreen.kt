@@ -123,7 +123,6 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    var lastSessionId by remember { mutableStateOf<String?>(null) }
     val showScrollToBottom by remember {
         derivedStateOf {
             state.messages.isNotEmpty() && listState.canScrollForward
@@ -135,116 +134,24 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    // Publish the notification session ID to the ViewModel synchronously
-    // during composition — BEFORE any WebSocket event (GatewayReady) can be
-    // processed. This ensures GatewayReady sees the pending session and
-    // resumes it instead of creating a new empty chat (issue #240).
-    SideEffect {
-        viewModel.initialSessionId = sessionId
-    }
-
-    // Switch to the session from a notification tap or history screen when provided.
-    // Keyed on connectionStatus so switchSession only fires after the WS is
-    // connected — otherwise SESSION_RESUME is silently dropped (webSocket is
-    // null before onOpen). GatewayReady also handles initialSessionId as a
-    // fallback for the race where it fires before this effect.
-    val pendingSessionId = NavigationController.pendingSessionId
-    LaunchedEffect(sessionId, pendingSessionId, state.connectionStatus) {
-        if (state.connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
-        val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
-        if (!target.isNullOrBlank()) {
-            viewModel.switchSession(target)
-            if (target == pendingSessionId) {
-                NavigationController.pendingSessionId = null
-            }
-        }
-    }
-
-    // Manage notification foreground service lifecycle:
-    // - When app goes to background (ON_STOP), mark as not-foreground and
-    //   start the notification service so we can post reply notifications.
-    // - When app returns to foreground (ON_START), mark as foreground and
-    //   stop the notification service.
-    DisposableEffect(lifecycleOwner) {
-        val observer =
-            androidx.lifecycle.LifecycleEventObserver { _, event ->
-                when (event) {
-                    androidx.lifecycle.Lifecycle.Event.ON_START -> {
-                        NotificationHelper.setAppForeground(context, true)
-                        NotificationHelper.stop(context)
-                        viewModel.refreshSettings()
-                        viewModel.refreshCurrentSession()
-                    }
-
-                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
-                        NotificationHelper.setAppForeground(context, false)
-                        NotificationHelper.start(context)
-                    }
-
-                    else -> {}
-                }
-            }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    // Request POST_NOTIFICATIONS runtime permission on Android 13+ (API 33).
-    // The manifest declaration alone is insufficient — on API 33+ the system
-    // requires a runtime permission prompt before the app can post any
-    // notification, including the foreground service notification.
-    val requestNotificationPermission =
-        rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission(),
-        ) { /* granted — next lifecycle event will pick it up */ }
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val permission = android.Manifest.permission.POST_NOTIFICATIONS
-            if (
-                ContextCompat.checkSelfPermission(context, permission) !=
-                android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                requestNotificationPermission.launch(permission)
-            }
-        }
-    }
-
-    // Auto-scroll to bottom on new messages
-    LaunchedEffect(state.messages.size, state.streamingMessage?.content?.length, state.isThinking) {
-        val totalItems =
-            state.messages.size +
-                (if (state.streamingMessage != null) 1 else 0) +
-                (if (state.isThinking) 1 else 0)
-        if (totalItems > 0) {
-            val isSessionSwitch = state.currentSessionId != lastSessionId
-            if (isSessionSwitch) {
-                lastSessionId = state.currentSessionId
-                listState.scrollToItem(totalItems - 1)
-            } else if (listState.isAtBottom()) {
-                listState.animateScrollToItem(totalItems - 1)
-            }
-        }
-    }
-
-    // Show error as snackbar
-    LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            viewModel.clearError()
-        }
-    }
-
-    // Clarify dialog
-    state.clarifyRequest?.let { clarify ->
-        ClarifyDialog(
-            clarify = clarify,
-            onOptionSelected = viewModel::respondToClarify,
-            onDismiss = viewModel::dismissClarify,
-        )
-    }
+    // Lifecycle effects, permissions, session switching, auto-scroll, errors
+    ChatLifecycleEffects(
+        sessionId = sessionId,
+        connectionStatus = state.connectionStatus,
+        currentSessionId = state.currentSessionId,
+        messages = state.messages,
+        streamingMessage = state.streamingMessage,
+        isThinking = state.isThinking,
+        errorMessage = state.errorMessage,
+        isSearchActive = state.isSearchActive,
+        currentSearchMatchIndex = state.currentSearchMatchIndex,
+        searchMatchIndices = state.searchMatchIndices,
+        clarifyRequest = state.clarifyRequest,
+        listState = listState,
+        snackbarHostState = snackbarHostState,
+        viewModel = viewModel,
+    )
 
     val backgroundGradient =
         Brush.verticalGradient(
@@ -255,20 +162,6 @@ fun ChatScreen(
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
                 ),
         )
-
-    // Scroll to current search match
-    LaunchedEffect(state.isSearchActive, state.currentSearchMatchIndex, state.searchMatchIndices) {
-        if (state.isSearchActive &&
-            state.currentSearchMatchIndex >= 0 &&
-            state.currentSearchMatchIndex < state.searchMatchIndices.size &&
-            state.messages.isNotEmpty()
-        ) {
-            val targetIndex = state.searchMatchIndices[state.currentSearchMatchIndex]
-            listState.animateScrollToItem(
-                targetIndex.coerceIn(0, state.messages.lastIndex),
-            )
-        }
-    }
 
     HermesScaffold(
         modifier = modifier,
@@ -1127,4 +1020,130 @@ private fun LazyListState.isAtBottom(threshold: Int = 3): Boolean {
     if (visibleItems.isEmpty()) return true
     val lastVisibleItem = visibleItems.last()
     return lastVisibleItem.index >= layoutInfo.totalItemsCount - threshold
+}
+
+@Composable
+private fun ChatLifecycleEffects(
+    sessionId: String?,
+    connectionStatus: ConnectionStatus,
+    currentSessionId: String?,
+    messages: List<ChatMessage>,
+    streamingMessage: ChatMessage?,
+    isThinking: Boolean,
+    errorMessage: String?,
+    isSearchActive: Boolean,
+    currentSearchMatchIndex: Int,
+    searchMatchIndices: List<Int>,
+    clarifyRequest: ClarifyUi?,
+    listState: LazyListState,
+    snackbarHostState: SnackbarHostState,
+    viewModel: ChatViewModel,
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    // Publish the notification session ID to the ViewModel synchronously
+    SideEffect {
+        viewModel.initialSessionId = sessionId
+    }
+
+    // Switch to session from notification/history
+    var lastSessionId by remember { mutableStateOf<String?>(null) }
+    val pendingSessionId = NavigationController.pendingSessionId
+    LaunchedEffect(sessionId, pendingSessionId, connectionStatus) {
+        if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
+        val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
+        if (!target.isNullOrBlank()) {
+            viewModel.switchSession(target)
+            if (target == pendingSessionId) {
+                NavigationController.pendingSessionId = null
+            }
+        }
+    }
+
+    // Lifecycle observer for notification foreground service
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            androidx.lifecycle.LifecycleEventObserver { _, event ->
+                when (event) {
+                    androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                        NotificationHelper.setAppForeground(context, true)
+                        NotificationHelper.stop(context)
+                        viewModel.refreshSettings()
+                        viewModel.refreshCurrentSession()
+                    }
+                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                        NotificationHelper.setAppForeground(context, false)
+                        NotificationHelper.start(context)
+                    }
+                    else -> {}
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Request POST_NOTIFICATIONS permission on Android 13+
+    val requestNotificationPermission =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { /* granted */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permission = android.Manifest.permission.POST_NOTIFICATIONS
+            if (ContextCompat.checkSelfPermission(context, permission) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPermission.launch(permission)
+            }
+        }
+    }
+
+    // Auto-scroll to bottom on new messages
+    LaunchedEffect(messages.size, streamingMessage?.content?.length, isThinking) {
+        val totalItems =
+            messages.size +
+                (if (streamingMessage != null) 1 else 0) +
+                (if (isThinking) 1 else 0)
+        if (totalItems > 0) {
+            val isSessionSwitch = currentSessionId != lastSessionId
+            if (isSessionSwitch) {
+                lastSessionId = currentSessionId
+                listState.scrollToItem(totalItems - 1)
+            } else if (listState.isAtBottom()) {
+                listState.animateScrollToItem(totalItems - 1)
+            }
+        }
+    }
+
+    // Show error as snackbar
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            viewModel.clearError()
+        }
+    }
+
+    // Clarify dialog
+    clarifyRequest?.let { clarify ->
+        ClarifyDialog(
+            clarify = clarify,
+            onOptionSelected = viewModel::respondToClarify,
+            onDismiss = viewModel::dismissClarify,
+        )
+    }
+
+    // Scroll to current search match
+    LaunchedEffect(isSearchActive, currentSearchMatchIndex, searchMatchIndices) {
+        if (isSearchActive &&
+            currentSearchMatchIndex >= 0 &&
+            currentSearchMatchIndex < searchMatchIndices.size &&
+            messages.isNotEmpty()
+        ) {
+            val targetIndex = searchMatchIndices[currentSearchMatchIndex]
+            listState.animateScrollToItem(
+                targetIndex.coerceIn(0, messages.lastIndex),
+            )
+        }
+    }
 }

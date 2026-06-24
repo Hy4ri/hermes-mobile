@@ -3,8 +3,6 @@ package com.m57.hermescontrol
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
-@Serializable data object ConnectScreen : NavKey
-
 @Serializable data object LandingScreen : NavKey
 
 @Serializable data object AuthLoginScreen : NavKey

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -78,7 +77,6 @@ import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenCont
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
-import com.m57.hermescontrol.ui.connect.ConnectScreen as ConnectScreenContent
 import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
 import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
@@ -195,15 +193,6 @@ private fun appEntryProvider(
     sessionId: String?,
     openDrawer: () -> Unit,
 ) = entryProvider {
-    entry<ConnectScreen> {
-        ConnectScreenContent(
-            onConnected = {
-                NavigationController.resetTo(ChatScreen)
-            },
-            modifier = Modifier.safeDrawingPadding(),
-        )
-    }
-
     entry<LandingScreen> {
         LandingScreenContent(
             onAuthLogin = {
@@ -378,8 +367,7 @@ fun MainNavigation(sessionId: String? = null) {
     }
 
     val showBottomBar =
-        currentScreen != ConnectScreen &&
-            currentScreen != LandingScreen &&
+        currentScreen != LandingScreen &&
             currentScreen != AuthLoginScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }

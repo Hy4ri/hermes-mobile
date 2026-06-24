@@ -74,6 +74,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
+import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
@@ -82,6 +83,7 @@ import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
 import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
 import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
+import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 import com.m57.hermescontrol.ui.logs.LogsScreen as LogsScreenContent
 import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
@@ -199,6 +201,28 @@ private fun appEntryProvider(
                 NavigationController.resetTo(ChatScreen)
             },
             modifier = Modifier.safeDrawingPadding(),
+        )
+    }
+
+    entry<LandingScreen> {
+        LandingScreenContent(
+            onAuthLogin = {
+                NavigationController.navigateTo(AuthLoginScreen)
+            },
+            onPairingLogin = {
+                NavigationController.navigateTo(PairingScreen)
+            },
+        )
+    }
+
+    entry<AuthLoginScreen> {
+        AuthLoginScreenContent(
+            onConnected = {
+                NavigationController.resetTo(ChatScreen)
+            },
+            onBack = {
+                NavigationController.goBack()
+            },
         )
     }
 
@@ -328,7 +352,7 @@ private fun appEntryProvider(
 fun MainNavigation(sessionId: String? = null) {
     val token by AuthManager.tokenFlow.collectAsState()
     val hasToken = !token.isNullOrBlank()
-    val startScreen: NavKey = if (hasToken) ChatScreen else ConnectScreen
+    val startScreen: NavKey = if (hasToken) ChatScreen else LandingScreen
 
     val backStack = rememberNavBackStack(startScreen)
     NavigationController.backStack = backStack
@@ -353,7 +377,10 @@ fun MainNavigation(sessionId: String? = null) {
         NavigationController.updatePrimaryScreens(bottomNavKeys)
     }
 
-    val showBottomBar = currentScreen != ConnectScreen
+    val showBottomBar =
+        currentScreen != ConnectScreen &&
+            currentScreen != LandingScreen &&
+            currentScreen != AuthLoginScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 

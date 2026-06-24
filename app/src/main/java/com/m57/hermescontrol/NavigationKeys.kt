@@ -5,6 +5,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object ConnectScreen : NavKey
 
+@Serializable data object LandingScreen : NavKey
+
+@Serializable data object AuthLoginScreen : NavKey
+
 @Serializable data object ChatScreen : NavKey
 
 @Serializable data object SettingsScreen : NavKey

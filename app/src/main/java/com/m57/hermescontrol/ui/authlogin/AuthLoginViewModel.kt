@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.ui.authlogin
 
 import android.app.Application
-import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -19,6 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import java.util.concurrent.TimeUnit
 
 /**
@@ -295,38 +295,70 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         }
 
         val baseUrl = "http://$host:$port"
-        val credentials = Base64.encodeToString("$username:$password".toByteArray(), Base64.NO_WRAP)
-        val authHeader = "Basic $credentials"
+        val jsonBody = """{"provider":"basic","username":"$username","password":"$password","next":""}"""
 
         try {
-            // Use a client that follows redirects — / always redirects to /login
-            val authClient =
+            // Step 1: Authenticate via the password login endpoint to get a session cookie
+            val loginClient =
                 OkHttpClient.Builder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.SECONDS)
-                    .followRedirects(true)
+                    .followRedirects(false)
                     .build()
-            val authReq =
-                Request.Builder()
-                    .url("$baseUrl/login")
-                    .header("Authorization", authHeader)
-                    .get()
-                    .build()
-            val authResp = authClient.newCall(authReq).execute()
 
-            if (!authResp.isSuccessful) {
+            val loginReq =
+                Request.Builder()
+                    .url("$baseUrl/auth/password-login")
+                    .header("Content-Type", "application/json")
+                    .post(RequestBody.create(null, jsonBody))
+                    .build()
+            val loginResp = loginClient.newCall(loginReq).execute()
+
+            if (!loginResp.isSuccessful) {
                 val msg =
-                    when (authResp.code) {
+                    when (loginResp.code) {
                         401 -> app.getString(R.string.connect_error_401)
                         403 -> app.getString(R.string.connect_error_403)
-                        else -> app.getString(R.string.connect_error_http_code, authResp.code)
+                        else -> app.getString(R.string.connect_error_http_code, loginResp.code)
                     }
                 _uiState.update { it.copy(isLoading = false, errorMessage = msg) }
                 return null
             }
 
-            // Extract session token from the SPA HTML
-            val body = authResp.body?.string() ?: ""
+            // Step 2: Extract session cookie from Set-Cookie headers
+            val setCookieHeaders = loginResp.headers("Set-Cookie")
+            val cookieHeader =
+                setCookieHeaders.joinToString("; ") { header ->
+                    header.split(";")[0].trim()
+                }
+
+            // Step 3: Fetch the SPA with the session cookie to get the embedded token
+            val spaClient =
+                OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .build()
+
+            val spaReq =
+                Request.Builder()
+                    .url(baseUrl)
+                    .header("Cookie", cookieHeader)
+                    .get()
+                    .build()
+            val spaResp = spaClient.newCall(spaReq).execute()
+
+            if (!spaResp.isSuccessful) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = app.getString(R.string.connect_error_http_code, spaResp.code),
+                    )
+                }
+                return null
+            }
+
+            // Step 4: Extract session token from the SPA HTML
+            val body = spaResp.body?.string() ?: ""
             val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__="([^"]+)"""").find(body)
             val sessionToken = tokenMatch?.groupValues?.getOrNull(1)
 

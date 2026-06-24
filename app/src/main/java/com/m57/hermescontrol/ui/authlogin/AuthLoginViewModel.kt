@@ -42,7 +42,7 @@ data class AuthLoginUiState(
     val username: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
-    val isProbing: Boolean = false,
+    val probing: Boolean = false,
     val authMode: DashboardAuthMode? = null,
     val connectionSuccess: Boolean = false,
     val errorMessage: String? = null,
@@ -104,7 +104,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             return
         }
 
-        _uiState.update { it.copy(isProbing = true, errorMessage = null, authMode = null) }
+        _uiState.update { it.copy(probing = true, errorMessage = null, authMode = null) }
 
         viewModelScope.launch {
             val result =
@@ -113,7 +113,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                 }
             _uiState.update {
                 it.copy(
-                    isProbing = false,
+                    probing = false,
                     authMode = result,
                     errorMessage =
                         if (result == null) {

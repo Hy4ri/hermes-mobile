@@ -358,6 +358,9 @@
     <string name="channels_status_configured">Configured</string>
     <string name="channels_status_not_set">Not set</string>
 
+    <!-- Settings -->
+    <string name="settings_logout">Logout</string>
+
     <!-- Auth Login Screen -->
     <string name="auth_login_title">Auth Login</string>
     <string name="auth_login_desc">Connect to your Hermes dashboard</string>

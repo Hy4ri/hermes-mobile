@@ -231,6 +231,9 @@ private fun appEntryProvider(
     entry<SettingsScreen> {
         SettingsScreenContent(
             onBack = { NavigationController.goBack() },
+            onLogout = {
+                NavigationController.resetTo(LandingScreen)
+            },
         )
     }
 

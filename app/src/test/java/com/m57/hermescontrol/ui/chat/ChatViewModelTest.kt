@@ -292,7 +292,7 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            coEvery { ApiClient.hermesApi.getSessions() } returns
+            coEvery { ApiClient.hermesApi.getSessions(any(), any(), any()) } returns
                 mockk(relaxed = true) {
                     every { isSuccessful } returns true
                     every { body() } returns null
@@ -301,7 +301,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/sessions")
             advanceUntilIdle()
 
-            coVerify { ApiClient.hermesApi.getSessions() }
+            coVerify { ApiClient.hermesApi.getSessions(any(), any(), any()) }
         }
 
     @Test

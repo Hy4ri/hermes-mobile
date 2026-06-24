@@ -67,7 +67,11 @@ interface HermesApiService {
     suspend fun getStatus(): Response<StatusResponse>
 
     @GET("api/sessions")
-    suspend fun getSessions(): Response<SessionListResponse>
+    suspend fun getSessions(
+        @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0,
+        @Query("order") order: String = "recent",
+    ): Response<SessionListResponse>
 
     @GET("api/sessions/{id}/messages")
     suspend fun getSessionMessages(

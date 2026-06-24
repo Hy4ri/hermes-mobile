@@ -2,6 +2,9 @@ package com.m57.hermescontrol.data.model
 
 data class SessionListResponse(
     val sessions: List<SessionInfo>,
+    val total: Int = 0,
+    val limit: Int = 0,
+    val offset: Int = 0,
 )
 
 data class SessionInfo(

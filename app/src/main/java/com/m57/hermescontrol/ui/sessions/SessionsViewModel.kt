@@ -81,22 +81,24 @@ class SessionsViewModel : ViewModel() {
                         order = "recent",
                     )
                 }
-            val data = result.getOrNull()
-            if (data != null) {
-                _uiState.update {
-                    it.copy(
-                        isLoadingMore = false,
-                        sessions = it.sessions + data.sessions,
-                        total = data.total,
-                    )
+            when (result) {
+                is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
+                    val data = result.data
+                    _uiState.update {
+                        it.copy(
+                            isLoadingMore = false,
+                            sessions = it.sessions + data.sessions,
+                            total = data.total,
+                        )
+                    }
                 }
-            } else {
-                val error = result.exceptionOrNull()
-                _uiState.update {
-                    it.copy(
-                        isLoadingMore = false,
-                        errorMessage = "Failed to load more: ${error?.message}",
-                    )
+                is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingMore = false,
+                            errorMessage = "Failed to load more: ${result.error.message}",
+                        )
+                    }
                 }
             }
         }

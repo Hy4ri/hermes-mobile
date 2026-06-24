@@ -1,6 +1,5 @@
 package com.m57.hermescontrol
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -16,25 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.ListAlt
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.HistoryEdu
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Webhook
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -58,7 +38,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -72,8 +51,8 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import kotlinx.coroutines.launch
-import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
+import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 
 private fun resolveBottomNavItems(names: List<String>): List<ScreenDefinition> =
     names.mapNotNull { name -> ScreenRegistry.ALL_SCREENS.firstOrNull { it.key::class.simpleName == name } }
@@ -121,8 +100,6 @@ fun MainNavigation(sessionId: String? = null) {
 
     val backStack = remember { NavBackStack(startScreen) }
     LaunchedEffect(startScreen) {
-        // When start screen changes (e.g., logout → LandingScreen, or
-        // fresh login → ChatScreen), reset the backstack atomically.
         if (backStack.lastOrNull() != startScreen) {
             backStack.clear()
             backStack.add(startScreen)
@@ -134,16 +111,11 @@ fun MainNavigation(sessionId: String? = null) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Read dynamic bottom-nav config.
-    // AuthManager.bottomNavItemsFlow is a StateFlow that emits updates when the user
-    // customises items in Settings. Using collectAsState() ensures the NavigationBar
-    // recomposes and reflects choices instantly.
     val bottomNavItemsState by AuthManager.bottomNavItemsFlow.collectAsState()
     val bottomNavDisplayMode by AuthManager.bottomNavDisplayModeFlow.collectAsState()
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
     val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
-    // Sync primary screens to NavigationController
     LaunchedEffect(bottomNavKeys) {
         NavigationController.updatePrimaryScreens(bottomNavKeys)
     }
@@ -162,19 +134,14 @@ fun MainNavigation(sessionId: String? = null) {
                 ModalDrawerSheet(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 ) {
-                    // Brand header with connection status
                     val connectionStatus by HermesWsClient.connectionStatus.collectAsState()
                     val statusColor =
                         when (connectionStatus) {
                             ConnectionStatus.CONNECTED -> Color(0xFF4CAF50)
-
-                            // green
                             ConnectionStatus.CONNECTING,
                             ConnectionStatus.RECONNECTING,
                             -> Color(0xFFFFC107)
-
-                            // yellow
-                            ConnectionStatus.DISCONNECTED -> Color(0xFFF44336) // red
+                            ConnectionStatus.DISCONNECTED -> Color(0xFFF44336)
                         }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

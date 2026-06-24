@@ -100,18 +100,30 @@ object ApiClient {
 
         val authInterceptor =
             Interceptor { chain ->
-                val token = AuthManager.getToken()
-                val request =
-                    if (!token.isNullOrBlank()) {
-                        chain
-                            .request()
+                val request = chain.request()
+                val sessionCookie = AuthManager.getSessionCookie()
+                if (!sessionCookie.isNullOrBlank()) {
+                    // Gated mode: authenticate via session cookie
+                    chain.proceed(
+                        request
                             .newBuilder()
-                            .addHeader("Authorization", "Bearer $token")
-                            .build()
+                            .addHeader("Cookie", "hermes_session_at=$sessionCookie")
+                            .build(),
+                    )
+                } else {
+                    // Loopback mode: authenticate via Bearer token
+                    val token = AuthManager.getToken()
+                    if (!token.isNullOrBlank()) {
+                        chain.proceed(
+                            request
+                                .newBuilder()
+                                .addHeader("Authorization", "Bearer $token")
+                                .build(),
+                        )
                     } else {
-                        chain.request()
+                        chain.proceed(request)
                     }
-                chain.proceed(request)
+                }
             }
 
         // SEC-11: No certificate pinning is configured by default since the app

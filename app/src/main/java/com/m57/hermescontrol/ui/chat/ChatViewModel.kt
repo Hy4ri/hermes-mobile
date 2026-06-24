@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -174,12 +175,15 @@ class ChatViewModel(
                         repo.persistMessage(effect.message, effect.sessionId)
                     }
                 }
+
                 is ReducerEffect.CreateNewSession -> {
                     createNewSession()
                 }
+
                 is ReducerEffect.LoadSessions -> {
                     loadSessions()
                 }
+
                 is ReducerEffect.RefreshSessions -> {
                     loadSessions()
                 }
@@ -189,12 +193,16 @@ class ChatViewModel(
         // Handle complex events that need ViewModel-specific context
         when (event) {
             is WsEvent.GatewayReady -> {
+                _uiState.update { it.copy(isLoading = false) }
                 addSystemMessage("Connected to Hermes")
+                loadSessions()
                 if (_uiState.value.currentSessionId == null) {
                     val initial = initialSessionId
                     if (!initial.isNullOrBlank()) {
                         initialSessionId = null
                         switchSession(initial)
+                    } else {
+                        createNewSession()
                     }
                 }
             }
@@ -208,7 +216,10 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageStart -> {
-                streamingMessageId = event.messageId ?: event.id
+                streamingMessageId =
+                    java.util.UUID
+                        .randomUUID()
+                        .toString()
                 streamingBuffer.clear()
                 thinkingBuffer.clear()
                 lastFlushMs = 0L
@@ -486,16 +497,35 @@ class ChatViewModel(
         }
 
         when (val result = slashDispatcher.dispatch(command)) {
-            is SlashResult.Message -> addAssistantMessage(result.text)
-            is SlashResult.Interrupt -> interruptSession()
-            is SlashResult.NewSession -> createNewSession()
-            is SlashResult.FetchStatus -> fetchAndDisplayStatus()
-            is SlashResult.FetchSessions -> fetchAndDisplaySessions()
-            is SlashResult.FetchStats -> fetchAndDisplayStats()
-            is SlashResult.Unknown ->
+            is SlashResult.Message -> {
+                addAssistantMessage(result.text)
+            }
+
+            is SlashResult.Interrupt -> {
+                interruptSession()
+            }
+
+            is SlashResult.NewSession -> {
+                createNewSession()
+            }
+
+            is SlashResult.FetchStatus -> {
+                fetchAndDisplayStatus()
+            }
+
+            is SlashResult.FetchSessions -> {
+                fetchAndDisplaySessions()
+            }
+
+            is SlashResult.FetchStats -> {
+                fetchAndDisplayStats()
+            }
+
+            is SlashResult.Unknown -> {
                 addAssistantMessage(
                     "Unknown command: `${result.cmd}`. Type `/help` to view a list of available commands.",
                 )
+            }
         }
     }
 
@@ -525,6 +555,7 @@ class ChatViewModel(
                         """.trimIndent(),
                     )
                 }
+
                 is NetworkResult.Failure -> {
                     addAssistantMessage("Failed to retrieve status: ${result.error.message}")
                 }
@@ -547,6 +578,7 @@ class ChatViewModel(
                         }
                     addAssistantMessage("**Sessions List:**\n$sessionsStr")
                 }
+
                 is NetworkResult.Failure -> {
                     addAssistantMessage("Failed to list sessions: ${result.error.message}")
                 }
@@ -574,6 +606,7 @@ class ChatViewModel(
                         """.trimIndent(),
                     )
                 }
+
                 is NetworkResult.Failure -> {
                     addAssistantMessage("Failed to retrieve system stats: ${result.error.message}")
                 }

@@ -19,37 +19,41 @@ object ChatWsEventReducer {
     ): ReducerResult =
         when (event) {
             is WsEvent.GatewayReady -> onGatewayReady(state)
+
             is WsEvent.MessageStart -> onMessageStart(state, event)
+
             is WsEvent.MessageToken -> onMessageToken(state, event)
+
             is WsEvent.ThinkingDelta -> onThinkingDelta(state, event)
+
             is WsEvent.MessageComplete -> onMessageComplete(state, event)
-            is WsEvent.MessageDone -> onMessageDone(state, event)
+
+            is WsEvent.MessageDone -> onMessageDone(state)
+
             is WsEvent.ToolStart -> onToolStart(state, event)
+
             is WsEvent.ToolComplete -> onToolComplete(state, event)
+
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, event)
+
             is WsEvent.RpcError -> onRpcError(state, event)
-            is WsEvent.SessionUpdated -> onSessionUpdated(state, event)
-            is WsEvent.StatusUpdate -> onStatusUpdate(state, event)
-            is WsEvent.Unknown -> onUnknown(state, event)
+
+            is WsEvent.SessionUpdated -> onSessionUpdated(state)
+
+            is WsEvent.StatusUpdate -> onStatusUpdate(state)
+
+            is WsEvent.Unknown -> onUnknown(state)
+
             // SessionInfo is a no-op in the original code
             is WsEvent.SessionInfo -> ReducerResult(state)
+
             // RpcResult is handled by the ViewModel (needs pending request context)
             is WsEvent.RpcResult -> ReducerResult(state)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────
 
-    private fun onGatewayReady(state: ChatUiState): ReducerResult {
-        val effects = mutableListOf<ReducerEffect>()
-        if (state.currentSessionId == null) {
-            effects.add(ReducerEffect.CreateNewSession)
-        }
-        effects.add(ReducerEffect.LoadSessions)
-        return ReducerResult(
-            state = state.copy(isLoading = false),
-            effects = effects,
-        )
-    }
+    private fun onGatewayReady(state: ChatUiState): ReducerResult = ReducerResult(state)
 
     // ── MessageStart ──────────────────────────────────────────────────
 
@@ -156,7 +160,12 @@ object ChatWsEventReducer {
         state: ChatUiState,
         event: WsEvent.ToolStart,
     ): ReducerResult {
-        val contentJson = event.data?.let { com.google.gson.Gson().toJson(it) } ?: ""
+        val contentJson =
+            event.data?.let {
+                com.google.gson
+                    .Gson()
+                    .toJson(it)
+            } ?: ""
         val toolMessage =
             ChatMessage(
                 role = MessageRole.TOOL,
@@ -188,7 +197,12 @@ object ChatWsEventReducer {
         state: ChatUiState,
         event: WsEvent.ToolComplete,
     ): ReducerResult {
-        val contentJson = event.data?.let { com.google.gson.Gson().toJson(it) } ?: ""
+        val contentJson =
+            event.data?.let {
+                com.google.gson
+                    .Gson()
+                    .toJson(it)
+            } ?: ""
         val messages = state.messages.toMutableList()
         val toolIdx =
             messages.indexOfLast {
@@ -221,49 +235,41 @@ object ChatWsEventReducer {
     private fun onClarifyRequest(
         state: ChatUiState,
         event: WsEvent.ClarifyRequest,
-    ): ReducerResult {
-        return ReducerResult(
+    ): ReducerResult =
+        ReducerResult(
             state =
                 state.copy(
                     clarifyRequest =
                         ClarifyUi(
-                            text = event.text,
-                            options = event.options,
-                            clarifyId = event.id,
+                            text = event.text.orEmpty(),
+                            options = event.options.orEmpty(),
+                            clarifyId = event.clarifyId,
                         ),
                     isAgentTyping = false,
                 ),
         )
-    }
 
     // ── RpcError ──────────────────────────────────────────────────────
 
     private fun onRpcError(
         state: ChatUiState,
         event: WsEvent.RpcError,
-    ): ReducerResult {
-        return ReducerResult(
+    ): ReducerResult =
+        ReducerResult(
             state =
                 state.copy(
                     isLoading = false,
                     errorMessage = "Error: ${event.error}",
                 ),
         )
-    }
 
     // ── SessionUpdated / StatusUpdate / Unknown ───────────────────────
 
-    private fun onSessionUpdated(state: ChatUiState): ReducerResult {
-        return ReducerResult(state)
-    }
+    private fun onSessionUpdated(state: ChatUiState): ReducerResult = ReducerResult(state)
 
-    private fun onStatusUpdate(state: ChatUiState): ReducerResult {
-        return ReducerResult(state)
-    }
+    private fun onStatusUpdate(state: ChatUiState): ReducerResult = ReducerResult(state)
 
-    private fun onUnknown(state: ChatUiState): ReducerResult {
-        return ReducerResult(state)
-    }
+    private fun onUnknown(state: ChatUiState): ReducerResult = ReducerResult(state)
 
     // ── Helpers ───────────────────────────────────────────────────────
 
@@ -308,7 +314,10 @@ data class ReducerResult(
  * Side-effects that the reducer cannot perform itself (needs I/O or ViewModel context).
  */
 sealed class ReducerEffect {
-    data class PersistMessage(val message: ChatMessage, val sessionId: String) : ReducerEffect()
+    data class PersistMessage(
+        val message: ChatMessage,
+        val sessionId: String,
+    ) : ReducerEffect()
 
     data object CreateNewSession : ReducerEffect()
 

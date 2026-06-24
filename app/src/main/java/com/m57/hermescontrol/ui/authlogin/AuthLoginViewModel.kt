@@ -179,11 +179,11 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             }
 
         return if (needsBasicAuth) {
-            DashboardAuthMode.BASIC_AUTH
+            DashboardAuthMode.ALL
         } else if (hasTokenInSpa) {
             DashboardAuthMode.TOKEN_ONLY
         } else {
-            DashboardAuthMode.BASIC_AUTH
+            DashboardAuthMode.ALL
         }
     }
 
@@ -208,7 +208,11 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                                 state.username,
                                 state.password,
                             )
-                        DashboardAuthMode.ALL -> connectBasicAuth(state.host, port, state.username, state.password)
+                        DashboardAuthMode.ALL -> {
+                            // First authenticate with basic auth, then use entered token
+                            val session = connectBasicAuth(state.host, port, state.username, state.password)
+                            if (session != null) session else connectTokenOnly(state.host, port, state.token)
+                        }
                         null -> null
                     }
                 }

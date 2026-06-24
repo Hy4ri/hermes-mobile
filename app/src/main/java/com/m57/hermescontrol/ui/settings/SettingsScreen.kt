@@ -141,80 +141,13 @@ fun SettingsScreen(
                             onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
                         )
 
-                        // Test result
-                        AnimatedVisibility(
-                            visible = state.testResult != null,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                        ) {
-                            state.testResult?.let { result ->
-                                Card(
-                                    colors =
-                                        CardDefaults.cardColors(
-                                            containerColor =
-                                                if (result.startsWith("✅")) {
-                                                    MaterialTheme.colorScheme.primaryContainer
-                                                } else {
-                                                    MaterialTheme.colorScheme.errorContainer
-                                                },
-                                        ),
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(
-                                        text = result,
-                                        modifier = Modifier.padding(16.dp),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                }
-                            }
-                        }
-
-                        // Save indicator
-                        AnimatedVisibility(
-                            visible = state.isSaved,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.settings_save_success),
-                                style =
-                                    MaterialTheme.typography.bodyMedium.copy(
-                                        color = MaterialTheme.colorScheme.primary,
-                                    ),
-                            )
-                        }
-
-                        // Buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = viewModel::testConnection,
-                                enabled = !state.isTesting,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                if (state.isTesting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp,
-                                    )
-                                } else {
-                                    Text(stringResource(R.string.settings_action_test_connection))
-                                }
-                            }
-
-                            Button(
-                                onClick = viewModel::save,
-                                modifier = Modifier.weight(1f),
-                                colors =
-                                    ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                    ),
-                            ) {
-                                Text(stringResource(R.string.action_save))
-                            }
-                        }
+                        TestResultCard(testResult = state.testResult)
+                        SaveIndicator(isSaved = state.isSaved)
+                        SettingsActionButtons(
+                            isTesting = state.isTesting,
+                            onTest = viewModel::testConnection,
+                            onSave = viewModel::save,
+                        )
 
                         Spacer(modifier = Modifier.height(16.dp))
                     }
@@ -896,6 +829,91 @@ private fun ConnectionSection(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.settings_action_clear_token))
+        }
+    }
+}
+
+@Composable
+private fun TestResultCard(testResult: String?) {
+    AnimatedVisibility(
+        visible = testResult != null,
+        enter = fadeIn(),
+        exit = fadeOut(),
+    ) {
+        testResult?.let { result ->
+            Card(
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            if (result.startsWith("✅")) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.errorContainer
+                            },
+                    ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = result,
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SaveIndicator(isSaved: Boolean) {
+    AnimatedVisibility(
+        visible = isSaved,
+        enter = fadeIn(),
+        exit = fadeOut(),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_save_success),
+            style =
+                MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.primary,
+                ),
+        )
+    }
+}
+
+@Composable
+private fun SettingsActionButtons(
+    isTesting: Boolean,
+    onTest: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        OutlinedButton(
+            onClick = onTest,
+            enabled = !isTesting,
+            modifier = Modifier.weight(1f),
+        ) {
+            if (isTesting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(stringResource(R.string.settings_action_test_connection))
+            }
+        }
+
+        Button(
+            onClick = onSave,
+            modifier = Modifier.weight(1f),
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                ),
+        ) {
+            Text(stringResource(R.string.action_save))
         }
     }
 }

@@ -232,7 +232,12 @@ private fun appEntryProvider(
         SettingsScreenContent(
             onBack = { NavigationController.goBack() },
             onLogout = {
-                NavigationController.resetTo(LandingScreen)
+                // First clear auth state to trigger token flow
+                // then reset navigation to landing screen
+                NavigationController.backStack?.let { stack ->
+                    stack.clear()
+                    stack.add(LandingScreen)
+                }
             },
         )
     }

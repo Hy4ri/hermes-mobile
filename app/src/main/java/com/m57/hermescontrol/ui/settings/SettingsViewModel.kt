@@ -158,7 +158,7 @@ class SettingsViewModel : ViewModel() {
         AuthManager.setToken(null)
         AuthManager.setSessionCookie(null)
         AuthManager.setWsAuthParam("token")
-        ApiClient.rebuild()
+        // Don't rebuild ApiClient here — let the navigation complete first
     }
 
     /** All screens available for bottom-nav selection (name → display label). */

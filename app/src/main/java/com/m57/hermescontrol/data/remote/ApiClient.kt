@@ -24,8 +24,6 @@ object ApiClient {
     @Volatile
     private var service: HermesApiService? = null
 
-    private val connectionPool = okhttp3.ConnectionPool()
-
     /** The current [HermesApiService] instance. Lazily created on first access. */
     val hermesApi: HermesApiService
         get() {
@@ -40,6 +38,47 @@ object ApiClient {
             retrofit = null
             service = null
         }
+    }
+
+    /** Creates a standalone, temporary [HermesApiService] without modifying the global instance. */
+    fun createTempService(
+        host: String,
+        port: Int,
+        token: String,
+    ): HermesApiService {
+        val tempAuthInterceptor =
+            Interceptor { chain ->
+                val request =
+                    if (token.isNotBlank()) {
+                        chain
+                            .request()
+                            .newBuilder()
+                            .addHeader("Authorization", "Bearer $token")
+                            .build()
+                    } else {
+                        chain.request()
+                    }
+                chain.proceed(request)
+            }
+
+        val tempOkHttp =
+            OkHttpClient
+                .Builder()
+                .addInterceptor(tempAuthInterceptor)
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
+                .build()
+
+        val tempRetrofit =
+            Retrofit
+                .Builder()
+                .baseUrl("http://$host:$port/")
+                .client(tempOkHttp)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+
+        return tempRetrofit.create(HermesApiService::class.java)
     }
 
     // ── Internal ─────────────────────────────────────────────────────────
@@ -61,18 +100,30 @@ object ApiClient {
 
         val authInterceptor =
             Interceptor { chain ->
-                val token = AuthManager.getToken()
-                val request =
-                    if (!token.isNullOrBlank()) {
-                        chain
-                            .request()
+                val request = chain.request()
+                val sessionCookie = AuthManager.getSessionCookie()
+                if (!sessionCookie.isNullOrBlank()) {
+                    // Gated mode: authenticate via session cookie
+                    chain.proceed(
+                        request
                             .newBuilder()
-                            .addHeader("Authorization", "Bearer $token")
-                            .build()
+                            .addHeader("Cookie", "hermes_session_at=$sessionCookie")
+                            .build(),
+                    )
+                } else {
+                    // Loopback mode: authenticate via Bearer token
+                    val token = AuthManager.getToken()
+                    if (!token.isNullOrBlank()) {
+                        chain.proceed(
+                            request
+                                .newBuilder()
+                                .addHeader("Authorization", "Bearer $token")
+                                .build(),
+                        )
                     } else {
-                        chain.request()
+                        chain.proceed(request)
                     }
-                chain.proceed(request)
+                }
             }
 
         // SEC-11: No certificate pinning is configured by default since the app
@@ -83,7 +134,6 @@ object ApiClient {
         val okHttp =
             OkHttpClient
                 .Builder()
-                .connectionPool(connectionPool)
                 .addInterceptor(authInterceptor)
                 .addInterceptor(logging)
                 .certificatePinner(certificatePinner)

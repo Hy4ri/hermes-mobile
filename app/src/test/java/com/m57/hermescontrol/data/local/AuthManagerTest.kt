@@ -49,6 +49,7 @@ class AuthManagerTest {
 
         // Initialise AuthManager
         AuthManager.init(mockContext)
+        AuthManager.resetTokenCacheForTest()
     }
 
     @After
@@ -58,8 +59,8 @@ class AuthManagerTest {
 
     @Test
     fun testGetAndSetToken() {
-        every { mockPrefs.getString("auth_token", null) } returns "my_secret_token"
-        assertEquals("my_secret_token", AuthManager.getToken())
+        every { mockPrefs.getString("auth_token", null) } returns "dummy_token_123"
+        assertEquals("dummy_token_123", AuthManager.getToken())
 
         AuthManager.setToken("new_token")
         verify { mockEditor.putString("auth_token", "new_token") }
@@ -114,6 +115,24 @@ class AuthManagerTest {
     }
 
     @Test
+    fun testTokenCaching() {
+        every { mockPrefs.getString("auth_token", null) } returns "first-token"
+        assertEquals("first-token", AuthManager.getToken())
+
+        // Update the mockPrefs directly, but since getToken uses the cache, it should still return the first token
+        every { mockPrefs.getString("auth_token", null) } returns "second-token"
+        assertEquals("first-token", AuthManager.getToken())
+
+        // Clear token initialized manually since this happens upon selecting profile id
+        AuthManager.setSelectedProfileId(null)
+        assertEquals("second-token", AuthManager.getToken())
+
+        // Test setToken
+        AuthManager.setToken("third-token")
+        assertEquals("third-token", AuthManager.getToken())
+    }
+
+    @Test
     fun testWsUrl() {
         every { mockPrefs.getString("host", "127.0.0.1") } returns "hermes.local"
         every { mockPrefs.getInt("port", 9119) } returns 1234
@@ -139,11 +158,11 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_returnsNullWhenProfileTokenMissing() {
+    fun testGetToken_fallsBackToGlobalWhenProfileTokenMissing() {
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
         every { mockPrefs.getString("token_prof-1", null) } returns null // no profile token
         every { mockPrefs.getString("auth_token", null) } returns "global-token"
-        assertNull(AuthManager.getToken())
+        assertEquals("global-token", AuthManager.getToken())
     }
 
     @Test
@@ -285,26 +304,28 @@ class AuthManagerTest {
         // Switch to Profile B → returns token_b
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns "token-for-b"
+        AuthManager.setSelectedProfileId("prof-b") // Required to clear token cache
         assertEquals("token-for-b", AuthManager.getToken())
 
         // Switch back to Profile A → still returns token_a
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
+        AuthManager.setSelectedProfileId("prof-a") // Required to clear token cache
         assertEquals("token-for-a", AuthManager.getToken())
     }
 
     @Test
-    fun testGetToken_returnsNullWhenSelectedProfileLacksToken() {
-        // Profile A is selected but has no token → should return null, not global
+    fun testGetToken_fallsBackToGlobalWhenSelectedProfileLacksToken() {
+        // Profile A is selected but has no token → falls back to global
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
         every { mockPrefs.getString("token_prof-a", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns "shared-global-token"
 
-        assertNull(AuthManager.getToken())
+        assertEquals("shared-global-token", AuthManager.getToken())
 
-        // Switch to Profile B, which also has no token → should return null
+        // Switch to Profile B, which also has no token → same global fallback
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns null
-        assertNull(AuthManager.getToken())
+        assertEquals("shared-global-token", AuthManager.getToken())
     }
 
     @Test
@@ -314,15 +335,17 @@ class AuthManagerTest {
         every { mockPrefs.getString("token_prof-a", null) } returns "token-a"
         assertEquals("token-a", AuthManager.getToken())
 
-        // Profile B has no token, but global exists → should return null
+        // Profile B has no token, but global exists
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns "fallback"
-        assertNull(AuthManager.getToken())
+        AuthManager.setSelectedProfileId("prof-b") // Required to clear token cache
+        assertEquals("fallback", AuthManager.getToken())
 
         // Profile C has its own token too
         every { mockPrefs.getString("selected_profile_id", null) } returns "prof-c"
         every { mockPrefs.getString("token_prof-c", null) } returns "token-c"
+        AuthManager.setSelectedProfileId("prof-c") // Required to clear token cache
         assertEquals("token-c", AuthManager.getToken())
     }
 

@@ -48,8 +48,6 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID)
 
         if (!replyText.isNullOrBlank() && !sessionId.isNullOrBlank()) {
-            HermesWsClient.sendMessage(sessionId, replyText)
-
             val pendingResult = goAsyncCompat()
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 try {
@@ -58,6 +56,13 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             com.m57.hermescontrol.data.local.HermesDatabase
                                 .get(context)
                         val dao = db.chatMessageDao()
+                        if (!dao.sessionExists(sessionId)) {
+                            android.util.Log.w("NotificationReply", "Ignoring reply for unknown session: $sessionId")
+                            return@withTimeout
+                        }
+
+                        HermesWsClient.sendMessage(sessionId, replyText)
+
                         val entity =
                             com.m57.hermescontrol.data.local.ChatMessageEntity(
                                 id =
@@ -70,18 +75,17 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                 timestamp = System.currentTimeMillis(),
                             )
                         dao.upsert(entity)
+
+                        val repliedNotification = buildReplyNotification(context)
+                        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("NotificationReply", "Failed to save replied message to Room DB", e)
+                    android.util.Log.e("NotificationReply", "Failed to process reply", e)
                 } finally {
                     pendingResult.finish()
                 }
             }
-
-            val repliedNotification = buildReplyNotification(context)
-
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
         }
     }
 }

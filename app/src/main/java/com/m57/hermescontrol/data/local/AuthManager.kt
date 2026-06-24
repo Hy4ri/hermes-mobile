@@ -30,6 +30,8 @@ object AuthManager {
     private const val KEY_TYPING_EFFECT_DELAY_MS = "typing_effect_delay_ms"
     private const val KEY_CONNECTION_PROFILES = "connection_profiles"
     private const val KEY_SELECTED_PROFILE_ID = "selected_profile_id"
+    private const val KEY_WS_AUTH_PARAM = "ws_auth_param"
+    private const val KEY_SESSION_COOKIE = "session_cookie"
     private const val KEY_USE_DYNAMIC_COLORS = "use_dynamic_colors"
     private const val KEY_THEME_PRESET = "theme_preset"
     private const val KEY_BOTTOM_NAV_DISPLAY_MODE = "bottom_nav_display_mode"
@@ -93,9 +95,25 @@ object AuthManager {
     }
 
     private fun requirePrefs(): SharedPreferences =
-        prefs ?: throw IllegalStateException(
-            "AuthManager not initialised – call AuthManager.init(context) first",
-        )
+        prefs ?: throw IllegalStateException("AuthManager not initialized. Call init(context) first.")
+
+    fun setWsAuthParam(param: String) {
+        requirePrefs().edit().putString(KEY_WS_AUTH_PARAM, param).apply()
+    }
+
+    // ── Session Cookie (for gated/dashboard REST API) ────────────────────
+
+    /**
+     * In gated mode (basic auth), the dashboard authenticates REST API
+     * requests via the `hermes_session_at` cookie, not via
+     * `Authorization: *** We store it here so [ApiClient]'s
+     * authInterceptor can add it as a `Cookie` header.
+     */
+    fun getSessionCookie(): String? = requirePrefs().getString(KEY_SESSION_COOKIE, null)
+
+    fun setSessionCookie(cookie: String?) {
+        requirePrefs().edit().putString(KEY_SESSION_COOKIE, cookie).apply()
+    }
 
     // ── Connection Profiles ──────────────────────────────────────────────
 
@@ -139,17 +157,41 @@ object AuthManager {
 
     fun setSelectedProfileId(id: String?) {
         requirePrefs().edit().putString(KEY_SELECTED_PROFILE_ID, id).apply()
+        synchronized(this) {
+            tokenInitialized = false
+        }
         _tokenFlow.value = getToken()
     }
 
     // ── Token ────────────────────────────────────────────────────────────
 
+    @Volatile
+    private var cachedToken: String? = null
+
+    @Volatile
+    private var tokenInitialized: Boolean = false
+
+    // For testing purposes
+    fun resetTokenCacheForTest() {
+        cachedToken = null
+        tokenInitialized = false
+    }
+
     fun getToken(): String? {
-        val selectedId = getSelectedProfileId()
-        if (selectedId != null) {
-            return getProfileToken(selectedId)
+        if (tokenInitialized) return cachedToken
+        synchronized(this) {
+            if (tokenInitialized) return cachedToken
+            val selectedId = getSelectedProfileId()
+            val token =
+                if (selectedId != null) {
+                    getProfileToken(selectedId) ?: requirePrefs().getString(KEY_TOKEN, null)
+                } else {
+                    requirePrefs().getString(KEY_TOKEN, null)
+                }
+            cachedToken = token
+            tokenInitialized = true
+            return token
         }
-        return requirePrefs().getString(KEY_TOKEN, null)
     }
 
     fun setToken(token: String?) {
@@ -159,6 +201,10 @@ object AuthManager {
         } else {
             requirePrefs().edit().putString(KEY_TOKEN, token).apply()
             _tokenFlow.value = token
+        }
+        synchronized(this) {
+            cachedToken = token
+            tokenInitialized = true
         }
     }
 
@@ -260,8 +306,14 @@ object AuthManager {
      *  Exposing the host to a hostile LAN risks token interception. */
     fun baseUrl(): String = "http://${getHost()}:${getPort()}/"
 
-    /** Convenience: build the WebSocket URL with token query param. */
-    fun wsUrl(): String = "ws://${getHost()}:${getPort()}/api/ws?token=${getToken().orEmpty()}"
+    /** Convenience: build the WebSocket URL with token query param.
+     *  NOTE: Token in query string — trusted local network only. */
+    fun wsUrl(): String {
+        val raw = requirePrefs().getString(KEY_WS_AUTH_PARAM, "token")
+        val authParam = if (raw.isNullOrBlank()) "token" else raw
+        val credential = getToken().orEmpty()
+        return "ws://${getHost()}:${getPort()}/api/ws?$authParam=$credential"
+    }
 
     // ── Bottom nav bar items ──────────────────────────────────────────────
 

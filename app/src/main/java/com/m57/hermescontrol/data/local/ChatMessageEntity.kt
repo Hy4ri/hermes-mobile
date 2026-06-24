@@ -12,10 +12,7 @@ import androidx.room.PrimaryKey
  * thread. The [timestamp] field preserves original ordering even if Room
  * reorders internally.
  */
-@Entity(
-    tableName = "chat_messages",
-    indices = [androidx.room.Index(value = ["session_id", "timestamp"])],
-)
+@Entity(tableName = "chat_messages")
 data class ChatMessageEntity(
     @PrimaryKey
     val id: String,

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -64,9 +63,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -74,14 +73,15 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
+import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
-import com.m57.hermescontrol.ui.connect.ConnectScreen as ConnectScreenContent
 import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
 import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
 import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
+import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 import com.m57.hermescontrol.ui.logs.LogsScreen as LogsScreenContent
 import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
@@ -193,12 +193,25 @@ private fun appEntryProvider(
     sessionId: String?,
     openDrawer: () -> Unit,
 ) = entryProvider {
-    entry<ConnectScreen> {
-        ConnectScreenContent(
+    entry<LandingScreen> {
+        LandingScreenContent(
+            onAuthLogin = {
+                NavigationController.backStack?.add(AuthLoginScreen)
+            },
+            onPairingLogin = {
+                NavigationController.backStack?.add(PairingScreen)
+            },
+        )
+    }
+
+    entry<AuthLoginScreen> {
+        AuthLoginScreenContent(
             onConnected = {
                 NavigationController.resetTo(ChatScreen)
             },
-            modifier = Modifier.safeDrawingPadding(),
+            onBack = {
+                NavigationController.goBack()
+            },
         )
     }
 
@@ -218,6 +231,14 @@ private fun appEntryProvider(
     entry<SettingsScreen> {
         SettingsScreenContent(
             onBack = { NavigationController.goBack() },
+            onLogout = {
+                // First clear auth state to trigger token flow
+                // then reset navigation to landing screen
+                NavigationController.backStack?.let { stack ->
+                    stack.clear()
+                    stack.add(LandingScreen)
+                }
+            },
         )
     }
 
@@ -328,9 +349,17 @@ private fun appEntryProvider(
 fun MainNavigation(sessionId: String? = null) {
     val token by AuthManager.tokenFlow.collectAsState()
     val hasToken = !token.isNullOrBlank()
-    val startScreen: NavKey = if (hasToken) ChatScreen else ConnectScreen
+    val startScreen: NavKey = if (hasToken) ChatScreen else LandingScreen
 
-    val backStack = rememberNavBackStack(startScreen)
+    val backStack = remember { NavBackStack(startScreen) }
+    LaunchedEffect(startScreen) {
+        // When start screen changes (e.g., logout → LandingScreen, or
+        // fresh login → ChatScreen), reset the backstack atomically.
+        if (backStack.lastOrNull() != startScreen) {
+            backStack.clear()
+            backStack.add(startScreen)
+        }
+    }
     NavigationController.backStack = backStack
 
     val currentScreen = backStack.lastOrNull() ?: startScreen
@@ -346,12 +375,16 @@ fun MainNavigation(sessionId: String? = null) {
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
     val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
+    val drawerEntriesBySection = remember { DRAWER_ENTRIES.groupBy { it.section } }
+
     // Sync primary screens to NavigationController
     LaunchedEffect(bottomNavKeys) {
         NavigationController.updatePrimaryScreens(bottomNavKeys)
     }
 
-    val showBottomBar = currentScreen != ConnectScreen
+    val showBottomBar =
+        currentScreen != LandingScreen &&
+            currentScreen != AuthLoginScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
@@ -419,33 +452,31 @@ fun MainNavigation(sessionId: String? = null) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        DRAWER_ENTRIES
-                            .filter { it.section == section }
-                            .forEach { entry ->
-                                NavigationDrawerItem(
-                                    icon = { Icon(entry.icon, contentDescription = null) },
-                                    label = { Text(stringResource(entry.labelRes)) },
-                                    selected = currentScreen == entry.key,
-                                    onClick = {
-                                        scope.launch { drawerState.close() }
-                                        NavigationController.navigateTo(entry.key)
-                                    },
-                                    colors =
-                                        NavigationDrawerItemDefaults.colors(
-                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        drawerEntriesBySection[section]?.forEach { entry ->
+                            NavigationDrawerItem(
+                                icon = { Icon(entry.icon, contentDescription = null) },
+                                label = { Text(stringResource(entry.labelRes)) },
+                                selected = currentScreen == entry.key,
+                                onClick = {
+                                    scope.launch { drawerState.close() }
+                                    NavigationController.navigateTo(entry.key)
+                                },
+                                colors =
+                                    NavigationDrawerItemDefaults.colors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    ),
+                                modifier =
+                                    Modifier
+                                        .padding(horizontal = 8.dp, vertical = 1.dp)
+                                        .testTag(
+                                            "drawer_${entry.key::class.simpleName?.lowercase()?.removeSuffix(
+                                                "screen",
+                                            ) ?: ""}",
                                         ),
-                                    modifier =
-                                        Modifier
-                                            .padding(horizontal = 8.dp, vertical = 1.dp)
-                                            .testTag(
-                                                "drawer_${entry.key::class.simpleName?.lowercase()?.removeSuffix(
-                                                    "screen",
-                                                ) ?: ""}",
-                                            ),
-                                )
-                            }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

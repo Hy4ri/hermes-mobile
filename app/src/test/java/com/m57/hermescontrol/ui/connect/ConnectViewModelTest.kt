@@ -48,6 +48,7 @@ class ConnectViewModelTest {
 
         mockApiService = mockk()
         every { ApiClient.hermesApi } returns mockApiService
+        every { ApiClient.createTempService(any(), any(), any()) } returns mockApiService
         every { ApiClient.rebuild() } returns Unit
 
         // Default AuthManager stubs
@@ -376,7 +377,7 @@ class ConnectViewModelTest {
         every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
 
         // A string that is >= 32 chars and alphanumeric matching the raw token regex
-        val validToken = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+        val validToken = "dummy_token_value_that_is_long_enough_to_pass_validation_123"
         viewModel.onPairingString(validToken)
 
         val state = viewModel.uiState.value
@@ -612,14 +613,12 @@ class ConnectViewModelTest {
             val viewModel = ConnectViewModel(mockApp)
             viewModel.onPairingString("hermes://connect?host=192.168.1.1&port=8888&token=abc123")
 
-            // Wait for parsing coroutine to finish
-            advanceUntilIdle()
-
             val state = viewModel.uiState.value
             assertEquals("192.168.1.1", state.host)
             assertEquals("8888", state.port)
             assertEquals("abc123", state.token)
             // Should have triggered connect
+            advanceUntilIdle()
             assertTrue("connection should succeed after pairing", viewModel.uiState.value.connectionSuccess)
         }
 }

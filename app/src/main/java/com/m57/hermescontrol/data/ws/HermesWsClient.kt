@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,9 +25,11 @@ import kotlinx.coroutines.launch
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -63,6 +66,7 @@ object HermesWsClient {
     private val requestId = AtomicInteger(0)
     private val connected = AtomicBoolean(false)
     private val intentionalClose = AtomicBoolean(false)
+    private val messageQueue = ConcurrentLinkedQueue<String>()
 
     @Volatile
     private var webSocket: WebSocket? = null
@@ -94,7 +98,11 @@ object HermesWsClient {
 
     // ── Public observable stream ─────────────────────────────────────────
 
-    private val rawMessages = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    private val rawMessages =
+        MutableSharedFlow<String>(
+            extraBufferCapacity = 256,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
 
     /** Collect this from ViewModels to receive all parsed [WsEvent]s. */
     val events: SharedFlow<WsEvent> =
@@ -132,7 +140,49 @@ object HermesWsClient {
         intentionalClose.set(false)
         currentBackoff = INITIAL_BACKOFF_MS
         _connectionStatus.value = ConnectionStatus.CONNECTING
+        refreshWsTicketIfNeeded()
         openSocket()
+    }
+
+    /**
+     * If a session cookie is present (gated mode), mint a fresh WS ticket
+     * from the dashboard. The ticket is single-use and has a 30-second TTL,
+     * so we must mint a new one on every connect (first launch and reconnect).
+     */
+    private fun refreshWsTicketIfNeeded() {
+        val sessionCookie = AuthManager.getSessionCookie()
+        if (sessionCookie.isNullOrBlank()) {
+            // Loopback mode — the stored token IS a session token, not a
+            // WS ticket, so no refresh needed.
+            return
+        }
+        try {
+            val client =
+                OkHttpClient.Builder()
+                    .connectTimeout(5, TimeUnit.SECONDS)
+                    .readTimeout(5, TimeUnit.SECONDS)
+                    .build()
+            val request =
+                Request.Builder()
+                    .url("http://${AuthManager.getHost()}:${AuthManager.getPort()}/api/auth/ws-ticket")
+                    .header("Cookie", "hermes_session_at=$sessionCookie")
+                    .post(RequestBody.create(null, "{}"))
+                    .build()
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                val ticketMatch = Regex(""""ticket":"([^"]+)"""").find(body)
+                val ticket = ticketMatch?.groupValues?.getOrNull(1)
+                if (!ticket.isNullOrBlank()) {
+                    AuthManager.setToken(ticket)
+                    if (BuildConfig.DEBUG) Log.d(TAG, "WS ticket refreshed")
+                }
+            } else {
+                Log.w(TAG, "WS ticket refresh failed: HTTP ${response.code}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "WS ticket refresh failed: ${e.message}")
+        }
     }
 
     /** Cleanly close the WebSocket and stop auto-reconnect. */
@@ -165,7 +215,13 @@ object HermesWsClient {
         // prompts (PromptSubmit params include the `text` field) — never
         // stream to logcat in release builds.
         if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
-        webSocket?.send(json) ?: Log.w(TAG, "send() called while disconnected")
+        val ws = webSocket
+        if (ws != null && connected.get()) {
+            ws.send(json)
+        } else {
+            Log.d(TAG, "WS disconnected — queuing message")
+            messageQueue.add(json)
+        }
         return id
     }
 
@@ -184,6 +240,7 @@ object HermesWsClient {
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun openSocket() {
+        refreshWsTicketIfNeeded()
         val url = AuthManager.wsUrl()
         val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
         if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
@@ -236,17 +293,25 @@ object HermesWsClient {
 
     private class WsListenerImpl : WebSocketListener() {
         override fun onOpen(
-            ws: WebSocket,
+            webSocket: WebSocket,
             response: Response,
         ) {
             Log.i(TAG, "WebSocket opened")
             connected.set(true)
             _connectionStatus.value = ConnectionStatus.CONNECTED
             currentBackoff = INITIAL_BACKOFF_MS
+
+            while (messageQueue.isNotEmpty()) {
+                val msg = messageQueue.poll()
+                if (msg != null) {
+                    if (BuildConfig.DEBUG) Log.d(TAG, "→ (queued) $msg")
+                    webSocket.send(msg)
+                }
+            }
         }
 
         override fun onMessage(
-            ws: WebSocket,
+            webSocket: WebSocket,
             text: String,
         ) {
             // B2 (Jun 18 2026, kanban t_8884db16): incoming WS text contains
@@ -257,16 +322,16 @@ object HermesWsClient {
         }
 
         override fun onClosing(
-            ws: WebSocket,
+            webSocket: WebSocket,
             code: Int,
             reason: String,
         ) {
             Log.d(TAG, "WebSocket closing: $code $reason")
-            ws.close(code, reason)
+            webSocket.close(code, reason)
         }
 
         override fun onClosed(
-            ws: WebSocket,
+            webSocket: WebSocket,
             code: Int,
             reason: String,
         ) {
@@ -277,7 +342,7 @@ object HermesWsClient {
         }
 
         override fun onFailure(
-            ws: WebSocket,
+            webSocket: WebSocket,
             t: Throwable,
             response: Response?,
         ) {

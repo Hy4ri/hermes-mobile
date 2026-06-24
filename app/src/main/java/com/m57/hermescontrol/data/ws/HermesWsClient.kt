@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +28,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -63,6 +65,7 @@ object HermesWsClient {
     private val requestId = AtomicInteger(0)
     private val connected = AtomicBoolean(false)
     private val intentionalClose = AtomicBoolean(false)
+    private val messageQueue = ConcurrentLinkedQueue<String>()
 
     @Volatile
     private var webSocket: WebSocket? = null
@@ -94,7 +97,11 @@ object HermesWsClient {
 
     // ── Public observable stream ─────────────────────────────────────────
 
-    private val rawMessages = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    private val rawMessages =
+        MutableSharedFlow<String>(
+            extraBufferCapacity = 256,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
 
     /** Collect this from ViewModels to receive all parsed [WsEvent]s. */
     val events: SharedFlow<WsEvent> =
@@ -165,7 +172,13 @@ object HermesWsClient {
         // prompts (PromptSubmit params include the `text` field) — never
         // stream to logcat in release builds.
         if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
-        webSocket?.send(json) ?: Log.w(TAG, "send() called while disconnected")
+        val ws = webSocket
+        if (ws != null && connected.get()) {
+            ws.send(json)
+        } else {
+            Log.d(TAG, "WS disconnected — queuing message")
+            messageQueue.add(json)
+        }
         return id
     }
 
@@ -238,17 +251,25 @@ object HermesWsClient {
 
     private class WsListenerImpl : WebSocketListener() {
         override fun onOpen(
-            ws: WebSocket,
+            webSocket: WebSocket,
             response: Response,
         ) {
             Log.i(TAG, "WebSocket opened")
             connected.set(true)
             _connectionStatus.value = ConnectionStatus.CONNECTED
             currentBackoff = INITIAL_BACKOFF_MS
+
+            while (messageQueue.isNotEmpty()) {
+                val msg = messageQueue.poll()
+                if (msg != null) {
+                    if (BuildConfig.DEBUG) Log.d(TAG, "→ (queued) $msg")
+                    webSocket.send(msg)
+                }
+            }
         }
 
         override fun onMessage(
-            ws: WebSocket,
+            webSocket: WebSocket,
             text: String,
         ) {
             // B2 (Jun 18 2026, kanban t_8884db16): incoming WS text contains
@@ -259,16 +280,16 @@ object HermesWsClient {
         }
 
         override fun onClosing(
-            ws: WebSocket,
+            webSocket: WebSocket,
             code: Int,
             reason: String,
         ) {
             Log.d(TAG, "WebSocket closing: $code $reason")
-            ws.close(code, reason)
+            webSocket.close(code, reason)
         }
 
         override fun onClosed(
-            ws: WebSocket,
+            webSocket: WebSocket,
             code: Int,
             reason: String,
         ) {
@@ -279,7 +300,7 @@ object HermesWsClient {
         }
 
         override fun onFailure(
-            ws: WebSocket,
+            webSocket: WebSocket,
             t: Throwable,
             response: Response?,
         ) {

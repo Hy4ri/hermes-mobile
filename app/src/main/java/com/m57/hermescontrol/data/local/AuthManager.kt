@@ -154,17 +154,41 @@ object AuthManager {
 
     fun setSelectedProfileId(id: String?) {
         requirePrefs().edit().putString(KEY_SELECTED_PROFILE_ID, id).apply()
+        synchronized(this) {
+            tokenInitialized = false
+        }
         _tokenFlow.value = getToken()
     }
 
     // ── Token ────────────────────────────────────────────────────────────
 
+    @Volatile
+    private var cachedToken: String? = null
+
+    @Volatile
+    private var tokenInitialized: Boolean = false
+
+    // For testing purposes
+    fun resetTokenCacheForTest() {
+        cachedToken = null
+        tokenInitialized = false
+    }
+
     fun getToken(): String? {
-        val selectedId = getSelectedProfileId()
-        if (selectedId != null) {
-            return getProfileToken(selectedId)
+        if (tokenInitialized) return cachedToken
+        synchronized(this) {
+            if (tokenInitialized) return cachedToken
+            val selectedId = getSelectedProfileId()
+            val token =
+                if (selectedId != null) {
+                    getProfileToken(selectedId) ?: requirePrefs().getString(KEY_TOKEN, null)
+                } else {
+                    requirePrefs().getString(KEY_TOKEN, null)
+                }
+            cachedToken = token
+            tokenInitialized = true
+            return token
         }
-        return requirePrefs().getString(KEY_TOKEN, null)
     }
 
     fun setToken(token: String?) {
@@ -174,6 +198,10 @@ object AuthManager {
         } else {
             requirePrefs().edit().putString(KEY_TOKEN, token).apply()
             _tokenFlow.value = token
+        }
+        synchronized(this) {
+            cachedToken = token
+            tokenInitialized = true
         }
     }
 

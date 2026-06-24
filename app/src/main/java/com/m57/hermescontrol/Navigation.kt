@@ -346,6 +346,8 @@ fun MainNavigation(sessionId: String? = null) {
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)
     val bottomNavKeys = remember(bottomNavItems) { bottomNavItems.mapTo(mutableSetOf()) { it.key } }
 
+    val drawerEntriesBySection = remember { DRAWER_ENTRIES.groupBy { it.section } }
+
     // Sync primary screens to NavigationController
     LaunchedEffect(bottomNavKeys) {
         NavigationController.updatePrimaryScreens(bottomNavKeys)
@@ -419,33 +421,31 @@ fun MainNavigation(sessionId: String? = null) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        DRAWER_ENTRIES
-                            .filter { it.section == section }
-                            .forEach { entry ->
-                                NavigationDrawerItem(
-                                    icon = { Icon(entry.icon, contentDescription = null) },
-                                    label = { Text(stringResource(entry.labelRes)) },
-                                    selected = currentScreen == entry.key,
-                                    onClick = {
-                                        scope.launch { drawerState.close() }
-                                        NavigationController.navigateTo(entry.key)
-                                    },
-                                    colors =
-                                        NavigationDrawerItemDefaults.colors(
-                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        drawerEntriesBySection[section]?.forEach { entry ->
+                            NavigationDrawerItem(
+                                icon = { Icon(entry.icon, contentDescription = null) },
+                                label = { Text(stringResource(entry.labelRes)) },
+                                selected = currentScreen == entry.key,
+                                onClick = {
+                                    scope.launch { drawerState.close() }
+                                    NavigationController.navigateTo(entry.key)
+                                },
+                                colors =
+                                    NavigationDrawerItemDefaults.colors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    ),
+                                modifier =
+                                    Modifier
+                                        .padding(horizontal = 8.dp, vertical = 1.dp)
+                                        .testTag(
+                                            "drawer_${entry.key::class.simpleName?.lowercase()?.removeSuffix(
+                                                "screen",
+                                            ) ?: ""}",
                                         ),
-                                    modifier =
-                                        Modifier
-                                            .padding(horizontal = 8.dp, vertical = 1.dp)
-                                            .testTag(
-                                                "drawer_${entry.key::class.simpleName?.lowercase()?.removeSuffix(
-                                                    "screen",
-                                                ) ?: ""}",
-                                            ),
-                                )
-                            }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

@@ -7,6 +7,9 @@ import androidx.room.Query
 
 @Dao
 interface ChatMessageDao {
+    @Query("SELECT EXISTS(SELECT 1 FROM chat_messages WHERE session_id = :sessionId)")
+    suspend fun sessionExists(sessionId: String): Boolean
+
     @Query("SELECT * FROM chat_messages WHERE session_id = :sessionId ORDER BY timestamp ASC")
     suspend fun getMessagesForSession(sessionId: String): List<ChatMessageEntity>
 

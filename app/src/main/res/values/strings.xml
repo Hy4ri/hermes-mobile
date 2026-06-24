@@ -105,6 +105,10 @@
     <string name="content_desc_edit">Edit</string>
 
     <!-- Settings Screen -->
+    <string name="settings_tab_connection">Connection</string>
+    <string name="settings_tab_appearance">Appearance</string>
+    <string name="settings_tab_behavior">Behavior</string>
+    <string name="settings_tab_about">About</string>
     <string name="settings_sec_connection">Connection</string>
     <string name="settings_item_profile">Connection Profile</string>
     <string name="settings_profile_default">Standalone / Default</string>
@@ -178,7 +182,6 @@
     <string name="connect_error_refused">Connection refused – is Hermes running?</string>
     <string name="connect_error_resolve">Could not resolve host</string>
     <string name="connect_error_connection_failed">Connection failed: %1$s</string>
-    <string name="connect_error_invalid_host">Invalid or forbidden host in pairing string</string>
     <string name="connect_error_missing_fields">Malformed pairing string — missing host, port, or token</string>
     <string name="connect_error_malformed">Malformed pairing string — expected URL or Base64-encoded JSON</string>
     <string name="connect_error_parse_failed">Failed to parse pairing string: %1$s</string>

@@ -23,7 +23,7 @@ class LogsViewModel : ViewModel(), ToastHost {
 
     fun loadLogs() {
         safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getLogs() } },
+            apiCall = { safeApiCall { ApiClient.hermesApi.getLogs(lines = 1000) } },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 val body = data

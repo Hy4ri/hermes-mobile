@@ -72,6 +72,11 @@ fun KanbanScreen(
                     task.assignedTo?.contains(query, ignoreCase = true) == true
             }
         }
+
+    val tasksByColumn =
+        remember(filteredTasks) {
+            filteredTasks.groupBy { it.status.lowercase() }
+        }
     var showAddTaskDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -85,16 +90,17 @@ fun KanbanScreen(
         onOpenDrawer = onOpenDrawer,
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
-    ) {
+    ) { paddingValues ->
         when {
             state.isLoading && state.boards.isEmpty() -> {
-                LoadingState()
+                LoadingState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadBoards() },
+                    modifier = Modifier.padding(paddingValues),
                 )
             }
 
@@ -106,10 +112,11 @@ fun KanbanScreen(
                         Text(
                             text = state.errorMessage ?: "",
                             color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(paddingValues),
                         )
                     } else {
                         Column(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().padding(paddingValues),
                         ) {
                             SearchBar(
                                 query = query,
@@ -147,13 +154,13 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns, key = { it.name }) { column ->
+                                    items(state.columns.size, key = {
+                                            index ->
+                                        state.columns[index].name
+                                    }) { columnIndex ->
+                                        val column = state.columns[columnIndex]
                                         val colName = column.name
-                                        val colTasks =
-                                            filteredTasks.filter {
-                                                it.status.equals(colName, ignoreCase = true)
-                                            }
-                                        val columnIndex = state.columns.indexOf(column)
+                                        val colTasks = tasksByColumn[colName.lowercase()] ?: emptyList()
                                         val prevColumn = state.columns.getOrNull(columnIndex - 1)
                                         val nextColumn = state.columns.getOrNull(columnIndex + 1)
 

@@ -7,8 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
-import com.m57.hermescontrol.data.local.toEntity
-import com.m57.hermescontrol.data.local.toUiModel
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -88,7 +86,10 @@ class ChatViewModel(
 
     private val wsClient = HermesWsClient
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
-    private val dao = HermesDatabase.get(application).chatMessageDao()
+    private val repo =
+        ChatPersistenceRepository(
+            HermesDatabase.get(application).chatMessageDao(),
+        )
 
     /** Tracks the ID of the currently streaming assistant message. */
     @Volatile
@@ -289,7 +290,7 @@ class ChatViewModel(
         val orphan = orphanToPersist
         if (orphan != null && sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(orphan.toEntity(sessionId))
+                repo.persistMessage(orphan, sessionId)
             }
         }
     }
@@ -394,7 +395,7 @@ class ChatViewModel(
         val sid = sessionId ?: _uiState.value.currentSessionId
         if (msgToPersist != null && sid != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msgToPersist.toEntity(sid))
+                repo.persistMessage(msgToPersist, sid)
             }
         }
         // Refresh session list to catch newly generated titles
@@ -448,7 +449,7 @@ class ChatViewModel(
         val sid = sessionId ?: _uiState.value.currentSessionId
         if (msgToPersist != null && sid != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msgToPersist.toEntity(sid))
+                repo.persistMessage(msgToPersist, sid)
             }
         }
     }
@@ -489,9 +490,9 @@ class ChatViewModel(
         if (sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
                 if (orphan != null) {
-                    dao.upsert(orphan.toEntity(sessionId))
+                    repo.persistMessage(orphan, sessionId)
                 }
-                dao.upsert(toolMessage.toEntity(sessionId))
+                repo.persistMessage(toolMessage, sessionId)
             }
         }
     }
@@ -526,7 +527,7 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId
         if (tool != null && sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(tool.toEntity(sessionId))
+                repo.persistMessage(tool, sessionId)
             }
         }
     }
@@ -661,7 +662,7 @@ class ChatViewModel(
 
         // Persist to Room — OUTSIDE update{}
         viewModelScope.launch(Dispatchers.IO) {
-            dao.upsert(userMessage.toEntity(sessionId))
+            repo.persistMessage(userMessage, sessionId)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -682,7 +683,7 @@ class ChatViewModel(
         // Persist — OUTSIDE update{}
         if (sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(userMsg.toEntity(sessionId))
+                repo.persistMessage(userMsg, sessionId)
             }
         }
 
@@ -813,7 +814,7 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId
         if (sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msg.toEntity(sessionId))
+                repo.persistMessage(msg, sessionId)
             }
         }
     }
@@ -913,8 +914,7 @@ class ChatViewModel(
 
     private fun loadCachedMessages(sessionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val cached = dao.getMessagesForSession(sessionId)
-            val cachedMessages = cached.map { it.toUiModel() }
+            val cachedMessages = repo.loadMessages(sessionId)
             _uiState.update { state ->
                 // Only replace if still showing this session
                 if (state.currentSessionId == sessionId) {
@@ -958,9 +958,8 @@ class ChatViewModel(
                             )
                         }
                     // Persist loaded messages to Room for offline access
-                    val entities = chatMessages.map { it.toEntity(sessionId) }
                     withContext(Dispatchers.IO) {
-                        dao.upsertAll(entities)
+                        repo.persistMessages(chatMessages, sessionId)
                     }
                     _uiState.update { state ->
                         // Only update if still on the same session
@@ -1022,7 +1021,7 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            dao.upsert(userMessage.toEntity(sessionId))
+            repo.persistMessage(userMessage, sessionId)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -1076,7 +1075,7 @@ class ChatViewModel(
         // Persist — OUTSIDE update{}
         if (persist && sessionId != null) {
             viewModelScope.launch(Dispatchers.IO) {
-                dao.upsert(msg.toEntity(sessionId))
+                repo.persistMessage(msg, sessionId)
             }
         }
     }

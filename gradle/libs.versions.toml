@@ -25,6 +25,7 @@ gson = "2.11.0"
 securityCrypto = "1.0.0"
 mockk = "1.13.12"
 room = "2.7.1"
+sqlcipher = "4.9.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
@@ -72,6 +73,7 @@ androidx-security-crypto = { module = "androidx.security:security-crypto", versi
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
 
 
 [plugins]

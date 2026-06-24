@@ -115,6 +115,21 @@ object AuthManager {
         requirePrefs().edit().putString(KEY_SESSION_COOKIE, cookie).apply()
     }
 
+    // ── Database Master Password ─────────────────────────────────────────
+
+    fun getDatabasePassword(): ByteArray {
+        val prefs = requirePrefs()
+        var dbPasswordBase64 = prefs.getString("db_password", null)
+        if (dbPasswordBase64 == null) {
+            val random = java.security.SecureRandom()
+            val newPassword = ByteArray(32)
+            random.nextBytes(newPassword)
+            dbPasswordBase64 = android.util.Base64.encodeToString(newPassword, android.util.Base64.NO_WRAP)
+            prefs.edit().putString("db_password", dbPasswordBase64).apply()
+        }
+        return android.util.Base64.decode(dbPasswordBase64, android.util.Base64.NO_WRAP)
+    }
+
     // ── Connection Profiles ──────────────────────────────────────────────
 
     fun getConnectionProfiles(): List<com.m57.hermescontrol.data.model.ConnectionProfile> {

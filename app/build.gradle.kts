@@ -146,6 +146,7 @@ dependencies {
     // Local database (Room) — message persistence
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.sqlcipher)
     ksp(libs.androidx.room.compiler)
 
     // Local tests: jUnit, coroutines, Android runner

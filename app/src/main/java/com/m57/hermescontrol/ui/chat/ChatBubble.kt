@@ -763,6 +763,10 @@ private fun ToolBubble(
                                 textToCopy = message.content,
                                 clipboardManager = clipboardManager,
                                 onCopy = { showCopyButton = false },
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 8.dp, y = (-8).dp),
                             )
                         }
 
@@ -790,6 +794,10 @@ private fun ToolBubble(
                                 textToCopy = message.content,
                                 clipboardManager = clipboardManager,
                                 onCopy = { showCopyButton = false },
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 8.dp, y = (-8).dp),
                             )
                         }
 
@@ -825,6 +833,10 @@ private fun ToolBubble(
                                 textToCopy = message.content,
                                 clipboardManager = clipboardManager,
                                 onCopy = { showCopyButton = false },
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 8.dp, y = (-8).dp),
                             )
                         }
                     }
@@ -897,15 +909,13 @@ private fun CopyButton(
     textToCopy: String,
     clipboardManager: androidx.compose.ui.platform.ClipboardManager,
     onCopy: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn() + scaleIn(),
         exit = fadeOut() + scaleOut(),
-        modifier =
-            Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 8.dp, y = (-8).dp),
+        modifier = modifier,
     ) {
         Surface(
             shape = RoundedCornerShape(50),

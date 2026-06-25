@@ -23,7 +23,7 @@ okhttp = "4.12.0"
 retrofit = "2.11.0"
 gson = "2.11.0"
 securityCrypto = "1.0.0"
-mockk = "1.13.12"
+mockk = "1.14.11"
 room = "2.7.1"
 sqlcipher = "4.9.0"
 

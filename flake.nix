@@ -56,8 +56,8 @@
       in {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            # Java 17 (required for AGP 8.x / Gradle 8.x)
-            jdk17
+            # Java 21 (required for AGP 9.x / Gradle 9.x)
+            jdk21
 
             # Android SDK (platforms, build-tools, platform-tools)
             androidSdk
@@ -75,7 +75,7 @@
           # Point everything at the Nix-managed SDK
           ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
           ANDROID_SDK_ROOT = "${androidSdk}/libexec/android-sdk";
-          JAVA_HOME = "${pkgs.jdk17}";
+          JAVA_HOME = "${pkgs.jdk21}";
 
           # Gradle needs a writable home
           GRADLE_USER_HOME = "$PWD/.gradle-home";

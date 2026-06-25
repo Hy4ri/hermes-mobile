@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
@@ -47,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,14 +54,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -82,6 +82,7 @@ import com.m57.hermescontrol.theme.ToolChipColor
 import com.m57.hermescontrol.theme.ToolChipColorLight
 import com.m57.hermescontrol.theme.UserBubble
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -141,7 +142,8 @@ private fun UserBubble(
     isCurrentMatch: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var showCopyButton by remember { mutableStateOf(false) }
 
     // Auto-dismiss copy button after 4 seconds
@@ -255,7 +257,9 @@ private fun UserBubble(
                 ) {
                     IconButton(
                         onClick = {
-                            clipboardManager.setText(AnnotatedString(message.content))
+                            scope.launch {
+                                clipboard.setText(AnnotatedString(message.content))
+                            }
                             showCopyButton = false
                         },
                         modifier = Modifier.size(32.dp),
@@ -298,7 +302,8 @@ private fun AssistantBubble(
                 Color(0xFFE8E6EE)
             }
         }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var showCopyButton by remember { mutableStateOf(false) }
 
     // Auto-dismiss copy button after 4 seconds
@@ -385,7 +390,9 @@ private fun AssistantBubble(
                 ) {
                     IconButton(
                         onClick = {
-                            clipboardManager.setText(AnnotatedString(message.content))
+                            scope.launch {
+                                clipboard.setText(AnnotatedString(message.content))
+                            }
                             showCopyButton = false
                         },
                         modifier = Modifier.size(32.dp),
@@ -706,7 +713,8 @@ private fun ToolBubble(
         }
     val config = ToolSchemaRegistry.getDisplayConfig(message.toolName)
 
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var showCopyButton by remember { mutableStateOf(false) }
 
     // Auto-dismiss copy button after 4 seconds
@@ -775,7 +783,6 @@ private fun ToolBubble(
                             CopyButton(
                                 visible = showCopyButton,
                                 textToCopy = message.content,
-                                clipboardManager = clipboardManager,
                                 onCopy = { showCopyButton = false },
                                 modifier =
                                     Modifier
@@ -806,7 +813,6 @@ private fun ToolBubble(
                             CopyButton(
                                 visible = showCopyButton,
                                 textToCopy = message.content,
-                                clipboardManager = clipboardManager,
                                 onCopy = { showCopyButton = false },
                                 modifier =
                                     Modifier
@@ -845,7 +851,6 @@ private fun ToolBubble(
                             CopyButton(
                                 visible = showCopyButton,
                                 textToCopy = message.content,
-                                clipboardManager = clipboardManager,
                                 onCopy = { showCopyButton = false },
                                 modifier =
                                     Modifier
@@ -921,10 +926,11 @@ private fun HeaderRow(
 private fun CopyButton(
     visible: Boolean,
     textToCopy: String,
-    clipboardManager: androidx.compose.ui.platform.ClipboardManager,
     onCopy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn() + scaleIn(),
@@ -938,7 +944,9 @@ private fun CopyButton(
         ) {
             IconButton(
                 onClick = {
-                    clipboardManager.setText(AnnotatedString(textToCopy))
+                    scope.launch {
+                        clipboard.setText(AnnotatedString(textToCopy))
+                    }
                     onCopy()
                 },
                 modifier = Modifier.size(32.dp),
@@ -964,7 +972,6 @@ private fun RichText(
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
 ) {
-    val uriHandler = LocalUriHandler.current
     val urlPattern = remember { Regex("""https?://[^\s)>\]\u0022\u0027]+""") }
     val linkColor = MaterialTheme.colorScheme.primary
     val searchHighlightColor = if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
@@ -1033,7 +1040,7 @@ private fun RichText(
                         // URL: https://...
                         urlPattern.matchAt(src, i) != null -> {
                             val match = urlPattern.matchAt(src, i)!!
-                            pushStringAnnotation(tag = "URL", annotation = match.value)
+                            pushLink(LinkAnnotation.Url(match.value))
                             withStyle(
                                 SpanStyle(
                                     color = linkColor,
@@ -1064,15 +1071,9 @@ private fun RichText(
             }
         }
 
-    ClickableText(
+    Text(
         text = annotated,
         style = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-        onClick = { offset: Int ->
-            annotated
-                .getStringAnnotations("URL", offset, offset)
-                .firstOrNull()
-                ?.let { uriHandler.openUri(it.item) }
-        },
     )
 }
 

@@ -39,7 +39,7 @@ abstract class HermesDatabase : RoomDatabase() {
                         HermesDatabase::class.java,
                         "hermes_control.db",
                     ).openHelperFactory(factory)
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(false)
                     .build()
                     .also { instance = it }
             }

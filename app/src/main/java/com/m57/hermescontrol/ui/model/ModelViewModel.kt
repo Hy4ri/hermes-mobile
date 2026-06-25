@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,18 +33,22 @@ class ModelViewModel : ViewModel(), ToastHost {
     fun loadModelOptions() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            val responseResult =
-                withContext(Dispatchers.IO) {
+            val responseResultDeferred =
+                async(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.getModelOptions() }
                 }
-            val activeProfileNameResResult =
-                withContext(Dispatchers.IO) {
+            val activeProfileNameResResultDeferred =
+                async(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.getActiveProfile() }
                 }
-            val profilesResResult =
-                withContext(Dispatchers.IO) {
+            val profilesResResultDeferred =
+                async(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.getProfiles() }
                 }
+
+            val responseResult = responseResultDeferred.await()
+            val activeProfileNameResResult = activeProfileNameResResultDeferred.await()
+            val profilesResResult = profilesResResultDeferred.await()
 
             when (responseResult) {
                 is NetworkResult.Success -> {

@@ -209,6 +209,18 @@ fun ProfilesScreen(
 
                                         Spacer(modifier = Modifier.height(16.dp))
 
+                                        if (!isActive) {
+                                            Button(
+                                                onClick = { viewModel.selectActiveProfile(profile.name) },
+                                                modifier =
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(bottom = 8.dp),
+                                            ) {
+                                                Text(stringResource(R.string.profiles_action_activate))
+                                            }
+                                        }
+
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.End,

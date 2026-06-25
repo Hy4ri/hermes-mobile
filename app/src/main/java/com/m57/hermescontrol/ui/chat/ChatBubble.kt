@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -224,7 +226,7 @@ private fun UserBubble(
                     }
                     if (!message.isStreaming) {
                         Text(
-                            text = formatTimestamp(message.timestamp),
+                            text = formatTimestamp(message.timestamp, DateFormat.is24HourFormat(LocalContext.current)),
                             color = userBubbleTextColor.copy(alpha = 0.6f),
                             style = MaterialTheme.typography.labelSmall,
                             modifier =
@@ -354,7 +356,7 @@ private fun AssistantBubble(
                     }
                     if (!message.isStreaming) {
                         Text(
-                            text = formatTimestamp(message.timestamp),
+                            text = formatTimestamp(message.timestamp, DateFormat.is24HourFormat(LocalContext.current)),
                             color = textColor.copy(alpha = 0.5f),
                             style = MaterialTheme.typography.labelSmall,
                             modifier =
@@ -856,7 +858,7 @@ private fun ToolBubble(
 
                 // ── Timestamp ──
                 Text(
-                    text = formatTimestamp(message.timestamp),
+                    text = formatTimestamp(message.timestamp, DateFormat.is24HourFormat(LocalContext.current)),
                     color = contentColor.copy(alpha = 0.5f),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
@@ -1074,12 +1076,16 @@ private fun RichText(
     )
 }
 
-private val TIMESTAMP_FORMATTER =
-    DateTimeFormatter
-        .ofPattern("HH:mm")
+private fun formatTimestamp(
+    timestamp: Long,
+    is24Hour: Boolean,
+): String {
+    val pattern = if (is24Hour) "HH:mm" else "h:mm a"
+    return DateTimeFormatter
+        .ofPattern(pattern)
         .withZone(ZoneId.systemDefault())
-
-private fun formatTimestamp(timestamp: Long): String = TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))
+        .format(Instant.ofEpochMilli(timestamp))
+}
 
 /**
  * Build an AnnotatedString with search matches highlighted.

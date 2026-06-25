@@ -255,6 +255,7 @@ fun ChatScreen(
                     searchMatchIndices = state.searchMatchIndices,
                     typingEffectEnabled = state.typingEffectEnabled,
                     typingEffectDelayMs = state.typingEffectDelayMs,
+                    isLoading = state.isLoading,
                     isDark = isDark,
                     listState = listState,
                     lastAnimatedMessageId = lastAnimatedMessageId,
@@ -1027,6 +1028,7 @@ private fun ChatMessageList(
     searchMatchIndices: List<Int>,
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
+    isLoading: Boolean,
     isDark: Boolean,
     listState: LazyListState,
     lastAnimatedMessageId: String?,
@@ -1063,7 +1065,7 @@ private fun ChatMessageList(
         }
     }
 
-    if (messages.isEmpty() && !viewModel.uiState.value.isLoading) {
+    if (messages.isEmpty() && !isLoading) {
         EmptyState(
             title = stringResource(R.string.chat_empty_title),
             subtitle = stringResource(R.string.chat_empty_subtitle),

@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,12 +39,14 @@ data class SettingsUiState(
     val bottomNavDisplayMode: BottomNavDisplayMode = BottomNavDisplayMode.ICON_AND_TEXT,
 )
 
-class SettingsViewModel : ViewModel() {
+class SettingsViewModel(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             loadSettings()
         }
     }
@@ -86,7 +89,7 @@ class SettingsViewModel : ViewModel() {
 
     fun selectProfile(profileId: String?) {
         AuthManager.setSelectedProfileId(profileId)
-        viewModelScope.launch(Dispatchers.IO) { loadSettings() }
+        viewModelScope.launch(ioDispatcher) { loadSettings() }
         ApiClient.rebuild()
     }
 
@@ -103,7 +106,7 @@ class SettingsViewModel : ViewModel() {
                 if (it.id == currentId) it.copy(name = newName) else it
             }
         AuthManager.saveConnectionProfiles(updatedProfiles)
-        viewModelScope.launch(Dispatchers.IO) { loadSettings() }
+        viewModelScope.launch(ioDispatcher) { loadSettings() }
     }
 
     fun deleteProfile(profileId: String) {
@@ -113,7 +116,7 @@ class SettingsViewModel : ViewModel() {
         if (AuthManager.getSelectedProfileId() == profileId) {
             AuthManager.setSelectedProfileId(null)
         }
-        viewModelScope.launch(Dispatchers.IO) { loadSettings() }
+        viewModelScope.launch(ioDispatcher) { loadSettings() }
         ApiClient.rebuild()
     }
 
@@ -215,7 +218,7 @@ class SettingsViewModel : ViewModel() {
         AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
         ApiClient.rebuild()
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             loadSettings()
             _uiState.update { it.copy(isSaved = true, testResult = null) }
         }
@@ -235,7 +238,7 @@ class SettingsViewModel : ViewModel() {
 
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     safeApiCall { ApiClient.hermesApi.getStatus() }
                 }
             when (result) {

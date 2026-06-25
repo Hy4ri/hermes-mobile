@@ -39,6 +39,12 @@ class SettingsViewModelTest {
             ConnectionProfile("prof-2", "Home", "10.0.0.2", 9220),
         )
 
+    private fun createViewModel(): SettingsViewModel {
+        val vm = SettingsViewModel(ioDispatcher = testDispatcher)
+        testDispatcher.scheduler.advanceUntilIdle()
+        return vm
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -95,7 +101,7 @@ class SettingsViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         storedSelectedProfileId = "prof-1"
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
         val state = viewModel.uiState.value
 
         assertEquals(2, state.profiles.size)
@@ -107,7 +113,7 @@ class SettingsViewModelTest {
     fun testLoadSettings_noSelectedProfile_renameEmpty() {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
         assertEquals("", viewModel.uiState.value.renameProfileName)
     }
 
@@ -115,9 +121,10 @@ class SettingsViewModelTest {
     fun testSelectProfile_updatesAndRebuildsApi() {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
 
         viewModel.selectProfile("prof-2")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         verify { AuthManager.setSelectedProfileId("prof-2") }
         verify { ApiClient.rebuild() }
@@ -130,9 +137,10 @@ class SettingsViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         storedSelectedProfileId = "prof-1"
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
 
         viewModel.selectProfile(null)
+        testDispatcher.scheduler.advanceUntilIdle()
 
         verify { AuthManager.setSelectedProfileId(null) }
         verify { ApiClient.rebuild() }
@@ -141,7 +149,7 @@ class SettingsViewModelTest {
 
     @Test
     fun testOnRenameProfileNameChange_updatesState() {
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
         viewModel.onRenameProfileNameChange("New Name")
         assertEquals("New Name", viewModel.uiState.value.renameProfileName)
         assertFalse(viewModel.uiState.value.isSaved)
@@ -152,7 +160,7 @@ class SettingsViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         every { AuthManager.getSelectedProfileId() } returns "prof-1"
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
         viewModel.onRenameProfileNameChange("Renamed Work")
         viewModel.renameProfile()
 
@@ -164,7 +172,7 @@ class SettingsViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         every { AuthManager.getSelectedProfileId() } returns "prof-1"
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
         viewModel.onRenameProfileNameChange("   ")
         viewModel.renameProfile()
 
@@ -173,7 +181,7 @@ class SettingsViewModelTest {
 
     @Test
     fun testRenameProfile_noSelectedProfile_doesNothing() {
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
         viewModel.onRenameProfileNameChange("New Name")
         viewModel.renameProfile()
 
@@ -185,7 +193,7 @@ class SettingsViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         every { AuthManager.getSelectedProfileId() } returns "prof-1"
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
 
         viewModel.deleteProfile("prof-1")
 
@@ -200,7 +208,7 @@ class SettingsViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         every { AuthManager.getSelectedProfileId() } returns "prof-1"
 
-        val viewModel = SettingsViewModel()
+        val viewModel = createViewModel()
 
         viewModel.deleteProfile("prof-2")
 

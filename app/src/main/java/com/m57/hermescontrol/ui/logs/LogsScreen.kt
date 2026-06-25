@@ -31,11 +31,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -138,6 +140,7 @@ fun LogsScreen(
             filteredLogs.joinToString("\n")
         }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_logs)) },
@@ -240,7 +243,9 @@ fun LogsScreen(
                     if (pauseScroll && filteredLogs.isNotEmpty()) {
                         FloatingActionButton(
                             onClick = {
-                                listState.animateScrollToItem(filteredLogs.size)
+                                scope.launch {
+                                    listState.animateScrollToItem(filteredLogs.size)
+                                }
                             },
                             modifier =
                                 Modifier

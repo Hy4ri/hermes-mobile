@@ -232,6 +232,15 @@
     <!-- Logs Screen -->
     <string name="logs_empty_title">No logs available</string>
     <string name="logs_empty_desc">Log output from Hermes will appear here.</string>
+    <string name="logs_action_pause">Pause</string>
+    <string name="logs_action_resume">Resume</string>
+    <string name="logs_action_export">Share</string>
+    <string name="logs_content_desc_jump_bottom">Scroll to bottom</string>
+    <string name="logs_filter_all">All</string>
+    <string name="logs_filter_error">Error</string>
+    <string name="logs_filter_warn">Warn</string>
+    <string name="logs_filter_info">Info</string>
+    <string name="logs_filter_debug">Debug</string>
 
     <!-- System Screen -->
     <string name="system_empty_title">No system data</string>

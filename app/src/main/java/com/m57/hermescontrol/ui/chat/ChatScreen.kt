@@ -25,6 +25,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -123,7 +124,6 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    var lastSessionId by remember { mutableStateOf<String?>(null) }
     val showScrollToBottom by remember {
         derivedStateOf {
             state.messages.isNotEmpty() && listState.canScrollForward
@@ -135,116 +135,24 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    // Publish the notification session ID to the ViewModel synchronously
-    // during composition — BEFORE any WebSocket event (GatewayReady) can be
-    // processed. This ensures GatewayReady sees the pending session and
-    // resumes it instead of creating a new empty chat (issue #240).
-    SideEffect {
-        viewModel.initialSessionId = sessionId
-    }
-
-    // Switch to the session from a notification tap or history screen when provided.
-    // Keyed on connectionStatus so switchSession only fires after the WS is
-    // connected — otherwise SESSION_RESUME is silently dropped (webSocket is
-    // null before onOpen). GatewayReady also handles initialSessionId as a
-    // fallback for the race where it fires before this effect.
-    val pendingSessionId = NavigationController.pendingSessionId
-    LaunchedEffect(sessionId, pendingSessionId, state.connectionStatus) {
-        if (state.connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
-        val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
-        if (!target.isNullOrBlank()) {
-            viewModel.switchSession(target)
-            if (target == pendingSessionId) {
-                NavigationController.pendingSessionId = null
-            }
-        }
-    }
-
-    // Manage notification foreground service lifecycle:
-    // - When app goes to background (ON_STOP), mark as not-foreground and
-    //   start the notification service so we can post reply notifications.
-    // - When app returns to foreground (ON_START), mark as foreground and
-    //   stop the notification service.
-    DisposableEffect(lifecycleOwner) {
-        val observer =
-            androidx.lifecycle.LifecycleEventObserver { _, event ->
-                when (event) {
-                    androidx.lifecycle.Lifecycle.Event.ON_START -> {
-                        NotificationHelper.setAppForeground(context, true)
-                        NotificationHelper.stop(context)
-                        viewModel.refreshSettings()
-                        viewModel.refreshCurrentSession()
-                    }
-
-                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
-                        NotificationHelper.setAppForeground(context, false)
-                        NotificationHelper.start(context)
-                    }
-
-                    else -> {}
-                }
-            }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    // Request POST_NOTIFICATIONS runtime permission on Android 13+ (API 33).
-    // The manifest declaration alone is insufficient — on API 33+ the system
-    // requires a runtime permission prompt before the app can post any
-    // notification, including the foreground service notification.
-    val requestNotificationPermission =
-        rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission(),
-        ) { /* granted — next lifecycle event will pick it up */ }
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val permission = android.Manifest.permission.POST_NOTIFICATIONS
-            if (
-                ContextCompat.checkSelfPermission(context, permission) !=
-                android.content.pm.PackageManager.PERMISSION_GRANTED
-            ) {
-                requestNotificationPermission.launch(permission)
-            }
-        }
-    }
-
-    // Auto-scroll to bottom on new messages
-    LaunchedEffect(state.messages.size, state.streamingMessage?.content?.length, state.isThinking) {
-        val totalItems =
-            state.messages.size +
-                (if (state.streamingMessage != null) 1 else 0) +
-                (if (state.isThinking) 1 else 0)
-        if (totalItems > 0) {
-            val isSessionSwitch = state.currentSessionId != lastSessionId
-            if (isSessionSwitch) {
-                lastSessionId = state.currentSessionId
-                listState.scrollToItem(totalItems - 1)
-            } else if (listState.isAtBottom()) {
-                listState.animateScrollToItem(totalItems - 1)
-            }
-        }
-    }
-
-    // Show error as snackbar
-    LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            viewModel.clearError()
-        }
-    }
-
-    // Clarify dialog
-    state.clarifyRequest?.let { clarify ->
-        ClarifyDialog(
-            clarify = clarify,
-            onOptionSelected = viewModel::respondToClarify,
-            onDismiss = viewModel::dismissClarify,
-        )
-    }
+    // Lifecycle effects, permissions, session switching, auto-scroll, errors
+    ChatLifecycleEffects(
+        sessionId = sessionId,
+        connectionStatus = state.connectionStatus,
+        currentSessionId = state.currentSessionId,
+        messages = state.messages,
+        streamingMessage = state.streamingMessage,
+        isThinking = state.isThinking,
+        errorMessage = state.errorMessage,
+        isSearchActive = state.isSearchActive,
+        currentSearchMatchIndex = state.currentSearchMatchIndex,
+        searchMatchIndices = state.searchMatchIndices,
+        clarifyRequest = state.clarifyRequest,
+        listState = listState,
+        snackbarHostState = snackbarHostState,
+        viewModel = viewModel,
+    )
 
     val backgroundGradient =
         Brush.verticalGradient(
@@ -255,20 +163,6 @@ fun ChatScreen(
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
                 ),
         )
-
-    // Scroll to current search match
-    LaunchedEffect(state.isSearchActive, state.currentSearchMatchIndex, state.searchMatchIndices) {
-        if (state.isSearchActive &&
-            state.currentSearchMatchIndex >= 0 &&
-            state.currentSearchMatchIndex < state.searchMatchIndices.size &&
-            state.messages.isNotEmpty()
-        ) {
-            val targetIndex = state.searchMatchIndices[state.currentSearchMatchIndex]
-            listState.animateScrollToItem(
-                targetIndex.coerceIn(0, state.messages.lastIndex),
-            )
-        }
-    }
 
     HermesScaffold(
         modifier = modifier,
@@ -339,78 +233,10 @@ fun ChatScreen(
                     .background(backgroundGradient)
                     .imePadding(),
         ) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible =
-                    state.connectionStatus == ConnectionStatus.RECONNECTING ||
-                        state.connectionStatus == ConnectionStatus.DISCONNECTED,
-                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-            ) {
-                androidx.compose.material3.Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                ) {
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text =
-                                if (state.connectionStatus == ConnectionStatus.RECONNECTING) {
-                                    stringResource(R.string.chat_status_reconnecting)
-                                } else {
-                                    stringResource(R.string.chat_status_disconnected)
-                                },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        if (state.connectionStatus == ConnectionStatus.DISCONNECTED) {
-                            TextButton(
-                                onClick = { viewModel.reconnect() },
-                                colors =
-                                    androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                    ),
-                            ) {
-                                Text(stringResource(R.string.chat_action_reconnect))
-                            }
-                        }
-                    }
-                }
-            }
-
-            androidx.compose.animation.AnimatedVisibility(
-                visible = state.isSearchActive,
-                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-            ) {
-                androidx.compose.material3.Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    tonalElevation = 2.dp,
-                    border =
-                        BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
-                        ),
-                ) {
-                    Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        SearchBarRow(
-                            searchQuery = state.searchQuery,
-                            onQueryChange = { viewModel.setSearchQuery(it) },
-                            searchMatchCount = state.searchMatchIndices.size,
-                            currentMatchIndex = state.currentSearchMatchIndex,
-                            onNavigateUp = { viewModel.navigateSearchMatch(-1) },
-                            onNavigateDown = { viewModel.navigateSearchMatch(1) },
-                            onClose = { viewModel.clearSearch() },
-                        )
-                    }
-                }
-            }
+            ChatTopBanner(
+                connectionStatus = state.connectionStatus,
+                onReconnect = viewModel::reconnect,
+            )
 
             Box(
                 modifier =
@@ -418,152 +244,37 @@ fun ChatScreen(
                         .weight(1f)
                         .fillMaxWidth(),
             ) {
-                if (state.messages.isEmpty() && !state.isLoading) {
-                    EmptyState(
-                        title = stringResource(R.string.chat_empty_title),
-                        subtitle = stringResource(R.string.chat_empty_subtitle),
-                    )
-                }
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp),
-                ) {
-                    itemsIndexed(
-                        items = state.messages,
-                        key = { _, message -> message.id },
-                    ) { index, message ->
-                        val isCurrentMatch =
-                            state.isSearchActive &&
-                                state.currentSearchMatchIndex >= 0 &&
-                                state.currentSearchMatchIndex < state.searchMatchIndices.size &&
-                                state.searchMatchIndices[state.currentSearchMatchIndex] == index
-
-                        val isLastMessage = index == state.messages.lastIndex
-                        val isAssistant = message.role == MessageRole.ASSISTANT
-
-                        if (state.typingEffectEnabled &&
-                            isLastMessage &&
-                            isAssistant &&
-                            lastAnimatedMessageId != message.id
-                        ) {
-                            StreamingBubbleWithTypingEffect(
-                                streaming = message,
-                                typingDelayMs = state.typingEffectDelayMs,
-                                isDark = isDark,
-                                onAnimationComplete = {
-                                    lastAnimatedMessageId = message.id
-                                },
-                            )
-                        } else {
-                            ChatBubble(
-                                message = message,
-                                isDarkTheme = isDark,
-                                searchQuery = if (state.isSearchActive) state.searchQuery else "",
-                                isCurrentMatch = isCurrentMatch,
-                            )
-                        }
-                    }
-
-                    // Streaming message — rendered separately for O(1) updates
-                    state.streamingMessage?.let { streaming ->
-                        item(key = "streaming-${streaming.id}") {
-                            if (state.typingEffectEnabled && streaming.isStreaming) {
-                                StreamingBubbleWithTypingEffect(
-                                    streaming = streaming,
-                                    typingDelayMs = state.typingEffectDelayMs,
-                                    isDark = isDark,
-                                )
-                            } else {
-                                ChatBubble(
-                                    message = streaming,
-                                    isDarkTheme = isDark,
-                                    searchQuery = "",
-                                    isCurrentMatch = false,
-                                )
-                            }
-                        }
-                    }
-
-                    // Thinking indicator
-                    if (state.isThinking) {
-                        item(key = "thinking") {
-                            ThinkingIndicator(state.thinkingText)
-                        }
-                    }
-                }
+                ChatMessageList(
+                    messages = state.messages,
+                    streamingMessage = state.streamingMessage,
+                    isThinking = state.isThinking,
+                    thinkingText = state.thinkingText,
+                    isSearchActive = state.isSearchActive,
+                    searchQuery = state.searchQuery,
+                    currentSearchMatchIndex = state.currentSearchMatchIndex,
+                    searchMatchIndices = state.searchMatchIndices,
+                    typingEffectEnabled = state.typingEffectEnabled,
+                    typingEffectDelayMs = state.typingEffectDelayMs,
+                    isLoading = state.isLoading,
+                    isDark = isDark,
+                    listState = listState,
+                    lastAnimatedMessageId = lastAnimatedMessageId,
+                    onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
+                    viewModel = viewModel,
+                )
 
                 // Loading overlay
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = state.isLoading,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Card(
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                ),
-                            elevation = CardDefaults.cardElevation(4.dp),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                CircularProgressIndicator(
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = stringResource(R.string.chat_status_connecting),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                            }
-                        }
-                    }
-                }
+                ChatLoadingOverlay(isLoading = state.isLoading)
 
                 // Scroll-to-bottom FAB
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = showScrollToBottom,
-                    enter = fadeIn() + scaleIn(),
-                    exit = fadeOut() + scaleOut(),
-                    modifier =
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 16.dp),
-                ) {
-                    FloatingActionButton(
-                        onClick = {
-                            scrollScope.launch {
-                                val totalItems =
-                                    state.messages.size +
-                                        (if (state.streamingMessage != null) 1 else 0) +
-                                        (if (state.isThinking) 1 else 0)
-                                if (totalItems > 0) {
-                                    listState.animateScrollToItem(totalItems - 1)
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(40.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.content_desc_scroll_to_bottom),
-                        )
-                    }
-                }
+                ChatScrollToBottomFab(
+                    showScrollToBottom = showScrollToBottom,
+                    scrollScope = scrollScope,
+                    listState = listState,
+                    messages = state.messages,
+                    streamingMessage = state.streamingMessage,
+                    isThinking = state.isThinking,
+                )
             }
 
             ChatInputBar(
@@ -1127,4 +838,386 @@ private fun LazyListState.isAtBottom(threshold: Int = 3): Boolean {
     if (visibleItems.isEmpty()) return true
     val lastVisibleItem = visibleItems.last()
     return lastVisibleItem.index >= layoutInfo.totalItemsCount - threshold
+}
+
+@Composable
+private fun ChatLifecycleEffects(
+    sessionId: String?,
+    connectionStatus: ConnectionStatus,
+    currentSessionId: String?,
+    messages: List<ChatMessage>,
+    streamingMessage: ChatMessage?,
+    isThinking: Boolean,
+    errorMessage: String?,
+    isSearchActive: Boolean,
+    currentSearchMatchIndex: Int,
+    searchMatchIndices: List<Int>,
+    clarifyRequest: ClarifyUi?,
+    listState: LazyListState,
+    snackbarHostState: SnackbarHostState,
+    viewModel: ChatViewModel,
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    // Publish the notification session ID to the ViewModel synchronously
+    SideEffect {
+        viewModel.initialSessionId = sessionId
+    }
+
+    // Switch to session from notification/history
+    var lastSessionId by remember { mutableStateOf<String?>(null) }
+    val pendingSessionId = NavigationController.pendingSessionId
+    LaunchedEffect(sessionId, pendingSessionId, connectionStatus) {
+        if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
+        val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
+        if (!target.isNullOrBlank()) {
+            viewModel.switchSession(target)
+            if (target == pendingSessionId) {
+                NavigationController.pendingSessionId = null
+            }
+        }
+    }
+
+    // Lifecycle observer for notification foreground service
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            androidx.lifecycle.LifecycleEventObserver { _, event ->
+                when (event) {
+                    androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                        NotificationHelper.setAppForeground(context, true)
+                        NotificationHelper.stop(context)
+                        viewModel.refreshSettings()
+                        viewModel.refreshCurrentSession()
+                    }
+                    androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                        NotificationHelper.setAppForeground(context, false)
+                        NotificationHelper.start(context)
+                    }
+                    else -> {}
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Request POST_NOTIFICATIONS permission on Android 13+
+    val requestNotificationPermission =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { /* granted */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permission = android.Manifest.permission.POST_NOTIFICATIONS
+            if (ContextCompat.checkSelfPermission(context, permission) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPermission.launch(permission)
+            }
+        }
+    }
+
+    // Auto-scroll to bottom on new messages
+    LaunchedEffect(messages.size, streamingMessage?.content?.length, isThinking) {
+        val totalItems =
+            messages.size +
+                (if (streamingMessage != null) 1 else 0) +
+                (if (isThinking) 1 else 0)
+        if (totalItems > 0) {
+            val isSessionSwitch = currentSessionId != lastSessionId
+            if (isSessionSwitch) {
+                lastSessionId = currentSessionId
+                listState.scrollToItem(totalItems - 1)
+            } else if (listState.isAtBottom()) {
+                listState.animateScrollToItem(totalItems - 1)
+            }
+        }
+    }
+
+    // Show error as snackbar
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            viewModel.clearError()
+        }
+    }
+
+    // Clarify dialog
+    clarifyRequest?.let { clarify ->
+        ClarifyDialog(
+            clarify = clarify,
+            onOptionSelected = viewModel::respondToClarify,
+            onDismiss = viewModel::dismissClarify,
+        )
+    }
+
+    // Scroll to current search match
+    LaunchedEffect(isSearchActive, currentSearchMatchIndex, searchMatchIndices) {
+        if (isSearchActive &&
+            currentSearchMatchIndex >= 0 &&
+            currentSearchMatchIndex < searchMatchIndices.size &&
+            messages.isNotEmpty()
+        ) {
+            val targetIndex = searchMatchIndices[currentSearchMatchIndex]
+            listState.animateScrollToItem(
+                targetIndex.coerceIn(0, messages.lastIndex),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatTopBanner(
+    connectionStatus: ConnectionStatus,
+    onReconnect: () -> Unit,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible =
+            connectionStatus == ConnectionStatus.RECONNECTING ||
+                connectionStatus == ConnectionStatus.DISCONNECTED,
+        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+    ) {
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text =
+                        if (connectionStatus == ConnectionStatus.RECONNECTING) {
+                            stringResource(R.string.chat_status_reconnecting)
+                        } else {
+                            stringResource(R.string.chat_status_disconnected)
+                        },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (connectionStatus == ConnectionStatus.DISCONNECTED) {
+                    TextButton(
+                        onClick = onReconnect,
+                        colors =
+                            androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
+                    ) {
+                        Text(stringResource(R.string.chat_action_reconnect))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatMessageList(
+    messages: List<ChatMessage>,
+    streamingMessage: ChatMessage?,
+    isThinking: Boolean,
+    thinkingText: String,
+    isSearchActive: Boolean,
+    searchQuery: String,
+    currentSearchMatchIndex: Int,
+    searchMatchIndices: List<Int>,
+    typingEffectEnabled: Boolean,
+    typingEffectDelayMs: Int,
+    isLoading: Boolean,
+    isDark: Boolean,
+    listState: LazyListState,
+    lastAnimatedMessageId: String?,
+    onLastAnimatedMessageIdChange: (String?) -> Unit,
+    viewModel: ChatViewModel,
+) {
+    // Search bar
+    androidx.compose.animation.AnimatedVisibility(
+        visible = isSearchActive,
+        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+    ) {
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 2.dp,
+            border =
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                ),
+        ) {
+            Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                SearchBarRow(
+                    searchQuery = searchQuery,
+                    onQueryChange = { viewModel.setSearchQuery(it) },
+                    searchMatchCount = searchMatchIndices.size,
+                    currentMatchIndex = currentSearchMatchIndex,
+                    onNavigateUp = { viewModel.navigateSearchMatch(-1) },
+                    onNavigateDown = { viewModel.navigateSearchMatch(1) },
+                    onClose = { viewModel.clearSearch() },
+                )
+            }
+        }
+    }
+
+    if (messages.isEmpty() && !isLoading) {
+        EmptyState(
+            title = stringResource(R.string.chat_empty_title),
+            subtitle = stringResource(R.string.chat_empty_subtitle),
+        )
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 8.dp),
+    ) {
+        itemsIndexed(
+            items = messages,
+            key = { _, message -> message.id },
+        ) { index, message ->
+            val isCurrentMatch =
+                isSearchActive &&
+                    currentSearchMatchIndex >= 0 &&
+                    currentSearchMatchIndex < searchMatchIndices.size &&
+                    searchMatchIndices[currentSearchMatchIndex] == index
+
+            val isLastMessage = index == messages.lastIndex
+            val isAssistant = message.role == MessageRole.ASSISTANT
+
+            if (typingEffectEnabled && isLastMessage && isAssistant &&
+                lastAnimatedMessageId != message.id
+            ) {
+                StreamingBubbleWithTypingEffect(
+                    streaming = message,
+                    typingDelayMs = typingEffectDelayMs,
+                    isDark = isDark,
+                    onAnimationComplete = {
+                        onLastAnimatedMessageIdChange(message.id)
+                    },
+                )
+            } else {
+                ChatBubble(
+                    message = message,
+                    isDarkTheme = isDark,
+                    searchQuery = if (isSearchActive) searchQuery else "",
+                    isCurrentMatch = isCurrentMatch,
+                )
+            }
+        }
+
+        // Streaming message
+        streamingMessage?.let { streaming ->
+            item(key = "streaming-${streaming.id}") {
+                if (typingEffectEnabled && streaming.isStreaming) {
+                    StreamingBubbleWithTypingEffect(
+                        streaming = streaming,
+                        typingDelayMs = typingEffectDelayMs,
+                        isDark = isDark,
+                    )
+                } else {
+                    ChatBubble(
+                        message = streaming,
+                        isDarkTheme = isDark,
+                        searchQuery = "",
+                        isCurrentMatch = false,
+                    )
+                }
+            }
+        }
+
+        // Thinking indicator
+        if (isThinking) {
+            item(key = "thinking") {
+                ThinkingIndicator(thinkingText)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatLoadingOverlay(isLoading: Boolean) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = isLoading,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                elevation = CardDefaults.cardElevation(4.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.chat_status_connecting),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.ChatScrollToBottomFab(
+    showScrollToBottom: Boolean,
+    scrollScope: kotlinx.coroutines.CoroutineScope,
+    listState: LazyListState,
+    messages: List<ChatMessage>,
+    streamingMessage: ChatMessage?,
+    isThinking: Boolean,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showScrollToBottom,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut(),
+        modifier =
+            Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 16.dp),
+    ) {
+        FloatingActionButton(
+            onClick = {
+                scrollScope.launch {
+                    val totalItems =
+                        messages.size +
+                            (if (streamingMessage != null) 1 else 0) +
+                            (if (isThinking) 1 else 0)
+                    if (totalItems > 0) {
+                        listState.animateScrollToItem(totalItems - 1)
+                    }
+                }
+            },
+            modifier = Modifier.size(40.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.content_desc_scroll_to_bottom),
+            )
+        }
+    }
 }

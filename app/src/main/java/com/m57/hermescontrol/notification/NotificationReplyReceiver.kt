@@ -9,13 +9,21 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 open class NotificationReplyReceiver : BroadcastReceiver() {
     companion object {
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val EXTRA_SESSION_ID = "extra_session_id"
     }
+
+    // Reusable scope for async reply processing — avoids creating a new
+    // unmanaged CoroutineScope per broadcast fire. (PERF-15)
+    private val replyScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Test-friendly wrapper for [BroadcastReceiver.goAsync] which is `final`
@@ -49,9 +57,9 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
 
         if (!replyText.isNullOrBlank() && !sessionId.isNullOrBlank()) {
             val pendingResult = goAsyncCompat()
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            replyScope.launch {
                 try {
-                    kotlinx.coroutines.withTimeout(5000L) {
+                    withTimeout(5000L) {
                         val db =
                             com.m57.hermescontrol.data.local.HermesDatabase
                                 .get(context)

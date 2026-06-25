@@ -1020,7 +1020,8 @@ class ChatViewModel(
     override fun onCleared() {
         super.onCleared()
         pendingCleanupJob?.cancel()
-        wsClient.disconnect()
+        // PERF-16: Don't disconnect the global HermesWsClient singleton when
+        // leaving the Chat screen — it's used by background notification reply.
     }
 
     companion object {

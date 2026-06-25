@@ -1086,10 +1086,11 @@ private fun StreamingBubbleWithTypingEffect(
 
     // Timer that ticks at the configured delay, incrementing the visible word
     // count each tick. Stops ticking when streaming ends, then shows all words.
+    // Optimized: split is only called when waiting for new content, not per tick.
     LaunchedEffect(Unit) {
+        var wordCount = 0
         while (true) {
-            val words = currentContent.value.split(" ")
-            if (visibleWordCount < words.size) {
+            if (visibleWordCount < wordCount) {
                 delay(currentDelayMs.value.toLong())
                 visibleWordCount++
             } else {
@@ -1097,7 +1098,11 @@ private fun StreamingBubbleWithTypingEffect(
                     onAnimationComplete()
                     break
                 }
-                delay(10)
+                // Only split when we need to check for new content arriving
+                val words = currentContent.value.split(" ")
+                wordCount = words.size
+                if (visibleWordCount < wordCount) continue
+                delay(100) // was 10 — reduced from 100Hz to 10Hz
             }
         }
         visibleWordCount = Int.MAX_VALUE

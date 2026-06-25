@@ -43,42 +43,50 @@ class SettingsViewModel : ViewModel() {
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
-        loadSettings()
+        viewModelScope.launch(Dispatchers.IO) {
+            loadSettings()
+        }
     }
 
-    private fun loadSettings() {
+    private suspend fun loadSettings() {
         val selectedId = AuthManager.getSelectedProfileId()
+        val host = AuthManager.getHost()
+        val port = AuthManager.getPort().toString()
+        val token = AuthManager.getToken() ?: ""
+        val autoReconnect = AuthManager.isAutoReconnect()
+        val themePreference = AuthManager.getThemePreference()
+        val useDynamicColors = AuthManager.isUseDynamicColors()
+        val themePreset = AuthManager.getThemePreset()
+        val selectedNavItems = AuthManager.getBottomNavItems()
+        val typingEffectEnabled = AuthManager.isTypingEffectEnabled()
+        val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
+        val profiles = AuthManager.getConnectionProfiles()
+        val bottomNavDisplayMode = AuthManager.getBottomNavDisplayMode()
+        val renameProfileName =
+            profiles.firstOrNull { p -> p.id == selectedId }?.name ?: ""
         _uiState.update {
             it.copy(
-                host = AuthManager.getHost(),
-                port = AuthManager.getPort().toString(),
-                token = AuthManager.getToken() ?: "",
-                autoReconnect = AuthManager.isAutoReconnect(),
-                // B6 (Jun 18 2026, kanban t_86e9be9b): restore user's theme
-                // choice from persistent storage on init. Previously this slot
-                // was missing — always defaulted to ThemePreference.SYSTEM.
-                themePreference = AuthManager.getThemePreference(),
-                useDynamicColors = AuthManager.isUseDynamicColors(),
-                themePreset = AuthManager.getThemePreset(),
-                selectedNavItems = AuthManager.getBottomNavItems(),
-                typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
-                typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
-                profiles = AuthManager.getConnectionProfiles(),
+                host = host,
+                port = port,
+                token = token,
+                autoReconnect = autoReconnect,
+                themePreference = themePreference,
+                useDynamicColors = useDynamicColors,
+                themePreset = themePreset,
+                selectedNavItems = selectedNavItems,
+                typingEffectEnabled = typingEffectEnabled,
+                typingEffectDelayMs = typingEffectDelayMs,
+                profiles = profiles,
                 selectedProfileId = selectedId,
-                renameProfileName =
-                    AuthManager
-                        .getConnectionProfiles()
-                        .firstOrNull { p ->
-                            p.id == selectedId
-                        }?.name ?: "",
-                bottomNavDisplayMode = AuthManager.getBottomNavDisplayMode(),
+                renameProfileName = renameProfileName,
+                bottomNavDisplayMode = bottomNavDisplayMode,
             )
         }
     }
 
     fun selectProfile(profileId: String?) {
         AuthManager.setSelectedProfileId(profileId)
-        loadSettings()
+        viewModelScope.launch(Dispatchers.IO) { loadSettings() }
         ApiClient.rebuild()
     }
 
@@ -95,7 +103,7 @@ class SettingsViewModel : ViewModel() {
                 if (it.id == currentId) it.copy(name = newName) else it
             }
         AuthManager.saveConnectionProfiles(updatedProfiles)
-        loadSettings()
+        viewModelScope.launch(Dispatchers.IO) { loadSettings() }
     }
 
     fun deleteProfile(profileId: String) {
@@ -105,7 +113,7 @@ class SettingsViewModel : ViewModel() {
         if (AuthManager.getSelectedProfileId() == profileId) {
             AuthManager.setSelectedProfileId(null)
         }
-        loadSettings()
+        viewModelScope.launch(Dispatchers.IO) { loadSettings() }
         ApiClient.rebuild()
     }
 
@@ -207,8 +215,10 @@ class SettingsViewModel : ViewModel() {
         AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
         ApiClient.rebuild()
 
-        loadSettings()
-        _uiState.update { it.copy(isSaved = true, testResult = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            loadSettings()
+            _uiState.update { it.copy(isSaved = true, testResult = null) }
+        }
     }
 
     fun testConnection() {

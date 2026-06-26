@@ -172,6 +172,7 @@
     <string name="theme_preset_gruvbox">Gruvbox</string>
     <string name="theme_preset_catppuccin">Catppuccin</string>
     <string name="theme_preset_amoled">AMOLED Black (Dark only)</string>
+    <string name="theme_preset_neon_noir">Neon Noir</string>
 
     <!-- Connect Screen -->
     <string name="connect_selected_profile">Profile: %1$s</string>

@@ -397,7 +397,9 @@ private fun ChatInputBar(
             Column {
                 // Build command list from dynamic catalog (pairs = [name, description])
                 val allCommands = commandCatalog.pairs.associate { (name, desc) -> name to desc }
-                val commandNames = allCommands.keys.toList()
+                // Commands hidden from suggestion menu (still work when manually typed)
+                val hiddenSlashDisplay = setOf("/stop", "/interrupt")
+                val commandNames = allCommands.keys.filter { it !in hiddenSlashDisplay }
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = inputText.startsWith("/") && !inputText.contains(" "),

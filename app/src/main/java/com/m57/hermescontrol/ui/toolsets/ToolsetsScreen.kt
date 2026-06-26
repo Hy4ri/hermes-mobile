@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +43,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -106,7 +106,7 @@ fun ToolsetsScreen(
             else -> {
                 Box(Modifier.fillMaxSize()) {
                     if (state.isLoading && state.toolsets.isEmpty()) {
-                        CircularProgressIndicator()
+                        SpinningIndicator()
                     } else if (state.errorMessage != null && state.toolsets.isEmpty()) {
                         Column(
                             modifier = Modifier.padding(16.dp),

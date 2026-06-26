@@ -16,7 +16,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -36,6 +35,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,7 +75,7 @@ fun PairingScreen(
             else -> {
                 Box(Modifier.fillMaxSize()) {
                     if (state.isLoading && state.pairing == null) {
-                        CircularProgressIndicator()
+                        SpinningIndicator()
                     } else if (state.errorMessage != null && state.pairing == null) {
                         Column(
                             modifier = Modifier.padding(16.dp),

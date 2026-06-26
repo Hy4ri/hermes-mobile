@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,6 +50,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -396,7 +396,7 @@ fun SkillEditorDialog(
                             enabled = !isSaving,
                         ) {
                             if (isSaving) {
-                                CircularProgressIndicator(
+                                SpinningIndicator(
                                     modifier = Modifier.fillMaxSize(0.6f),
                                     strokeWidth = 2.dp,
                                     color = MaterialTheme.colorScheme.onSurface,

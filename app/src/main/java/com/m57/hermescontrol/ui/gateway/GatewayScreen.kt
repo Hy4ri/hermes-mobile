@@ -19,7 +19,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +39,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,7 +79,7 @@ fun GatewayScreen(
             else -> {
                 Box(Modifier.fillMaxSize()) {
                     if (state.isLoading && state.status == null) {
-                        CircularProgressIndicator()
+                        SpinningIndicator()
                     } else if (state.errorMessage != null && state.status == null) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -227,7 +227,7 @@ fun GatewayScreen(
 
                                     if (state.isActionRunning) {
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        CircularProgressIndicator(
+                                        SpinningIndicator(
                                             modifier = Modifier.align(Alignment.CenterHorizontally),
                                         )
                                     }

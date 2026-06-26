@@ -20,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +48,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 private const val DEFAULT_COLUMN = "todo"
@@ -108,7 +108,7 @@ fun KanbanScreen(
             else -> {
                 Box(Modifier.fillMaxSize()) {
                     if (state.isLoading) {
-                        CircularProgressIndicator()
+                        SpinningIndicator()
                     } else if (state.errorMessage != null) {
                         Text(
                             text = state.errorMessage ?: "",

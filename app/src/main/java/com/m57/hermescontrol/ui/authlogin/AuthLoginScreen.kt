@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 
 @Composable
 fun AuthLoginScreen(
@@ -142,7 +142,7 @@ fun AuthLoginScreen(
 
             // Probe / probing indicator
             if (state.probing) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                SpinningIndicator(modifier = Modifier.size(24.dp))
                 Text(
                     text = stringResource(R.string.auth_login_probing_dashboard),
                     style =
@@ -258,7 +258,7 @@ fun AuthLoginScreen(
                 enabled = !state.isLoading && !state.probing,
             ) {
                 if (state.isLoading) {
-                    CircularProgressIndicator(
+                    SpinningIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.onPrimary,

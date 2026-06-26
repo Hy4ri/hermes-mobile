@@ -20,7 +20,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +46,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,7 +101,7 @@ fun ProfilesScreen(
             else -> {
                 Box(Modifier.fillMaxSize()) {
                     if (state.isLoading && state.profiles.isEmpty()) {
-                        CircularProgressIndicator()
+                        SpinningIndicator()
                     } else if (state.errorMessage != null && state.profiles.isEmpty()) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -288,7 +288,7 @@ fun ProfilesScreen(
                                 .height(100.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        CircularProgressIndicator()
+                        SpinningIndicator()
                     }
                 } else {
                     OutlinedTextField(

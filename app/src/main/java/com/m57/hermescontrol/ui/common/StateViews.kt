@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -43,7 +42,7 @@ fun LoadingState(modifier: Modifier = Modifier) {
                 .testTag("loading_state"),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator(
+        SpinningIndicator(
             color = MaterialTheme.colorScheme.primary,
             strokeWidth = 3.dp,
             modifier =

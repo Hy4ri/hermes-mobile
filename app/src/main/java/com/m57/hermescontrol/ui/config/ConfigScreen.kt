@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +33,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,7 +74,7 @@ fun ConfigScreen(
             else -> {
                 Box(Modifier.fillMaxSize()) {
                     if (state.isLoading && state.yamlText == null) {
-                        CircularProgressIndicator()
+                        SpinningIndicator()
                     } else if (state.errorMessage != null && state.yamlText == null) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -132,7 +132,7 @@ fun ConfigScreen(
                                     enabled = !state.isSaving,
                                 ) {
                                     if (state.isSaving) {
-                                        CircularProgressIndicator(modifier = Modifier.width(16.dp))
+                                        SpinningIndicator(modifier = Modifier.width(16.dp))
                                     } else {
                                         Text(stringResource(R.string.config_action_save))
                                     }

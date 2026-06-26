@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,6 +87,7 @@ import com.m57.hermescontrol.theme.SystemMessageColor
 import com.m57.hermescontrol.theme.ToolChipColor
 import com.m57.hermescontrol.theme.ToolChipColorLight
 import com.m57.hermescontrol.theme.UserBubble
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -946,7 +946,7 @@ private fun HeaderRow(
     ) {
         // Status icon or spinner
         if (message.toolStatus == ToolStatus.RUNNING) {
-            CircularProgressIndicator(
+            SpinningIndicator(
                 modifier = Modifier.size(14.dp),
                 strokeWidth = 2.dp,
                 color = MaterialTheme.colorScheme.secondary,

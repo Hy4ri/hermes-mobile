@@ -432,6 +432,51 @@ class ChatViewModel(
                     _uiState.update { it.copy(commandCatalog = catalog) }
                 }
             }
+
+            WsMethods.COMMAND_DISPATCH -> {
+                handleDispatchResult(result)
+            }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun handleDispatchResult(result: Any?) {
+        val map = result as? Map<*, *> ?: return
+        val type = map["type"] as? String ?: return
+        when (type) {
+            "send" -> {
+                val message = map["message"] as? String
+                if (!message.isNullOrBlank()) {
+                    sendMessage(message)
+                }
+            }
+
+            "exec" -> {
+                val output = map["output"] as? String ?: map["message"] as? String ?: ""
+                addAssistantMessage(output)
+            }
+
+            "skill" -> {
+                val message = map["message"] as? String
+                if (!message.isNullOrBlank()) {
+                    sendMessage(message)
+                }
+            }
+
+            "plugin" -> {
+                val output = map["output"] as? String ?: ""
+                addAssistantMessage(output)
+            }
+
+            "alias" -> {
+                val target = map["target"] as? String ?: return
+                handleSlashCommand(target)
+            }
+
+            else -> {
+                val output = map["output"] as? String ?: map.toString()
+                addAssistantMessage(output)
+            }
         }
     }
 
@@ -508,10 +553,6 @@ class ChatViewModel(
         }
 
         when (val result = slashDispatcher.dispatch(command)) {
-            is SlashResult.Message -> {
-                addAssistantMessage(result.text)
-            }
-
             is SlashResult.Interrupt -> {
                 interruptSession()
             }
@@ -520,23 +561,27 @@ class ChatViewModel(
                 createNewSession()
             }
 
-            is SlashResult.FetchStatus -> {
-                fetchAndDisplayStatus()
+            is SlashResult.RpcDispatch -> {
+                dispatchViaRpc(command)
             }
+        }
+    }
 
-            is SlashResult.FetchSessions -> {
-                fetchAndDisplaySessions()
-            }
-
-            is SlashResult.FetchStats -> {
-                fetchAndDisplayStats()
-            }
-
-            is SlashResult.Unknown -> {
-                addAssistantMessage(
-                    "Unknown command: `${result.cmd}`. Type `/help` to view a list of available commands.",
-                )
-            }
+    private fun dispatchViaRpc(command: String) {
+        val sessionId = _uiState.value.currentSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session. Use `/new` to create one.")
+            return
+        }
+        val parts = command.split(" ", limit = 2)
+        val name = parts[0].lowercase().removePrefix("/")
+        val arg = parts.getOrElse(1) { "" }
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.COMMAND_DISPATCH,
+                mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
+                onSent = { id -> trackRequest(id, WsMethods.COMMAND_DISPATCH) },
+            )
         }
     }
 

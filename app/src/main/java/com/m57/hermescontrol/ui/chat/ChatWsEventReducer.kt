@@ -72,6 +72,9 @@ object ChatWsEventReducer {
 
             // RpcResult is handled by the ViewModel (needs pending request context)
             is WsEvent.RpcResult -> ReducerResult(state)
+
+            // ApprovalRequest is handled by the ViewModel (needs active session + WS client)
+            is WsEvent.ApprovalRequest -> ReducerResult(state)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────

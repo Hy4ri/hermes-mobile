@@ -15,7 +15,6 @@ class NetworkResultTest {
         val codesAndExpectedMessages =
             mapOf(
                 400 to "Bad Request (HTTP 400): The server could not understand the request.",
-                401 to "Unauthorized (HTTP 401): Authentication token is invalid or expired.",
                 403 to "Forbidden (HTTP 403): You do not have permission to access this resource.",
                 404 to "Not Found (HTTP 404): The requested resource could not be found.",
                 405 to "Method Not Allowed (HTTP 405).",
@@ -33,6 +32,13 @@ class NetworkResultTest {
             assertEquals(code, error.code)
             assertEquals(expectedMessage, error.message)
         }
+    }
+
+    @Test
+    fun testMapHttpError_authExpired() {
+        val error = mapHttpError(401)
+        assertTrue(error is NetworkError.AuthExpired)
+        assertEquals("Authentication token has expired. Please log in again.", error.message)
     }
 
     @Test

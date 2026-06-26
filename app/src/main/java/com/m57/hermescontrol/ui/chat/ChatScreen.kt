@@ -1102,7 +1102,7 @@ private fun ChatMessageList(
             val isLastMessage = index == messages.lastIndex
             val isAssistant = message.role == MessageRole.ASSISTANT
 
-            if (typingEffectEnabled && isLastMessage && isAssistant &&
+            if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
                 lastAnimatedMessageId != message.id
             ) {
                 StreamingBubbleWithTypingEffect(

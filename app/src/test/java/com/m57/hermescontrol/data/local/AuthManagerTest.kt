@@ -49,6 +49,13 @@ class AuthManagerTest {
 
         // Initialise AuthManager
         AuthManager.init(mockContext)
+
+        // Wait for async initialization to complete to prevent coroutine leaks
+        kotlinx.coroutines.runBlocking {
+            val deferred = field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>
+            deferred?.await()
+        }
+
         AuthManager.resetTokenCacheForTest()
     }
 

@@ -73,7 +73,10 @@ fun ChannelsScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.platforms.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                LoadingState(
+                    subtitle = stringResource(R.string.loading_channels),
+                    modifier = Modifier.padding(paddingValues),
+                )
             }
 
             state.errorMessage != null -> {

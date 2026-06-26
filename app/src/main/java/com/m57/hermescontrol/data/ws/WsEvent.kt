@@ -85,6 +85,15 @@ sealed class WsEvent {
         val error: JsonRpcError,
     ) : WsEvent()
 
+    // ── Approval request ────────────────────────────────────────────────
+
+    data class ApprovalRequest(
+        val command: String?,
+        val description: String?,
+        val patternKeys: List<String>?,
+        val sessionId: String?,
+    ) : WsEvent()
+
     // ── Fallback ─────────────────────────────────────────────────────────
 
     data class Unknown(

@@ -105,6 +105,15 @@ object EventParser {
                 WsEvent.SessionUpdated(payload)
             }
 
+            "approval.request" -> {
+                val command = payload?.get("command") as? String
+                val description = payload?.get("description") as? String
+
+                @Suppress("UNCHECKED_CAST")
+                val patternKeys = (payload?.get("pattern_keys") as? List<*>)?.filterIsInstance<String>()
+                WsEvent.ApprovalRequest(command, description, patternKeys, sessionId)
+            }
+
             else -> {
                 Log.w(TAG, "Unknown event type: $eventType")
                 WsEvent.Unknown(rawJson)

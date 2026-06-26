@@ -379,7 +379,7 @@ private fun ChatInputBar(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
             shape = RoundedCornerShape(24.dp),
             colors =
                 CardDefaults.cardColors(
@@ -470,8 +470,8 @@ private fun ChatInputBar(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.Bottom,
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedTextField(
                         value = inputText,
@@ -479,7 +479,7 @@ private fun ChatInputBar(
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .heightIn(max = 140.dp)
+                                .heightIn(min = 36.dp, max = 120.dp)
                                 .testTag("chat_input"),
                         placeholder = {
                             Text(
@@ -490,10 +490,12 @@ private fun ChatInputBar(
                                 } else {
                                     stringResource(R.string.chat_input_placeholder_type_message)
                                 },
+                                style = MaterialTheme.typography.bodyMedium,
                             )
                         },
                         enabled = isConnected,
-                        maxLines = 5,
+                        singleLine = false,
+                        maxLines = 4,
                         shape = RoundedCornerShape(20.dp),
                         colors =
                             OutlinedTextFieldDefaults.colors(
@@ -501,9 +503,14 @@ private fun ChatInputBar(
                                 unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                                 cursorColor = MaterialTheme.colorScheme.primary,
                             ),
+                        contentPadding =
+                            OutlinedTextFieldDefaults.contentPadding(
+                                horizontal = 12.dp,
+                                vertical = 8.dp,
+                            ),
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     if (isAgentTyping) {
                         // Interrupt button
@@ -511,7 +518,7 @@ private fun ChatInputBar(
                             onClick = onInterrupt,
                             modifier =
                                 Modifier
-                                    .size(48.dp)
+                                    .size(40.dp)
                                     .testTag("interrupt_button"),
                             shape = CircleShape,
                             contentPadding = PaddingValues(0.dp),
@@ -529,7 +536,7 @@ private fun ChatInputBar(
                             enabled = canSend,
                             modifier =
                                 Modifier
-                                    .size(48.dp)
+                                    .size(40.dp)
                                     .testTag("send_button"),
                             shape = CircleShape,
                             contentPadding = PaddingValues(0.dp),

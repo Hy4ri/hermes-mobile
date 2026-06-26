@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import android.content.ClipData
 import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -54,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -258,7 +260,7 @@ private fun UserBubble(
                     IconButton(
                         onClick = {
                             scope.launch {
-                                clipboard.setText(AnnotatedString(message.content))
+                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
                             }
                             showCopyButton = false
                         },
@@ -391,7 +393,7 @@ private fun AssistantBubble(
                     IconButton(
                         onClick = {
                             scope.launch {
-                                clipboard.setText(AnnotatedString(message.content))
+                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
                             }
                             showCopyButton = false
                         },
@@ -945,7 +947,7 @@ private fun CopyButton(
             IconButton(
                 onClick = {
                     scope.launch {
-                        clipboard.setText(AnnotatedString(textToCopy))
+                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, textToCopy)))
                     }
                     onCopy()
                 },

@@ -480,6 +480,7 @@ private fun ChatInputBar(
                             Modifier
                                 .weight(1f)
                                 .heightIn(min = 36.dp, max = 120.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                                 .testTag("chat_input"),
                         placeholder = {
                             Text(
@@ -502,11 +503,6 @@ private fun ChatInputBar(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                                 unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                                 cursorColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        contentPadding =
-                            OutlinedTextFieldDefaults.contentPadding(
-                                horizontal = 12.dp,
-                                vertical = 8.dp,
                             ),
                     )
 

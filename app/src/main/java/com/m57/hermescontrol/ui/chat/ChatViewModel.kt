@@ -269,6 +269,10 @@ class ChatViewModel(
                 }
             }
 
+            is WsEvent.ApprovalRequest -> {
+                handleApprovalRequest(event)
+            }
+
             else -> { /* reducer handles these */ }
         }
     }
@@ -436,6 +440,14 @@ class ChatViewModel(
 
             WsMethods.COMMAND_DISPATCH -> {
                 handleDispatchResult(result)
+            }
+
+            WsMethods.APPROVAL_RESPOND -> {
+                val map = result as? Map<*, *>
+                val resolved = (map?.get("resolved") as? Number)?.toInt() ?: 0
+                if (resolved > 0) {
+                    addSystemMessage("✅ Approval submitted")
+                }
             }
         }
     }
@@ -945,6 +957,63 @@ class ChatViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    // ── Approval flow ───────────────────────────────────────────────────
+
+    private fun handleApprovalRequest(event: WsEvent.ApprovalRequest) {
+        val description = event.description ?: event.command ?: "Unknown command"
+        val content = "⚠️ **Approval Required**\n$description"
+        val msg =
+            ChatMessage(
+                role = MessageRole.SYSTEM,
+                content = content,
+                approvalInfo =
+                    ApprovalInfo(
+                        command = event.command,
+                        description = event.description,
+                        patternKeys = event.patternKeys,
+                    ),
+            )
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages + msg,
+                isAgentTyping = false,
+            )
+        }
+    }
+
+    fun respondToApproval(action: String) {
+        val state = _uiState.value
+        val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
+        val sessionId = state.currentSessionId ?: return
+
+        // Clear buttons immediately
+        _uiState.update { s ->
+            s.copy(
+                messages =
+                    s.messages.map {
+                        if (it.id == approvalMsg.id) {
+                            it.copy(approvalInfo = null)
+                        } else {
+                            it
+                        }
+                    },
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                method = WsMethods.APPROVAL_RESPOND,
+                params =
+                    mapOf(
+                        "session_id" to sessionId,
+                        "choice" to action,
+                        "all" to false,
+                    ),
+                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) },
+            )
+        }
     }
 
     fun reconnect() {

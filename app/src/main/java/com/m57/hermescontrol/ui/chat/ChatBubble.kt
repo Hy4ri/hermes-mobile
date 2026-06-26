@@ -26,17 +26,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -95,6 +100,7 @@ fun ChatBubble(
     isDarkTheme: Boolean,
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
+    onRespondApproval: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -125,7 +131,11 @@ fun ChatBubble(
             }
 
             MessageRole.SYSTEM -> {
-                SystemBubble(message, modifier)
+                SystemBubble(
+                    message = message,
+                    onRespondApproval = onRespondApproval,
+                    modifier = modifier,
+                )
             }
 
             MessageRole.TOOL -> {
@@ -415,14 +425,15 @@ private fun AssistantBubble(
 @Composable
 private fun SystemBubble(
     message: ChatMessage,
+    onRespondApproval: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    Box(
+    Column(
         modifier =
             modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = message.content,
@@ -432,6 +443,54 @@ private fun SystemBubble(
                     color = SystemMessageColor,
                 ),
         )
+
+        // Approval action buttons
+        if (message.approvalInfo != null) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilledTonalButton(
+                    onClick = { onRespondApproval("approve") },
+                    modifier =
+                        Modifier
+                            .height(36.dp)
+                            .testTag("approve_button"),
+                    colors =
+                        ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Approve")
+                }
+
+                FilledTonalButton(
+                    onClick = { onRespondApproval("deny") },
+                    modifier =
+                        Modifier
+                            .height(36.dp)
+                            .testTag("deny_button"),
+                    colors =
+                        ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Deny")
+                }
+            }
+        }
     }
 }
 

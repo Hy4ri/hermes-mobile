@@ -1119,6 +1119,7 @@ private fun ChatMessageList(
                     isDarkTheme = isDark,
                     searchQuery = if (isSearchActive) searchQuery else "",
                     isCurrentMatch = isCurrentMatch,
+                    onRespondApproval = viewModel::respondToApproval,
                 )
             }
         }

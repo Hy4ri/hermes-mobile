@@ -266,7 +266,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
-            assertTrue(state.messages.any { it.content.contains("Unknown command") })
+            assertTrue(state.errorMessage?.contains("Unknown command") == true)
         }
 
     @Test

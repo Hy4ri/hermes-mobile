@@ -37,6 +37,17 @@ data class SettingsUiState(
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
     val bottomNavDisplayMode: BottomNavDisplayMode = BottomNavDisplayMode.ICON_AND_TEXT,
+    // Profile add/edit dialog
+    val showProfileDialog: Boolean = false,
+    val editingProfileId: String? = null,
+    val dialogProfileName: String = "",
+    val dialogProfileHost: String = "",
+    val dialogProfilePort: String = "",
+    val dialogProfileToken: String = "",
+    // Delete confirmation
+    val showDeleteConfirm: Boolean = false,
+    val profileToDeleteId: String? = null,
+    val profileToDeleteName: String = "",
 )
 
 class SettingsViewModel(
@@ -118,6 +129,125 @@ class SettingsViewModel(
         }
         viewModelScope.launch(ioDispatcher) { loadSettings() }
         ApiClient.rebuild()
+    }
+
+    // ── Profile add/edit dialog ──────────────────────────────────────────
+
+    fun openAddProfile() {
+        _uiState.update {
+            it.copy(
+                showProfileDialog = true,
+                editingProfileId = null,
+                dialogProfileName = "",
+                dialogProfileHost = "127.0.0.1",
+                dialogProfilePort = "9119",
+                dialogProfileToken = "",
+            )
+        }
+    }
+
+    fun openEditProfile(profileId: String) {
+        val profile = AuthManager.getConnectionProfiles().firstOrNull { it.id == profileId } ?: return
+        val token = AuthManager.getProfileToken(profileId) ?: ""
+        _uiState.update {
+            it.copy(
+                showProfileDialog = true,
+                editingProfileId = profileId,
+                dialogProfileName = profile.name,
+                dialogProfileHost = profile.host,
+                dialogProfilePort = profile.port.toString(),
+                dialogProfileToken = token,
+            )
+        }
+    }
+
+    fun closeProfileDialog() {
+        _uiState.update {
+            it.copy(showProfileDialog = false, editingProfileId = null)
+        }
+    }
+
+    fun onDialogProfileNameChange(value: String) {
+        _uiState.update { it.copy(dialogProfileName = value) }
+    }
+
+    fun onDialogProfileHostChange(value: String) {
+        _uiState.update { it.copy(dialogProfileHost = value.trim()) }
+    }
+
+    fun onDialogProfilePortChange(value: String) {
+        _uiState.update { it.copy(dialogProfilePort = value.filter { c -> c.isDigit() }) }
+    }
+
+    fun onDialogProfileTokenChange(value: String) {
+        _uiState.update { it.copy(dialogProfileToken = value.trim()) }
+    }
+
+    fun saveProfileFromDialog() {
+        val state = _uiState.value
+        val name = state.dialogProfileName.trim()
+        val host = state.dialogProfileHost.trim()
+        val port = state.dialogProfilePort.toIntOrNull() ?: return
+        val token = state.dialogProfileToken
+
+        if (name.isBlank() || host.isBlank()) return
+
+        val profiles = AuthManager.getConnectionProfiles().toMutableList()
+        val editingId = state.editingProfileId
+
+        if (editingId != null) {
+            // Update existing profile
+            val index = profiles.indexOfFirst { it.id == editingId }
+            if (index == -1) return
+            val oldToken = AuthManager.getProfileToken(editingId)
+            profiles[index] = profiles[index].copy(name = name, host = host, port = port)
+            AuthManager.saveConnectionProfiles(profiles)
+            if (token != oldToken) {
+                AuthManager.setProfileToken(editingId, token)
+            }
+        } else {
+            // Add new profile
+            val newProfile =
+                com.m57.hermescontrol.data.model.ConnectionProfile(
+                    name = name,
+                    host = host,
+                    port = port,
+                )
+            profiles.add(newProfile)
+            AuthManager.saveConnectionProfiles(profiles)
+            AuthManager.setProfileToken(newProfile.id, token)
+        }
+
+        closeProfileDialog()
+        viewModelScope.launch(ioDispatcher) { loadSettings() }
+        ApiClient.rebuild()
+    }
+
+    // ── Delete confirmation ──────────────────────────────────────────────
+
+    fun requestDeleteProfile(profileId: String) {
+        val profile = AuthManager.getConnectionProfiles().firstOrNull { it.id == profileId }
+        _uiState.update {
+            it.copy(
+                showDeleteConfirm = true,
+                profileToDeleteId = profileId,
+                profileToDeleteName = profile?.name ?: "",
+            )
+        }
+    }
+
+    fun confirmDeleteProfile() {
+        val profileId = _uiState.value.profileToDeleteId ?: return
+        deleteProfile(profileId)
+        _uiState.update {
+            it.copy(showDeleteConfirm = false, profileToDeleteId = null, profileToDeleteName = "")
+        }
+    }
+
+    fun cancelDeleteProfile() {
+        _uiState.update {
+            it.copy(showDeleteConfirm = false, profileToDeleteId = null, profileToDeleteName = "")
+        }
     }
 
     fun onHostChange(value: String) {

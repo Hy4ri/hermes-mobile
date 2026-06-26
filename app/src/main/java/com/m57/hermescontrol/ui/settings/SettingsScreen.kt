@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Visibility
@@ -313,6 +314,7 @@ private fun ConnectionSection(
     onPasswordVisibilityToggle: () -> Unit,
 ) {
     SectionCard(title = stringResource(R.string.settings_sec_connection)) {
+        // ── Profile selector ─────────────────────────────────────────
         if (state.profiles.isNotEmpty()) {
             var profilesExpanded by remember { mutableStateOf(false) }
             Text(
@@ -348,30 +350,7 @@ private fun ConnectionSection(
                     )
                     state.profiles.forEach { profile ->
                         DropdownMenuItem(
-                            text = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(profile.name)
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.deleteProfile(profile.id)
-                                            profilesExpanded = false
-                                        },
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription =
-                                                stringResource(
-                                                    R.string.content_desc_delete_profile,
-                                                ),
-                                            tint = MaterialTheme.colorScheme.error,
-                                        )
-                                    }
-                                }
-                            },
+                            text = { Text(profile.name) },
                             onClick = {
                                 viewModel.selectProfile(profile.id)
                                 profilesExpanded = false
@@ -381,25 +360,91 @@ private fun ConnectionSection(
                 }
             }
 
-            if (state.selectedProfileId != null) {
-                OutlinedTextField(
-                    value = state.renameProfileName,
-                    onValueChange = viewModel::onRenameProfileNameChange,
-                    label = { Text(stringResource(R.string.settings_action_rename_profile)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        Button(
-                            onClick = viewModel::renameProfile,
-                            modifier = Modifier.padding(end = 4.dp),
-                        ) {
-                            Text(stringResource(R.string.action_rename))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Saved profiles list ──────────────────────────────────
+            Text(
+                text = stringResource(R.string.settings_saved_profiles, state.profiles.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            state.profiles.forEach { profile ->
+                val isActive = profile.id == state.selectedProfileId
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor =
+                                if (isActive) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                },
+                        ),
+                    elevation = CardDefaults.cardElevation(0.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = profile.name,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            )
+                            Text(
+                                text = "${profile.host}:${profile.port}",
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    ),
+                            )
                         }
-                    },
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                            IconButton(
+                                onClick = { viewModel.openEditProfile(profile.id) },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Edit,
+                                    contentDescription = stringResource(R.string.settings_action_edit_profile),
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                            IconButton(
+                                onClick = { viewModel.requestDeleteProfile(profile.id) },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.content_desc_delete_profile),
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
+
+        // ── Add profile button ───────────────────────────────────────
+        OutlinedButton(
+            onClick = viewModel::openAddProfile,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.size(4.dp))
+            Text(stringResource(R.string.settings_action_add_profile))
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = state.host,
@@ -486,6 +531,136 @@ private fun ConnectionSection(
             Text(stringResource(R.string.settings_action_clear_token))
         }
     }
+
+    // ── Dialogs ──────────────────────────────────────────────────────────
+
+    if (state.showProfileDialog) {
+        ProfileEditorDialog(
+            isEditing = state.editingProfileId != null,
+            name = state.dialogProfileName,
+            host = state.dialogProfileHost,
+            port = state.dialogProfilePort,
+            token = state.dialogProfileToken,
+            onNameChange = viewModel::onDialogProfileNameChange,
+            onHostChange = viewModel::onDialogProfileHostChange,
+            onPortChange = viewModel::onDialogProfilePortChange,
+            onTokenChange = viewModel::onDialogProfileTokenChange,
+            onSave = viewModel::saveProfileFromDialog,
+            onDismiss = viewModel::closeProfileDialog,
+        )
+    }
+
+    if (state.showDeleteConfirm) {
+        DeleteProfileConfirmDialog(
+            profileName = state.profileToDeleteName,
+            onConfirm = viewModel::confirmDeleteProfile,
+            onDismiss = viewModel::cancelDeleteProfile,
+        )
+    }
+}
+
+@Composable
+private fun ProfileEditorDialog(
+    isEditing: Boolean,
+    name: String,
+    host: String,
+    port: String,
+    token: String,
+    onNameChange: (String) -> Unit,
+    onHostChange: (String) -> Unit,
+    onPortChange: (String) -> Unit,
+    onTokenChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val title =
+        if (isEditing) {
+            stringResource(R.string.settings_title_edit_profile)
+        } else {
+            stringResource(R.string.settings_title_add_profile)
+        }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = { Text(stringResource(R.string.settings_field_profile_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = host,
+                    onValueChange = onHostChange,
+                    label = { Text(stringResource(R.string.settings_field_host)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = port,
+                    onValueChange = onPortChange,
+                    label = { Text(stringResource(R.string.settings_field_port)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = onTokenChange,
+                    label = { Text(stringResource(R.string.settings_field_token)) },
+                    singleLine = true,
+                    visualTransformation =
+                        if (token.isNotEmpty()) {
+                            PasswordVisualTransformation()
+                        } else {
+                            VisualTransformation.None
+                        },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onSave, enabled = name.isNotBlank() && host.isNotBlank()) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun DeleteProfileConfirmDialog(
+    profileName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_delete_confirm_title)) },
+        text = {
+            Text(stringResource(R.string.settings_delete_confirm_message, profileName))
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text(stringResource(R.string.action_delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
 }
 
 @Composable

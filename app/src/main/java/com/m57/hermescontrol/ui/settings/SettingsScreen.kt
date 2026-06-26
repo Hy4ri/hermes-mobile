@@ -97,6 +97,11 @@ fun SettingsScreen(
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
         navigationIcon = NavIcon.Back(onBack),
+        actions = {
+            TextButton(onClick = viewModel::save) {
+                Text(stringResource(R.string.action_save))
+            }
+        },
     ) {
         Column(
             modifier =
@@ -145,10 +150,9 @@ fun SettingsScreen(
 
                         TestResultCard(testResult = state.testResult)
                         SaveIndicator(isSaved = state.isSaved)
-                        SettingsActionButtons(
+                        TestConnectionButton(
                             isTesting = state.isTesting,
                             onTest = viewModel::testConnection,
-                            onSave = viewModel::save,
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -712,39 +716,22 @@ private fun SaveIndicator(isSaved: Boolean) {
 }
 
 @Composable
-private fun SettingsActionButtons(
+private fun TestConnectionButton(
     isTesting: Boolean,
     onTest: () -> Unit,
-    onSave: () -> Unit,
 ) {
-    Row(
+    OutlinedButton(
+        onClick = onTest,
+        enabled = !isTesting,
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OutlinedButton(
-            onClick = onTest,
-            enabled = !isTesting,
-            modifier = Modifier.weight(1f),
-        ) {
-            if (isTesting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text(stringResource(R.string.settings_action_test_connection))
-            }
-        }
-
-        Button(
-            onClick = onSave,
-            modifier = Modifier.weight(1f),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                ),
-        ) {
-            Text(stringResource(R.string.action_save))
+        if (isTesting) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text(stringResource(R.string.settings_action_test_connection))
         }
     }
 }

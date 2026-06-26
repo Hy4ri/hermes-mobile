@@ -79,7 +79,10 @@ fun ModelScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.providers.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                LoadingState(
+                    subtitle = stringResource(R.string.loading_state_subtitle_models),
+                    modifier = Modifier.padding(paddingValues),
+                )
             }
 
             state.errorMessage != null -> {

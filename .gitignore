@@ -19,3 +19,8 @@ $PWD/
 
 ktlint
 .hermes/plans/
+
+# Local workspace artifacts and logs
+*.py
+.kotlin/
+

@@ -104,11 +104,24 @@ object AuthManager {
         }
     }
 
+    /**
+     * Retrieves the initialized [SharedPreferences] instance.
+     *
+     * WARNING: This method is synchronous and will block the caller thread (using [runBlocking])
+     * if the asynchronous initialization is still in progress. Callers should avoid invoking this
+     * on the main thread during early startup to prevent frame drops or potential ANRs.
+     *
+     * Times out and throws [IllegalStateException] if initialization takes longer than 2 seconds.
+     */
     private fun requirePrefs(): SharedPreferences =
         runBlocking {
-            prefsDeferred?.await() ?: throw IllegalStateException(
-                "AuthManager not initialized. Call init(context) first.",
-            )
+            val deferred =
+                prefsDeferred ?: throw IllegalStateException(
+                    "AuthManager not initialized. Call init(context) first.",
+                )
+            kotlinx.coroutines.withTimeoutOrNull(2000) {
+                deferred.await()
+            } ?: throw IllegalStateException("AuthManager initialization timed out after 2 seconds.")
         }
 
     fun setWsAuthParam(param: String) {

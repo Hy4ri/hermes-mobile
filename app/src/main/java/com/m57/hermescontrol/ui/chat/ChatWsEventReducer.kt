@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
 
 /**
@@ -184,7 +185,6 @@ object ChatWsEventReducer {
                     messages = state.messages + msg,
                     isAgentTyping = false,
                 ),
-            streamingState = StreamingState(),
             effects = effects,
         )
     }
@@ -212,7 +212,6 @@ object ChatWsEventReducer {
                     messages = state.messages + msg,
                     isAgentTyping = false,
                 ),
-            streamingState = StreamingState(),
             effects = effects,
         )
     }
@@ -226,9 +225,7 @@ object ChatWsEventReducer {
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                com.google.gson
-                    .Gson()
-                    .toJson(it)
+                OkHttpProvider.gson.toJson(it)
             } ?: ""
         val toolMessage =
             ChatMessage(
@@ -261,7 +258,6 @@ object ChatWsEventReducer {
 
         return ReducerResult(
             state = newState.copy(messages = newState.messages + toolMessage),
-            streamingState = StreamingState(),
             effects = effects,
         )
     }
@@ -275,9 +271,7 @@ object ChatWsEventReducer {
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                com.google.gson
-                    .Gson()
-                    .toJson(it)
+                OkHttpProvider.gson.toJson(it)
             } ?: ""
         val messages = state.messages.toMutableList()
         val toolIdx =
@@ -325,7 +319,6 @@ object ChatWsEventReducer {
                         ),
                     isAgentTyping = false,
                 ),
-            streamingState = StreamingState(),
         )
 
     // ── RpcError ──────────────────────────────────────────────────────
@@ -371,7 +364,7 @@ object ChatWsEventReducer {
  */
 data class ReducerResult(
     val state: ChatUiState,
-    val streamingState: StreamingState,
+    val streamingState: StreamingState = StreamingState(),
     val effects: List<ReducerEffect> = emptyList(),
 )
 

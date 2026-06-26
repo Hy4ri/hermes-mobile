@@ -54,14 +54,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -106,6 +104,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.StatusRed
@@ -294,9 +293,9 @@ fun ChatScreen(
                         }
                     }
                 },
-                onInterrupt = viewModel::interruptSession,
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
+                commandCatalog = state.commandCatalog,
             )
         }
     }
@@ -365,9 +364,9 @@ private fun ChatInputBar(
     inputText: String,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
-    onInterrupt: () -> Unit,
     isAgentTyping: Boolean,
     isConnected: Boolean,
+    commandCatalog: CommandCatalog,
 ) {
     // Allow sending slash commands even while agent is typing
     val isSlashCommand = inputText.startsWith("/")
@@ -396,23 +395,16 @@ private fun ChatInputBar(
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         ) {
             Column {
-                val commands =
-                    listOf(
-                        "/help",
-                        "/status",
-                        "/sessions",
-                        "/stats",
-                        "/system",
-                        "/new",
-                        "/stop",
-                        "/interrupt",
-                    )
+                // Build command list from dynamic catalog (pairs = [name, description])
+                val allCommands = commandCatalog.pairs.associate { (name, desc) -> name to desc }
+                val commandNames = allCommands.keys.toList()
+
                 androidx.compose.animation.AnimatedVisibility(
                     visible = inputText.startsWith("/") && !inputText.contains(" "),
                     enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
                     exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
                 ) {
-                    val filteredCommands = commands.filter { it.startsWith(inputText, ignoreCase = true) }
+                    val filteredCommands = commandNames.filter { it.startsWith(inputText, ignoreCase = true) }
                     if (filteredCommands.isNotEmpty()) {
                         androidx.compose.material3.Surface(
                             modifier =
@@ -431,18 +423,7 @@ private fun ChatInputBar(
                                 modifier = Modifier.heightIn(max = 200.dp),
                             ) {
                                 items(filteredCommands, key = { it }) { cmd ->
-                                    val description =
-                                        when (cmd) {
-                                            "/help" -> stringResource(R.string.command_help_desc)
-                                            "/status" -> stringResource(R.string.command_status_desc)
-                                            "/sessions" -> stringResource(R.string.command_sessions_desc)
-                                            "/stats" -> stringResource(R.string.command_stats_desc)
-                                            "/system" -> stringResource(R.string.command_system_desc)
-                                            "/new" -> stringResource(R.string.command_new_desc)
-                                            "/stop" -> stringResource(R.string.command_stop_desc)
-                                            "/interrupt" -> stringResource(R.string.command_stop_desc)
-                                            else -> ""
-                                        }
+                                    val description = allCommands[cmd] ?: ""
                                     DropdownMenuItem(
                                         text = {
                                             Row(
@@ -526,26 +507,6 @@ private fun ChatInputBar(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = stringResource(R.string.chat_send_desc),
                         )
-                    }
-
-                    // Compact stop icon — visible only while agent is streaming
-                    if (isAgentTyping) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        FilledTonalIconButton(
-                            onClick = onInterrupt,
-                            modifier =
-                                Modifier
-                                    .size(32.dp)
-                                    .testTag("interrupt_button"),
-                            shape = CircleShape,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Stop,
-                                contentDescription = stringResource(R.string.content_desc_interrupt),
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                        }
                     }
                 }
             }

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
 
 /**
@@ -15,6 +16,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 object ChatWsEventReducer {
     fun reduce(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent,
         currentSessionId: String? = null,
     ): ReducerResult {
@@ -31,60 +33,65 @@ object ChatWsEventReducer {
                 else -> null
             }
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
-            return ReducerResult(state)
+            return ReducerResult(state = state, streamingState = streamingState)
         }
-        return reduceInternal(state, event)
+        return reduceInternal(state, streamingState, event)
     }
 
     private fun reduceInternal(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent,
     ): ReducerResult =
         when (event) {
-            is WsEvent.GatewayReady -> onGatewayReady(state)
+            is WsEvent.GatewayReady -> onGatewayReady(state, streamingState)
 
-            is WsEvent.MessageStart -> onMessageStart(state, event)
+            is WsEvent.MessageStart -> onMessageStart(state, streamingState, event)
 
-            is WsEvent.MessageToken -> onMessageToken(state, event)
+            is WsEvent.MessageToken -> onMessageToken(state, streamingState, event)
 
-            is WsEvent.ThinkingDelta -> onThinkingDelta(state, event)
+            is WsEvent.ThinkingDelta -> onThinkingDelta(state, streamingState, event)
 
-            is WsEvent.MessageComplete -> onMessageComplete(state, event)
+            is WsEvent.MessageComplete -> onMessageComplete(state, streamingState, event)
 
-            is WsEvent.MessageDone -> onMessageDone(state)
+            is WsEvent.MessageDone -> onMessageDone(state, streamingState)
 
-            is WsEvent.ToolStart -> onToolStart(state, event)
+            is WsEvent.ToolStart -> onToolStart(state, streamingState, event)
 
-            is WsEvent.ToolComplete -> onToolComplete(state, event)
+            is WsEvent.ToolComplete -> onToolComplete(state, streamingState, event)
 
-            is WsEvent.ClarifyRequest -> onClarifyRequest(state, event)
+            is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
 
-            is WsEvent.RpcError -> onRpcError(state, event)
+            is WsEvent.RpcError -> onRpcError(state, streamingState, event)
 
-            is WsEvent.SessionUpdated -> onSessionUpdated(state)
+            is WsEvent.SessionUpdated -> onSessionUpdated(state, streamingState)
 
-            is WsEvent.StatusUpdate -> onStatusUpdate(state)
+            is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState)
 
-            is WsEvent.Unknown -> onUnknown(state)
+            is WsEvent.Unknown -> onUnknown(state, streamingState)
 
             // SessionInfo is a no-op in the original code
-            is WsEvent.SessionInfo -> ReducerResult(state)
+            is WsEvent.SessionInfo -> ReducerResult(state = state, streamingState = streamingState)
 
             // RpcResult is handled by the ViewModel (needs pending request context)
-            is WsEvent.RpcResult -> ReducerResult(state)
+            is WsEvent.RpcResult -> ReducerResult(state = state, streamingState = streamingState)
 
             // ApprovalRequest is handled by the ViewModel (needs active session + WS client)
-            is WsEvent.ApprovalRequest -> ReducerResult(state)
+            is WsEvent.ApprovalRequest -> ReducerResult(state = state, streamingState = streamingState)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────
 
-    private fun onGatewayReady(state: ChatUiState): ReducerResult = ReducerResult(state)
+    private fun onGatewayReady(
+        state: ChatUiState,
+        streamingState: StreamingState,
+    ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
 
     // ── MessageStart ──────────────────────────────────────────────────
 
     private fun onMessageStart(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.MessageStart,
     ): ReducerResult {
         val msg =
@@ -98,53 +105,52 @@ object ChatWsEventReducer {
         // Build new state: finalize any orphan streaming message, then set the new one
         var orphan: ChatMessage? = null
         val preState =
-            if (state.streamingMessage?.content?.isNotEmpty() == true) {
-                val finalized = state.streamingMessage!!.copy(isStreaming = false)
+            if (streamingState.streamingMessage?.content?.isNotEmpty() == true) {
+                val finalized = streamingState.streamingMessage.copy(isStreaming = false)
                 orphan = finalized
                 state.copy(
                     messages = state.messages + finalized,
-                    streamingMessage = null,
                     isAgentTyping = true,
-                    isThinking = false,
-                    thinkingText = "",
                 )
             } else {
                 state.copy(
                     isAgentTyping = true,
-                    isThinking = false,
-                    thinkingText = "",
                 )
             }
-        val newState = preState.copy(streamingMessage = msg)
+        val newStreamingState = StreamingState(streamingMessage = msg)
+        val newState = preState
         val sid = newState.currentSessionId
         if (orphan != null && sid != null) {
             effects.add(ReducerEffect.PersistMessage(orphan, sid))
         }
 
-        return ReducerResult(newState, effects)
+        return ReducerResult(state = newState, streamingState = newStreamingState, effects = effects)
     }
 
     // ── MessageToken ──────────────────────────────────────────────────
 
     private fun onMessageToken(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.MessageToken,
     ): ReducerResult {
         // Token accumulation is done by the ViewModel (streaming buffer + flush timer).
         // The reducer only signals that new content arrived — ViewModel owns the timer.
-        return ReducerResult(state)
+        return ReducerResult(state = state, streamingState = streamingState)
     }
 
     // ── ThinkingDelta ─────────────────────────────────────────────────
 
     private fun onThinkingDelta(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.ThinkingDelta,
     ): ReducerResult {
-        val currentContent = state.thinkingText + event.token
+        val currentContent = streamingState.thinkingText + event.token
         return ReducerResult(
-            state =
-                state.copy(
+            state = state,
+            streamingState =
+                streamingState.copy(
                     isThinking = true,
                     thinkingText = currentContent,
                 ),
@@ -155,9 +161,10 @@ object ChatWsEventReducer {
 
     private fun onMessageComplete(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.MessageComplete,
     ): ReducerResult {
-        val streaming = state.streamingMessage
+        val streaming = streamingState.streamingMessage
         val msg =
             streaming?.copy(
                 content = event.text ?: streaming.content,
@@ -176,10 +183,7 @@ object ChatWsEventReducer {
             state =
                 state.copy(
                     messages = state.messages + msg,
-                    streamingMessage = null,
                     isAgentTyping = false,
-                    isThinking = false,
-                    thinkingText = "",
                 ),
             effects = effects,
         )
@@ -187,8 +191,15 @@ object ChatWsEventReducer {
 
     // ── MessageDone ───────────────────────────────────────────────────
 
-    private fun onMessageDone(state: ChatUiState): ReducerResult {
-        val streaming = state.streamingMessage ?: return ReducerResult(state)
+    private fun onMessageDone(
+        state: ChatUiState,
+        streamingState: StreamingState,
+    ): ReducerResult {
+        val streaming =
+            streamingState.streamingMessage ?: return ReducerResult(
+                state = state,
+                streamingState = streamingState,
+            )
         val msg = streaming.copy(isStreaming = false)
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -199,10 +210,7 @@ object ChatWsEventReducer {
             state =
                 state.copy(
                     messages = state.messages + msg,
-                    streamingMessage = null,
                     isAgentTyping = false,
-                    isThinking = false,
-                    thinkingText = "",
                 ),
             effects = effects,
         )
@@ -212,13 +220,12 @@ object ChatWsEventReducer {
 
     private fun onToolStart(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.ToolStart,
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                com.m57.hermescontrol.data.remote.OkHttpProvider
-                    .gson
-                    .toJson(it)
+                OkHttpProvider.gson.toJson(it)
             } ?: ""
         val toolMessage =
             ChatMessage(
@@ -231,15 +238,14 @@ object ChatWsEventReducer {
         // Finalize any orphan streaming message
         var orphanToPersist: ChatMessage? = null
         val newState =
-            if (state.streamingMessage?.content?.isNotEmpty() == true) {
-                val finalized = state.streamingMessage!!.copy(isStreaming = false)
+            if (streamingState.streamingMessage?.content?.isNotEmpty() == true) {
+                val finalized = streamingState.streamingMessage.copy(isStreaming = false)
                 orphanToPersist = finalized
                 state.copy(
                     messages = state.messages + finalized,
-                    streamingMessage = null,
                 )
             } else {
-                state.copy(streamingMessage = null)
+                state
             }
         val sid = newState.currentSessionId
         val effects = mutableListOf<ReducerEffect>()
@@ -260,13 +266,12 @@ object ChatWsEventReducer {
 
     private fun onToolComplete(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.ToolComplete,
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                com.m57.hermescontrol.data.remote.OkHttpProvider
-                    .gson
-                    .toJson(it)
+                OkHttpProvider.gson.toJson(it)
             } ?: ""
         val messages = state.messages.toMutableList()
         val toolIdx =
@@ -275,7 +280,7 @@ object ChatWsEventReducer {
                     it.toolName == event.name &&
                     it.toolStatus == ToolStatus.RUNNING
             }
-        if (toolIdx < 0) return ReducerResult(state)
+        if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
 
         val updated =
             messages[toolIdx].copy(
@@ -291,6 +296,7 @@ object ChatWsEventReducer {
         }
         return ReducerResult(
             state = state.copy(messages = messages),
+            streamingState = streamingState,
             effects = effects,
         )
     }
@@ -299,6 +305,7 @@ object ChatWsEventReducer {
 
     private fun onClarifyRequest(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.ClarifyRequest,
     ): ReducerResult =
         ReducerResult(
@@ -318,6 +325,7 @@ object ChatWsEventReducer {
 
     private fun onRpcError(
         state: ChatUiState,
+        streamingState: StreamingState,
         event: WsEvent.RpcError,
     ): ReducerResult =
         ReducerResult(
@@ -326,52 +334,37 @@ object ChatWsEventReducer {
                     isLoading = false,
                     errorMessage = "Error: ${event.error}",
                 ),
+            streamingState = streamingState,
         )
 
     // ── SessionUpdated / StatusUpdate / Unknown ───────────────────────
 
-    private fun onSessionUpdated(state: ChatUiState): ReducerResult = ReducerResult(state)
-
-    private fun onStatusUpdate(state: ChatUiState): ReducerResult = ReducerResult(state)
-
-    private fun onUnknown(state: ChatUiState): ReducerResult = ReducerResult(state)
-
-    // ── Helpers ───────────────────────────────────────────────────────
-
-    /**
-     * If there's a non-empty streaming message, finalize it into the message
-     * list and return it as an orphan that should be persisted.
-     */
-    private fun finalizeStreamingMessage(
+    private fun onSessionUpdated(
         state: ChatUiState,
-        newMessage: ChatMessage,
-    ): Pair<ChatUiState, ChatMessage?> {
-        val existing = state.streamingMessage
-        if (existing != null && existing.content.isNotEmpty()) {
-            val finalized = existing.copy(isStreaming = false)
-            return Pair(
-                state.copy(
-                    messages = state.messages + finalized,
-                    streamingMessage = newMessage,
-                ),
-                finalized,
-            )
-        }
-        return Pair(
-            state.copy(streamingMessage = newMessage),
-            null,
-        )
-    }
+        streamingState: StreamingState,
+    ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
+
+    private fun onStatusUpdate(
+        state: ChatUiState,
+        streamingState: StreamingState,
+    ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
+
+    private fun onUnknown(
+        state: ChatUiState,
+        streamingState: StreamingState,
+    ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
 }
 
 /**
  * Result of reducing one event.
  *
  * @param state The new UI state after applying the event.
+ * @param streamingState The new streaming state after applying the event.
  * @param effects Side-effects the ViewModel should execute.
  */
 data class ReducerResult(
     val state: ChatUiState,
+    val streamingState: StreamingState = StreamingState(),
     val effects: List<ReducerEffect> = emptyList(),
 )
 

@@ -542,32 +542,40 @@ class ChatViewModelTest {
 
             var state = viewModel.uiState.value
             assertTrue(state.isAgentTyping)
-            assertNotNull(state.streamingMessage)
-            assertEquals("", state.streamingMessage?.content)
-            assertFalse(state.isThinking)
-            assertEquals("", state.thinkingText)
+            assertNotNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(
+                "",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            assertFalse(viewModel.streamingState.value.isThinking)
+            assertEquals("", viewModel.streamingState.value.thinkingText)
 
             // Thinking Delta 1
             mockEventsFlow.emit(WsEvent.ThinkingDelta("Thinking...", "session-123"))
             advanceUntilIdle()
             state = viewModel.uiState.value
-            assertTrue(state.isThinking)
-            assertEquals("Thinking...", state.thinkingText)
+            assertTrue(viewModel.streamingState.value.isThinking)
+            assertEquals("Thinking...", viewModel.streamingState.value.thinkingText)
 
             // Thinking Delta 2
             mockEventsFlow.emit(WsEvent.ThinkingDelta(" deeper", "session-123"))
             advanceUntilIdle()
             state = viewModel.uiState.value
-            assertTrue(state.isThinking)
-            assertEquals("Thinking... deeper", state.thinkingText)
+            assertTrue(viewModel.streamingState.value.isThinking)
+            assertEquals("Thinking... deeper", viewModel.streamingState.value.thinkingText)
 
             // Token 1
             mockEventsFlow.emit(WsEvent.MessageToken("Hello", "session-123"))
             advanceUntilIdle()
             state = viewModel.uiState.value
-            assertFalse(state.isThinking)
-            assertNotNull(state.streamingMessage)
-            assertEquals("Hello", state.streamingMessage?.content)
+            assertFalse(viewModel.streamingState.value.isThinking)
+            assertNotNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(
+                "Hello",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
             // Streaming message is not in the main messages list yet, only "Session created" exists
             assertEquals(1, state.messages.size)
 
@@ -575,8 +583,12 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageToken(" world", "session-123"))
             advanceUntilIdle()
             state = viewModel.uiState.value
-            assertNotNull(state.streamingMessage)
-            assertEquals("Hello world", state.streamingMessage?.content)
+            assertNotNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(
+                "Hello world",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
             assertEquals(1, state.messages.size)
 
             // Complete
@@ -584,9 +596,9 @@ class ChatViewModelTest {
             advanceUntilIdle()
             state = viewModel.uiState.value
             assertFalse(state.isAgentTyping)
-            assertNull(state.streamingMessage)
-            assertFalse(state.isThinking)
-            assertEquals("", state.thinkingText)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            assertFalse(viewModel.streamingState.value.isThinking)
+            assertEquals("", viewModel.streamingState.value.thinkingText)
             assertEquals(2, state.messages.size)
             assertEquals("Session created", state.messages[0].content)
             assertEquals("Hello world!", state.messages[1].content)
@@ -838,7 +850,7 @@ class ChatViewModelTest {
             assertEquals(MessageRole.ASSISTANT, state.messages[1].role)
             assertFalse(state.messages[1].isStreaming)
             assertEquals(MessageRole.TOOL, state.messages[2].role)
-            assertNull(state.streamingMessage)
+            assertNull(viewModel.streamingState.value.streamingMessage)
         }
 
     @Test
@@ -878,9 +890,16 @@ class ChatViewModelTest {
             assertFalse(state.messages[1].isStreaming)
 
             // Active streaming message should be the second segment
-            assertNotNull(state.streamingMessage)
-            assertEquals("Second response segment", state.streamingMessage?.content)
-            assertTrue(state.streamingMessage?.isStreaming == true)
+            assertNotNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(
+                "Second response segment",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
+            assertTrue(
+                viewModel.streamingState.value.streamingMessage
+                    ?.isStreaming == true,
+            )
         }
 
     @Test
@@ -974,7 +993,7 @@ class ChatViewModelTest {
             // Only the "Session created" message should be present (mismatch events ignored)
             assertEquals(1, state.messages.size)
             assertEquals("Session created", state.messages[0].content)
-            assertNull(state.streamingMessage)
+            assertNull(viewModel.streamingState.value.streamingMessage)
             assertNull(state.clarifyRequest)
         }
 
@@ -1008,7 +1027,11 @@ class ChatViewModelTest {
 
             val state = viewModel.uiState.value
             // Content should be "Hello", not "HelloHello" (no duplicate collectors running)
-            assertEquals("Hello", state.streamingMessage?.content)
+            assertEquals(
+                "Hello",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
         }
 
     @Test

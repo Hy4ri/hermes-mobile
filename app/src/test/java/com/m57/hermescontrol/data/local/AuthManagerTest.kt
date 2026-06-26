@@ -43,12 +43,19 @@ class AuthManagerTest {
         every { MasterKeys.getOrCreate(any()) } returns "mockMasterKey"
 
         // Reset prefs singleton instance using reflection
-        val field = AuthManager::class.java.getDeclaredField("prefs")
+        val field = AuthManager::class.java.getDeclaredField("prefsDeferred")
         field.isAccessible = true
         field.set(AuthManager, null)
 
         // Initialise AuthManager
         AuthManager.init(mockContext)
+
+        // Wait for async initialization to complete to prevent coroutine leaks
+        kotlinx.coroutines.runBlocking {
+            val deferred = field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>
+            deferred?.await()
+        }
+
         AuthManager.resetTokenCacheForTest()
     }
 
@@ -263,8 +270,10 @@ class AuthManagerTest {
     fun testConnectionProfiles_roundTrip() {
         val profiles =
             listOf(
-                com.m57.hermescontrol.data.model.ConnectionProfile("a", "A", "10.0.0.1", 9119),
-                com.m57.hermescontrol.data.model.ConnectionProfile("b", "B", "10.0.0.2", 9220),
+                com.m57.hermescontrol.data.model
+                    .ConnectionProfile("a", "A", "10.0.0.1", 9119),
+                com.m57.hermescontrol.data.model
+                    .ConnectionProfile("b", "B", "10.0.0.2", 9220),
             )
         AuthManager.saveConnectionProfiles(profiles)
 

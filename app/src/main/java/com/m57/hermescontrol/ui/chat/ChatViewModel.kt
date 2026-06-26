@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -86,6 +87,9 @@ class ChatViewModel(
 
     // ── Internal state ───────────────────────────────────────────────────
     private val _uiState = MutableStateFlow(ChatUiState())
+
+    private val _streamingState = MutableStateFlow(StreamingState())
+    val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     private val wsClient = HermesWsClient
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
@@ -165,10 +169,17 @@ class ChatViewModel(
 
     private fun handleWsEvent(event: WsEvent) {
         // First, let the reducer compute the new state and any effects
-        val result = ChatWsEventReducer.reduce(_uiState.value, event, _uiState.value.currentSessionId)
+        val result =
+            ChatWsEventReducer.reduce(
+                _uiState.value,
+                _streamingState.value,
+                event,
+                _uiState.value.currentSessionId,
+            )
 
         // Apply the new state
         _uiState.update { result.state }
+        _streamingState.update { result.streamingState }
 
         // Process side-effects from the reducer
         for (effect in result.effects) {
@@ -267,6 +278,7 @@ class ChatViewModel(
                         isAgentTyping = false,
                     )
                 }
+                _streamingState.update { StreamingState() }
             }
 
             is WsEvent.ApprovalRequest -> {
@@ -300,7 +312,7 @@ class ChatViewModel(
         if (shouldFlush) {
             val currentContent = streamingBuffer.toString()
             lastFlushMs = now
-            _uiState.update { state ->
+            _streamingState.update { state ->
                 val current = state.streamingMessage
                 if (current != null) {
                     state.copy(
@@ -321,11 +333,11 @@ class ChatViewModel(
                     streamingMessageId = msg.id
                     state.copy(
                         streamingMessage = msg,
-                        isAgentTyping = true,
                         isThinking = false,
                     )
                 }
             }
+            _uiState.update { it.copy(isAgentTyping = true) }
         }
     }
 
@@ -340,7 +352,7 @@ class ChatViewModel(
         if (shouldFlush) {
             val currentContent = thinkingBuffer.toString()
             lastThinkingFlushMs = now
-            _uiState.update { state ->
+            _streamingState.update { state ->
                 state.copy(
                     isThinking = true,
                     thinkingText = currentContent,
@@ -368,10 +380,10 @@ class ChatViewModel(
                         currentSessionId = sessionId,
                         isLoading = false,
                         messages = emptyList(),
-                        streamingMessage = null,
                         chatTitle = "Hermes",
                     )
                 }
+                _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
             }
@@ -422,10 +434,9 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         isAgentTyping = false,
-                        isThinking = false,
-                        streamingMessage = null,
                     )
                 }
+                _streamingState.update { StreamingState() }
                 streamingMessageId = null
                 addSystemMessage("Session interrupted")
             }
@@ -728,10 +739,10 @@ class ChatViewModel(
             it.copy(
                 isLoading = true,
                 messages = emptyList(),
-                streamingMessage = null,
                 chatTitle = "Hermes",
             )
         }
+        _streamingState.update { StreamingState() }
         streamingMessageId = null
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
@@ -777,8 +788,8 @@ class ChatViewModel(
     @Suppress("UNCHECKED_CAST")
     private fun parseCommandCatalog(map: Map<*, *>): CommandCatalog? =
         try {
-            val json = gson.toJson(map)
-            gson.fromJson(json, CommandCatalog::class.java)
+            val json = OkHttpProvider.gson.toJson(map)
+            OkHttpProvider.gson.fromJson(json, CommandCatalog::class.java)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse command catalog", e)
             null
@@ -791,21 +802,18 @@ class ChatViewModel(
         streamingMessageId = null
         streamingBuffer.clear()
         thinkingBuffer.clear()
-
         _uiState.update {
             val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
             it.copy(
                 isLoading = true,
-                messages = emptyList(),
-                streamingMessage = null,
                 currentSessionId = sessionId,
+                messages = emptyList(),
                 chatTitle = title,
                 showSessionPicker = false,
                 isAgentTyping = false,
-                isThinking = false,
-                thinkingText = "",
             )
         }
+        _streamingState.update { StreamingState() }
         // Step 1: Load cached messages first — instant display
         loadCachedMessages(sessionId)
         // Step 2: Resume session on server
@@ -1184,6 +1192,5 @@ class ChatViewModel(
     }
 
     companion object {
-        private val gson = OkHttpProvider.gson
     }
 }

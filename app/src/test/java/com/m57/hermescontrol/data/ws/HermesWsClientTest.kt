@@ -42,6 +42,7 @@ class HermesWsClientTest {
         mockkObject(AuthManager)
         every { AuthManager.wsUrl() } returns mockWebServer.url("/").toString().replace("http://", "ws://")
         every { AuthManager.isAutoReconnect() } returns false
+        every { AuthManager.getSessionCookie() } returns null
 
         // Reset state
         val connectedField = HermesWsClient::class.java.getDeclaredField("connected")

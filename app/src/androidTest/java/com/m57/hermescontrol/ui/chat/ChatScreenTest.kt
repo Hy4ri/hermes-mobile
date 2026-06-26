@@ -54,6 +54,7 @@ class ChatScreenTest {
             )
         val mockViewModel = mockk<ChatViewModel>(relaxed = true)
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
+        every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
 
         composeTestRule.setContent {
             ChatScreen(

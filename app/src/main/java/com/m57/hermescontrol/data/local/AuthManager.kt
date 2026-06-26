@@ -7,9 +7,14 @@ import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.runBlocking
 
 /**
  * Singleton that manages encrypted storage of the Hermes dashboard token
@@ -43,7 +48,7 @@ object AuthManager {
     private const val DEFAULT_TYPING_EFFECT_DELAY_MS = 30
 
     @Volatile
-    private var prefs: SharedPreferences? = null
+    private var prefsDeferred: Deferred<SharedPreferences>? = null
 
     private val _bottomNavItemsFlow = MutableStateFlow<List<String>>(emptyList())
     val bottomNavItemsFlow: StateFlow<List<String>> = _bottomNavItemsFlow.asStateFlow()
@@ -70,32 +75,54 @@ object AuthManager {
      * Call this once from Application.onCreate() or MainActivity.onCreate().
      */
     fun init(context: Context) {
-        if (prefs != null) return
+        if (prefsDeferred != null) return
         synchronized(this) {
-            if (prefs != null) return
-            val masterKey =
-                MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+            if (prefsDeferred != null) return
+            prefsDeferred =
+                CoroutineScope(Dispatchers.IO).async {
+                    val masterKey =
+                        MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
 
-            prefs =
-                EncryptedSharedPreferences.create(
-                    PREFS_FILE,
-                    masterKey,
-                    context.applicationContext,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-                )
+                    val p =
+                        EncryptedSharedPreferences.create(
+                            PREFS_FILE,
+                            masterKey,
+                            context.applicationContext,
+                            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+                        )
 
-            _bottomNavItemsFlow.value = getBottomNavItems()
-            _themePreferenceFlow.value = getThemePreference()
-            _useDynamicColorsFlow.value = isUseDynamicColors()
-            _themePresetFlow.value = getThemePreset()
-            _bottomNavDisplayModeFlow.value = getBottomNavDisplayMode()
-            _tokenFlow.value = getToken()
+                    // Initialize flows with values from prefs once loaded
+                    _bottomNavItemsFlow.value = getBottomNavItemsInternal(p)
+                    _themePreferenceFlow.value = getThemePreferenceInternal(p)
+                    _useDynamicColorsFlow.value = isUseDynamicColorsInternal(p)
+                    _themePresetFlow.value = getThemePresetInternal(p)
+                    _bottomNavDisplayModeFlow.value = getBottomNavDisplayModeInternal(p)
+                    _tokenFlow.value = getTokenInternal(p)
+                    p
+                }
         }
     }
 
+    /**
+     * Retrieves the initialized [SharedPreferences] instance.
+     *
+     * WARNING: This method is synchronous and will block the caller thread (using [runBlocking])
+     * if the asynchronous initialization is still in progress. Callers should avoid invoking this
+     * on the main thread during early startup to prevent frame drops or potential ANRs.
+     *
+     * Times out and throws [IllegalStateException] if initialization takes longer than 2 seconds.
+     */
     private fun requirePrefs(): SharedPreferences =
-        prefs ?: throw IllegalStateException("AuthManager not initialized. Call init(context) first.")
+        runBlocking {
+            val deferred =
+                prefsDeferred ?: throw IllegalStateException(
+                    "AuthManager not initialized. Call init(context) first.",
+                )
+            kotlinx.coroutines.withTimeoutOrNull(2000) {
+                deferred.await()
+            } ?: throw IllegalStateException("AuthManager initialization timed out after 2 seconds.")
+        }
 
     fun setWsAuthParam(param: String) {
         requirePrefs().edit().putString(KEY_WS_AUTH_PARAM, param).apply()
@@ -209,6 +236,15 @@ object AuthManager {
         }
     }
 
+    private fun getTokenInternal(p: SharedPreferences): String? {
+        val selectedId = p.getString(KEY_SELECTED_PROFILE_ID, null)?.takeIf { it.isNotBlank() }
+        return if (selectedId != null) {
+            p.getString("token_$selectedId", null) ?: p.getString(KEY_TOKEN, null)
+        } else {
+            p.getString(KEY_TOKEN, null)
+        }
+    }
+
     fun setToken(token: String?) {
         val selectedId = getSelectedProfileId()
         if (selectedId != null) {
@@ -289,8 +325,10 @@ object AuthManager {
     // start reset the theme to SYSTEM. Fix: round-trip via EncryptedSharedPreferences
     // (the same store already used by token / host / port / auto_reconnect).
 
-    fun getThemePreference(): ThemePreference =
-        requirePrefs().getString(KEY_THEME_PREFERENCE, ThemePreference.SYSTEM.name)?.let { name ->
+    fun getThemePreference(): ThemePreference = getThemePreferenceInternal(requirePrefs())
+
+    private fun getThemePreferenceInternal(p: SharedPreferences): ThemePreference =
+        p.getString(KEY_THEME_PREFERENCE, ThemePreference.SYSTEM.name)?.let { name ->
             runCatching { ThemePreference.valueOf(name) }.getOrNull()
         } ?: ThemePreference.SYSTEM
 
@@ -299,15 +337,19 @@ object AuthManager {
         _themePreferenceFlow.value = theme
     }
 
-    fun isUseDynamicColors(): Boolean = requirePrefs().getBoolean(KEY_USE_DYNAMIC_COLORS, true)
+    fun isUseDynamicColors(): Boolean = isUseDynamicColorsInternal(requirePrefs())
+
+    private fun isUseDynamicColorsInternal(p: SharedPreferences): Boolean = p.getBoolean(KEY_USE_DYNAMIC_COLORS, true)
 
     fun setUseDynamicColors(value: Boolean) {
         requirePrefs().edit().putBoolean(KEY_USE_DYNAMIC_COLORS, value).apply()
         _useDynamicColorsFlow.value = value
     }
 
-    fun getThemePreset(): ThemePreset =
-        requirePrefs().getString(KEY_THEME_PRESET, ThemePreset.DEFAULT.name)?.let { name ->
+    fun getThemePreset(): ThemePreset = getThemePresetInternal(requirePrefs())
+
+    private fun getThemePresetInternal(p: SharedPreferences): ThemePreset =
+        p.getString(KEY_THEME_PRESET, ThemePreset.DEFAULT.name)?.let { name ->
             runCatching { ThemePreset.valueOf(name) }.getOrNull()
         } ?: ThemePreset.DEFAULT
 
@@ -337,8 +379,10 @@ object AuthManager {
         listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen")
 
     /** Returns the list of selected bottom-nav item keys (data-object names). */
-    fun getBottomNavItems(): List<String> {
-        val raw = requirePrefs().getString(KEY_BOTTOM_NAV_ITEMS, null) ?: return DEFAULT_BOTTOM_NAV_ITEMS
+    fun getBottomNavItems(): List<String> = getBottomNavItemsInternal(requirePrefs())
+
+    private fun getBottomNavItemsInternal(p: SharedPreferences): List<String> {
+        val raw = p.getString(KEY_BOTTOM_NAV_ITEMS, null) ?: return DEFAULT_BOTTOM_NAV_ITEMS
         return raw.split(",").filter { it.isNotBlank() }
     }
 
@@ -366,8 +410,10 @@ object AuthManager {
 
     // ── Bottom Nav Display Mode ──────────────────────────────────────────
 
-    fun getBottomNavDisplayMode(): BottomNavDisplayMode =
-        requirePrefs().getString(KEY_BOTTOM_NAV_DISPLAY_MODE, BottomNavDisplayMode.ICON_AND_TEXT.name)?.let { name ->
+    fun getBottomNavDisplayMode(): BottomNavDisplayMode = getBottomNavDisplayModeInternal(requirePrefs())
+
+    private fun getBottomNavDisplayModeInternal(p: SharedPreferences): BottomNavDisplayMode =
+        p.getString(KEY_BOTTOM_NAV_DISPLAY_MODE, BottomNavDisplayMode.ICON_AND_TEXT.name)?.let { name ->
             runCatching { BottomNavDisplayMode.valueOf(name) }.getOrNull()
         } ?: BottomNavDisplayMode.ICON_AND_TEXT
 

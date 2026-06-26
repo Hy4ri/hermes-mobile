@@ -123,6 +123,7 @@ fun ChatScreen(
     viewModel: ChatViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val showScrollToBottom by remember {
         derivedStateOf {
@@ -142,8 +143,8 @@ fun ChatScreen(
         connectionStatus = state.connectionStatus,
         currentSessionId = state.currentSessionId,
         messages = state.messages,
-        streamingMessage = state.streamingMessage,
-        isThinking = state.isThinking,
+        streamingMessage = streamingState.streamingMessage,
+        isThinking = streamingState.isThinking,
         errorMessage = state.errorMessage,
         isSearchActive = state.isSearchActive,
         currentSearchMatchIndex = state.currentSearchMatchIndex,
@@ -246,9 +247,9 @@ fun ChatScreen(
             ) {
                 ChatMessageList(
                     messages = state.messages,
-                    streamingMessage = state.streamingMessage,
-                    isThinking = state.isThinking,
-                    thinkingText = state.thinkingText,
+                    streamingMessage = streamingState.streamingMessage,
+                    isThinking = streamingState.isThinking,
+                    thinkingText = streamingState.thinkingText,
                     isSearchActive = state.isSearchActive,
                     searchQuery = state.searchQuery,
                     currentSearchMatchIndex = state.currentSearchMatchIndex,
@@ -272,8 +273,8 @@ fun ChatScreen(
                     scrollScope = scrollScope,
                     listState = listState,
                     messages = state.messages,
-                    streamingMessage = state.streamingMessage,
-                    isThinking = state.isThinking,
+                    streamingMessage = streamingState.streamingMessage,
+                    isThinking = streamingState.isThinking,
                 )
             }
 
@@ -286,8 +287,8 @@ fun ChatScreen(
                     scrollScope.launch {
                         val totalItems =
                             state.messages.size +
-                                (if (state.streamingMessage != null) 1 else 0) +
-                                (if (state.isThinking) 1 else 0)
+                                (if (streamingState.streamingMessage != null) 1 else 0) +
+                                (if (streamingState.isThinking) 1 else 0)
                         if (totalItems > 0) {
                             listState.animateScrollToItem(totalItems - 1)
                         }
@@ -557,8 +558,7 @@ private fun ClarifyDialog(
                                             role = Role.Button,
                                             onClick = { typedText = option },
                                             onLongClick = { onOptionSelected(option) },
-                                        )
-                                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                                        ).padding(horizontal = 24.dp, vertical = 10.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
@@ -865,10 +865,12 @@ private fun ChatLifecycleEffects(
                         viewModel.refreshSettings()
                         viewModel.refreshCurrentSession()
                     }
+
                     androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
                         NotificationHelper.setAppForeground(context, false)
                         NotificationHelper.start(context)
                     }
+
                     else -> {}
                 }
             }

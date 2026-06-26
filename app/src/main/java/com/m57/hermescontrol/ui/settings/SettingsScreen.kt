@@ -862,6 +862,7 @@ private fun AppearanceSection(
                         ThemePreset.GRUVBOX -> stringResource(R.string.theme_preset_gruvbox)
                         ThemePreset.CATPPUCCIN -> stringResource(R.string.theme_preset_catppuccin)
                         ThemePreset.AMOLED -> stringResource(R.string.theme_preset_amoled)
+                        ThemePreset.NEON_NOIR -> stringResource(R.string.theme_preset_neon_noir)
                     },
                 )
             }
@@ -894,6 +895,10 @@ private fun AppearanceSection(
                                     ThemePreset.AMOLED ->
                                         stringResource(
                                             R.string.theme_preset_amoled,
+                                        )
+                                    ThemePreset.NEON_NOIR ->
+                                        stringResource(
+                                            R.string.theme_preset_neon_noir,
                                         )
                                 },
                             )

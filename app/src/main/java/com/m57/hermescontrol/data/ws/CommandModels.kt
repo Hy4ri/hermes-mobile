@@ -20,15 +20,3 @@ data class CommandCategory(
     val name: String,
     val pairs: List<List<String>>,
 )
-
-/**
- * Response from `command.dispatch` — structured result of executing
- * a slash command on the backend.
- */
-data class CommandDispatchResponse(
-    val type: String,
-    val message: String? = null,
-    val output: String? = null,
-    val name: String? = null,
-    val target: String? = null,
-)

@@ -58,6 +58,8 @@ data class ChatUiState(
     // Cached settings
     val typingEffectEnabled: Boolean = true,
     val typingEffectDelayMs: Int = 30,
+    // Commands catalog
+    val commandCatalog: CommandCatalog = CommandCatalog(),
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -196,6 +198,7 @@ class ChatViewModel(
                 _uiState.update { it.copy(isLoading = false) }
                 addSystemMessage("Connected to Hermes")
                 loadSessions()
+                fetchCommandCatalog()
                 if (_uiState.value.currentSessionId == null) {
                     val initial = initialSessionId
                     if (!initial.isNullOrBlank()) {
@@ -420,6 +423,14 @@ class ChatViewModel(
                 }
                 streamingMessageId = null
                 addSystemMessage("Session interrupted")
+            }
+
+            WsMethods.COMMANDS_CATALOG -> {
+                val map = result as? Map<*, *> ?: return
+                val catalog = parseCommandCatalog(map)
+                if (catalog != null) {
+                    _uiState.update { it.copy(commandCatalog = catalog) }
+                }
             }
         }
     }
@@ -667,6 +678,15 @@ class ChatViewModel(
         }
     }
 
+    private fun fetchCommandCatalog() {
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.COMMANDS_CATALOG,
+                onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
+            )
+        }
+    }
+
     fun refreshCurrentSession() {
         val sessionId = _uiState.value.currentSessionId ?: return
         loadCachedMessages(sessionId)
@@ -679,6 +699,18 @@ class ChatViewModel(
                 typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
                 typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
             )
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseCommandCatalog(map: Map<*, *>): CommandCatalog? {
+        return try {
+            val gson = com.google.gson.Gson()
+            val json = gson.toJson(map)
+            gson.fromJson(json, CommandCatalog::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse command catalog", e)
+            null
         }
     }
 

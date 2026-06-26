@@ -1042,4 +1042,124 @@ class ChatViewModelTest {
             // Verify upsert was called for the new message
             coVerify { mockDao.upsert(any()) }
         }
+
+    // ── Approval flow ───────────────────────────────────────────────────
+
+    @Test
+    fun testApprovalRequest_addsSystemMessage() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm -rf /data",
+                    description = "The agent wants to execute: rm -rf /data",
+                    patternKeys = listOf("shell:rm"),
+                    sessionId = null,
+                ),
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertTrue(state.messages.any { it.content.contains("Approval Required") })
+            val msg = state.messages.first { it.content.contains("Approval Required") }
+            assertNotNull(msg.approvalInfo)
+            assertEquals("rm -rf /data", msg.approvalInfo?.command)
+        }
+
+    @Test
+    fun testRespondToApproval_sendsRpc() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Setup active session
+            var createReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                createReqId = "create-req-approval-test"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(createReqId)
+                createReqId
+            }
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
+            advanceUntilIdle()
+
+            // Send approval request event
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous command",
+                    patternKeys = null,
+                    sessionId = null,
+                ),
+            )
+            advanceUntilIdle()
+
+            // Call respondToApproval — should send approval.respond RPC
+            var approvalReqId = ""
+            every { HermesWsClient.send(WsMethods.APPROVAL_RESPOND, any(), any()) } answers {
+                approvalReqId = "approve-req-1"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(approvalReqId)
+                approvalReqId
+            }
+
+            viewModel.respondToApproval("approve")
+            advanceUntilIdle()
+
+            verify { HermesWsClient.send(WsMethods.APPROVAL_RESPOND, any(), any()) }
+        }
+
+    @Test
+    fun testRespondToApproval_clearsButtons() =
+        runTest {
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            // Setup active session
+            var createReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
+                createReqId = "create-req-clear-test"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(createReqId)
+                createReqId
+            }
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
+            advanceUntilIdle()
+
+            // Send approval request
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                ),
+            )
+            advanceUntilIdle()
+
+            val stateBefore = viewModel.uiState.value
+            val approvalMsg = stateBefore.messages.firstOrNull { it.approvalInfo != null }
+            assertNotNull(approvalMsg)
+
+            // Respond
+            every { HermesWsClient.send(WsMethods.APPROVAL_RESPOND, any(), any()) } answers {
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke("approve-req-clear")
+                "approve-req-clear"
+            }
+            viewModel.respondToApproval("approve")
+            advanceUntilIdle()
+
+            // approvalInfo should be null now (buttons cleared)
+            val stateAfter = viewModel.uiState.value
+            val msgAfter = stateAfter.messages.firstOrNull { it.id == approvalMsg!!.id }
+            assertNotNull(msgAfter)
+            assertNull(msgAfter!!.approvalInfo)
+        }
 }

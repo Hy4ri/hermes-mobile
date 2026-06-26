@@ -121,7 +121,25 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
+            // Stub COMMAND_DISPATCH to capture the request ID
+            var dispatchReqId = ""
+            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
+                dispatchReqId = "dispatch-help"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(dispatchReqId)
+                dispatchReqId
+            }
+
             viewModel.sendMessage("/help")
+            advanceUntilIdle()
+
+            // Feed the dispatch result (the backend returns `{type: "exec", output: "..."}` for /help)
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    dispatchReqId,
+                    mapOf("type" to "exec", "output" to "**Available Commands:**\n• `/status`\n• `/new`"),
+                ),
+            )
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
@@ -223,12 +241,32 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
+            // Stub COMMAND_DISPATCH
+            var dispatchReqId = ""
+            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
+                dispatchReqId = "dispatch-unk"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(dispatchReqId)
+                dispatchReqId
+            }
+
             viewModel.sendMessage("/nonexistent")
             advanceUntilIdle()
 
+            // Feed an error RPC result (backend returns error for unknown commands)
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    dispatchReqId,
+                    JsonRpcError(
+                        code = -32601,
+                        message = "Unknown command: nonexistent",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
             val state = viewModel.uiState.value
-            assertTrue(state.messages.any { it.content.contains("Unknown command") })
-            assertTrue(state.messages.any { it.content.contains("/nonexistent") })
+            assertTrue(state.errorMessage?.contains("Unknown command") == true)
         }
 
     @Test
@@ -255,18 +293,19 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            // Stub the API call — without this, mockkObject returns null mock and getStatus call fails
-            coEvery { ApiClient.hermesApi.getStatus() } returns
-                mockk(relaxed = true) {
-                    every { isSuccessful } returns true
-                    every { body() } returns null
-                }
+            var dispatchReqId = ""
+            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
+                dispatchReqId = "dispatch-status"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(dispatchReqId)
+                dispatchReqId
+            }
 
             viewModel.sendMessage("/status")
             advanceUntilIdle()
 
-            // Should have dispatched the API call
-            coVerify { ApiClient.hermesApi.getStatus() }
+            // Should have dispatched via RPC
+            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test
@@ -292,16 +331,18 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            coEvery { ApiClient.hermesApi.getSessions(any(), any(), any()) } returns
-                mockk(relaxed = true) {
-                    every { isSuccessful } returns true
-                    every { body() } returns null
-                }
+            var dispatchReqId = ""
+            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
+                dispatchReqId = "dispatch-sessions"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(dispatchReqId)
+                dispatchReqId
+            }
 
             viewModel.sendMessage("/sessions")
             advanceUntilIdle()
 
-            coVerify { ApiClient.hermesApi.getSessions(any(), any(), any()) }
+            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test
@@ -327,16 +368,18 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            coEvery { ApiClient.hermesApi.getSystemStats() } returns
-                mockk(relaxed = true) {
-                    every { isSuccessful } returns true
-                    every { body() } returns null
-                }
+            var dispatchReqId = ""
+            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
+                dispatchReqId = "dispatch-stats"
+                val onSent = arg<((String) -> Unit)?>(2)
+                onSent?.invoke(dispatchReqId)
+                dispatchReqId
+            }
 
             viewModel.sendMessage("/stats")
             advanceUntilIdle()
 
-            coVerify { ApiClient.hermesApi.getSystemStats() }
+            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test

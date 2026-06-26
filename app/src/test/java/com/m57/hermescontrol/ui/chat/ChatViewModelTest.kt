@@ -257,15 +257,16 @@ class ChatViewModelTest {
             mockEventsFlow.emit(
                 WsEvent.RpcError(
                     dispatchReqId,
-                    mapOf("message" to "Unknown command: nonexistent"),
+                    JsonRpcError(
+                        code = -32601,
+                        message = "Unknown command: nonexistent",
+                    ),
                 ),
             )
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
-            assertTrue(
-                state.errorMessage?.contains("nonexistent") == true || state.errorMessage?.contains("Unknown") == true,
-            )
+            assertTrue(state.messages.any { it.content.contains("Unknown command") })
         }
 
     @Test

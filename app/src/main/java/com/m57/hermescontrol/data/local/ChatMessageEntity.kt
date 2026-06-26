@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.local
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -12,7 +13,12 @@ import androidx.room.PrimaryKey
  * thread. The [timestamp] field preserves original ordering even if Room
  * reorders internally.
  */
-@Entity(tableName = "chat_messages")
+@Entity(
+    tableName = "chat_messages",
+    indices = [
+        Index(value = ["session_id", "timestamp"]),
+    ],
+)
 data class ChatMessageEntity(
     @PrimaryKey
     val id: String,

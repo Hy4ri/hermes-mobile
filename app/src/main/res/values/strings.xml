@@ -404,8 +404,4 @@
     <string name="landing_subtitle">Control panel for Hermes Agent</string>
     <string name="landing_action_auth_login">Auth Login</string>
     <string name="landing_action_pairing_login">Pairing Login</string>
-
-    <!-- Loading States -->
-    <string name="loading_model_providers">Fetching model providers…</string>
-    <string name="loading_channels">Loading channels…</string>
 </resources>

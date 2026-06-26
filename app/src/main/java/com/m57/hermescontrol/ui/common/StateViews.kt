@@ -35,10 +35,7 @@ import com.m57.hermescontrol.theme.LocalSpacing
 // ── Loading ───────────────────────────────────────────────────────────
 
 @Composable
-fun LoadingState(
-    subtitle: String? = null,
-    modifier: Modifier = Modifier,
-) {
+fun LoadingState(modifier: Modifier = Modifier) {
     Box(
         modifier =
             modifier
@@ -46,25 +43,14 @@ fun LoadingState(
                 .testTag("loading_state"),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 3.dp,
-                modifier =
-                    Modifier
-                        .size(40.dp)
-                        .testTag("loading_spinner"),
-            )
-            if (subtitle != null) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
+        CircularProgressIndicator(
+            color = MaterialTheme.colorScheme.primary,
+            strokeWidth = 3.dp,
+            modifier =
+                Modifier
+                    .size(40.dp)
+                    .testTag("loading_spinner"),
+        )
     }
 }
 

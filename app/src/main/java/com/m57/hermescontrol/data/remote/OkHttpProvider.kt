@@ -12,6 +12,9 @@ object OkHttpProvider {
     private val connectionPool = ConnectionPool(5, 30, TimeUnit.SECONDS)
 
     // Base client: connection pool + sensible defaults
+    // Note: retryOnConnectionFailure(true) is enabled to allow OkHttp to recover from
+    // low-level connection/route failures (e.g. route timeouts, IPv4/IPv6 fallback). This is
+    // separate from safeApiCall's app-level retries (which add backoff delays and handle 5xx/429/timeouts).
     val base: OkHttpClient =
         OkHttpClient
             .Builder()

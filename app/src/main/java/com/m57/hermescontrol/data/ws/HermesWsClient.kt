@@ -97,8 +97,8 @@ object HermesWsClient {
             wsScope.launch {
                 while (connected.get()) {
                     delay(30_000L)
-                    if (connected.get()) {
-                        lastPongTimestamp = System.currentTimeMillis()
+                    if (connected.get() && System.currentTimeMillis() - lastPongTimestamp > 60_000L) {
+                        Log.w(TAG, "WebSocket connection appears unhealthy (no frames received for > 60s)")
                     }
                 }
             }

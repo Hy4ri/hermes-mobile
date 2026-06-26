@@ -51,6 +51,24 @@ class NetworkResultTest {
     }
 
     @Test
+    fun testIsRetryable() {
+        assertTrue(!isRetryable(java.net.UnknownHostException("Host not found")))
+        assertTrue(!isRetryable(javax.net.ssl.SSLException("SSL failed")))
+        assertTrue(isRetryable(java.net.ConnectException("Connection refused")))
+        assertTrue(isRetryable(java.net.SocketTimeoutException("Timeout")))
+        assertTrue(isRetryable(IOException("Generic IO error")))
+    }
+
+    @Test
+    fun testJitteredBackoff() {
+        val baseMs = 1000L
+        for (i in 0..100) {
+            val backoff = jitteredBackoff(baseMs)
+            assertTrue(backoff in 750..1250)
+        }
+    }
+
+    @Test
     fun testSafeApiCall_successWithBody() =
         runBlocking {
             val result =

@@ -18,7 +18,7 @@ object TokenRefreshAuthenticator : Authenticator {
         if (!sessionCookie.isNullOrBlank()) {
             val requestCookie = response.request.header("Cookie")
             val currentCookieHeader = "hermes_session_at=$sessionCookie"
-            if (requestCookie != currentCookieHeader) {
+            if (requestCookie == null || !requestCookie.contains(currentCookieHeader)) {
                 return response.request
                     .newBuilder()
                     .header("Cookie", currentCookieHeader)
@@ -28,7 +28,7 @@ object TokenRefreshAuthenticator : Authenticator {
             val token = AuthManager.getToken()
             val requestAuth = response.request.header("Authorization")
             val currentAuthHeader = "Bearer $token"
-            if (!token.isNullOrBlank() && requestAuth != currentAuthHeader) {
+            if (!token.isNullOrBlank() && (requestAuth == null || !requestAuth.contains(currentAuthHeader))) {
                 return response.request
                     .newBuilder()
                     .header("Authorization", currentAuthHeader)

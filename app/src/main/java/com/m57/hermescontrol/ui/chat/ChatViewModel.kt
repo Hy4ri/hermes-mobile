@@ -445,10 +445,8 @@ class ChatViewModel(
         val type = map["type"] as? String ?: return
         when (type) {
             "send" -> {
-                val message = map["message"] as? String
-                if (!message.isNullOrBlank()) {
-                    sendMessage(message)
-                }
+                val message = map["message"] as? String ?: ""
+                submitPrompt(message)
             }
 
             "exec" -> {
@@ -457,10 +455,8 @@ class ChatViewModel(
             }
 
             "skill" -> {
-                val message = map["message"] as? String
-                if (!message.isNullOrBlank()) {
-                    sendMessage(message)
-                }
+                val message = map["message"] as? String ?: ""
+                submitPrompt(message)
             }
 
             "plugin" -> {
@@ -581,6 +577,24 @@ class ChatViewModel(
                 WsMethods.COMMAND_DISPATCH,
                 mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
                 onSent = { id -> trackRequest(id, WsMethods.COMMAND_DISPATCH) },
+            )
+        }
+    }
+
+    /**
+     * Submits [text] as a prompt to the current session via WS, without
+     * adding a duplicate user message. Used by [handleDispatchResult] when
+     * a slash command resolves to a normal user prompt (e.g. `/queue` → "help me").
+     */
+    private fun submitPrompt(text: String) {
+        if (text.isBlank()) return
+        val sessionId = _uiState.value.currentSessionId ?: return
+        _uiState.update { it.copy(isAgentTyping = true) }
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.sendMessage(
+                sessionId,
+                text,
+                onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
             )
         }
     }

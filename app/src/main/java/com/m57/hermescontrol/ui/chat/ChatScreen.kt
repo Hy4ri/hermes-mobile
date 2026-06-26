@@ -61,6 +61,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -368,7 +369,9 @@ private fun ChatInputBar(
     isAgentTyping: Boolean,
     isConnected: Boolean,
 ) {
-    val canSend = inputText.isNotBlank() && !isAgentTyping && isConnected
+    // Allow sending slash commands even while agent is typing
+    val isSlashCommand = inputText.startsWith("/")
+    val canSend = inputText.isNotBlank() && isConnected && (!isAgentTyping || isSlashCommand)
 
     AnimatedVisibility(
         visible = true,
@@ -508,38 +511,39 @@ private fun ChatInputBar(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
+                    // Send button — always visible, enabled for slash commands mid-turn
+                    FilledTonalButton(
+                        onClick = onSend,
+                        enabled = canSend,
+                        modifier =
+                            Modifier
+                                .size(40.dp)
+                                .testTag("send_button"),
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.chat_send_desc),
+                        )
+                    }
+
+                    // Compact stop icon — visible only while agent is streaming
                     if (isAgentTyping) {
-                        // Interrupt button
-                        FilledTonalButton(
+                        Spacer(modifier = Modifier.width(4.dp))
+                        FilledTonalIconButton(
                             onClick = onInterrupt,
                             modifier =
                                 Modifier
-                                    .size(40.dp)
+                                    .size(32.dp)
                                     .testTag("interrupt_button"),
                             shape = CircleShape,
-                            contentPadding = PaddingValues(0.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Stop,
                                 contentDescription = stringResource(R.string.content_desc_interrupt),
+                                modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    } else {
-                        // Send button
-                        FilledTonalButton(
-                            onClick = onSend,
-                            enabled = canSend,
-                            modifier =
-                                Modifier
-                                    .size(40.dp)
-                                    .testTag("send_button"),
-                            shape = CircleShape,
-                            contentPadding = PaddingValues(0.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = stringResource(R.string.chat_send_desc),
                             )
                         }
                     }

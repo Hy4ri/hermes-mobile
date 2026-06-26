@@ -58,7 +58,6 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -112,6 +111,7 @@ import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SpinningIndicator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -1126,7 +1126,7 @@ private fun ChatMessageList(
 
         // Streaming message
         streamingMessage?.let { streaming ->
-            item(key = "streaming-${streaming.id}") {
+            item(key = streaming.id) {
                 if (typingEffectEnabled && streaming.isStreaming) {
                     StreamingBubbleWithTypingEffect(
                         streaming = streaming,
@@ -1179,7 +1179,7 @@ private fun ChatLoadingOverlay(isLoading: Boolean) {
                     modifier = Modifier.padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    CircularProgressIndicator(
+                    SpinningIndicator(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(modifier = Modifier.height(16.dp))

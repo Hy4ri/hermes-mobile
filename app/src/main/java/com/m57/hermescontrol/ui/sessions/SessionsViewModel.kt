@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,8 @@ class SessionsViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(SessionsUiState())
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
 
+    private var loadJob: Job? = null
+
     /** Page size sent to the server — matches the default the gateway uses. */
     private companion object {
         const val PAGE_SIZE = 20
@@ -33,37 +36,39 @@ class SessionsViewModel : ViewModel() {
 
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
     fun loadSessions() {
-        safeLaunchLoad(
-            apiCall = {
-                safeApiCall {
-                    ApiClient.hermesApi.getSessions(
-                        limit = PAGE_SIZE,
-                        offset = 0,
-                        order = "recent",
-                    )
-                }
-            },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isLoadingMore = false,
-                        sessions = data?.sessions.orEmpty(),
-                        total = data?.total ?: 0,
-                    )
-                }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isLoadingMore = false,
-                        errorMessage = "Failed to load sessions: $errorMsg",
-                    )
-                }
-            },
-        )
+        loadJob =
+            safeLaunchLoad(
+                currentJob = loadJob,
+                apiCall = {
+                    safeApiCall {
+                        ApiClient.hermesApi.getSessions(
+                            limit = PAGE_SIZE,
+                            offset = 0,
+                            order = "recent",
+                        )
+                    }
+                },
+                onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+                onSuccess = { data ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoadingMore = false,
+                            sessions = data?.sessions.orEmpty(),
+                            total = data?.total ?: 0,
+                        )
+                    }
+                },
+                onError = { errorMsg ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoadingMore = false,
+                            errorMessage = "Failed to load sessions: $errorMsg",
+                        )
+                    }
+                },
+            )
     }
 
     /** Load the next page and append to the existing session list. */
@@ -92,6 +97,7 @@ class SessionsViewModel : ViewModel() {
                         )
                     }
                 }
+
                 is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

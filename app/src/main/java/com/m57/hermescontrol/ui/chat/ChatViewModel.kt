@@ -4,11 +4,11 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.Gson
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -775,16 +775,14 @@ class ChatViewModel(
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun parseCommandCatalog(map: Map<*, *>): CommandCatalog? {
-        return try {
-            val gson = com.google.gson.Gson()
+    private fun parseCommandCatalog(map: Map<*, *>): CommandCatalog? =
+        try {
             val json = gson.toJson(map)
             gson.fromJson(json, CommandCatalog::class.java)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse command catalog", e)
             null
         }
-    }
 
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
@@ -1186,6 +1184,6 @@ class ChatViewModel(
     }
 
     companion object {
-        private val gson = Gson()
+        private val gson = OkHttpProvider.gson
     }
 }

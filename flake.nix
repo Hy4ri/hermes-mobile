@@ -30,10 +30,8 @@
           platformVersions = [ "36" "35" "34" ];
 
           # For the emulator
-          includeEmulator = true;
-          includeSystemImages = true;
-          systemImageTypes = [ "google_apis" ];
-          abiVersions = [ "x86_64" ];
+          includeEmulator = false;
+          includeSystemImages = false;
 
           # NDK (not needed for this project, but handy)
           includeNDK = false;

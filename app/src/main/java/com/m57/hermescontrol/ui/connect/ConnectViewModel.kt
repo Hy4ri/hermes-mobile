@@ -31,7 +31,9 @@ data class ConnectUiState(
     val selectedProfile: com.m57.hermescontrol.data.model.ConnectionProfile? = null,
 )
 
-class ConnectViewModel(private val app: Application) : ViewModel() {
+class ConnectViewModel(
+    private val app: Application,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(ConnectUiState())
     val uiState: StateFlow<ConnectUiState> = _uiState.asStateFlow()
 
@@ -206,26 +208,44 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                                 }
                             }
 
+                            is NetworkError.AuthExpired -> {
+                                AuthManager.setToken(null)
+                                if (AuthManager.getSelectedProfileId() != null) {
+                                    AuthManager.setProfileToken(AuthManager.getSelectedProfileId()!!, null)
+                                }
+                                app.getString(R.string.connect_error_401)
+                            }
+
                             is NetworkError.Connection -> {
                                 val causeMessage = err.cause.message ?: ""
                                 when {
                                     causeMessage.contains(
                                         "timeout",
                                         true,
-                                    ) -> app.getString(R.string.connect_error_timeout)
+                                    ) -> {
+                                        app.getString(R.string.connect_error_timeout)
+                                    }
+
                                     causeMessage.contains(
                                         "refused",
                                         true,
-                                    ) -> app.getString(R.string.connect_error_refused)
+                                    ) -> {
+                                        app.getString(R.string.connect_error_refused)
+                                    }
+
                                     causeMessage.contains(
                                         "resolve",
                                         true,
-                                    ) -> app.getString(R.string.connect_error_resolve)
-                                    else ->
+                                    ) -> {
+                                        app.getString(R.string.connect_error_resolve)
+                                    }
+
+                                    else -> {
                                         String.format(
                                             app.getString(R.string.connect_error_connection_failed),
                                             err.cause.message ?: "",
                                         )
+                                    }
                                 }
                             }
 
@@ -235,20 +255,30 @@ class ConnectViewModel(private val app: Application) : ViewModel() {
                                     causeMessage.contains(
                                         "timeout",
                                         true,
-                                    ) -> app.getString(R.string.connect_error_timeout)
+                                    ) -> {
+                                        app.getString(R.string.connect_error_timeout)
+                                    }
+
                                     causeMessage.contains(
                                         "refused",
                                         true,
-                                    ) -> app.getString(R.string.connect_error_refused)
+                                    ) -> {
+                                        app.getString(R.string.connect_error_refused)
+                                    }
+
                                     causeMessage.contains(
                                         "resolve",
                                         true,
-                                    ) -> app.getString(R.string.connect_error_resolve)
-                                    else ->
+                                    ) -> {
+                                        app.getString(R.string.connect_error_resolve)
+                                    }
+
+                                    else -> {
                                         String.format(
                                             app.getString(R.string.connect_error_connection_failed),
                                             err.cause.message ?: "",
                                         )
+                                    }
                                 }
                             }
                         }
@@ -359,7 +389,5 @@ class ConnectViewModelFactory(
     private val app: Application,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ConnectViewModel(app) as T
-    }
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = ConnectViewModel(app) as T
 }

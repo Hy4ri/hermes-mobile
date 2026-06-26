@@ -144,7 +144,10 @@ fun MainNavigation(sessionId: String? = null) {
                             ConnectionStatus.RECONNECTING,
                             -> LocalHermesStatusColors.current.warning
 
-                            ConnectionStatus.DISCONNECTED -> LocalHermesStatusColors.current.error
+                            ConnectionStatus.DISCONNECTED,
+                            ConnectionStatus.NO_NETWORK,
+                            ConnectionStatus.AUTH_EXPIRED,
+                            -> LocalHermesStatusColors.current.error
                         }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

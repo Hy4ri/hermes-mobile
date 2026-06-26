@@ -63,7 +63,7 @@ object AuthManager {
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
 
-    private val gson = com.google.gson.Gson()
+    private val gson = com.m57.hermescontrol.data.remote.OkHttpProvider.gson
 
     /**
      * Initialise the encrypted preferences.

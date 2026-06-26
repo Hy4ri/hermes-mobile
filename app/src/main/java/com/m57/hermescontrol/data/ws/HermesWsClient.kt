@@ -2,14 +2,16 @@ package com.m57.hermescontrol.data.ws
 
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import com.google.gson.Gson
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.NetworkMonitor
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,15 +24,12 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
-import okhttp3.CertificatePinner
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -42,6 +41,8 @@ enum class ConnectionStatus {
     CONNECTING,
     CONNECTED,
     RECONNECTING,
+    NO_NETWORK,
+    AUTH_EXPIRED,
 }
 
 /**
@@ -62,7 +63,6 @@ object HermesWsClient {
 
     // ── Internal state (all access through synchronized / atomic) ────────
 
-    private val gson = Gson()
     private val requestId = AtomicInteger(0)
     private val connected = AtomicBoolean(false)
     private val intentionalClose = AtomicBoolean(false)
@@ -74,57 +74,83 @@ object HermesWsClient {
     @Volatile
     private var currentBackoff = INITIAL_BACKOFF_MS
 
-    // B4 (Jun 18 2026, kanban t_2b834d90): dedicated IO coroutine scope for
-    // the new single-Job reconnect scheduler below. SupervisorJob keeps one
-    // child failure from cancelling the scope; the scope itself lives as
-    // long as this singleton (object) exists.
     private val wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     @Volatile
     private var reconnectJob: Job? = null
 
-    // SEC-11: No certificate pinning is configured by default since the app
-    // intentionally uses HTTP for LAN and hosts are dynamic.
-    // CertificatePinner infrastructure is provided here if HTTPS is used with a known host.
-    private val certificatePinner = CertificatePinner.Builder().build()
+    // ── Health and Ping/Pong tracking ────────────────────────────────────
 
-    private val okHttpClient =
-        OkHttpClient
-            .Builder()
-            .certificatePinner(certificatePinner)
-            .readTimeout(0, TimeUnit.MILLISECONDS) // keep-alive forever
-            .pingInterval(30, TimeUnit.SECONDS)
-            .build()
+    @Volatile
+    var lastPongTimestamp: Long = 0L
+        private set
+
+    val isHealthy: Boolean
+        get() = isConnected && (System.currentTimeMillis() - lastPongTimestamp < 60_000L)
+
+    private var healthJob: Job? = null
+
+    private fun startHealthTracking() {
+        healthJob?.cancel()
+        lastPongTimestamp = System.currentTimeMillis()
+        healthJob =
+            wsScope.launch {
+                while (connected.get()) {
+                    delay(30_000L)
+                    if (connected.get()) {
+                        lastPongTimestamp = System.currentTimeMillis()
+                    }
+                }
+            }
+    }
+
+    private fun stopHealthTracking() {
+        healthJob?.cancel()
+        healthJob = null
+    }
 
     // ── Public observable stream ─────────────────────────────────────────
 
     private val rawMessages =
         MutableSharedFlow<String>(
-            extraBufferCapacity = 256,
+            extraBufferCapacity = 512,
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
     /** Collect this from ViewModels to receive all parsed [WsEvent]s. */
     val events: SharedFlow<WsEvent> =
         rawMessages
-            .buffer()
+            .buffer(Channel.BUFFERED)
             .map { text ->
                 try {
-                    val rpc = gson.fromJson(text, JsonRpcResponse::class.java)
+                    val rpc = OkHttpProvider.gson.fromJson(text, JsonRpcResponse::class.java)
                     EventParser.parse(rpc, text)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to parse message", e)
                     WsEvent.Unknown(text)
                 }
-            }
-            .flowOn(Dispatchers.IO)
+            }.flowOn(Dispatchers.Default) // CPU-bound
             .shareIn(wsScope, SharingStarted.Eagerly)
 
     // ── Connection status flow ──────────────────────────────────────────
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
 
-    /** Observable connection status: DISCONNECTED / CONNECTING / CONNECTED / RECONNECTING */
+    /** Observable connection status */
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
+
+    init {
+        // Monitor network state to trigger immediate reconnect when network is restored
+        wsScope.launch {
+            NetworkMonitor.isConnected.collect { connected ->
+                if (connected && !isConnected && !intentionalClose.get() && AuthManager.isAutoReconnect()) {
+                    Log.d(TAG, "Network restored — triggering immediate reconnect")
+                    currentBackoff = INITIAL_BACKOFF_MS
+                    reconnectJob?.cancel()
+                    openSocket()
+                }
+            }
+        }
+    }
 
     // ── Connection helpers ────────────────────────────────────────────────
 
@@ -152,18 +178,13 @@ object HermesWsClient {
     private fun refreshWsTicketIfNeeded() {
         val sessionCookie = AuthManager.getSessionCookie()
         if (sessionCookie.isNullOrBlank()) {
-            // Loopback mode — the stored token IS a session token, not a
-            // WS ticket, so no refresh needed.
             return
         }
         try {
-            val client =
-                OkHttpClient.Builder()
-                    .connectTimeout(5, TimeUnit.SECONDS)
-                    .readTimeout(5, TimeUnit.SECONDS)
-                    .build()
+            val client = OkHttpProvider.probe
             val request =
-                Request.Builder()
+                Request
+                    .Builder()
                     .url("http://${AuthManager.getHost()}:${AuthManager.getPort()}/api/auth/ws-ticket")
                     .header("Cookie", "hermes_session_at=$sessionCookie")
                     .post("{}".toRequestBody())
@@ -190,6 +211,7 @@ object HermesWsClient {
         intentionalClose.set(true)
         reconnectJob?.cancel()
         reconnectJob = null
+        stopHealthTracking()
         webSocket?.close(1000, "Client closed")
         webSocket = null
         connected.set(false)
@@ -210,10 +232,7 @@ object HermesWsClient {
         val id = requestId.incrementAndGet().toString()
         onSent?.invoke(id)
         val request = JsonRpcRequest(id = id, method = method, params = params)
-        val json = gson.toJson(request)
-        // B2 (Jun 18 2026, kanban t_8884db16): outgoing JSON contains user
-        // prompts (PromptSubmit params include the `text` field) — never
-        // stream to logcat in release builds.
+        val json = OkHttpProvider.gson.toJson(request)
         if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
         val ws = webSocket
         if (ws != null && connected.get()) {
@@ -242,13 +261,11 @@ object HermesWsClient {
     private fun openSocket() {
         refreshWsTicketIfNeeded()
         val url = AuthManager.wsUrl()
-        // B2 (Jun 18 2026, kanban t_8884db16): url contains the auth token
-        // as a query param — never stream to logcat in release builds.
         val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
         if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
         val request = Request.Builder().url(url).build()
-        webSocket = okHttpClient.newWebSocket(request, WsListenerImpl())
+        webSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl())
     }
 
     private fun scheduleReconnect() {
@@ -258,6 +275,11 @@ object HermesWsClient {
             _connectionStatus.value = ConnectionStatus.DISCONNECTED
             return
         }
+        if (!NetworkMonitor.isConnected.value) {
+            Log.d(TAG, "No network available — delaying reconnect scheduling")
+            _connectionStatus.value = ConnectionStatus.NO_NETWORK
+            return
+        }
         val delay = currentBackoff
         currentBackoff =
             (currentBackoff * BACKOFF_MULTIPLIER)
@@ -265,22 +287,6 @@ object HermesWsClient {
                 .coerceAtMost(MAX_BACKOFF_MS)
         if (BuildConfig.DEBUG) Log.d(TAG, "Reconnecting in ${delay}ms …")
 
-        // B4 (Jun 18 2026, kanban t_2b834d90): replaced raw Thread{ sleep;
-        // check; openSocket() } with a single cancellable coroutine Job.
-        //
-        // Old code had two failure modes:
-        //   1. TOCTOU: line 149 `if (!intentionalClose && !connected)` was
-        //      not atomic with line 150 `openSocket()`. Two reconnect threads
-        //      spawned from a rapid onFailure/onClosed cycle could both pass
-        //      the gate and both call openSocket() — the second overwrote
-        //      `webSocket` without closing the first, leaking an orphaned
-        //      listener.
-        //   2. Unbounded thread spawn: a flaky network multiplied the
-        //      daemon-thread count. Backoff grew but old threads weren't
-        //      cancelled.
-        //
-        // New behavior: cancel any in-flight reconnect before scheduling the
-        // next one — only one reconnect coroutine exists at any time.
         reconnectJob?.cancel()
         reconnectJob =
             wsScope.launch {
@@ -302,6 +308,7 @@ object HermesWsClient {
             connected.set(true)
             _connectionStatus.value = ConnectionStatus.CONNECTED
             currentBackoff = INITIAL_BACKOFF_MS
+            startHealthTracking()
 
             while (messageQueue.isNotEmpty()) {
                 val msg = messageQueue.poll()
@@ -316,11 +323,12 @@ object HermesWsClient {
             webSocket: WebSocket,
             text: String,
         ) {
-            // B2 (Jun 18 2026, kanban t_8884db16): incoming WS text contains
-            // AI reply tokens and tool output — never stream to logcat in
-            // release builds.
             if (BuildConfig.DEBUG) Log.d(TAG, "← $text")
-            rawMessages.tryEmit(text)
+            lastPongTimestamp = System.currentTimeMillis()
+            val emitted = rawMessages.tryEmit(text)
+            if (!emitted && BuildConfig.DEBUG) {
+                Log.w(TAG, "WebSocket message dropped due to buffer overflow")
+            }
         }
 
         override fun onClosing(
@@ -339,8 +347,13 @@ object HermesWsClient {
         ) {
             Log.i(TAG, "WebSocket closed: $code $reason")
             connected.set(false)
-            _connectionStatus.value = ConnectionStatus.RECONNECTING
-            scheduleReconnect()
+            stopHealthTracking()
+            if (code == 4001 || reason.contains("unauthorized", ignoreCase = true)) {
+                _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
+            } else {
+                _connectionStatus.value = ConnectionStatus.RECONNECTING
+                scheduleReconnect()
+            }
         }
 
         override fun onFailure(
@@ -350,8 +363,17 @@ object HermesWsClient {
         ) {
             Log.e(TAG, "WebSocket failure: ${t.message}", t)
             connected.set(false)
-            _connectionStatus.value = ConnectionStatus.RECONNECTING
-            scheduleReconnect()
+            stopHealthTracking()
+            val code = response?.code ?: 0
+            if (code == 401 || t.message?.contains(
+                    "401",
+                ) == true || t.message?.contains("unauthorized", ignoreCase = true) == true
+            ) {
+                _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
+            } else {
+                _connectionStatus.value = ConnectionStatus.RECONNECTING
+                scheduleReconnect()
+            }
         }
     }
 }

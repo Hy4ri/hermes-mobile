@@ -48,7 +48,9 @@ data class AuthLoginUiState(
     val errorMessage: String? = null,
 )
 
-class AuthLoginViewModel(private val app: Application) : ViewModel() {
+class AuthLoginViewModel(
+    private val app: Application,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(AuthLoginUiState())
     val uiState: StateFlow<AuthLoginUiState> = _uiState.asStateFlow()
 
@@ -57,11 +59,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
     }
 
     private val probeClient: OkHttpClient =
-        OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .followRedirects(false)
-            .build()
+        com.m57.hermescontrol.data.remote.OkHttpProvider.probe
 
     fun onHostChange(value: String) {
         _uiState.update { it.copy(host = value.trim(), errorMessage = null, authMode = null) }
@@ -150,7 +148,12 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         // Step 1: Check if dashboard is reachable via /api/status (always public)
         val statusOk =
             try {
-                val req = Request.Builder().url("$baseUrl/api/status").get().build()
+                val req =
+                    Request
+                        .Builder()
+                        .url("$baseUrl/api/status")
+                        .get()
+                        .build()
                 val resp = probeClient.newCall(req).execute()
                 resp.isSuccessful
             } catch (e: Exception) {
@@ -163,7 +166,12 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         // Step 2: Probe / to see if it redirects to /login (basic auth) or returns SPA
         val needsBasicAuth =
             try {
-                val req = Request.Builder().url(baseUrl).get().build()
+                val req =
+                    Request
+                        .Builder()
+                        .url(baseUrl)
+                        .get()
+                        .build()
                 val resp = probeClient.newCall(req).execute()
                 val code = resp.code
                 val location = resp.header("location", "")
@@ -178,7 +186,12 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         var extractedToken: String? = null
         if (!needsBasicAuth) {
             try {
-                val req = Request.Builder().url(baseUrl).get().build()
+                val req =
+                    Request
+                        .Builder()
+                        .url(baseUrl)
+                        .get()
+                        .build()
                 val resp = probeClient.newCall(req).execute()
                 val body = resp.body?.string() ?: ""
                 // Extract __HERMES_SESSION_TOKEN__ from the SPA HTML
@@ -231,12 +244,18 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                             val token = connectTokenOnly(state.host, port, state.token)
                             if (token != null) ConnectResult(wsCredential = token) else null
                         }
-                        DashboardAuthMode.BASIC_AUTH ->
+
+                        DashboardAuthMode.BASIC_AUTH -> {
                             connectBasicAuth(state.host, port, state.username, state.password)
+                        }
+
                         DashboardAuthMode.ALL -> {
                             connectBasicAuth(state.host, port, state.username, state.password)
                         }
-                        null -> null
+
+                        null -> {
+                            null
+                        }
                     }
                 }
 
@@ -279,6 +298,7 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
             is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
                 token
             }
+
             is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
                 val msg =
                     when (val err = result.error) {
@@ -289,9 +309,15 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
                                 else -> app.getString(R.string.connect_error_http_code, err.code)
                             }
                         }
+
+                        is com.m57.hermescontrol.data.remote.NetworkError.AuthExpired -> {
+                            app.getString(R.string.connect_error_401)
+                        }
+
                         is com.m57.hermescontrol.data.remote.NetworkError.Connection -> {
                             app.getString(R.string.connect_error_connection_failed, err.cause.message ?: "")
                         }
+
                         is com.m57.hermescontrol.data.remote.NetworkError.Unknown -> {
                             app.getString(R.string.connect_error_connection_failed, err.cause.message ?: "")
                         }
@@ -331,14 +357,15 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
         try {
             // Step 1: Authenticate via the password login endpoint to get a session cookie
             val loginClient =
-                OkHttpClient.Builder()
+                com.m57.hermescontrol.data.remote.OkHttpProvider.probe
+                    .newBuilder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.SECONDS)
-                    .followRedirects(false)
                     .build()
 
             val loginReq =
-                Request.Builder()
+                Request
+                    .Builder()
                     .url("$baseUrl/auth/password-login")
                     .header("Content-Type", "application/json")
                     .post(jsonBody.toRequestBody())
@@ -380,13 +407,15 @@ class AuthLoginViewModel(private val app: Application) : ViewModel() {
 
             // Step 3: Mint a WebSocket ticket using the session cookie
             val ticketClient =
-                OkHttpClient.Builder()
+                com.m57.hermescontrol.data.remote.OkHttpProvider.base
+                    .newBuilder()
                     .connectTimeout(10, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.SECONDS)
                     .build()
 
             val ticketReq =
-                Request.Builder()
+                Request
+                    .Builder()
                     .url("$baseUrl/api/auth/ws-ticket")
                     .header("Cookie", cookieHeader)
                     .post("{}".toRequestBody())
@@ -434,7 +463,5 @@ class AuthLoginViewModelFactory(
     private val app: Application,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return AuthLoginViewModel(app) as T
-    }
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = AuthLoginViewModel(app) as T
 }

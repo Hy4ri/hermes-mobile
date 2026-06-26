@@ -27,6 +27,10 @@ sealed interface NetworkError {
         val cause: IOException,
     ) : NetworkError
 
+    data class AuthExpired(
+        override val message: String = "Authentication token has expired. Please log in again.",
+    ) : NetworkError
+
     data class Unknown(
         override val message: String,
         val cause: Throwable,
@@ -34,10 +38,12 @@ sealed interface NetworkError {
 }
 
 fun mapHttpError(code: Int): NetworkError {
+    if (code == 401) {
+        return NetworkError.AuthExpired()
+    }
     val message =
         when (code) {
             400 -> "Bad Request (HTTP 400): The server could not understand the request."
-            401 -> "Unauthorized (HTTP 401): Authentication token is invalid or expired."
             403 -> "Forbidden (HTTP 403): You do not have permission to access this resource."
             404 -> "Not Found (HTTP 404): The requested resource could not be found."
             405 -> "Method Not Allowed (HTTP 405)."
@@ -50,8 +56,22 @@ fun mapHttpError(code: Int): NetworkError {
     return NetworkError.Http(code, message)
 }
 
+fun isRetryable(e: IOException): Boolean =
+    when (e) {
+        is java.net.UnknownHostException -> false
+        is javax.net.ssl.SSLException -> false
+        is java.net.ConnectException -> true
+        is java.net.SocketTimeoutException -> true
+        else -> true
+    }
+
+fun jitteredBackoff(baseMs: Long): Long {
+    val jitter = (baseMs * 0.25 * (Math.random() * 2 - 1)).toLong()
+    return baseMs + jitter
+}
+
 suspend inline fun <reified T> safeApiCall(
-    retries: Int = 3,
+    retries: Int = 2,
     crossinline call: suspend () -> Response<T>,
 ): NetworkResult<T> {
     var lastException: IOException? = null
@@ -68,8 +88,8 @@ suspend inline fun <reified T> safeApiCall(
                 }
             } else {
                 val code = response.code()
-                if (code in 500..599 && attempt < retries) {
-                    val backoff = 500L * (1 shl attempt)
+                if ((code in 500..599 || code == 429) && attempt < retries) {
+                    val backoff = jitteredBackoff(500L * (1 shl attempt))
                     delay(backoff)
                     continue
                 }
@@ -77,7 +97,7 @@ suspend inline fun <reified T> safeApiCall(
             }
         } catch (e: IOException) {
             lastException = e
-            if (attempt == retries) {
+            if (attempt == retries || !isRetryable(e)) {
                 return NetworkResult.Failure(
                     NetworkError.Connection(
                         "Network connection failure: ${e.message ?: "Unknown connection error"}",
@@ -85,7 +105,7 @@ suspend inline fun <reified T> safeApiCall(
                     ),
                 )
             }
-            val backoff = 500L * (1 shl attempt)
+            val backoff = jitteredBackoff(500L * (1 shl attempt))
             delay(backoff)
         } catch (e: Exception) {
             return NetworkResult.Failure(

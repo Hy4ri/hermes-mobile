@@ -4,11 +4,9 @@ import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
 import okhttp3.CertificatePinner
 import okhttp3.Interceptor
-import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.TimeUnit
 
 /**
  * Provides a Retrofit-backed [HermesApiService].
@@ -62,12 +60,10 @@ object ApiClient {
             }
 
         val tempOkHttp =
-            OkHttpClient
-                .Builder()
+            OkHttpProvider
+                .base
+                .newBuilder()
                 .addInterceptor(tempAuthInterceptor)
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(15, TimeUnit.SECONDS)
                 .build()
 
         val tempRetrofit =
@@ -75,7 +71,7 @@ object ApiClient {
                 .Builder()
                 .baseUrl("http://$host:$port/")
                 .client(tempOkHttp)
-                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(GsonConverterFactory.create(OkHttpProvider.gson))
                 .build()
 
         return tempRetrofit.create(HermesApiService::class.java)
@@ -84,10 +80,6 @@ object ApiClient {
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun buildService(): HermesApiService {
-        // B1 (Jun 18 2026, kanban t_afc1d26f): Level.BODY prints every request —
-        // including the Authorization: Bearer header from authInterceptor below —
-        // to logcat in plaintext. Gate on BuildConfig.DEBUG so release builds
-        // are silent; debug builds behave identically to before.
         val logging =
             HttpLoggingInterceptor().apply {
                 level =
@@ -126,20 +118,16 @@ object ApiClient {
                 }
             }
 
-        // SEC-11: No certificate pinning is configured by default since the app
-        // intentionally uses HTTP for LAN and hosts are dynamic.
-        // CertificatePinner infrastructure is provided here if HTTPS is used with a known host.
         val certificatePinner = CertificatePinner.Builder().build()
 
         val okHttp =
-            OkHttpClient
-                .Builder()
+            OkHttpProvider
+                .base
+                .newBuilder()
                 .addInterceptor(authInterceptor)
                 .addInterceptor(logging)
+                .authenticator(TokenRefreshAuthenticator)
                 .certificatePinner(certificatePinner)
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(15, TimeUnit.SECONDS)
                 .build()
 
         val rf =
@@ -147,7 +135,7 @@ object ApiClient {
                 .Builder()
                 .baseUrl(AuthManager.baseUrl())
                 .client(okHttp)
-                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(GsonConverterFactory.create(OkHttpProvider.gson))
                 .build()
                 .also { retrofit = it }
 

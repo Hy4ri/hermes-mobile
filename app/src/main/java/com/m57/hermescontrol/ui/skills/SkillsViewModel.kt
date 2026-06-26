@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,26 +30,32 @@ data class SkillsUiState(
     val saveContentSuccess: Boolean = false,
 )
 
-class SkillsViewModel : ViewModel(), ToastHost {
+class SkillsViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(SkillsUiState())
     val uiState: StateFlow<SkillsUiState> = _uiState.asStateFlow()
 
+    private var loadJob: Job? = null
+
     fun loadSkills() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getSkills() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                _uiState.update { it.copy(isLoading = false, skills = data.orEmpty()) }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load skills: $errorMsg",
-                    )
-                }
-            },
-        )
+        loadJob =
+            safeLaunchLoad(
+                currentJob = loadJob,
+                apiCall = { safeApiCall { ApiClient.hermesApi.getSkills() } },
+                onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+                onSuccess = { data ->
+                    _uiState.update { it.copy(isLoading = false, skills = data.orEmpty()) }
+                },
+                onError = { errorMsg ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load skills: $errorMsg",
+                        )
+                    }
+                },
+            )
     }
 
     fun toggleSkill(skill: Skill) {

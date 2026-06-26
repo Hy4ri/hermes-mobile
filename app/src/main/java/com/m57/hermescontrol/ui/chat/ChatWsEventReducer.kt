@@ -216,8 +216,8 @@ object ChatWsEventReducer {
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                com.google.gson
-                    .Gson()
+                com.m57.hermescontrol.data.remote.OkHttpProvider
+                    .gson
                     .toJson(it)
             } ?: ""
         val toolMessage =
@@ -264,8 +264,8 @@ object ChatWsEventReducer {
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                com.google.gson
-                    .Gson()
+                com.m57.hermescontrol.data.remote.OkHttpProvider
+                    .gson
                     .toJson(it)
             } ?: ""
         val messages = state.messages.toMutableList()

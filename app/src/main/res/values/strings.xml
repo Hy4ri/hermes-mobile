@@ -91,16 +91,8 @@
     <string name="chat_tool_fallback">Tool</string>
     <string name="chat_tool_show_raw">Show Raw JSON</string>
     <string name="chat_tool_show_parsed">Show Parsed Output</string>
-    <string name="command_help_desc">Show help menu</string>
-    <string name="command_status_desc">Check gateway and platform status</string>
-    <string name="command_sessions_desc">List all chat sessions</string>
-    <string name="command_stats_desc">Check system resource usage (stats)</string>
-    <string name="command_system_desc">Check system resource usage (system)</string>
-    <string name="command_new_desc">Create a new chat session</string>
-    <string name="command_stop_desc">Interrupt the active run</string>
     <string name="content_desc_new_chat">New Chat</string>
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
-    <string name="content_desc_interrupt">Interrupt</string>
     <string name="content_desc_copy">Copy</string>
     <string name="content_desc_edit">Edit</string>
 

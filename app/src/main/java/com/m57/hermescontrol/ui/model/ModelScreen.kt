@@ -190,14 +190,22 @@ fun ModelScreen(
                                         )
 
                                         val models = provider.models.orEmpty()
-                                        if (models.isEmpty()) {
+                                        val filteredModels =
+                                            if (query.isBlank()) {
+                                                models
+                                            } else {
+                                                models.filter {
+                                                    it.contains(query, ignoreCase = true)
+                                                }
+                                            }
+                                        if (filteredModels.isEmpty()) {
                                             Text(
                                                 text = stringResource(R.string.model_no_models),
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                         } else {
-                                            models.forEach { model ->
+                                            filteredModels.forEach { model ->
                                                 val isActive =
                                                     state.activeProfile?.provider == provider.slug &&
                                                         state.activeProfile?.model == model

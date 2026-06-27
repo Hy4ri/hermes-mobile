@@ -1,0 +1,15 @@
+A native Android companion app for Hermes Agent — the open-source, multi-platform AI assistant by Nous Research.
+
+Manage your Hermes agent directly from your phone over your trusted LAN, without needing to pull out a laptop or switch to another messaging platform.
+
+Features:
+• Real-time chat via WebSocket with markdown rendering
+• Switch between AI models and providers on the fly
+• Monitor system logs with filtering
+• Manage profiles and settings
+• Pull-to-refresh for live updates
+• Notification support for incoming messages
+• Material You dynamic theming (Android 12+)
+• Works entirely on your trusted LAN — no internet required
+
+All network communication uses cleartext HTTP/WebSocket by design, since the app is intended for trusted local networks only.

@@ -2,7 +2,7 @@ package com.m57.hermescontrol.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Hermes Control brand palette — v3 (Material You rewrite).
+// Hermes Mobile brand palette — v3 (Material You rewrite).
 //
 // On Android 12+ (API 31+) the app uses dynamic colour derived from the user's
 // wallpaper — this palette is NOT used for primary/surface roles on those

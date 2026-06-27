@@ -149,6 +149,10 @@ fun ChatScreen(
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
 
+    val micListeningPrompt = stringResource(R.string.chat_mic_listening)
+    val sttNotAvailableMsg = stringResource(R.string.stt_not_available)
+    val sttPermissionDeniedMsg = stringResource(R.string.stt_permission_denied)
+
     // Speech-to-text recognition launcher (issue #194)
     val speechLauncher =
         rememberLauncherForActivityResult(
@@ -187,23 +191,19 @@ fun ChatScreen(
                             )
                             putExtra(
                                 RecognizerIntent.EXTRA_PROMPT,
-                                context.getString(R.string.chat_mic_listening),
+                                micListeningPrompt,
                             )
                         }
                     isListening = true
                     speechLauncher.launch(intent)
                 } else {
                     scrollScope.launch {
-                        snackbarHostState.showSnackbar(
-                            context.getString(R.string.stt_not_available),
-                        )
+                        snackbarHostState.showSnackbar(sttNotAvailableMsg)
                     }
                 }
             } else {
                 scrollScope.launch {
-                    snackbarHostState.showSnackbar(
-                        context.getString(R.string.stt_permission_denied),
-                    )
+                    snackbarHostState.showSnackbar(sttPermissionDeniedMsg)
                 }
             }
         }
@@ -383,16 +383,14 @@ fun ChatScreen(
                                     )
                                     putExtra(
                                         RecognizerIntent.EXTRA_PROMPT,
-                                        context.getString(R.string.chat_mic_listening),
+                                        micListeningPrompt,
                                     )
                                 }
                             isListening = true
                             speechLauncher.launch(intent)
                         } else {
                             scrollScope.launch {
-                                snackbarHostState.showSnackbar(
-                                    context.getString(R.string.stt_not_available),
-                                )
+                                snackbarHostState.showSnackbar(sttNotAvailableMsg)
                             }
                         }
                     } else {

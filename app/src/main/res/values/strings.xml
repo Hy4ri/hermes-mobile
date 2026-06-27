@@ -3,6 +3,10 @@
 
     <!-- Chat -->
     <string name="chat_send_desc">Send</string>
+    <string name="chat_mic_desc">Voice input</string>
+    <string name="chat_mic_listening">Listening…</string>
+    <string name="stt_permission_denied">Microphone permission is required for voice input</string>
+    <string name="stt_not_available">Speech recognition is not available on this device</string>
     <string name="chat_clarify_title">Clarification Needed</string>
     <string name="chat_clarify_hint">Tap an option to copy to input, or long-press to send directly.</string>
     <string name="chat_clarify_response">Response</string>

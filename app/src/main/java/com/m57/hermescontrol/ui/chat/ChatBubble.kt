@@ -1364,6 +1364,8 @@ fun parseToolOutput(
                             null
                         }
                     }?.joinToString("\n")
+                } else {
+                    null
                 }
 
             val summaryLine =

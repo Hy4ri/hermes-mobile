@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HermesControl</string>
+    <string name="app_name">HermesMobile</string>
 
     <!-- Chat -->
     <string name="chat_send_desc">Send</string>
@@ -132,7 +132,7 @@
     <string name="settings_save_success">✅ Settings saved</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
-    <string name="settings_about_app_name">⚡ Hermes Control</string>
+    <string name="settings_about_app_name">⚡ Hermes Mobile</string>
     <string name="settings_about_version">Version</string>
     <string name="settings_about_build">Build</string>
     <string name="settings_about_debug">Debug</string>
@@ -393,7 +393,7 @@
     <string name="auth_login_success">Connected!</string>
 
     <!-- Landing Screen -->
-    <string name="landing_title">Hermes Control</string>
+    <string name="landing_title">Hermes Mobile</string>
     <string name="landing_subtitle">Control panel for Hermes Agent</string>
     <string name="landing_action_auth_login">Auth Login</string>
     <string name="landing_action_pairing_login">Pairing Login</string>

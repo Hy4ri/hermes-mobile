@@ -116,6 +116,12 @@ object ToolSchemaRegistry {
                     summaryArgKey = null,
                     iconEmoji = "🧠",
                 ),
+            "session_search" to
+                ToolDisplayConfig(
+                    name = "session_search",
+                    summaryArgKey = null,
+                    iconEmoji = "🔍",
+                ),
         )
 
     fun getDisplayConfig(toolName: String?): ToolDisplayConfig =

@@ -712,6 +712,109 @@ fun parseToolOutput(
             )
         }
 
+        // ── Session Search-specific formatting ──
+        // Handles all 4 calling modes: discover (results[] with snippets/bookends),
+        // scroll (messages[] with anchor), read (messages[] with session dump),
+        // and browse (results[] with recent session metadata).
+        if (resolvedToolName == "session_search") {
+            val mode = dataSource.get("mode")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val query = dataSource.get("query")?.takeIf { !it.isJsonNull }?.asString
+            val resultsArray =
+                dataSource.get("results")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+            val messagesArray =
+                dataSource.get("messages")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+            val count = dataSource.get("count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val msgCount = dataSource.get("message_count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val truncated = dataSource.get("truncated")?.takeIf { !it.isJsonNull }?.asBoolean
+
+            // Build summary line
+            val ssSummaryText =
+                when (mode) {
+                    "discover" -> "🔍 ${count ?: 0} session${if (count == 1) "" else "s"}${query?.let {
+                        ": ${it.take(
+                            60,
+                        )}"
+                    } ?: ""}"
+                    "scroll" -> "📜 ${messagesArray?.size() ?: 0} messages (scroll)"
+                    "read" -> "📖 ${msgCount ?: messagesArray?.size() ?: 0} messages${
+                        if (truncated == true) " (truncated)" else ""
+                    }"
+                    "browse" -> "📋 ${count ?: 0} recent sessions"
+                    else -> "🔍 session_search"
+                }
+
+            // Format results (discover / browse)
+            val formattedResults =
+                resultsArray?.mapIndexedNotNull { idx, element ->
+                    if (!element.isJsonObject) return@mapIndexedNotNull null
+                    val item = element.asJsonObject
+                    val whenField =
+                        item.get("when")?.takeIf { !it.isJsonNull }?.asString
+                            ?: item.get("started_at")?.takeIf { !it.isJsonNull }?.asString
+                    val source = item.get("source")?.takeIf { !it.isJsonNull }?.asString
+                    val title = item.get("title")?.takeIf { !it.isJsonNull }?.asString
+                    val snippet = item.get("snippet")?.takeIf { !it.isJsonNull }?.asString
+                    val preview = item.get("preview")?.takeIf { !it.isJsonNull }?.asString
+                    val model = item.get("model")?.takeIf { !it.isJsonNull }?.asString
+                    val sessionMsgCount = item.get("message_count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+                    val matchedRole = item.get("matched_role")?.takeIf { !it.isJsonNull }?.asString
+
+                    val header = whenField?.let { "📅 $it" } ?: ""
+                    val sourceTag = source?.let { "[$it]" } ?: ""
+                    val titleLine = title?.let { "\n     📄 $it" } ?: ""
+                    val modelLine = model?.let { "\n     🤖 $it" } ?: ""
+                    val matchedLine = matchedRole?.let { "\n     🎯 matched: $it" } ?: ""
+                    val countLine = sessionMsgCount?.let { "\n     $it msgs" } ?: ""
+                    val snippetText = snippet ?: preview
+                    val snippetLine =
+                        snippetText?.let {
+                            val clean = it.take(200).replace("\n", " ")
+                            "\n     ┃ $clean"
+                        } ?: ""
+
+                    "━━━ #${idx + 1}  $header$sourceTag$titleLine$modelLine$matchedLine$countLine$snippetLine"
+                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+
+            // Format messages (scroll / read)
+            val anchorId = dataSource.get("around_message_id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val formattedMessages =
+                messagesArray?.mapNotNull { element ->
+                    if (!element.isJsonObject) return@mapNotNull null
+                    val item = element.asJsonObject
+                    val msgId = item.get("id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+                    val role = item.get("role")?.takeIf { !it.isJsonNull }?.asString ?: "?"
+                    val content = item.get("content")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                    val toolName = item.get("tool_name")?.takeIf { !it.isJsonNull }?.asString
+
+                    val roleEmoji =
+                        when (role) {
+                            "user" -> "👤"
+                            "assistant" -> "🤖"
+                            "tool" -> "🔧"
+                            else -> "❓"
+                        }
+                    val namePart = if (toolName != null) " ($toolName)" else ""
+                    val anchor = if (anchorId != null && msgId == anchorId) "  ⬅️" else ""
+                    val cleanContent = content.take(300).replace("\n", " ")
+
+                    "[$msgId] $roleEmoji $role$namePart$anchor\n     $cleanContent"
+                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+
+            val ssMainOutput = formattedResults ?: formattedMessages
+
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = ssSummaryText,
+                mainOutput = ssMainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
         // Check if this looks like a terminal result (check dataSource for backward compat)
         val hasStdout = dataSource.has("stdout")
         val hasStderr = dataSource.has("stderr")

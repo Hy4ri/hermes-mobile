@@ -268,6 +268,10 @@
     <string name="model_label_available">Available Models:</string>
     <string name="model_no_models">No models reported or provider needs authentication.</string>
     <string name="content_desc_active_model">Active Model</string>
+    <string name="model_section_pinned">Pinned Models</string>
+    <string name="content_desc_pin_model">Pin model</string>
+    <string name="content_desc_unpin_model">Unpin model</string>
+    <string name="content_desc_pinned_section_toggle">Toggle pinned section visibility</string>
 
     <!-- Sessions (History) Screen -->
     <string name="history_empty_title">No history</string>

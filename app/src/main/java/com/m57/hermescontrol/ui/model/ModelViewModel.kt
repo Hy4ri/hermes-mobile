@@ -2,7 +2,9 @@ package com.m57.hermescontrol.ui.model
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -24,11 +26,18 @@ data class ModelUiState(
     val activeProfile: ProfileInfo? = null,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val pinnedModels: List<PinnedModel> = emptyList(),
 )
 
-class ModelViewModel : ViewModel(), ToastHost {
+class ModelViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ModelUiState())
     val uiState: StateFlow<ModelUiState> = _uiState.asStateFlow()
+
+    init {
+        _uiState.update { it.copy(pinnedModels = AuthManager.getPinnedModels()) }
+    }
 
     fun loadModelOptions() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -70,6 +79,7 @@ class ModelViewModel : ViewModel(), ToastHost {
                             isLoading = false,
                             providers = responseResult.data.providers.orEmpty(),
                             activeProfile = activeProfile,
+                            pinnedModels = AuthManager.getPinnedModels(),
                         )
                     }
                 }
@@ -138,5 +148,30 @@ class ModelViewModel : ViewModel(), ToastHost {
 
     override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
+    }
+
+    fun pinModel(
+        providerSlug: String,
+        modelName: String,
+    ) {
+        val currentPinned = AuthManager.getPinnedModels().toMutableList()
+        val newPin = PinnedModel(providerSlug, modelName)
+        if (!currentPinned.contains(newPin)) {
+            currentPinned.add(newPin)
+            AuthManager.savePinnedModels(currentPinned)
+            _uiState.update { it.copy(pinnedModels = currentPinned) }
+        }
+    }
+
+    fun unpinModel(
+        providerSlug: String,
+        modelName: String,
+    ) {
+        val currentPinned = AuthManager.getPinnedModels().toMutableList()
+        val pinToRemove = PinnedModel(providerSlug, modelName)
+        if (currentPinned.remove(pinToRemove)) {
+            AuthManager.savePinnedModels(currentPinned)
+            _uiState.update { it.copy(pinnedModels = currentPinned) }
+        }
     }
 }

@@ -40,6 +40,7 @@ object AuthManager {
     private const val KEY_USE_DYNAMIC_COLORS = "use_dynamic_colors"
     private const val KEY_THEME_PRESET = "theme_preset"
     private const val KEY_BOTTOM_NAV_DISPLAY_MODE = "bottom_nav_display_mode"
+    private const val KEY_PINNED_MODELS = "pinned_models"
 
     private const val DEFAULT_HOST = "127.0.0.1"
     private const val DEFAULT_PORT = 9119
@@ -178,6 +179,29 @@ object AuthManager {
     fun saveConnectionProfiles(profiles: List<com.m57.hermescontrol.data.model.ConnectionProfile>) {
         val json = gson.toJson(profiles)
         requirePrefs().edit().putString(KEY_CONNECTION_PROFILES, json).apply()
+    }
+
+    // ── Pinned Models ────────────────────────────────────────────────────
+
+    fun getPinnedModels(): List<com.m57.hermescontrol.data.model.PinnedModel> {
+        val json = requirePrefs().getString(KEY_PINNED_MODELS, null) ?: return emptyList()
+        return try {
+            val type =
+                object : com.google.gson.reflect.TypeToken<
+                    List<com.m57.hermescontrol.data.model.PinnedModel>,
+                >() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            if (com.m57.hermescontrol.BuildConfig.DEBUG) {
+                android.util.Log.w("AuthManager", "Failed to parse pinned models", e)
+            }
+            emptyList()
+        }
+    }
+
+    fun savePinnedModels(pinned: List<com.m57.hermescontrol.data.model.PinnedModel>) {
+        val json = gson.toJson(pinned)
+        requirePrefs().edit().putString(KEY_PINNED_MODELS, json).apply()
     }
 
     fun getProfileToken(profileId: String): String? = requirePrefs().getString("token_$profileId", null)

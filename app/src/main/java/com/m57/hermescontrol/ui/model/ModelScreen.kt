@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.model
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,14 +12,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,6 +123,205 @@ fun ModelScreen(
                             onQueryChange = { query = it },
                             placeholder = "Search models...",
                         )
+                    }
+                    if (state.pinnedModels.isNotEmpty()) {
+                        item {
+                            var isPinnedSectionExpanded by rememberSaveable { mutableStateOf(true) }
+                            val filteredPinned =
+                                remember(query, state.pinnedModels) {
+                                    if (query.isBlank()) {
+                                        state.pinnedModels
+                                    } else {
+                                        state.pinnedModels.filter {
+                                            it.modelName.contains(query, ignoreCase = true) ||
+                                                it.providerSlug.contains(query, ignoreCase = true)
+                                        }
+                                    }
+                                }
+
+                            if (filteredPinned.isNotEmpty()) {
+                                Card(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .animateContentSize()
+                                            .padding(bottom = 8.dp),
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                    alpha = 0.5f,
+                                                ),
+                                        ),
+                                    onClick = {
+                                        isPinnedSectionExpanded = !isPinnedSectionExpanded
+                                    },
+                                ) {
+                                    Column(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.PushPin,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.model_section_pinned),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = {
+                                                    isPinnedSectionExpanded = !isPinnedSectionExpanded
+                                                },
+                                            ) {
+                                                Icon(
+                                                    imageVector =
+                                                        if (isPinnedSectionExpanded) {
+                                                            Icons.Filled.KeyboardArrowUp
+                                                        } else {
+                                                            Icons.Filled.KeyboardArrowDown
+                                                        },
+                                                    contentDescription =
+                                                        stringResource(
+                                                            R.string.content_desc_pinned_section_toggle,
+                                                        ),
+                                                )
+                                            }
+                                        }
+
+                                        AnimatedVisibility(visible = isPinnedSectionExpanded) {
+                                            Column(modifier = Modifier.padding(top = 8.dp)) {
+                                                filteredPinned.forEach { pinned ->
+                                                    val isActive =
+                                                        state.activeProfile?.provider == pinned.providerSlug &&
+                                                            state.activeProfile?.model == pinned.modelName
+
+                                                    Card(
+                                                        onClick = {
+                                                            viewModel.selectModel(
+                                                                pinned.providerSlug,
+                                                                pinned.modelName,
+                                                            )
+                                                        },
+                                                        modifier =
+                                                            Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(vertical = 4.dp),
+                                                        colors =
+                                                            CardDefaults.cardColors(
+                                                                containerColor =
+                                                                    if (isActive) {
+                                                                        MaterialTheme.colorScheme
+                                                                            .primaryContainer
+                                                                            .copy(alpha = 0.3f)
+                                                                    } else {
+                                                                        MaterialTheme.colorScheme.surface
+                                                                    },
+                                                            ),
+                                                        border =
+                                                            BorderStroke(
+                                                                width = 1.dp,
+                                                                color =
+                                                                    if (isActive) {
+                                                                        MaterialTheme.colorScheme.primary
+                                                                    } else {
+                                                                        MaterialTheme.colorScheme.outline.copy(
+                                                                            alpha = 0.2f,
+                                                                        )
+                                                                    },
+                                                            ),
+                                                    ) {
+                                                        Row(
+                                                            modifier =
+                                                                Modifier
+                                                                    .fillMaxWidth()
+                                                                    .padding(12.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                        ) {
+                                                            Column(modifier = Modifier.weight(1f)) {
+                                                                Text(
+                                                                    text = pinned.modelName,
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    fontWeight =
+                                                                        if (isActive) {
+                                                                            FontWeight.Bold
+                                                                        } else {
+                                                                            FontWeight.Normal
+                                                                        },
+                                                                    color =
+                                                                        if (isActive) {
+                                                                            MaterialTheme.colorScheme
+                                                                                .onPrimaryContainer
+                                                                        } else {
+                                                                            MaterialTheme.colorScheme.onSurface
+                                                                        },
+                                                                )
+                                                                Text(
+                                                                    text = pinned.providerSlug,
+                                                                    style = MaterialTheme.typography.bodySmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                )
+                                                            }
+
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            ) {
+                                                                if (isActive) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Filled.Check,
+                                                                        contentDescription =
+                                                                            stringResource(
+                                                                                R.string.content_desc_active_model,
+                                                                            ),
+                                                                        tint = MaterialTheme.colorScheme.primary,
+                                                                    )
+                                                                }
+
+                                                                IconButton(
+                                                                    onClick = {
+                                                                        viewModel.unpinModel(
+                                                                            pinned.providerSlug,
+                                                                            pinned.modelName,
+                                                                        )
+                                                                    },
+                                                                    modifier = Modifier.size(24.dp),
+                                                                ) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Filled.PushPin,
+                                                                        contentDescription =
+                                                                            stringResource(
+                                                                                R.string.content_desc_unpin_model,
+                                                                            ),
+                                                                        tint = MaterialTheme.colorScheme.primary,
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     items(filteredProviders, key = { it.slug }) { provider ->
                         val isExpanded = expandedProviderSlug == provider.slug
@@ -268,15 +475,61 @@ fun ModelScreen(
                                                                     MaterialTheme.colorScheme.onSurface
                                                                 },
                                                         )
-                                                        if (isActive) {
-                                                            Icon(
-                                                                imageVector = Icons.Filled.Check,
-                                                                contentDescription =
-                                                                    stringResource(
-                                                                        R.string.content_desc_active_model,
-                                                                    ),
-                                                                tint = MaterialTheme.colorScheme.primary,
-                                                            )
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        ) {
+                                                            if (isActive) {
+                                                                Icon(
+                                                                    imageVector = Icons.Filled.Check,
+                                                                    contentDescription =
+                                                                        stringResource(
+                                                                            R.string.content_desc_active_model,
+                                                                        ),
+                                                                    tint = MaterialTheme.colorScheme.primary,
+                                                                )
+                                                            }
+
+                                                            val isPinned =
+                                                                state.pinnedModels.any {
+                                                                    it.providerSlug == provider.slug &&
+                                                                        it.modelName == model
+                                                                }
+                                                            IconButton(
+                                                                onClick = {
+                                                                    if (isPinned) {
+                                                                        viewModel.unpinModel(provider.slug, model)
+                                                                    } else {
+                                                                        viewModel.pinModel(provider.slug, model)
+                                                                    }
+                                                                },
+                                                                modifier = Modifier.size(24.dp),
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector =
+                                                                        if (isPinned) {
+                                                                            Icons.Filled.PushPin
+                                                                        } else {
+                                                                            Icons.Outlined.PushPin
+                                                                        },
+                                                                    contentDescription =
+                                                                        stringResource(
+                                                                            if (isPinned) {
+                                                                                R.string.content_desc_unpin_model
+                                                                            } else {
+                                                                                R.string.content_desc_pin_model
+                                                                            },
+                                                                        ),
+                                                                    tint =
+                                                                        if (isPinned) {
+                                                                            MaterialTheme.colorScheme.primary
+                                                                        } else {
+                                                                            MaterialTheme.colorScheme
+                                                                                .onSurfaceVariant
+                                                                                .copy(alpha = 0.6f)
+                                                                        },
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }

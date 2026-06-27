@@ -16,3 +16,8 @@ data class ModelProvider(
     val auth_type: String?,
     val warning: String?,
 )
+
+data class PinnedModel(
+    val providerSlug: String,
+    val modelName: String,
+)

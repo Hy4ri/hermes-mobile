@@ -625,6 +625,93 @@ fun parseToolOutput(
             )
         }
 
+        // ── Fact Store-specific formatting ──
+        // Extract structured fact results (probe/search/reason/related/contradict → results[],
+        // list → facts[], add/update/remove → simple status). Build a clean summary and
+        // formatted fact list with category, trust score, and tags.
+        if (resolvedToolName == "fact_store") {
+            val action = argsObj?.get("action")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val entity = argsObj?.get("entity")?.takeIf { !it.isJsonNull }?.asString
+            val query = argsObj?.get("query")?.takeIf { !it.isJsonNull }?.asString
+
+            // Try both key shapes: results[] (probe/search/reason/related/contradict) and facts[] (list)
+            val factsArray =
+                dataSource.get("results")
+                    ?.takeIf { !it.isJsonNull && it.isJsonArray }
+                    ?.asJsonArray
+                    ?: dataSource.get("facts")
+                        ?.takeIf { !it.isJsonNull && it.isJsonArray }
+                        ?.asJsonArray
+
+            val count = dataSource.get("count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt() ?: 0
+            val status = dataSource.get("status")?.takeIf { !it.isJsonNull }?.asString
+            val factId = dataSource.get("fact_id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val removed = dataSource.get("removed")?.takeIf { !it.isJsonNull }?.asBoolean
+            val updated = dataSource.get("updated")?.takeIf { !it.isJsonNull }?.asBoolean
+
+            // Build summary line
+            val actionContext =
+                when {
+                    entity != null -> " ($action: $entity)"
+                    query != null -> " ($action: $query)"
+                    else -> " ($action)"
+                }
+            val factSummaryText =
+                when {
+                    status == "added" && factId != null -> "🧠 Fact added (ID: $factId)"
+                    status == "added" -> "🧠 Fact added"
+                    removed == true -> "🧠 Fact removed"
+                    updated == true -> "🧠 Fact updated"
+                    factsArray != null -> "🧠 $count facts$actionContext"
+                    else -> "🧠 $action"
+                }
+
+            // Format each fact as a compact block: #ID + content on first line, meta on indented second line
+            val formattedFacts =
+                factsArray?.mapNotNull { element ->
+                    if (!element.isJsonObject) return@mapNotNull null
+                    val item = element.asJsonObject
+                    val fid = item.get("fact_id")?.asDouble?.toInt() ?: 0
+                    val content = item.get("content")?.asString ?: ""
+                    val category = item.get("category")?.asString
+                    val trust = item.get("trust_score")?.asDouble
+                    val tags = item.get("tags")?.asString?.takeIf { it.isNotEmpty() }
+
+                    val firstLine = "#$fid  $content"
+                    val metaParts = mutableListOf<String>()
+                    if (category != null) metaParts.add("[$category]")
+                    if (trust != null) metaParts.add("trust: ${"%.2f".format(trust)}")
+                    if (tags != null) metaParts.add("🏷️ $tags")
+                    if (metaParts.isNotEmpty()) {
+                        "$firstLine\n      ${metaParts.joinToString("  ")}"
+                    } else {
+                        firstLine
+                    }
+                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+
+            val factMainOutput =
+                when {
+                    status == "added" && factId != null -> "✅ Fact #$factId stored"
+                    status == "added" -> "✅ Fact stored"
+                    removed == true -> "✅ Removed"
+                    updated == true -> "✅ Updated"
+                    formattedFacts != null -> formattedFacts
+                    else -> null
+                }
+
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = factSummaryText,
+                mainOutput = factMainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
         // Check if this looks like a terminal result (check dataSource for backward compat)
         val hasStdout = dataSource.has("stdout")
         val hasStderr = dataSource.has("stderr")

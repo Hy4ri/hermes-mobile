@@ -562,6 +562,69 @@ fun parseToolOutput(
                     ?.let { "${config.summaryPrefix}$it" }
             }
 
+        // ── Todo-specific formatting ──
+        // Extract the structured todos array and summary object from the result,
+        // build a clean one-line summary and formatted item list.
+        if (resolvedToolName == "todo") {
+            val todosArray =
+                dataSource.get("todos")
+                    ?.takeIf { !it.isJsonNull && it.isJsonArray }
+                    ?.asJsonArray
+            val summaryObj =
+                dataSource.get("summary")
+                    ?.takeIf { !it.isJsonNull && it.isJsonObject }
+                    ?.asJsonObject
+
+            val todoSummaryText =
+                summaryObj?.let { s ->
+                    val total = s.get("total")?.asDouble?.toInt() ?: 0
+                    val pending = s.get("pending")?.asDouble?.toInt() ?: 0
+                    val inProgress = s.get("in_progress")?.asDouble?.toInt() ?: 0
+                    val completed = s.get("completed")?.asDouble?.toInt() ?: 0
+                    val cancelled = s.get("cancelled")?.asDouble?.toInt() ?: 0
+                    val parts = mutableListOf<String>()
+                    if (pending > 0) parts.add("$pending pending")
+                    if (inProgress > 0) parts.add("$inProgress in_progress")
+                    if (completed > 0) parts.add("$completed completed")
+                    if (cancelled > 0) parts.add("$cancelled cancelled")
+                    val itemWord = if (total == 1) "item" else "items"
+                    if (parts.isEmpty()) {
+                        "📋 0 items"
+                    } else {
+                        "📋 $total $itemWord (${parts.joinToString(", ")})"
+                    }
+                }
+
+            val formattedTodos =
+                todosArray?.mapNotNull { element ->
+                    if (!element.isJsonObject) return@mapNotNull null
+                    val item = element.asJsonObject
+                    val id = item.get("id")?.asString ?: ""
+                    val content = item.get("content")?.asString ?: ""
+                    val status = item.get("status")?.asString ?: "pending"
+                    val marker =
+                        when (status) {
+                            "completed" -> "[x]"
+                            "in_progress" -> "[>]"
+                            "cancelled" -> "[~]"
+                            else -> "[ ]"
+                        }
+                    "$marker $id. $content"
+                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = todoSummaryText,
+                mainOutput = formattedTodos,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
         // Check if this looks like a terminal result (check dataSource for backward compat)
         val hasStdout = dataSource.has("stdout")
         val hasStderr = dataSource.has("stderr")

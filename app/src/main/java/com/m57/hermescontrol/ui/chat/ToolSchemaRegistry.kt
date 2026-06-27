@@ -104,6 +104,12 @@ object ToolSchemaRegistry {
                     summaryPrefix = "▶️ ",
                     iconEmoji = "▶️",
                 ),
+            "todo" to
+                ToolDisplayConfig(
+                    name = "todo",
+                    summaryArgKey = null,
+                    iconEmoji = "📋",
+                ),
         )
 
     fun getDisplayConfig(toolName: String?): ToolDisplayConfig =

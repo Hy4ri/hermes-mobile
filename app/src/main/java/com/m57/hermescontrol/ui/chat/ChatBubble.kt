@@ -1171,6 +1171,287 @@ fun parseToolOutput(
             )
         }
 
+        // ── Image Generate-specific formatting ──
+        if (resolvedToolName == "image_generate") {
+            val success = dataSource.get("success")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+            val imageUrl = dataSource.get("image")?.takeIf { !it.isJsonNull }?.asString
+            val argsImageUrl = argsObj?.get("image_url")?.takeIf { !it.isJsonNull }?.asString
+            val modality = dataSource.get("modality")?.takeIf { !it.isJsonNull }?.asString
+            val promptUrl = argsObj?.get("prompt")?.takeIf { !it.isJsonNull }?.asString
+
+            val summaryText =
+                buildString {
+                    append("🎨 ")
+                    if (errorMsg != null) {
+                        append("❌ $errorMsg")
+                    } else {
+                        append((imageUrl ?: argsImageUrl ?: "").take(60))
+                        if (modality != null) append(" ($modality)")
+                    }
+                }
+            val mainOutput =
+                buildString {
+                    if (errorMsg != null) {
+                        append("❌ $errorMsg")
+                        if (imageUrl != null) append("\n🔗 $imageUrl")
+                    } else if (imageUrl != null) {
+                        append("🖼️ ")
+                        if (promptUrl != null) append("$promptUrl\n")
+                        append("\n🔗 $imageUrl")
+                    } else {
+                        append("✅ Generated")
+                    }
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Project List-specific formatting ──
+        if (resolvedToolName == "project_list") {
+            val activeId = dataSource.get("active_id")?.takeIf { !it.isJsonNull }?.asString
+            val projectsArr = dataSource.get("projects")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+
+            val summaryText = "📂 ${projectsArr?.size() ?: "?"} projects${activeId?.let { " (1 active)" } ?: ""}"
+            val mainOutput =
+                if (projectsArr != null) {
+                    projectsArr.mapNotNull { el ->
+                        if (!el.isJsonObject) return@mapNotNull null
+                        val p = el.asJsonObject
+                        val id = p.get("id")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                        val name = p.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                        val slug = p.get("slug")?.takeIf { !it.isJsonNull }?.asString
+                        val path = p.get("primary_path")?.takeIf { !it.isJsonNull }?.asString
+                        val isActive = p.get("active")?.takeIf { !it.isJsonNull }?.asBoolean ?: false
+                        val lines = mutableListOf("${if (isActive) "⭐ " else "📁 "}$name")
+                        if (slug != null) lines.add("     🏷️ $slug")
+                        if (path != null) lines.add("     📍 $path")
+                        if (isActive) lines.add("     ✅ ACTIVE PROJECT")
+                        lines.joinToString("\n")
+                    }.joinToString("\n\n")
+                } else {
+                    ""
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Project Create/Switch-specific formatting ──
+        if (resolvedToolName == "project_create" || resolvedToolName == "project_switch") {
+            val success = dataSource.get("success")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+            val projName = dataSource.get("name")?.takeIf { !it.isJsonNull }?.asString
+            val projSlug = dataSource.get("slug")?.takeIf { !it.isJsonNull }?.asString
+            val projPath = dataSource.get("primary_path")?.takeIf { !it.isJsonNull }?.asString
+            val actionLabel = if (resolvedToolName == "project_create") "Created" else "Switched to"
+
+            val summaryText = "📂 $actionLabel${projName?.let { " $it" } ?: ""}"
+            val mainOutput =
+                buildString {
+                    if (errorMsg != null) {
+                        append("❌ $errorMsg")
+                    } else {
+                        append("✅ $actionLabel")
+                        if (projName != null) append(": $projName")
+                        if (projSlug != null) append("\n   🏷️ $projSlug")
+                        if (projPath != null) append("\n   📍 $projPath")
+                    }
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Read Terminal-specific formatting ──
+        if (resolvedToolName == "read_terminal") {
+            val totalLines = dataSource.get("total_lines")?.takeIf { !it.isJsonNull }?.asInt ?: 0
+            val startLine = dataSource.get("start")?.takeIf { !it.isJsonNull }?.asInt ?: 0
+            val endLine = dataSource.get("end")?.takeIf { !it.isJsonNull }?.asInt ?: 0
+            val cursorRow = dataSource.get("cursor_row")?.takeIf { !it.isJsonNull }?.asInt
+            val text = dataSource.get("text")?.takeIf { !it.isJsonNull }?.asString
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+
+            val summaryText =
+                buildString {
+                    append("🖥️ ")
+                    if (errorMsg != null) {
+                        append("❌ $errorMsg")
+                    } else if (text != null) {
+                        append("Lines $startLine-$endLine of $totalLines")
+                        if (cursorRow != null) append(", cursor at row $cursorRow")
+                    } else {
+                        append("Terminal output")
+                    }
+                }
+            val mainOutput =
+                buildString {
+                    if (errorMsg != null) {
+                        append("❌ $errorMsg")
+                    } else if (text != null) {
+                        append("━━━ Terminal ━━━     ($startLine:$endLine / $totalLines)")
+                        if (cursorRow != null) append(" │ cursor row $cursorRow")
+                        append("\n$text")
+                    } else {
+                        append("🖥️ No terminal output")
+                    }
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Computer Use-specific formatting ──
+        if (resolvedToolName == "computer_use") {
+            val action = dataSource.get("action")?.takeIf { !it.isJsonNull }?.asString
+            val ok = dataSource.get("ok")?.takeIf { !it.isJsonNull }?.asBoolean
+            val message = dataSource.get("message")?.takeIf { !it.isJsonNull }?.asString
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+            val isMultimodal = dataSource.get("_multimodal")?.takeIf { !it.isJsonNull }?.asBoolean ?: false
+            val mode = dataSource.get("mode")?.takeIf { !it.isJsonNull }?.asString
+            val elementsArr = dataSource.get("elements")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+            val appsArr = dataSource.get("apps")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+            val summaryText = dataSource.get("text_summary")?.takeIf { !it.isJsonNull }?.asString
+            val textSummary = dataSource.get("summary")?.takeIf { !it.isJsonNull }?.asString
+            val visionAnalysis = dataSource.get("vision_analysis")?.takeIf { !it.isJsonNull }?.asString
+            val totalElements = dataSource.get("total_elements")?.takeIf { !it.isJsonNull }?.asInt
+            val width = dataSource.get("width")?.takeIf { !it.isJsonNull }?.asInt
+            val height = dataSource.get("height")?.takeIf { !it.isJsonNull }?.asInt
+
+            // Try to extract text from multimodal content array
+            val multimodalText =
+                if (isMultimodal) {
+                    val contentArr =
+                        dataSource.get("content")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+                    contentArr?.mapNotNull { el ->
+                        if (el.isJsonObject) {
+                            val eObj = el.asJsonObject
+                            if (eObj.get("type")?.takeIf { !it.isJsonNull }?.asString == "text") {
+                                eObj.get("text")?.takeIf { !it.isJsonNull }?.asString
+                            } else {
+                                null
+                            }
+                        } else {
+                            null
+                        }
+                    }?.joinToString("\n")
+                } else {
+                    null
+                }
+
+            val summaryLine =
+                buildString {
+                    append("🖥️ ")
+                    if (errorMsg != null) {
+                        append("❌ $errorMsg")
+                    } else if (appsArr != null) {
+                        append("${appsArr.size()} apps")
+                    } else if (elementsArr != null) {
+                        append("${elementsArr.size()} elements${mode?.let { " ($it)" } ?: ""}")
+                        if (width != null && height != null) append(" ${width}x$height")
+                    } else if (action != null) {
+                        append("$action${ok?.let { if (it) " ✓" else " ✗" } ?: ""}")
+                    } else {
+                        append("Computer use")
+                    }
+                }
+            val mainBody =
+                buildString {
+                    if (errorMsg != null) {
+                        append("❌ $errorMsg")
+                    } else if (multimodalText != null) {
+                        append(multimodalText)
+                        if (textSummary != null && multimodalText != textSummary) {
+                            append("\n\n$textSummary")
+                        }
+                    } else if (summaryText != null) {
+                        append(summaryText)
+                    } else if (textSummary != null) {
+                        append(textSummary)
+                    } else if (appsArr != null) {
+                        appsArr.forEachIndexed { idx, el ->
+                            if (el.isJsonObject) {
+                                val name = el.asJsonObject.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
+                                val pid = el.asJsonObject.get("pid")?.takeIf { !it.isJsonNull }?.asInt
+                                append("${idx + 1}. $name")
+                                if (pid != null) append(" (PID: $pid)")
+                                append("\n")
+                            }
+                        }
+                    } else if (elementsArr != null) {
+                        append("🖥️ ${elementsArr.size()} interactable elements")
+                        if (mode != null) append(" (mode: $mode)")
+                        if (width != null && height != null) append(" • ${width}x$height")
+                        if (textSummary != null) append("\n\n$textSummary")
+                        // Show first few elements as preview
+                        val previewCount = minOf(elementsArr.size(), 5)
+                        if (previewCount > 0) {
+                            append("\n\n")
+                            for (i in 0 until previewCount) {
+                                val el = elementsArr[i]
+                                if (el.isJsonObject) {
+                                    val idx = el.asJsonObject.get("index")?.takeIf { !it.isJsonNull }?.asInt
+                                    val role = el.asJsonObject.get("role")?.takeIf { !it.isJsonNull }?.asString
+                                    val label = el.asJsonObject.get("label")?.takeIf { !it.isJsonNull }?.asString
+                                    append("  #$idx ${role ?: ""}${label?.let { " '$it'" } ?: ""}\n")
+                                }
+                            }
+                            if (elementsArr.size() > previewCount) {
+                                append("  ... and ${elementsArr.size() - previewCount} more")
+                            }
+                        }
+                    } else if (action != null) {
+                        append("$action:")
+                        if (ok != null) append(" ${if (ok) "✅ ok" else "❌ failed"}")
+                        if (message != null) append("\n$message")
+                    } else {
+                        append("🖥️ Computer use action")
+                    }
+                    if (visionAnalysis != null) {
+                        append("\n\n━━━ Vision Analysis ━━━\n$visionAnalysis")
+                    }
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryLine,
+                mainOutput = mainBody,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
         // Check if this looks like a terminal result (check dataSource for backward compat)
         val hasStdout = dataSource.has("stdout")
         val hasStderr = dataSource.has("stderr")

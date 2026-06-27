@@ -150,24 +150,33 @@ class ModelViewModel :
         _uiState.update { it.copy(toastMessage = null) }
     }
 
+    companion object {
+        private const val MAX_PINNED_MODELS = 15
+    }
+
     fun pinModel(
         providerSlug: String,
         modelName: String,
     ) {
-        val currentPinned = AuthManager.getPinnedModels().toMutableList()
+        val currentPinned = _uiState.value.pinnedModels.toMutableList()
         val newPin = PinnedModel(providerSlug, modelName)
-        if (!currentPinned.contains(newPin)) {
-            currentPinned.add(newPin)
-            AuthManager.savePinnedModels(currentPinned)
-            _uiState.update { it.copy(pinnedModels = currentPinned) }
+        if (currentPinned.contains(newPin)) return
+        if (currentPinned.size >= MAX_PINNED_MODELS) {
+            _uiState.update {
+                it.copy(toastMessage = "Maximum of $MAX_PINNED_MODELS pinned models reached")
+            }
+            return
         }
+        currentPinned.add(newPin)
+        AuthManager.savePinnedModels(currentPinned)
+        _uiState.update { it.copy(pinnedModels = currentPinned) }
     }
 
     fun unpinModel(
         providerSlug: String,
         modelName: String,
     ) {
-        val currentPinned = AuthManager.getPinnedModels().toMutableList()
+        val currentPinned = _uiState.value.pinnedModels.toMutableList()
         val pinToRemove = PinnedModel(providerSlug, modelName)
         if (currentPinned.remove(pinToRemove)) {
             AuthManager.savePinnedModels(currentPinned)

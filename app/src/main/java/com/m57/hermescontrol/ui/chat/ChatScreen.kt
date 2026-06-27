@@ -1,8 +1,15 @@
 package com.m57.hermescontrol.ui.chat
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
@@ -17,6 +24,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -53,8 +61,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -132,10 +143,70 @@ fun ChatScreen(
     }
     val scrollScope = rememberCoroutineScope()
     var inputText by rememberSaveable { mutableStateOf("") }
+    var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
+
+    // Speech-to-text recognition launcher (issue #194)
+    val speechLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            isListening = false
+            if (result.resultCode == Activity.RESULT_OK) {
+                val spokenText =
+                    result.data
+                        ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                        ?.firstOrNull()
+                        .orEmpty()
+                if (spokenText.isNotBlank()) {
+                    inputText =
+                        if (inputText.isBlank()) {
+                            spokenText
+                        } else {
+                            "$inputText $spokenText"
+                        }
+                }
+            }
+        }
+
+    // Mic permission launcher
+    val micPermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            if (granted) {
+                if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                    val intent =
+                        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                            )
+                            putExtra(
+                                RecognizerIntent.EXTRA_PROMPT,
+                                context.getString(R.string.chat_mic_listening),
+                            )
+                        }
+                    isListening = true
+                    speechLauncher.launch(intent)
+                } else {
+                    scrollScope.launch {
+                        snackbarHostState.showSnackbar(
+                            context.getString(R.string.stt_not_available),
+                        )
+                    }
+                }
+            } else {
+                scrollScope.launch {
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.stt_permission_denied),
+                    )
+                }
+            }
+        }
 
     // Lifecycle effects, permissions, session switching, auto-scroll, errors
     ChatLifecycleEffects(
@@ -294,6 +365,41 @@ fun ChatScreen(
                         }
                     }
                 },
+                onMicTap = {
+                    if (isListening) {
+                        isListening = false
+                    } else if (
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.RECORD_AUDIO,
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                            val intent =
+                                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(
+                                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                                    )
+                                    putExtra(
+                                        RecognizerIntent.EXTRA_PROMPT,
+                                        context.getString(R.string.chat_mic_listening),
+                                    )
+                                }
+                            isListening = true
+                            speechLauncher.launch(intent)
+                        } else {
+                            scrollScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(R.string.stt_not_available),
+                                )
+                            }
+                        }
+                    } else {
+                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                isListening = isListening,
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
@@ -365,6 +471,8 @@ private fun ChatInputBar(
     inputText: String,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
+    onMicTap: () -> Unit,
+    isListening: Boolean,
     isAgentTyping: Boolean,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
@@ -495,21 +603,79 @@ private fun ChatInputBar(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // Send button — always visible, enabled for slash commands mid-turn
-                    FilledTonalButton(
-                        onClick = onSend,
-                        enabled = canSend,
-                        modifier =
-                            Modifier
-                                .size(40.dp)
-                                .testTag("send_button"),
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(0.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = stringResource(R.string.chat_send_desc),
-                        )
+                    // Mic / Stop / Send button — swaps based on input state
+                    AnimatedContent(
+                        targetState =
+                            when {
+                                isListening -> "listening"
+                                inputText.isBlank() -> "mic"
+                                else -> "send"
+                            },
+                        transitionSpec = {
+                            (scaleIn(initialScale = 0.8f) + fadeIn())
+                                .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())
+                        },
+                        label = "mic_send_toggle",
+                    ) { buttonState ->
+                        when (buttonState) {
+                            "mic" -> {
+                                FilledTonalButton(
+                                    onClick = onMicTap,
+                                    enabled = isConnected,
+                                    modifier =
+                                        Modifier
+                                            .size(40.dp)
+                                            .testTag("mic_button"),
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(0.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Mic,
+                                        contentDescription = stringResource(R.string.chat_mic_desc),
+                                    )
+                                }
+                            }
+
+                            "listening" -> {
+                                FilledTonalButton(
+                                    onClick = onMicTap,
+                                    modifier =
+                                        Modifier
+                                            .size(40.dp)
+                                            .testTag("mic_stop_button"),
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors =
+                                        ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                        ),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Stop,
+                                        contentDescription = "Stop listening",
+                                        tint = MaterialTheme.colorScheme.onError,
+                                    )
+                                }
+                            }
+
+                            else -> {
+                                FilledTonalButton(
+                                    onClick = onSend,
+                                    enabled = canSend,
+                                    modifier =
+                                        Modifier
+                                            .size(40.dp)
+                                            .testTag("send_button"),
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(0.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = stringResource(R.string.chat_send_desc),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

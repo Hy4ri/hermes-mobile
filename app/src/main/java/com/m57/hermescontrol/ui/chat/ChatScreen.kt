@@ -290,7 +290,7 @@ fun ChatScreen(
                                 (if (streamingState.streamingMessage != null) 1 else 0) +
                                 (if (streamingState.isThinking) 1 else 0)
                         if (totalItems > 0) {
-                            listState.animateScrollToItem(totalItems - 1)
+                            listState.animateScrollBy(Float.MAX_VALUE)
                         }
                     }
                 },
@@ -904,9 +904,9 @@ private fun ChatLifecycleEffects(
             val isSessionSwitch = currentSessionId != lastSessionId
             if (isSessionSwitch) {
                 lastSessionId = currentSessionId
-                listState.scrollToItem(totalItems - 1)
+                listState.animateScrollBy(Float.MAX_VALUE, tween(durationMillis = 0))
             } else if (listState.isAtBottom()) {
-                listState.animateScrollToItem(totalItems - 1)
+                listState.animateScrollBy(Float.MAX_VALUE)
             }
         }
     }
@@ -1184,7 +1184,7 @@ private fun BoxScope.ChatScrollToBottomFab(
                             (if (streamingMessage != null) 1 else 0) +
                             (if (isThinking) 1 else 0)
                     if (totalItems > 0) {
-                        listState.animateScrollToItem(totalItems - 1)
+                        listState.animateScrollBy(Float.MAX_VALUE)
                     }
                 }
             },

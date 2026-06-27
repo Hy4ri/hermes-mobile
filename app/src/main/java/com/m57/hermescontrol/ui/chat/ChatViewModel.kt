@@ -773,6 +773,11 @@ class ChatViewModel(
     fun refreshCurrentSession() {
         val sessionId = _uiState.value.currentSessionId ?: return
         loadCachedMessages(sessionId)
+        // Skip the REST call if we already have messages — the WebSocket keeps
+        // the UI current. The REST endpoint can 404 on tab switch-back when the
+        // WS session ID doesn't round-trip through the resolver (issue #366),
+        // showing a misleading error banner while the connection is fine.
+        if (_uiState.value.messages.isNotEmpty()) return
         loadSessionMessages(sessionId)
     }
 

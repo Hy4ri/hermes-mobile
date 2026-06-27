@@ -815,6 +815,362 @@ fun parseToolOutput(
             )
         }
 
+        // ── Memory-specific formatting ──
+        if (resolvedToolName == "memory") {
+            val action = argsObj?.get("action")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val success = dataSource.get("success")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
+            val target = argsObj?.get("target")?.takeIf { !it.isJsonNull }?.asString
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+            val usage = dataSource.get("usage")?.takeIf { !it.isJsonNull }?.asString
+
+            val summaryText = "💾 $action${target?.let { " ($it)" } ?: ""}"
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    !success -> "❌ Failed"
+                    usage != null -> "✅ $action in ${target ?: "memory"}\n     $usage"
+                    else -> "✅ ${target?.capitalize() ?: "Memory"} $action done"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Cronjob-specific formatting ──
+        if (resolvedToolName == "cronjob") {
+            val action = argsObj?.get("action")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val jobsArray = dataSource.get("jobs")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+            val jobId = dataSource.get("job_id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val jobName = dataSource.get("name")?.takeIf { !it.isJsonNull }?.asString
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+
+            val summaryText = "🔄 $action${jobName?.let { ": $it" } ?: jobId?.let { " (ID: $it)" } ?: ""}"
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    jobsArray != null -> {
+                        jobsArray.mapNotNull { el ->
+                            if (!el.isJsonObject) return@mapNotNull null
+                            val j = el.asJsonObject
+                            val name = j.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
+                            val schedule = j.get("schedule")?.takeIf { !it.isJsonNull }?.asString
+                            val status = j.get("status")?.takeIf { !it.isJsonNull }?.asString
+                            val lastRun = j.get("last_run")?.takeIf { !it.isJsonNull }?.asString
+                            val parts = mutableListOf("📌 $name")
+                            if (schedule != null) parts.add("     ⏱ $schedule")
+                            if (status != null) parts.add("     📊 $status")
+                            if (lastRun != null) parts.add("     ⏮ $lastRun")
+                            parts.joinToString("\n")
+                        }.joinToString("\n\n")
+                    }
+                    jobId != null -> "✅ $action (ID: $jobId)"
+                    else -> "✅ $action done"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Web Search-specific formatting ──
+        if (resolvedToolName == "web_search") {
+            val query = argsObj?.get("query")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val success = dataSource.get("success")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+            val webArr =
+                dataSource.get("data")?.takeIf { !it.isJsonNull && it.isJsonObject }
+                    ?.asJsonObject?.get("web")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+
+            val summaryText = "🌐 $query${webArr?.let { " (${it.size()} results)" } ?: ""}"
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    webArr != null ->
+                        webArr.mapNotNull { el ->
+                            if (!el.isJsonObject) return@mapNotNull null
+                            val item = el.asJsonObject
+                            val title = item.get("title")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                            val url = item.get("url")?.takeIf { !it.isJsonNull }?.asString
+                            val desc = item.get("description")?.takeIf { !it.isJsonNull }?.asString
+                            val pos = item.get("position")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+                            val lines = mutableListOf("${pos?.let { "$it. " } ?: ""}$title")
+                            if (desc != null) lines.add("     $desc")
+                            if (url != null) lines.add("     🔗 $url")
+                            lines.joinToString("\n")
+                        }.joinToString("\n\n")
+                    !success -> "❌ Search failed"
+                    else -> "No results"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Skills List-specific formatting ──
+        if (resolvedToolName == "skills_list") {
+            val category = argsObj?.get("category")?.takeIf { !it.isJsonNull }?.asString
+            val skillsArr =
+                (dataSource.get("skills") ?: dataSource.get("results"))
+                    ?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+
+            val summaryText = "📚 ${skillsArr?.size() ?: 0} skills${category?.let { " ($it)" } ?: ""}"
+            val mainOutput =
+                skillsArr?.mapNotNull { el ->
+                    if (!el.isJsonObject) return@mapNotNull null
+                    val s = el.asJsonObject
+                    val name = s.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                    val desc = s.get("description")?.takeIf { !it.isJsonNull }?.asString
+                    val cat = s.get("category")?.takeIf { !it.isJsonNull }?.asString
+                    val lines = mutableListOf("📌 $name")
+                    if (desc != null) lines.add("     $desc")
+                    if (cat != null) lines.add("     [$cat]")
+                    lines.joinToString("\n")
+                }?.joinToString("\n\n") ?: "📚 No skills found"
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Skill View-specific formatting ──
+        if (resolvedToolName == "skill_view") {
+            val name = argsObj?.get("name")?.takeIf { !it.isJsonNull }?.asString
+            val content = dataSource.get("content")?.takeIf { !it.isJsonNull }?.asString
+            val linkedFiles = dataSource.get("linked_files")?.takeIf { !it.isJsonNull && it.isJsonObject }?.asJsonObject
+
+            val summaryText = "📖 $name"
+            val contentPreview =
+                content?.let { c ->
+                    if (c.length > 500) c.take(500) + "\n... [${c.length - 500} more chars]" else c
+                }
+            val filesInfo =
+                linkedFiles?.entrySet()?.joinToString("\n") { (k, v) ->
+                    val paths =
+                        when {
+                            v.isJsonArray -> v.asJsonArray.joinToString(", ") { it.asString }
+                            v.isJsonPrimitive -> v.asString
+                            else -> v.toString()
+                        }
+                    "     📎 $k: $paths"
+                }
+            val mainOutput =
+                buildString {
+                    if (contentPreview != null) append(contentPreview)
+                    if (filesInfo != null) append("\n\n━━━ Linked Files ━━━\n$filesInfo")
+                    if (content == null && linkedFiles == null) append("📖 No content available")
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Process-specific formatting ──
+        if (resolvedToolName == "process") {
+            val action = argsObj?.get("action")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val procId = argsObj?.get("session_id")?.takeIf { !it.isJsonNull }?.asString
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+            val status = dataSource.get("status")?.takeIf { !it.isJsonNull }?.asString
+            val outputText = dataSource.get("output")?.takeIf { !it.isJsonNull }?.asString
+            val processesArr = dataSource.get("processes")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+
+            val summaryText = "⚙️ $action${procId?.let { ": $it" } ?: ""}"
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    processesArr != null -> {
+                        processesArr.mapNotNull { el ->
+                            if (!el.isJsonObject) return@mapNotNull null
+                            val p = el.asJsonObject
+                            val pid =
+                                p.get(
+                                    "session_id",
+                                )?.takeIf { !it.isJsonNull }?.asString ?: p.get("id")?.asString ?: "?"
+                            val pStatus = p.get("status")?.takeIf { !it.isJsonNull }?.asString
+                            val cmd = p.get("command")?.takeIf { !it.isJsonNull }?.asString
+                            val running = p.get("running")?.takeIf { !it.isJsonNull }?.asBoolean
+                            val parts = mutableListOf("📌 $pid${cmd?.let { ": $it" } ?: ""}")
+                            if (pStatus != null) parts.add("     Status: $pStatus")
+                            if (running != null) parts.add("     Running: $running")
+                            parts.joinToString("\n")
+                        }.joinToString("\n\n")
+                    }
+                    outputText != null -> "${status?.let { "Status: $it\n" } ?: ""}$outputText"
+                    status != null -> "✅ $status"
+                    else -> "✅ $action done"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── X Search-specific formatting ──
+        if (resolvedToolName == "x_search") {
+            val query = argsObj?.get("query")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val answer = dataSource.get("answer")?.takeIf { !it.isJsonNull }?.asString
+            val citationsArr = dataSource.get("citations")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+            val degraded = dataSource.get("degraded")?.takeIf { !it.isJsonNull }?.asBoolean
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+
+            val summaryText = "𝕏 $query${if (degraded == true) " (no citations)" else ""}"
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    answer != null -> {
+                        val lines = mutableListOf(answer)
+                        if (citationsArr != null && citationsArr.size() > 0) {
+                            lines.add("\n━━━ Citations ━━━")
+                            citationsArr.forEachIndexed { idx, cit ->
+                                if (cit.isJsonObject) {
+                                    val url = cit.asJsonObject.get("url")?.asString
+                                    val title = cit.asJsonObject.get("title")?.asString
+                                    lines.add("${idx + 1}. ${title ?: url ?: "source"}")
+                                    if (title != null && url != null) lines.add("   $url")
+                                }
+                            }
+                        }
+                        if (degraded == true) lines.add("\n⚠️ No citations — answer based on model's knowledge")
+                        lines.joinToString("\n")
+                    }
+                    else -> "𝕏 No results"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Vision Analyze-specific formatting ──
+        if (resolvedToolName == "vision_analyze") {
+            val imageUrl = argsObj?.get("image_url")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val description = dataSource.get("description")?.takeIf { !it.isJsonNull }?.asString
+            val content = dataSource.get("content")?.takeIf { !it.isJsonNull }?.asString
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+
+            val summaryText = "👁️ ${imageUrl.take(60)}"
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    description != null -> description
+                    content != null -> content
+                    else -> "👁️ No description available"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Web Extract-specific formatting ──
+        if (resolvedToolName == "web_extract") {
+            val urls = argsObj?.get("urls")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+            val content = dataSource.get("content")?.takeIf { !it.isJsonNull }?.asString
+            val success = dataSource.get("success")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+
+            val urlSummary = urls?.joinToString(", ") { it.asString?.take(40) ?: "?" } ?: ""
+            val summaryText = "🕸️ ${urls?.size() ?: 0} page(s)"
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    content != null ->
+                        content.take(
+                            3000,
+                        ) + if (content.length > 3000) "\n... [${content.length - 3000} more chars]" else ""
+                    else -> "🕸️ No content extracted"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Tool Search-specific formatting ──
+        if (resolvedToolName == "tool_search") {
+            val query = argsObj?.get("query")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val limit = argsObj?.get("limit")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val matchesArr = dataSource.get("matches")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+
+            val summaryText = "🔍 $query${matchesArr?.let { " (${it.size()} matches)" } ?: ""}"
+            val mainOutput =
+                matchesArr?.mapNotNull { el ->
+                    if (!el.isJsonObject) return@mapNotNull null
+                    val m = el.asJsonObject
+                    val name = m.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
+                    val desc = m.get("description")?.takeIf { !it.isJsonNull }?.asString
+                    val lines = mutableListOf("🔧 $name")
+                    if (desc != null) lines.add("     $desc")
+                    lines.joinToString("\n")
+                }?.joinToString("\n\n") ?: "🔍 No matching tools"
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName ?: "",
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
         // Check if this looks like a terminal result (check dataSource for backward compat)
         val hasStdout = dataSource.has("stdout")
         val hasStderr = dataSource.has("stderr")

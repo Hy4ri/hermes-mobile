@@ -122,6 +122,145 @@ object ToolSchemaRegistry {
                     summaryArgKey = null,
                     iconEmoji = "🔍",
                 ),
+            // ── Action-based tools ──
+            "cronjob" to
+                ToolDisplayConfig(
+                    name = "cronjob",
+                    summaryArgKey = "action",
+                    iconEmoji = "🔄",
+                ),
+            "memory" to
+                ToolDisplayConfig(
+                    name = "memory",
+                    summaryArgKey = "action",
+                    iconEmoji = "💾",
+                ),
+            "fact_feedback" to
+                ToolDisplayConfig(
+                    name = "fact_feedback",
+                    summaryArgKey = "action",
+                    iconEmoji = "👍",
+                ),
+            "process" to
+                ToolDisplayConfig(
+                    name = "process",
+                    summaryArgKey = "action",
+                    iconEmoji = "⚙️",
+                ),
+            "skill_manage" to
+                ToolDisplayConfig(
+                    name = "skill_manage",
+                    summaryArgKey = "action",
+                    iconEmoji = "🛠️",
+                ),
+            // ── Web / Browser tools ──
+            "web_extract" to
+                ToolDisplayConfig(
+                    name = "web_extract",
+                    summaryArgKey = "urls",
+                    iconEmoji = "🕸️",
+                ),
+            "browser_type" to
+                ToolDisplayConfig(
+                    name = "browser_type",
+                    summaryArgKey = null,
+                    iconEmoji = "⌨️",
+                ),
+            "browser_cdp" to
+                ToolDisplayConfig(
+                    name = "browser_cdp",
+                    summaryArgKey = "action",
+                    iconEmoji = "🔧",
+                ),
+            "browser_dialog" to
+                ToolDisplayConfig(
+                    name = "browser_dialog",
+                    summaryArgKey = "action",
+                    iconEmoji = "💬",
+                ),
+            // ── Media / Vision tools ──
+            "vision_analyze" to
+                ToolDisplayConfig(
+                    name = "vision_analyze",
+                    summaryArgKey = "image_url",
+                    iconEmoji = "👁️",
+                ),
+            "text_to_speech" to
+                ToolDisplayConfig(
+                    name = "text_to_speech",
+                    summaryArgKey = null,
+                    iconEmoji = "🔊",
+                ),
+            "video_generate" to
+                ToolDisplayConfig(
+                    name = "video_generate",
+                    summaryArgKey = null,
+                    iconEmoji = "🎬",
+                ),
+            "image_generate" to
+                ToolDisplayConfig(
+                    name = "image_generate",
+                    summaryArgKey = null,
+                    iconEmoji = "🎨",
+                ),
+            // ── Social / Messaging tools ──
+            "x_search" to
+                ToolDisplayConfig(
+                    name = "x_search",
+                    summaryArgKey = "query",
+                    iconEmoji = "𝕏",
+                ),
+            "send_message" to
+                ToolDisplayConfig(
+                    name = "send_message",
+                    summaryArgKey = null,
+                    iconEmoji = "📨",
+                ),
+            // ── Skills tools ──
+            "skills_list" to
+                ToolDisplayConfig(
+                    name = "skills_list",
+                    summaryArgKey = null,
+                    iconEmoji = "📚",
+                ),
+            "skill_view" to
+                ToolDisplayConfig(
+                    name = "skill_view",
+                    summaryArgKey = "name",
+                    iconEmoji = "📖",
+                ),
+            // ── On-demand tools ──
+            "tool_search" to
+                ToolDisplayConfig(
+                    name = "tool_search",
+                    summaryArgKey = "query",
+                    iconEmoji = "🔍",
+                ),
+            "tool_describe" to
+                ToolDisplayConfig(
+                    name = "tool_describe",
+                    summaryArgKey = "name",
+                    iconEmoji = "📖",
+                ),
+            "tool_call" to
+                ToolDisplayConfig(
+                    name = "tool_call",
+                    summaryArgKey = "name",
+                    iconEmoji = "🔧",
+                ),
+            // ── Misc ──
+            "read_terminal" to
+                ToolDisplayConfig(
+                    name = "read_terminal",
+                    summaryArgKey = "session_id",
+                    iconEmoji = "🖥️",
+                ),
+            "computer_use" to
+                ToolDisplayConfig(
+                    name = "computer_use",
+                    summaryArgKey = "action",
+                    iconEmoji = "🖥️",
+                ),
         )
 
     fun getDisplayConfig(toolName: String?): ToolDisplayConfig =

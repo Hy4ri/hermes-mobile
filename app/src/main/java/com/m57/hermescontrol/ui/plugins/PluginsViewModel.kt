@@ -79,25 +79,20 @@ class PluginsViewModel : ViewModel(), ToastHost {
         }
     }
 
-    fun installPlugin(name: String) {
+    fun activatePlugin(plugin: PluginInfo) {
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    safeApiCall {
-                        ApiClient.hermesApi.installPlugin(
-                            com.m57.hermescontrol.data.model
-                                .AgentPluginInstallBody(name),
-                        )
-                    }
+                    safeApiCall { ApiClient.hermesApi.enablePlugin(plugin.name) }
                 }
             when (result) {
                 is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Plugin installed successfully") }
+                    _uiState.update { it.copy(toastMessage = "Plugin enabled successfully") }
                     loadPlugins()
                 }
 
                 is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to install plugin: ${result.error.message}") }
+                    _uiState.update { it.copy(toastMessage = "Failed to enable plugin: ${result.error.message}") }
                 }
             }
         }

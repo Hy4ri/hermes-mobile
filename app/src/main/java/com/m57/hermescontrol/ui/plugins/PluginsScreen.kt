@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -159,18 +160,20 @@ fun PluginsScreen(
                                                 OutlinedButton(onClick = { viewModel.updatePlugin(plugin.name) }) {
                                                     Text(stringResource(R.string.plugins_action_update))
                                                 }
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                OutlinedButton(
-                                                    onClick = { viewModel.uninstallPlugin(plugin.name) },
-                                                    colors =
-                                                        androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                                            contentColor = MaterialTheme.colorScheme.error,
-                                                        ),
-                                                ) {
-                                                    Text(stringResource(R.string.plugins_action_uninstall))
+                                                if (plugin.canRemove) {
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    OutlinedButton(
+                                                        onClick = { viewModel.uninstallPlugin(plugin.name) },
+                                                        colors =
+                                                            ButtonDefaults.outlinedButtonColors(
+                                                                contentColor = MaterialTheme.colorScheme.error,
+                                                            ),
+                                                    ) {
+                                                        Text(stringResource(R.string.plugins_action_uninstall))
+                                                    }
                                                 }
                                             } else {
-                                                Button(onClick = { viewModel.installPlugin(plugin.name) }) {
+                                                Button(onClick = { viewModel.activatePlugin(plugin) }) {
                                                     Text(stringResource(R.string.plugins_action_install))
                                                 }
                                             }

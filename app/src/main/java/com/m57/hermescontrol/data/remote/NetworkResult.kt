@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import com.google.gson.JsonParser
 import kotlinx.coroutines.delay
 import retrofit2.Response
 import java.io.IOException
@@ -37,12 +38,28 @@ sealed interface NetworkError {
     ) : NetworkError
 }
 
-fun mapHttpError(code: Int): NetworkError {
+fun mapHttpError(
+    code: Int,
+    errorBody: String? = null,
+): NetworkError {
     if (code == 401) {
         return NetworkError.AuthExpired()
     }
+    // Try to parse FastAPI-style error detail from response body
+    val detail =
+        if (errorBody != null) {
+            try {
+                val parsed = com.google.gson.JsonParser.parseString(errorBody).asJsonObject
+                parsed.get("detail")?.asString
+            } catch (_: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+
     val message =
-        when (code) {
+        detail ?: when (code) {
             400 -> "Bad Request (HTTP 400): The server could not understand the request."
             403 -> "Forbidden (HTTP 403): You do not have permission to access this resource."
             404 -> "Not Found (HTTP 404): The requested resource could not be found."
@@ -88,12 +105,19 @@ suspend inline fun <reified T> safeApiCall(
                 }
             } else {
                 val code = response.code()
+                // Read error body for detail message
+                val errorBody =
+                    try {
+                        response.errorBody()?.string()
+                    } catch (_: Exception) {
+                        null
+                    }
                 if ((code in 500..599 || code == 429) && attempt < retries) {
                     val backoff = jitteredBackoff(500L * (1 shl attempt))
                     delay(backoff)
                     continue
                 }
-                return NetworkResult.Failure(mapHttpError(code))
+                return NetworkResult.Failure(mapHttpError(code, errorBody))
             }
         } catch (e: IOException) {
             lastException = e

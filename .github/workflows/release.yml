@@ -131,14 +131,19 @@ jobs:
             -PversionName="$VERSION_NAME" \
             -PversionCode="$VERSION_CODE"
 
-      - name: Rename APK
+      - name: Rename APK and generate version file
         run: |
           mkdir -p release
           cp app/build/outputs/apk/release/app-release.apk \
             release/hermes-mobile-${{ steps.version.outputs.tag }}.apk
+          # Write version.txt for F-Droid to extract version info
+          cat > release/version.txt <<EOF
+          versionName=${{ steps.version.outputs.version }}
+          versionCode=${{ steps.version.outputs.code }}
+          EOF
           ls -lh release/
 
-      - name: Upload Release APK Artifact
+      - name: Upload Release Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: hermes-mobile-release
@@ -151,7 +156,9 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Hermes Mobile ${{ steps.version.outputs.tag }}
           generate_release_notes: true
-          files: release/*.apk
+          files: |
+            release/hermes-mobile-${{ steps.version.outputs.tag }}.apk
+            release/version.txt
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

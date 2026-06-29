@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -60,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
@@ -79,7 +81,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.theme.AssistantBubble
 import com.m57.hermescontrol.theme.AssistantBubbleLight
 import com.m57.hermescontrol.theme.StatusGreen
@@ -237,6 +241,17 @@ private fun UserBubble(
                             color = userBubbleTextColor,
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                    }
+                    // Render inline attachments
+                    if (!message.attachments.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        message.attachments.forEach { attachment ->
+                            InlineAttachment(
+                                attachment = attachment,
+                                textColor = userBubbleTextColor,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
                     }
                     if (!message.isStreaming) {
                         Text(
@@ -2066,6 +2081,63 @@ private fun buildHighlightedString(
                     append(text.substring(matchEnd, matchEnd + query.length))
                 }
                 i = matchEnd + query.length
+            }
+        }
+    }
+}
+
+/**
+ * Renders an attachment inline inside a chat bubble.
+ * Images are displayed as thumbnails; other files show a compact card.
+ */
+@Composable
+private fun InlineAttachment(
+    attachment: Attachment,
+    textColor: Color,
+) {
+    if (attachment.isImage) {
+        // Image attachment — show as a rounded thumbnail
+        AsyncImage(
+            model = attachment.uri,
+            contentDescription = attachment.name,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.FillWidth,
+        )
+    } else {
+        // Non-image file — show a card with file icon and name
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = textColor.copy(alpha = 0.1f),
+            border = BorderStroke(1.dp, textColor.copy(alpha = 0.2f)),
+        ) {
+            Row(
+                modifier = Modifier.padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = textColor.copy(alpha = 0.8f),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = attachment.name,
+                        color = textColor,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = attachment.formattedSize,
+                        color = textColor.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
         }
     }

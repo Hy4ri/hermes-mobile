@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.Attachment
 import java.util.UUID
 
 /**
@@ -22,6 +23,8 @@ data class ChatMessage(
     val toolName: String? = null,
     val toolStatus: ToolStatus? = null,
     val approvalInfo: ApprovalInfo? = null,
+    /** Files attached to this message — shown inline in the bubble. */
+    val attachments: List<Attachment>? = null,
 )
 
 enum class MessageRole {

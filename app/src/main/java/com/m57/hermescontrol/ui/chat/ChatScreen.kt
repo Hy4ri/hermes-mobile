@@ -4,27 +4,16 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -46,6 +35,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -56,8 +46,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -69,6 +61,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
@@ -101,6 +94,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -111,10 +105,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -124,6 +121,10 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -204,6 +205,57 @@ fun ChatScreen(
             } else {
                 scrollScope.launch {
                     snackbarHostState.showSnackbar(sttPermissionDeniedMsg)
+                }
+            }
+        }
+
+    // File picker launcher for attachments (issue #195)
+    val filePickerLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.GetContent(),
+        ) { uri: Uri? ->
+            if (uri != null) {
+                val cursor = context.contentResolver.query(uri, null, null, null, null)
+                cursor?.use { c ->
+                    if (c.moveToFirst()) {
+                        val nameIdx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        val sizeIdx = c.getColumnIndex(OpenableColumns.SIZE)
+                        val name = if (nameIdx >= 0) c.getString(nameIdx) else uri.lastPathSegment ?: "file"
+                        val size = if (sizeIdx >= 0) c.getLong(sizeIdx) else 0L
+                        val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                        viewModel.addAttachment(uri.toString(), name, mimeType, size)
+                    }
+                }
+            }
+        }
+
+    // Camera photo launcher (issue #195)
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraErrorMsg = stringResource(R.string.chat_camera_error)
+    val cameraLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.TakePicture(),
+        ) { success ->
+            val uri = pendingCameraUri
+            pendingCameraUri = null
+            if (success && uri != null) {
+                try {
+                    val fileName =
+                        "photo_${
+                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(
+                                Date(),
+                            )
+                        }.jpg"
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val size = inputStream?.use { it.available().toLong() } ?: 0L
+                    viewModel.addAttachment(uri.toString(), fileName, "image/jpeg", size)
+                } catch (e: Exception) {
+                    Log.e("ChatScreen", "Camera capture failed", e)
+                    scrollScope.launch {
+                        snackbarHostState.showSnackbar(
+                            cameraErrorMsg,
+                        )
+                    }
                 }
             }
         }
@@ -401,6 +453,28 @@ fun ChatScreen(
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
+                pendingAttachments = state.pendingAttachments,
+                onCameraTap = {
+                    try {
+                        val timeStamp =
+                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                        val photoFile =
+                            File.createTempFile("camera_${timeStamp}_", ".jpg", context.cacheDir)
+                        val uri =
+                            FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                photoFile,
+                            )
+                        pendingCameraUri = uri
+                        cameraLauncher.launch(uri)
+                    } catch (e: Exception) {
+                        Log.e("ChatScreen", "Camera launch failed", e)
+                    }
+                },
+                onImageTap = { filePickerLauncher.launch("image/*") },
+                onFileTap = { filePickerLauncher.launch("*/*") },
+                onRemoveAttachment = viewModel::removeAttachment,
             )
         }
     }
@@ -474,10 +548,20 @@ private fun ChatInputBar(
     isAgentTyping: Boolean,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
+    pendingAttachments: List<Attachment> = emptyList(),
+    onCameraTap: () -> Unit = {},
+    onImageTap: () -> Unit = {},
+    onFileTap: () -> Unit = {},
+    onRemoveAttachment: (Int) -> Unit = {},
 ) {
     // Allow sending slash commands even while agent is typing
     val isSlashCommand = inputText.startsWith("/")
-    val canSend = inputText.isNotBlank() && isConnected && (!isAgentTyping || isSlashCommand)
+    val canSend =
+        (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) &&
+            isConnected && (!isAgentTyping || isSlashCommand)
+
+    // Attachment menu state
+    var showAttachmentMenu by remember { mutableStateOf(false) }
 
     AnimatedVisibility(
         visible = true,
@@ -559,6 +643,28 @@ private fun ChatInputBar(
                     }
                 }
 
+                // Attachment preview chips
+                AnimatedVisibility(
+                    visible = pendingAttachments.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        pendingAttachments.forEachIndexed { index, attachment ->
+                            AttachmentChip(
+                                attachment = attachment,
+                                onRemove = { onRemoveAttachment(index) },
+                            )
+                        }
+                    }
+                }
+
                 Row(
                     modifier =
                         Modifier
@@ -566,6 +672,66 @@ private fun ChatInputBar(
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Box {
+                        // Single attach button that opens a dropdown menu
+                        IconButton(
+                            onClick = { showAttachmentMenu = true },
+                            enabled = isConnected,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AttachFile,
+                                contentDescription = stringResource(R.string.chat_attach_desc),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showAttachmentMenu,
+                            onDismissRequest = { showAttachmentMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Camera") },
+                                onClick = {
+                                    showAttachmentMenu = false
+                                    onCameraTap()
+                                },
+                                leadingIcon = {
+                                    Text(
+                                        text = "📷",
+                                        fontSize = 18.sp,
+                                    )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Image") },
+                                onClick = {
+                                    showAttachmentMenu = false
+                                    onImageTap()
+                                },
+                                leadingIcon = {
+                                    Text(
+                                        text = "🖼️",
+                                        fontSize = 18.sp,
+                                    )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("File") },
+                                onClick = {
+                                    showAttachmentMenu = false
+                                    onFileTap()
+                                },
+                                leadingIcon = {
+                                    Text(
+                                        text = "📄",
+                                        fontSize = 18.sp,
+                                    )
+                                },
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = onInputChange,
@@ -573,7 +739,7 @@ private fun ChatInputBar(
                             Modifier
                                 .weight(1f)
                                 .heightIn(min = 36.dp, max = 120.dp)
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .padding(horizontal = 4.dp, vertical = 8.dp)
                                 .testTag("chat_input"),
                         placeholder = {
                             Text(
@@ -599,14 +765,14 @@ private fun ChatInputBar(
                             ),
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     // Mic / Stop / Send button — swaps based on input state
                     AnimatedContent(
                         targetState =
                             when {
                                 isListening -> "listening"
-                                inputText.isBlank() -> "mic"
+                                inputText.isBlank() && pendingAttachments.isEmpty() -> "mic"
                                 else -> "send"
                             },
                         transitionSpec = {
@@ -676,6 +842,66 @@ private fun ChatInputBar(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Compact chip showing a pending attachment with a remove button.
+ */
+@Composable
+private fun AttachmentChip(
+    attachment: Attachment,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (attachment.isImage) {
+                AsyncImage(
+                    model = attachment.uri,
+                    contentDescription = attachment.name,
+                    modifier =
+                        Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            Text(
+                text = attachment.name,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 120.dp),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(18.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.chat_attach_remove_desc),
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

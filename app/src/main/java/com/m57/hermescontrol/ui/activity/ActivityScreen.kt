@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
@@ -29,11 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.ActivityItem
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -45,8 +41,8 @@ import java.time.Instant
 
 @Composable
 fun ActivityScreen(
+    onOpenDrawer: () -> Unit = {},
     sessionId: String? = null,
-    openDrawer: () -> Unit = {},
     vm: ActivityViewModel = viewModel(),
 ) {
     val items by vm.items.collectAsState()
@@ -54,8 +50,8 @@ fun ActivityScreen(
     val error by vm.error.collectAsState()
 
     HermesScaffold(
-        title = { Text(stringResource(R.string.screen_activity)) },
-        navIcon = { NavIcon(onClick = openDrawer) },
+        title = { Text("Activity") },
+        navigationIcon = NavIcon.Menu(onClick = onOpenDrawer),
         actions = {
             IconButton(onClick = { vm.refresh() }) {
                 Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
@@ -144,7 +140,6 @@ private fun ActivityCard(item: ActivityItem) {
 private fun ActivityItem.statusIcon(): ImageVector =
     when (status) {
         "ok" -> Icons.Filled.CheckCircle
-        "error", "failed" -> Icons.Filled.Error
         else -> Icons.Filled.Notifications
     }
 
@@ -152,7 +147,6 @@ private fun ActivityItem.statusIcon(): ImageVector =
 private fun ActivityItem.statusColor(): Color =
     when (status) {
         "ok" -> Color(0xFF4CAF50)
-        "error", "failed" -> Color(0xFFE53935)
         else -> MaterialTheme.colorScheme.primary
     }
 

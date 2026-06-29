@@ -170,6 +170,7 @@ private fun ActivityItem.statusIcon(): ImageVector =
         else -> Icons.Filled.Notifications
     }
 
+@Composable
 private fun ActivityItem.statusColor(): Color =
     when (status) {
         "sent", "delivered" -> Color(0xFF4CAF50)

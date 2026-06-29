@@ -281,10 +281,10 @@ fun CronJobsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     RunDetailRow("Status", job.lastRunStatus.ifEmpty { "unknown" })
-                    job.lastRunAt?.let { if (it.isNotBlank()) RunDetailRow("Last run", it) }
+                    job.last_run_at?.let { if (it.isNotBlank()) RunDetailRow("Last run", it) }
                     RunDetailRow("Schedule", CronExpressionFormatter.cronToHumanReadable(job.scheduleText))
-                    if (job.lastError != null && job.lastError.isNotBlank()) {
-                        RunDetailRow("Error", job.lastError)
+                    if (job.last_error != null && job.last_error.isNotBlank()) {
+                        RunDetailRow("Error", job.last_error)
                     }
                     job.script?.let { if (it.isNotBlank()) RunDetailRow("Script", it) }
                 }

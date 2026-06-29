@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,6 +71,12 @@ fun CronJobsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
+    val filteredJobs =
+        if (state.showDeliveredOnly) {
+            state.jobs.filter { it.lastRunStatus == "ok" }
+        } else {
+            state.jobs
+        }
 
     LaunchedEffect(Unit) {
         viewModel.loadCronJobs()
@@ -89,10 +96,22 @@ fun CronJobsScreen(
                     contentDescription = stringResource(R.string.cron_action_add),
                 )
             }
+            IconButton(onClick = { viewModel.toggleDeliveredFilter() }) {
+                Icon(
+                    imageVector = Icons.Filled.TaskAlt,
+                    contentDescription = "Toggle delivered-only filter",
+                    tint =
+                        if (state.showDeliveredOnly) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                )
+            }
         },
     ) {
         when {
-            state.isLoading && state.jobs.isEmpty() -> {
+            state.isLoading && filteredJobs.isEmpty() -> {
                 LoadingState()
             }
 
@@ -103,11 +122,21 @@ fun CronJobsScreen(
                 )
             }
 
-            state.jobs.isEmpty() -> {
+            filteredJobs.isEmpty() -> {
                 EmptyState(
-                    title = stringResource(R.string.cron_empty_title),
-                    subtitle = stringResource(R.string.cron_empty_desc),
                     icon = Icons.Filled.Schedule,
+                    title =
+                        if (state.showDeliveredOnly) {
+                            "No delivered jobs"
+                        } else {
+                            stringResource(R.string.cron_empty_title)
+                        },
+                    subtitle =
+                        if (state.showDeliveredOnly) {
+                            "Try turning off the filter"
+                        } else {
+                            stringResource(R.string.cron_empty_desc)
+                        },
                 )
             }
 
@@ -117,7 +146,7 @@ fun CronJobsScreen(
                     contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {
-                    items(state.jobs, key = { it.id }) { job ->
+                    items(filteredJobs, key = { it.id }) { job ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors =

@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
@@ -25,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
-import com.m57.hermescontrol.ui.activity.ActivityScreen as ActivityScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
@@ -102,12 +100,6 @@ object ScreenRegistry {
                 Icons.Filled.Bolt,
                 DrawerSection.AUTOMATE,
             ) { sessionId, openDrawer -> GatewayScreenContent(onOpenDrawer = openDrawer) },
-            ScreenDefinition(
-                ActivityScreen,
-                R.string.screen_activity,
-                Icons.Filled.Notifications,
-                DrawerSection.AUTOMATE,
-            ) { sessionId, openDrawer -> ActivityScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 SkillsScreen,
                 R.string.screen_skills,

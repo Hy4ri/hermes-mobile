@@ -62,7 +62,6 @@
     <string name="screen_kanban">Kanban</string>
     <string name="screen_achievements">Achievements</string>
     <string name="screen_history">History</string>
-    <string name="screen_activity">Activity</string>
 
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>

@@ -230,9 +230,8 @@ class CronJobsViewModel :
     fun updateEditorField(name: String, value: String) {
         _uiState.update { state ->
             state.copy(
-                editorState = state.editorState.copy(
+                editorState = state.editorState.applyFieldChange(name, value).copy(
                     toastMessage = null,
-                    _$updateField(name, value),
                 ),
             )
         }
@@ -336,7 +335,7 @@ class CronJobsViewModel :
             .map { it.trim() }
             .filter { it.isNotEmpty() }
 
-    private fun CronJobEditorState._$updateField(
+    private fun CronJobEditorState.applyFieldChange(
         name: String,
         value: String,
     ): CronJobEditorState = when (name) {

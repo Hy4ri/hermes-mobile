@@ -3,8 +3,8 @@ package com.m57.hermescontrol.data.remote
 import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
-import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
+import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.model.DoctorResponse

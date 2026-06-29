@@ -249,7 +249,8 @@ fun CronJobEditorDialog(
     onClearToast: () -> Unit,
 ) {
     var showDiscardConfirm by remember { mutableStateOf(false) }
-    val hasChanges = state.name.isNotEmpty() || state.schedule.isNotEmpty() ||
+    val hasChanges =
+        state.name.isNotEmpty() || state.schedule.isNotEmpty() ||
         state.prompt.isNotEmpty() || state.skills.isNotEmpty()
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = onClearToast)
@@ -277,11 +278,15 @@ fun CronJobEditorDialog(
             HermesScaffold(
                 title = {
                     Text(
-                        if (state.isNew) stringResource(R.string.cron_edit_title_new)
-                        else stringResource(R.string.cron_edit_title),
+                        if (state.isNew) {
+                            stringResource(R.string.cron_edit_title_new)
+                        } else {
+                            stringResource(R.string.cron_edit_title)
+                        },
                     )
                 },
-                navigationIcon = NavIcon.Back(
+                navigationIcon =
+                    NavIcon.Back(
                     onBack = {
                         if (hasChanges && !state.isNew) {
                             showDiscardConfirm = true
@@ -349,12 +354,14 @@ fun CronJobEditorDialog(
                             value = state.prompt,
                             onValueChange = { onFieldChange("prompt", it) },
                             label = { Text(stringResource(R.string.cron_edit_field_prompt)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(120.dp),
-                            textStyle = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                            ),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(120.dp),
+                            textStyle =
+                                MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                ),
                         )
 
                         // Delivery
@@ -378,9 +385,10 @@ fun CronJobEditorDialog(
                             onValueChange = { onFieldChange("skills", it) },
                             label = { Text(stringResource(R.string.cron_edit_field_skills)) },
                             placeholder = { Text(stringResource(R.string.cron_edit_hint_skills)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(100.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(100.dp),
                             textStyle = MaterialTheme.typography.bodySmall,
                         )
 

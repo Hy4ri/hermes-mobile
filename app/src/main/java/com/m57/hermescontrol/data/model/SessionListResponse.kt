@@ -13,4 +13,6 @@ data class SessionInfo(
     val created_at: String?,
     val message_count: Int?,
     val status: String?,
+    val preview: String? = null,
+    val started_at: Double? = null,
 )

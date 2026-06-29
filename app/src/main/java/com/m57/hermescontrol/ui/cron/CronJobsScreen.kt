@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.cron
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,6 +50,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -70,6 +72,7 @@ fun CronJobsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
+    var selectedJob by remember { mutableStateOf<CronJob?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadCronJobs()
@@ -105,9 +108,9 @@ fun CronJobsScreen(
 
             state.jobs.isEmpty() -> {
                 EmptyState(
+                    icon = Icons.Filled.Schedule,
                     title = stringResource(R.string.cron_empty_title),
                     subtitle = stringResource(R.string.cron_empty_desc),
-                    icon = Icons.Filled.Schedule,
                 )
             }
 
@@ -119,7 +122,10 @@ fun CronJobsScreen(
                 ) {
                     items(state.jobs, key = { it.id }) { job ->
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = { selectedJob = job }),
                             colors =
                                 CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -235,6 +241,28 @@ fun CronJobsScreen(
             onSave = { viewModel.saveEditor() },
             onDismiss = { viewModel.closeEditor() },
             onClearToast = { viewModel.clearEditorToast() },
+        )
+    }
+
+    // ── Run Details Dialog ──
+    selectedJob?.let { job ->
+        AlertDialog(
+            onDismissRequest = { selectedJob = null },
+            title = { Text(job.name, style = MaterialTheme.typography.titleLarge) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    RunDetailRow("Status", job.lastRunStatus.ifEmpty { "unknown" })
+                    job.last_run_at?.let { if (it.isNotBlank()) RunDetailRow("Last run", it) }
+                    RunDetailRow("Schedule", CronExpressionFormatter.cronToHumanReadable(job.scheduleText))
+                    if (job.last_error != null && job.last_error.isNotBlank()) {
+                        RunDetailRow("Error", job.last_error)
+                    }
+                    job.script?.let { if (it.isNotBlank()) RunDetailRow("Script", it) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedJob = null }) { Text("Close") }
+            },
         )
     }
 }
@@ -480,6 +508,30 @@ fun CronJobEditorDialog(
                     Text(stringResource(R.string.action_cancel))
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun RunDetailRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(0.35f),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(0.65f),
         )
     }
 }

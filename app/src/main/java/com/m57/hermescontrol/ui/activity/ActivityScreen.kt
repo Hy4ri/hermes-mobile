@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.data.model.ActivityItem
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -51,7 +52,7 @@ fun ActivityScreen(
 
     HermesScaffold(
         title = { Text("Activity") },
-        navigationIcon = NavIcon.Menu(onClick = onOpenDrawer),
+        navigationIcon = NavIcon.Menu(onOpen = onOpenDrawer),
         actions = {
             IconButton(onClick = { vm.refresh() }) {
                 Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
@@ -71,7 +72,7 @@ fun ActivityScreen(
                 EmptyState(
                     icon = Icons.Filled.Notifications,
                     title = "No activity yet",
-                    description = "Cron job deliveries will appear here when they run.",
+                    subtitle = "Cron job deliveries will appear here when they run.",
                     modifier = Modifier.fillMaxSize(),
                 )
             }

@@ -24,7 +24,6 @@ data class CronJobsUiState(
     val jobs: List<CronJob> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
-    val showDeliveredOnly: Boolean = false,
     // Editor state
     val editorState: CronJobEditorState = CronJobEditorState(),
 )
@@ -77,10 +76,6 @@ class CronJobsViewModel :
                     }
                 },
             )
-    }
-
-    fun toggleDeliveredFilter() {
-        _uiState.update { it.copy(showDeliveredOnly = !it.showDeliveredOnly) }
     }
 
     fun pauseCronJob(id: String) {

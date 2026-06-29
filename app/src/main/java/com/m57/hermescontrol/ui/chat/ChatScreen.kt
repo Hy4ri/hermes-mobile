@@ -231,6 +231,7 @@ fun ChatScreen(
 
     // Camera photo launcher (issue #195)
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraErrorMsg = stringResource(R.string.chat_camera_error)
     val cameraLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.TakePicture(),
@@ -252,7 +253,7 @@ fun ChatScreen(
                     Log.e("ChatScreen", "Camera capture failed", e)
                     scrollScope.launch {
                         snackbarHostState.showSnackbar(
-                            context.getString(R.string.chat_camera_error),
+                            cameraErrorMsg,
                         )
                     }
                 }

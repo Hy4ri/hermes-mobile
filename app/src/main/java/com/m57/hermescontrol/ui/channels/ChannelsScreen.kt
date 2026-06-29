@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -62,6 +61,7 @@ import com.m57.hermescontrol.ui.common.listItemSpacing
 
 private data class StateStyle(val label: String, val color: Color, val icon: ImageVector)
 
+@Composable
 private fun platformStateStyle(state: String): StateStyle =
     when (state) {
         "connected" -> StateStyle("Connected", Color(0xFF4CAF50), Icons.Filled.CheckCircle)
@@ -224,7 +224,6 @@ private fun RestartBanner(
             Button(
                 onClick = onRestart,
                 enabled = !isRestarting,
-                size = ButtonDefaults.SmallButtonSize,
             ) {
                 if (isRestarting) {
                     CircularProgressIndicator(
@@ -365,7 +364,6 @@ private fun PlatformCard(
                 OutlinedButton(
                     onClick = onTest,
                     enabled = !isTesting,
-                    size = ButtonDefaults.SmallButtonSize,
                 ) {
                     if (isTesting) {
                         CircularProgressIndicator(
@@ -382,7 +380,6 @@ private fun PlatformCard(
 
                 Button(
                     onClick = { showConfigureForm = !showConfigureForm },
-                    size = ButtonDefaults.SmallButtonSize,
                 ) {
                     Text(
                         text =
@@ -451,7 +448,6 @@ private fun ConfigureForm(
     ) {
         OutlinedButton(
             onClick = onClose,
-            size = ButtonDefaults.SmallButtonSize,
         ) {
             Text(
                 text = stringResource(R.string.action_cancel),
@@ -470,7 +466,6 @@ private fun ConfigureForm(
                 onSave(update)
                 onClose()
             },
-            size = ButtonDefaults.SmallButtonSize,
         ) {
             Text(
                 text = stringResource(R.string.channels_action_save_settings),

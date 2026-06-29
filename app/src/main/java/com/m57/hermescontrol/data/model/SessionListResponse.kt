@@ -15,30 +15,4 @@ data class SessionInfo(
     val status: String?,
     val preview: String? = null,
     val started_at: Double? = null,
-) {
-    fun toActivityItem(): ActivityItem? {
-        val ts = started_at ?: return null
-        if (message_count == null || message_count <= 0) return null
-        return ActivityItem(
-            id = id,
-            jobName = title ?: id.take(40),
-            preview = preview?.take(80),
-            status = if (status == "failed" || status == "error") "failed" else "sent",
-            formattedTime = formatRelativeTime(ts),
-            messageCount = message_count,
-            timestamp = ts,
-        )
-    }
-}
-
-private fun formatRelativeTime(epochSeconds: Double): String {
-    val now = System.currentTimeMillis() / 1000.0
-    val diff = now - epochSeconds
-    return when {
-        diff < 60 -> "just now"
-        diff < 3600 -> "${(diff / 60).toInt()}m ago"
-        diff < 86400 -> "${(diff / 3600).toInt()}h ago"
-        diff < 604800 -> "${(diff / 86400).toInt()}d ago"
-        else -> "${(diff / 604800).toInt()}w ago"
-    }
-}
+)

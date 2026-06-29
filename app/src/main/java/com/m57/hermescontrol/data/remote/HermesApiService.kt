@@ -74,7 +74,6 @@ interface HermesApiService {
         @Query("limit") limit: Int = 20,
         @Query("offset") offset: Int = 0,
         @Query("order") order: String = "recent",
-        @Query("source") source: String? = null,
     ): Response<SessionListResponse>
 
     @GET("api/sessions/{id}/messages")

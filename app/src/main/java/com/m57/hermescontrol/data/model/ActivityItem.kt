@@ -1,15 +1,13 @@
 package com.m57.hermescontrol.data.model
 
 /**
- * Represents a single item in the Activity feed — a cron job run that produced output.
- * Mapped from cron run sessions returned by GET /api/sessions?source=cron.
+ * Represents a single item in the Activity feed — a cron job that has delivered output.
+ * Mapped from GET /api/cron/jobs by filtering lastRunStatus == "ok".
  */
 data class ActivityItem(
     val id: String,
-    val jobName: String,
-    val preview: String?,
+    val name: String,
     val status: String,
-    val formattedTime: String,
-    val messageCount: Int,
-    val timestamp: Double,
+    val lastRunAt: String?,
+    val lastError: String?,
 )

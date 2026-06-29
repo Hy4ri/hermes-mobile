@@ -15,6 +15,9 @@ data class CronJob(
     val schedule_display: String? = null,
     val last_status: String? = null,
     val next_run_at: String? = null,
+    val last_run_at: String? = null,
+    val last_error: String? = null,
+    val last_delivery_error: String? = null,
     // Full editor fields — all optional with defaults for backward compat
     val enabled: Boolean? = null,
     val prompt: String? = null,

@@ -260,6 +260,11 @@ interface HermesApiService {
         @Body config: MessagingPlatformUpdate,
     ): Response<Unit>
 
+    @POST("api/messaging/platforms/{platform_id}/test")
+    suspend fun testMessagingPlatform(
+        @Path("platform_id") platformId: String,
+    ): Response<MessagingPlatformTestResult>
+
     @GET("api/env")
     suspend fun getEnvVars(): Response<Map<String, EnvVarConfig>>
 

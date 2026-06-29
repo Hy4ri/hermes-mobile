@@ -904,12 +904,19 @@ class E2eIntegrationTest {
     @Test
     fun testChannelsConfiguration_success() =
         runTest {
-            val platform = MessagingPlatform("telegram", "Telegram", false, false, emptyList())
+            val platform =
+                MessagingPlatform(
+                    id = "telegram",
+                    name = "Telegram",
+                    enabled = false,
+                    configured = false,
+                    envVars = emptyList(),
+                )
             coEvery { mockApiService.getMessagingPlatforms() } returns
                 Response.success(
                     MessagingPlatformResponse(
-                        env_path = "/tmp/.env",
-                        gateway_start_command = "hermes gateway start",
+                        envPath = "/tmp/.env",
+                        gatewayStartCommand = "hermes gateway start",
                         platforms = listOf(platform),
                     ),
                 )

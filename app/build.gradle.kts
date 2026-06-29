@@ -146,6 +146,12 @@ dependencies {
     // Image loading
     implementation(libs.coil.compose)
 
+    // CameraX + QR scanning
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+    implementation(libs.mlkit.barcode)
+
     // Encrypted storage
     implementation(libs.androidx.security.crypto)
     implementation("androidx.startup:startup-runtime:1.1.1")

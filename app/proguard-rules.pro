@@ -51,3 +51,8 @@
 # Keep screen object class names because their simpleNames are used for bottom nav selection and storage.
 -keep class * extends androidx.navigation3.runtime.NavKey { *; }
 
+# ── ML Kit Barcode Scanning ────────────────────────────────────────────────
+-keep class com.google.mlkit.vision.barcode.** { *; }
+-dontwarn com.google.mlkit.vision.barcode.**
+-dontnote com.google.mlkit.vision.barcode.**
+

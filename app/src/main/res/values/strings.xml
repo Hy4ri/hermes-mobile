@@ -445,6 +445,17 @@
     <string name="landing_action_auth_login">Auth Login</string>
     <string name="landing_action_pairing_login">Pairing Login</string>
 
+    <!-- Pairing Code Entry Screen -->
+    <string name="pairing_code_entry_title">Pairing Login</string>
+    <string name="pairing_code_entry_tab_scan">Scan QR</string>
+    <string name="pairing_code_entry_tab_manual">Enter Code</string>
+    <string name="pairing_code_entry_camera_required">Camera permission required</string>
+    <string name="pairing_code_entry_camera_desc">The QR scanner needs camera access to scan the pairing code from your Hermes dashboard.</string>
+    <string name="pairing_code_entry_grant_permission">Grant Camera Access</string>
+    <string name="pairing_code_entry_scan_hint">Point your camera at the QR code shown on your Hermes dashboard\'s pairing page</string>
+    <string name="pairing_code_entry_manual_desc">Paste the pairing string from your Hermes dashboard below.</string>
+    <string name="pairing_code_entry_code_label">Pairing Code</string>
+
     <!-- Loading State -->
     <string name="loading_state_subtitle_default">Loading…</string>
     <string name="loading_state_subtitle_models">Fetching model providers…</string>

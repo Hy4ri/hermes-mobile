@@ -54,6 +54,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
+import com.m57.hermescontrol.ui.pairing.PairingCodeEntryScreen as PairingCodeEntryScreenContent
 
 private fun resolveBottomNavItems(names: List<String>): List<ScreenDefinition> =
     names.mapNotNull { name -> ScreenRegistry.ALL_SCREENS.firstOrNull { it.key::class.simpleName == name } }
@@ -70,13 +71,24 @@ private fun appEntryProvider(
                 NavigationController.backStack?.add(AuthLoginScreen)
             },
             onPairingLogin = {
-                NavigationController.backStack?.add(PairingScreen)
+                NavigationController.backStack?.add(PairingCodeEntryScreen)
             },
         )
     }
 
     entry<AuthLoginScreen> {
         AuthLoginScreenContent(
+            onConnected = {
+                NavigationController.resetTo(ChatScreen)
+            },
+            onBack = {
+                NavigationController.goBack()
+            },
+        )
+    }
+
+    entry<PairingCodeEntryScreen> {
+        PairingCodeEntryScreenContent(
             onConnected = {
                 NavigationController.resetTo(ChatScreen)
             },
@@ -123,7 +135,8 @@ fun MainNavigation(sessionId: String? = null) {
 
     val showBottomBar =
         currentScreen != LandingScreen &&
-            currentScreen != AuthLoginScreen
+            currentScreen != AuthLoginScreen &&
+            currentScreen != PairingCodeEntryScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 

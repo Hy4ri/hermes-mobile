@@ -181,9 +181,10 @@ fun PairingCodeEntryScreen(
             }
 
             // Error banner shown below tabs for both modes
-            if (selectedTab == 0 && state.errorMessage != null) {
+            val errorMessage = state.errorMessage
+            if (selectedTab == 0 && errorMessage != null) {
                 Text(
-                    text = state.errorMessage,
+                    text = errorMessage,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,

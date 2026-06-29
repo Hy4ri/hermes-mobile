@@ -46,3 +46,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object SystemScreen : NavKey
 
 @Serializable data object KanbanScreen : NavKey
+
+@Serializable data object ActivityScreen : NavKey

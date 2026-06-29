@@ -4,7 +4,9 @@ import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.CreateTaskBody
+import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
@@ -102,6 +104,22 @@ interface HermesApiService {
     suspend fun resumeCronJob(
         @Path("id") id: String,
     ): Response<Unit>
+
+    @GET("api/cron/jobs/{id}")
+    suspend fun getCronJob(
+        @Path("id") id: String,
+    ): Response<CronJob>
+
+    @POST("api/cron/jobs")
+    suspend fun createCronJob(
+        @Body body: CreateCronJobRequest,
+    ): Response<CronJob>
+
+    @PUT("api/cron/jobs/{id}")
+    suspend fun updateCronJob(
+        @Path("id") id: String,
+        @Body body: UpdateCronJobRequest,
+    ): Response<CronJob>
 
     @POST("api/cron/jobs/{id}/trigger")
     suspend fun triggerCronJob(

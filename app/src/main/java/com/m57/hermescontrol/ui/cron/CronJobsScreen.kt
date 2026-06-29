@@ -4,29 +4,48 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -63,6 +82,14 @@ fun CronJobsScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadCronJobs() },
+        actions = {
+            IconButton(onClick = { viewModel.openNewJobDialog() }) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.cron_action_add),
+                )
+            }
+        },
     ) {
         when {
             state.isLoading && state.jobs.isEmpty() -> {
@@ -102,7 +129,7 @@ fun CronJobsScreen(
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
                                         text = job.name,
@@ -113,9 +140,7 @@ fun CronJobsScreen(
                                     StatusBadge(
                                         text =
                                             if (job.state == "active") {
-                                                stringResource(
-                                                    R.string.cron_status_active,
-                                                )
+                                                stringResource(R.string.cron_status_active)
                                             } else {
                                                 stringResource(R.string.cron_status_paused)
                                             },
@@ -144,6 +169,15 @@ fun CronJobsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.End,
                                 ) {
+                                    IconButton(
+                                        onClick = { viewModel.openEditJobDialog(job.id) },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Edit,
+                                            contentDescription = stringResource(R.string.cron_action_edit),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                     if (job.state == "active") {
                                         IconButton(
                                             onClick = { viewModel.pauseCronJob(job.id) },
@@ -190,5 +224,254 @@ fun CronJobsScreen(
                 }
             }
         }
+    }
+
+    // ── Editor Dialog ──
+    if (state.editorState.isOpen) {
+        CronJobEditorDialog(
+            state = state.editorState,
+            onFieldChange = { name, value -> viewModel.updateEditorField(name, value) },
+            onToggleNoAgent = { viewModel.toggleNoAgent() },
+            onSave = { viewModel.saveEditor() },
+            onDismiss = { viewModel.closeEditor() },
+            onClearToast = { viewModel.clearEditorToast() },
+        )
+    }
+}
+
+@Composable
+fun CronJobEditorDialog(
+    state: CronJobEditorState,
+    onFieldChange: (String, String) -> Unit,
+    onToggleNoAgent: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+    onClearToast: () -> Unit,
+) {
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+    val hasChanges = state.name.isNotEmpty() || state.schedule.isNotEmpty() ||
+        state.prompt.isNotEmpty() || state.skills.isNotEmpty()
+
+    ToastEffect(toastMessage = state.toastMessage, onClearToast = onClearToast)
+
+    Dialog(
+        onDismissRequest = {
+            if (hasChanges && !state.isNew) {
+                showDiscardConfirm = true
+            } else {
+                onDismiss()
+            }
+        },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Card(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
+        ) {
+            HermesScaffold(
+                title = {
+                    Text(
+                        if (state.isNew) stringResource(R.string.cron_edit_title_new)
+                        else stringResource(R.string.cron_edit_title),
+                    )
+                },
+                navigationIcon = NavIcon.Back(
+                    onBack = {
+                        if (hasChanges && !state.isNew) {
+                            showDiscardConfirm = true
+                        } else {
+                            onDismiss()
+                        }
+                    },
+                ),
+                actions = {
+                    if (!state.isLoading) {
+                        IconButton(
+                            onClick = onSave,
+                            enabled = !state.isSaving,
+                        ) {
+                            if (state.isSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.fillMaxSize(0.6f),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.cron_edit_action_save),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                    }
+                },
+            ) { padding ->
+                if (state.isLoading) {
+                    LoadingState()
+                } else {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(padding)
+                                .padding(horizontal = 16.dp)
+                                .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        // Name
+                        OutlinedTextField(
+                            value = state.name,
+                            onValueChange = { onFieldChange("name", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_name)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        // Schedule (required)
+                        OutlinedTextField(
+                            value = state.schedule,
+                            onValueChange = { onFieldChange("schedule", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_schedule)) },
+                            placeholder = { Text(stringResource(R.string.cron_edit_hint_schedule)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        // Prompt
+                        OutlinedTextField(
+                            value = state.prompt,
+                            onValueChange = { onFieldChange("prompt", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_prompt)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            textStyle = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                            ),
+                        )
+
+                        // Delivery
+                        OutlinedTextField(
+                            value = state.deliver,
+                            onValueChange = { onFieldChange("deliver", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_deliver)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = {
+                                Text(
+                                    stringResource(R.string.cron_edit_hint_deliver),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                )
+                            },
+                        )
+
+                        // Skills
+                        OutlinedTextField(
+                            value = state.skills,
+                            onValueChange = { onFieldChange("skills", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_skills)) },
+                            placeholder = { Text(stringResource(R.string.cron_edit_hint_skills)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                        )
+
+                        // Model
+                        OutlinedTextField(
+                            value = state.model,
+                            onValueChange = { onFieldChange("model", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_model)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        // Provider
+                        OutlinedTextField(
+                            value = state.provider,
+                            onValueChange = { onFieldChange("provider", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_provider)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        // Base URL
+                        OutlinedTextField(
+                            value = state.base_url,
+                            onValueChange = { onFieldChange("base_url", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_base_url)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        // Script path
+                        OutlinedTextField(
+                            value = state.script,
+                            onValueChange = { onFieldChange("script", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_script)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        // Work directory
+                        OutlinedTextField(
+                            value = state.workdir,
+                            onValueChange = { onFieldChange("workdir", it) },
+                            label = { Text(stringResource(R.string.cron_edit_field_workdir)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
+                        // No Agent toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = state.no_agent,
+                                onCheckedChange = { onToggleNoAgent() },
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.cron_edit_field_no_agent),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            title = { Text(stringResource(R.string.cron_discard_title)) },
+            text = { Text(stringResource(R.string.cron_discard_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirm = false
+                        onDismiss()
+                    },
+                ) {
+                    Text(stringResource(R.string.action_discard))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }

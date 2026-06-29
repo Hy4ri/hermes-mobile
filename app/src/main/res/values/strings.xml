@@ -364,6 +364,28 @@
     <string name="cron_action_pause">Pause</string>
     <string name="cron_action_resume">Resume</string>
     <string name="cron_action_run">Run</string>
+    <string name="cron_action_edit">Edit</string>
+    <string name="cron_action_add">Add cron job</string>
+    <string name="cron_edit_title">Edit Cron Job</string>
+    <string name="cron_edit_title_new">New Cron Job</string>
+    <string name="cron_edit_field_name">Name</string>
+    <string name="cron_edit_field_schedule">Schedule</string>
+    <string name="cron_edit_field_prompt">Prompt</string>
+    <string name="cron_edit_field_deliver">Delivery</string>
+    <string name="cron_edit_field_skills">Skills</string>
+    <string name="cron_edit_field_model">Model</string>
+    <string name="cron_edit_field_provider">Provider</string>
+    <string name="cron_edit_field_base_url">Base URL</string>
+    <string name="cron_edit_field_script">Script</string>
+    <string name="cron_edit_field_workdir">Work Directory</string>
+    <string name="cron_edit_field_no_agent">No agent (script-only)</string>
+    <string name="cron_edit_hint_schedule">e.g. 0 9 * * * or every 2h</string>
+    <string name="cron_edit_hint_deliver">e.g. origin, local, all, or telegram:chat_id</string>
+    <string name="cron_edit_hint_skills">One per line</string>
+    <string name="cron_edit_action_save">Save</string>
+    <string name="cron_edit_error_schedule_required">Schedule is required</string>
+    <string name="cron_discard_title">Discard changes?</string>
+    <string name="cron_discard_message">You have unsaved changes. Discard them?</string>
 
     <!-- Achievements Screen -->
     <string name="achievements_empty_title">No achievements yet</string>

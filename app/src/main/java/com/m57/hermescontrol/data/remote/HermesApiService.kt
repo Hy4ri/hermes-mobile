@@ -17,6 +17,7 @@ import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
+import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest

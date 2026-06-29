@@ -224,7 +224,7 @@ private fun RestartBanner(
             Button(
                 onClick = onRestart,
                 enabled = !isRestarting,
-                size = ButtonDefaults.ButtonSize.SMALL,
+                size = ButtonDefaults.SmallButtonSize,
             ) {
                 if (isRestarting) {
                     CircularProgressIndicator(
@@ -365,7 +365,7 @@ private fun PlatformCard(
                 OutlinedButton(
                     onClick = onTest,
                     enabled = !isTesting,
-                    size = ButtonDefaults.ButtonSize.SMALL,
+                    size = ButtonDefaults.SmallButtonSize,
                 ) {
                     if (isTesting) {
                         CircularProgressIndicator(
@@ -382,7 +382,7 @@ private fun PlatformCard(
 
                 Button(
                     onClick = { showConfigureForm = !showConfigureForm },
-                    size = ButtonDefaults.ButtonSize.SMALL,
+                    size = ButtonDefaults.SmallButtonSize,
                 ) {
                     Text(
                         text =
@@ -451,7 +451,7 @@ private fun ConfigureForm(
     ) {
         OutlinedButton(
             onClick = onClose,
-            size = ButtonDefaults.ButtonSize.SMALL,
+            size = ButtonDefaults.SmallButtonSize,
         ) {
             Text(
                 text = stringResource(R.string.action_cancel),
@@ -470,7 +470,7 @@ private fun ConfigureForm(
                 onSave(update)
                 onClose()
             },
-            size = ButtonDefaults.ButtonSize.SMALL,
+            size = ButtonDefaults.SmallButtonSize,
         ) {
             Text(
                 text = stringResource(R.string.channels_action_save_settings),

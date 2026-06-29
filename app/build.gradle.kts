@@ -143,6 +143,9 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.gson)
 
+    // Image loading
+    implementation(libs.coil.compose)
+
     // Encrypted storage
     implementation(libs.androidx.security.crypto)
     implementation("androidx.startup:startup-runtime:1.1.1")

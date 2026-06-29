@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -62,6 +63,8 @@ data class ChatUiState(
     val typingEffectDelayMs: Int = 30,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
+    // Attachment state
+    val pendingAttachments: List<Attachment> = emptyList(),
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -522,7 +525,7 @@ class ChatViewModel(
     // ── Send message ─────────────────────────────────────────────────────
 
     fun sendMessage(text: String) {
-        if (text.isBlank()) return
+        if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
         val sessionId = _uiState.value.currentSessionId ?: return
 
         val trimmed = text.trim()
@@ -531,10 +534,16 @@ class ChatViewModel(
             return
         }
 
+        // Build the message text — prepend attachment references
+        val attachments = _uiState.value.pendingAttachments
+        val fullText = buildAttachmentText(text, attachments)
+        clearAttachments()
+
         val userMessage =
             ChatMessage(
                 role = MessageRole.USER,
                 content = text,
+                attachments = if (attachments.isNotEmpty()) attachments else null,
             )
 
         // Update UI — no DB writes inside update{}
@@ -553,10 +562,80 @@ class ChatViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.sendMessage(
                 sessionId,
-                text,
+                fullText,
                 onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
             )
         }
+    }
+
+    /**
+     * Builds the text to send over the wire, embedding attachment data
+     * so the backend/LLM can process files and images.
+     *
+     * Images are encoded as base64 data URIs; other files are referenced
+     * by name and size metadata.
+     */
+    private fun buildAttachmentText(
+        text: String,
+        attachments: List<Attachment>,
+    ): String {
+        if (attachments.isEmpty()) return text
+
+        val attachmentBlocks =
+            attachments.joinToString("\n\n") { attachment ->
+                when {
+                    attachment.isImage -> "![${attachment.name}](data:${attachment.mimeType};base64,${attachment.uri})"
+                    else -> "[${attachment.name} (${attachment.formattedSize})]"
+                }
+            }
+
+        return if (text.isBlank()) {
+            attachmentBlocks
+        } else {
+            "$attachmentBlocks\n\n$text"
+        }
+    }
+
+    // ── Attachment management ─────────────────────────────────────────────
+
+    /**
+     * Add a picked file as a pending attachment.
+     * [uri] should be a content:// URI string; the ViewModel will read
+     * the content and encode it for sending.
+     */
+    fun addAttachment(
+        uri: String,
+        name: String,
+        mimeType: String,
+        size: Long,
+    ) {
+        _uiState.update { state ->
+            val attachment =
+                Attachment(
+                    uri = uri,
+                    name = name,
+                    mimeType = mimeType,
+                    size = size,
+                )
+            state.copy(
+                pendingAttachments = state.pendingAttachments + attachment,
+            )
+        }
+    }
+
+    fun removeAttachment(index: Int) {
+        _uiState.update { state ->
+            state.copy(
+                pendingAttachments =
+                    state.pendingAttachments.toMutableList().apply {
+                        if (index in indices) removeAt(index)
+                    },
+            )
+        }
+    }
+
+    fun clearAttachments() {
+        _uiState.update { it.copy(pendingAttachments = emptyList()) }
     }
 
     private fun handleSlashCommand(command: String) {

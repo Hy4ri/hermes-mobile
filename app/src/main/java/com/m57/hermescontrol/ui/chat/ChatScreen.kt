@@ -4,7 +4,9 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -115,6 +117,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
@@ -204,6 +207,26 @@ fun ChatScreen(
             } else {
                 scrollScope.launch {
                     snackbarHostState.showSnackbar(sttPermissionDeniedMsg)
+                }
+            }
+        }
+
+    // File picker launcher for attachments (issue #195)
+    val filePickerLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.GetContent(),
+        ) { uri: Uri? ->
+            if (uri != null) {
+                val cursor = context.contentResolver.query(uri, null, null, null, null)
+                cursor?.use { c ->
+                    if (c.moveToFirst()) {
+                        val nameIdx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        val sizeIdx = c.getColumnIndex(OpenableColumns.SIZE)
+                        val name = if (nameIdx >= 0) c.getString(nameIdx) else uri.lastPathSegment ?: "file"
+                        val size = if (sizeIdx >= 0) c.getLong(sizeIdx) else 0L
+                        val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                        viewModel.addAttachment(uri.toString(), name, mimeType, size)
+                    }
                 }
             }
         }
@@ -401,6 +424,9 @@ fun ChatScreen(
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
+                pendingAttachments = state.pendingAttachments,
+                onAttachClick = { filePickerLauncher.launch("*/*") },
+                onRemoveAttachment = viewModel::removeAttachment,
             )
         }
     }
@@ -474,10 +500,15 @@ private fun ChatInputBar(
     isAgentTyping: Boolean,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
+    pendingAttachments: List<Attachment> = emptyList(),
+    onAttachClick: () -> Unit = {},
+    onRemoveAttachment: (Int) -> Unit = {},
 ) {
     // Allow sending slash commands even while agent is typing
     val isSlashCommand = inputText.startsWith("/")
-    val canSend = inputText.isNotBlank() && isConnected && (!isAgentTyping || isSlashCommand)
+    val canSend =
+        (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) &&
+            isConnected && (!isAgentTyping || isSlashCommand)
 
     AnimatedVisibility(
         visible = true,
@@ -559,6 +590,28 @@ private fun ChatInputBar(
                     }
                 }
 
+                // Attachment preview chips
+                AnimatedVisibility(
+                    visible = pendingAttachments.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        pendingAttachments.forEachIndexed { index, attachment ->
+                            AttachmentChip(
+                                attachment = attachment,
+                                onRemove = { onRemoveAttachment(index) },
+                            )
+                        }
+                    }
+                }
+
                 Row(
                     modifier =
                         Modifier
@@ -566,6 +619,19 @@ private fun ChatInputBar(
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Paperclip — attach file button
+                    IconButton(
+                        onClick = onAttachClick,
+                        enabled = isConnected,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = stringResource(R.string.chat_attach_desc),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = onInputChange,
@@ -573,7 +639,7 @@ private fun ChatInputBar(
                             Modifier
                                 .weight(1f)
                                 .heightIn(min = 36.dp, max = 120.dp)
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .padding(horizontal = 4.dp, vertical = 8.dp)
                                 .testTag("chat_input"),
                         placeholder = {
                             Text(
@@ -599,14 +665,14 @@ private fun ChatInputBar(
                             ),
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     // Mic / Stop / Send button — swaps based on input state
                     AnimatedContent(
                         targetState =
                             when {
                                 isListening -> "listening"
-                                inputText.isBlank() -> "mic"
+                                inputText.isBlank() && pendingAttachments.isEmpty() -> "mic"
                                 else -> "send"
                             },
                         transitionSpec = {
@@ -676,6 +742,67 @@ private fun ChatInputBar(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Compact chip showing a pending attachment with a remove button.
+ */
+@Composable
+private fun AttachmentChip(
+    attachment: Attachment,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        onClick = onRemove,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (attachment.isImage) {
+                AsyncImage(
+                    model = attachment.uri,
+                    contentDescription = attachment.name,
+                    modifier =
+                        Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            } else {
+                Icon(
+                    imageVector = Icons.Default.InsertDriveFile,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            Text(
+                text = attachment.name,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 120.dp),
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(18.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.chat_attach_remove_desc),
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

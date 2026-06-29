@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
+import android.net.Uri
+import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,6 +18,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -28,6 +31,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
@@ -37,6 +41,9 @@ private const val TAG = "ChatViewModel"
  * window, the request is pruned and an error is surfaced.
  */
 private const val PENDING_REQUEST_TIMEOUT_MS = 30_000L
+
+/** Thrown when an awaited RPC returns an error response. */
+private class RpcCallException(message: String) : Exception(message)
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -374,6 +381,9 @@ class ChatViewModel(
         val pending = pendingRequests.remove(id) ?: return
         val method = pending.method
 
+        // Complete the deferred so sendRpcAndAwait() callers can resume
+        pending.deferred?.complete(result)
+
         when (method) {
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
@@ -514,16 +524,34 @@ class ChatViewModel(
                 is Map<*, *> -> error["message"] as? String ?: error.toString()
                 else -> error.toString()
             }
-        _uiState.update {
-            it.copy(
-                isLoading = false,
-                errorMessage = "Error${if (method != null) " ($method)" else ""}: $errorMsg",
-            )
+
+        // Fail the deferred so sendRpcAndAwait() callers see the error
+        pending?.deferred?.completeExceptionally(RpcCallException(errorMsg))
+
+        // Only surface error in UI for non-awaited RPCs
+        if (pending?.deferred == null) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    errorMessage = "Error${if (method != null) " ($method)" else ""}: $errorMsg",
+                )
+            }
         }
     }
 
     // ── Send message ─────────────────────────────────────────────────────
 
+    /**
+     * Send a user prompt, uploading any pending attachments to the backend
+     * first via their dedicated RPC methods.
+     *
+     * Flow:
+     * 1. Snapshot pending attachments (then clear them from UI)
+     * 2. Add user message to UI + DB immediately (optimistic UX)
+     * 3. For each image → fire-and-forget `image.attach_bytes` (queues into session)
+     * 4. For each file → await `file.attach`, collect @file: refs
+     * 5. Send `prompt.submit` with text + @file: refs — images auto-picked up by backend
+     */
     fun sendMessage(text: String) {
         if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
         val sessionId = _uiState.value.currentSessionId ?: return
@@ -534,9 +562,8 @@ class ChatViewModel(
             return
         }
 
-        // Build the message text — prepend attachment references
-        val attachments = _uiState.value.pendingAttachments
-        val fullText = buildAttachmentText(text, attachments)
+        // Snapshot + clear attachments so the input bar empties immediately
+        val attachments = _uiState.value.pendingAttachments.toList()
         clearAttachments()
 
         val userMessage =
@@ -546,7 +573,7 @@ class ChatViewModel(
                 attachments = if (attachments.isNotEmpty()) attachments else null,
             )
 
-        // Update UI — no DB writes inside update{}
+        // Update UI immediately
         _uiState.update { state ->
             state.copy(
                 messages = state.messages + userMessage,
@@ -554,12 +581,69 @@ class ChatViewModel(
             )
         }
 
-        // Persist to Room — OUTSIDE update{}
+        // Persist to Room
         viewModelScope.launch(Dispatchers.IO) {
             repo.persistMessage(userMessage, sessionId)
         }
 
+        // Upload attachments then submit prompt
         viewModelScope.launch(Dispatchers.IO) {
+            val fileRefs = mutableListOf<String>()
+
+            for (attachment in attachments) {
+                val bytes = readContentUriBytes(attachment.uri)
+                if (bytes == null) {
+                    Log.w(TAG, "Skipping unreadable attachment: ${attachment.name}")
+                    continue
+                }
+                val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+
+                try {
+                    if (attachment.isImage) {
+                        // Fire-and-forget — backend queues into session["attached_images"],
+                        // auto-picked by the subsequent prompt.submit
+                        wsClient.send(
+                            method = WsMethods.IMAGE_ATTACH_BYTES,
+                            params =
+                                mapOf(
+                                    "content_base64" to "data:${attachment.mimeType};base64,$b64",
+                                    "filename" to attachment.name,
+                                    "ext" to attachment.fileExtension,
+                                ),
+                        )
+                    } else {
+                        // Await the @file: ref text so we can embed it in the prompt
+                        sendRpcAndAwait(
+                            method = WsMethods.FILE_ATTACH,
+                            params =
+                                mapOf(
+                                    "data_url" to "data:${attachment.mimeType};base64,$b64",
+                                    "name" to attachment.name,
+                                ),
+                        )?.let { result ->
+                            @Suppress("UNCHECKED_CAST")
+                            val refText =
+                                (result as? Map<String, Any?>)?.get("ref_text") as? String
+                            if (!refText.isNullOrBlank()) fileRefs.add(refText)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to upload attachment ${attachment.name}", e)
+                    _uiState.update {
+                        it.copy(errorMessage = "⚠️ Upload failed: ${attachment.name}")
+                    }
+                }
+            }
+
+            // Build prompt text — prepend @file: refs for non-image files
+            val fullText =
+                if (fileRefs.isEmpty()) {
+                    text
+                } else {
+                    fileRefs.joinToString("\n") +
+                        if (text.isNotBlank()) "\n\n$text" else ""
+                }
+
             wsClient.sendMessage(
                 sessionId,
                 fullText,
@@ -568,32 +652,34 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * Builds the text to send over the wire, embedding attachment data
-     * so the backend/LLM can process files and images.
-     *
-     * Images are encoded as base64 data URIs; other files are referenced
-     * by name and size metadata.
-     */
-    private fun buildAttachmentText(
-        text: String,
-        attachments: List<Attachment>,
-    ): String {
-        if (attachments.isEmpty()) return text
-
-        val attachmentBlocks =
-            attachments.joinToString("\n\n") { attachment ->
-                when {
-                    attachment.isImage -> "![${attachment.name}](data:${attachment.mimeType};base64,${attachment.uri})"
-                    else -> "[${attachment.name} (${attachment.formattedSize})]"
-                }
-            }
-
-        return if (text.isBlank()) {
-            attachmentBlocks
-        } else {
-            "$attachmentBlocks\n\n$text"
+    /** Read bytes from a `content://` or `file://` URI via ContentResolver. */
+    private fun readContentUriBytes(uriString: String): ByteArray? {
+        return try {
+            val context = getApplication<Application>()
+            val uri = Uri.parse(uriString)
+            context.contentResolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read attachment bytes: ${e.message}", e)
+            null
         }
+    }
+
+    /**
+     * Send a JSON-RPC call and suspend until the response arrives.
+     * Throws [RpcCallException] on error, [kotlinx.coroutines.TimeoutCancellationException] on timeout.
+     */
+    private suspend fun sendRpcAndAwait(
+        method: String,
+        params: Map<String, Any>,
+        timeoutMs: Long = 30_000,
+    ): Any? {
+        val deferred = CompletableDeferred<Any?>()
+        wsClient.send(
+            method = method,
+            params = params,
+            onSent = { id -> trackRequest(id, method, deferred) },
+        )
+        return withTimeout(timeoutMs) { deferred.await() }
     }
 
     // ── Attachment management ─────────────────────────────────────────────
@@ -1144,13 +1230,15 @@ class ChatViewModel(
     private data class PendingRequest(
         val method: String,
         val createdAt: Long = System.currentTimeMillis(),
+        val deferred: CompletableDeferred<Any?>? = null,
     )
 
     private fun trackRequest(
         id: String,
         method: String,
+        deferred: CompletableDeferred<Any?>? = null,
     ) {
-        pendingRequests[id] = PendingRequest(method)
+        pendingRequests[id] = PendingRequest(method, deferred = deferred)
     }
 
     /**

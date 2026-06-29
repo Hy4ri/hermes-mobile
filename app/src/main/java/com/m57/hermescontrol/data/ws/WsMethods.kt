@@ -22,4 +22,12 @@ object WsMethods {
     const val COMMANDS_CATALOG = "commands.catalog"
     const val COMMAND_DISPATCH = "command.dispatch"
     const val COMMAND_RESOLVE = "command.resolve"
+
+    // ── Attachments ───────────────────────────────────────────────────────
+
+    /** Upload image bytes (base64) from a remote client. */
+    const val IMAGE_ATTACH_BYTES = "image.attach_bytes"
+
+    /** Stage a non-image file (data URL) for agent access. */
+    const val FILE_ATTACH = "file.attach"
 }

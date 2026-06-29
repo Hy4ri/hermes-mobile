@@ -251,7 +251,7 @@ fun CronJobEditorDialog(
     var showDiscardConfirm by remember { mutableStateOf(false) }
     val hasChanges =
         state.name.isNotEmpty() || state.schedule.isNotEmpty() ||
-        state.prompt.isNotEmpty() || state.skills.isNotEmpty()
+            state.prompt.isNotEmpty() || state.skills.isNotEmpty()
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = onClearToast)
 
@@ -287,14 +287,14 @@ fun CronJobEditorDialog(
                 },
                 navigationIcon =
                     NavIcon.Back(
-                    onBack = {
-                        if (hasChanges && !state.isNew) {
-                            showDiscardConfirm = true
-                        } else {
-                            onDismiss()
-                        }
-                    },
-                ),
+                        onBack = {
+                            if (hasChanges && !state.isNew) {
+                                showDiscardConfirm = true
+                            } else {
+                                onDismiss()
+                            }
+                        },
+                    ),
                 actions = {
                     if (!state.isLoading) {
                         IconButton(

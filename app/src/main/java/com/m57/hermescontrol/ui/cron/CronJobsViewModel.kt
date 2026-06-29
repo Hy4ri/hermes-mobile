@@ -158,10 +158,11 @@ class CronJobsViewModel :
     fun openNewJobDialog() {
         _uiState.update {
             it.copy(
-                editorState = CronJobEditorState(
-                    isOpen = true,
-                    isNew = true,
-                ),
+                editorState =
+                    CronJobEditorState(
+                        isOpen = true,
+                        isNew = true,
+                    ),
             )
         }
     }
@@ -169,12 +170,13 @@ class CronJobsViewModel :
     fun openEditJobDialog(id: String) {
         _uiState.update {
             it.copy(
-                editorState = CronJobEditorState(
-                    isOpen = true,
-                    isNew = false,
-                    jobId = id,
-                    isLoading = true,
-                ),
+                editorState =
+                    CronJobEditorState(
+                        isOpen = true,
+                        isNew = false,
+                        jobId = id,
+                        isLoading = true,
+                    ),
             )
         }
         viewModelScope.launch {
@@ -187,35 +189,37 @@ class CronJobsViewModel :
                     val job = result.data ?: return@launch
                     _uiState.update {
                         it.copy(
-                            editorState = CronJobEditorState(
-                                isOpen = true,
-                                isNew = false,
-                                jobId = id,
-                                name = job.name,
-                                schedule = extractScheduleString(job),
-                                prompt = job.prompt.orEmpty(),
-                                deliver = job.deliver ?: "local",
-                                skills = (job.skills ?: emptyList()).joinToString("\n"),
-                                model = job.model.orEmpty(),
-                                provider = job.provider.orEmpty(),
-                                base_url = job.base_url.orEmpty(),
-                                script = job.script.orEmpty(),
-                                workdir = job.workdir.orEmpty(),
-                                enabled = job.enabled ?: true,
-                                no_agent = job.no_agent ?: false,
-                            ),
+                            editorState =
+                                CronJobEditorState(
+                                    isOpen = true,
+                                    isNew = false,
+                                    jobId = id,
+                                    name = job.name,
+                                    schedule = extractScheduleString(job),
+                                    prompt = job.prompt.orEmpty(),
+                                    deliver = job.deliver ?: "local",
+                                    skills = (job.skills ?: emptyList()).joinToString("\n"),
+                                    model = job.model.orEmpty(),
+                                    provider = job.provider.orEmpty(),
+                                    base_url = job.base_url.orEmpty(),
+                                    script = job.script.orEmpty(),
+                                    workdir = job.workdir.orEmpty(),
+                                    enabled = job.enabled ?: true,
+                                    no_agent = job.no_agent ?: false,
+                                ),
                         )
                     }
                 }
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
-                            editorState = CronJobEditorState(
-                                isOpen = true,
-                                isNew = false,
-                                jobId = id,
-                                toastMessage = "Failed to load job: ${result.error.message}",
-                            ),
+                            editorState =
+                                CronJobEditorState(
+                                    isOpen = true,
+                                    isNew = false,
+                                    jobId = id,
+                                    toastMessage = "Failed to load job: ${result.error.message}",
+                                ),
                         )
                     }
                 }
@@ -227,12 +231,16 @@ class CronJobsViewModel :
         _uiState.update { it.copy(editorState = CronJobEditorState()) }
     }
 
-    fun updateEditorField(name: String, value: String) {
+    fun updateEditorField(
+        name: String,
+        value: String,
+    ) {
         _uiState.update { state ->
             state.copy(
-                editorState = state.editorState.applyFieldChange(name, value).copy(
-                    toastMessage = null,
-                ),
+                editorState =
+                    state.editorState.applyFieldChange(name, value).copy(
+                        toastMessage = null,
+                    ),
             )
         }
     }
@@ -295,10 +303,11 @@ class CronJobsViewModel :
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
-                            editorState = it.editorState.copy(
-                                isSaving = false,
-                                toastMessage = "Failed to save: ${result.error.message}",
-                            ),
+                            editorState =
+                                it.editorState.copy(
+                                    isSaving = false,
+                                    toastMessage = "Failed to save: ${result.error.message}",
+                                ),
                         )
                     }
                 }
@@ -338,19 +347,20 @@ class CronJobsViewModel :
     private fun CronJobEditorState.applyFieldChange(
         name: String,
         value: String,
-    ): CronJobEditorState = when (name) {
-        "name" -> copy(name = value)
-        "schedule" -> copy(schedule = value)
-        "prompt" -> copy(prompt = value)
-        "deliver" -> copy(deliver = value)
-        "skills" -> copy(skills = value)
-        "model" -> copy(model = value)
-        "provider" -> copy(provider = value)
-        "base_url" -> copy(base_url = value)
-        "script" -> copy(script = value)
-        "workdir" -> copy(workdir = value)
-        else -> this
-    }
+    ): CronJobEditorState =
+        when (name) {
+            "name" -> copy(name = value)
+            "schedule" -> copy(schedule = value)
+            "prompt" -> copy(prompt = value)
+            "deliver" -> copy(deliver = value)
+            "skills" -> copy(skills = value)
+            "model" -> copy(model = value)
+            "provider" -> copy(provider = value)
+            "base_url" -> copy(base_url = value)
+            "script" -> copy(script = value)
+            "workdir" -> copy(workdir = value)
+            else -> this
+        }
 
     fun toggleNoAgent() {
         _uiState.update {

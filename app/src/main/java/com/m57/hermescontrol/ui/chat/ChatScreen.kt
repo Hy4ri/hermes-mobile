@@ -11,22 +11,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -113,6 +98,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
@@ -127,6 +113,10 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -226,6 +216,36 @@ fun ChatScreen(
                         val size = if (sizeIdx >= 0) c.getLong(sizeIdx) else 0L
                         val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
                         viewModel.addAttachment(uri.toString(), name, mimeType, size)
+                    }
+                }
+            }
+        }
+
+    // Camera photo launcher (issue #195)
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.TakePicture(),
+        ) { success ->
+            val uri = pendingCameraUri
+            pendingCameraUri = null
+            if (success && uri != null) {
+                try {
+                    val fileName =
+                        "photo_${
+                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(
+                                Date(),
+                            )
+                        }.jpg"
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val size = inputStream?.use { it.available().toLong() } ?: 0L
+                    viewModel.addAttachment(uri.toString(), fileName, "image/jpeg", size)
+                } catch (e: Exception) {
+                    Log.e("ChatScreen", "Camera capture failed", e)
+                    scrollScope.launch {
+                        snackbarHostState.showSnackbar(
+                            context.getString(R.string.chat_camera_error),
+                        )
                     }
                 }
             }
@@ -426,6 +446,24 @@ fun ChatScreen(
                 commandCatalog = state.commandCatalog,
                 pendingAttachments = state.pendingAttachments,
                 onAttachClick = { filePickerLauncher.launch("*/*") },
+                onCameraTap = {
+                    try {
+                        val timeStamp =
+                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                        val photoFile =
+                            File.createTempFile("camera_${timeStamp}_", ".jpg", context.cacheDir)
+                        val uri =
+                            FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                photoFile,
+                            )
+                        pendingCameraUri = uri
+                        cameraLauncher.launch(uri)
+                    } catch (e: Exception) {
+                        Log.e("ChatScreen", "Camera launch failed", e)
+                    }
+                },
                 onRemoveAttachment = viewModel::removeAttachment,
             )
         }
@@ -502,6 +540,7 @@ private fun ChatInputBar(
     commandCatalog: CommandCatalog,
     pendingAttachments: List<Attachment> = emptyList(),
     onAttachClick: () -> Unit = {},
+    onCameraTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
 ) {
     // Allow sending slash commands even while agent is typing
@@ -619,6 +658,18 @@ private fun ChatInputBar(
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Camera button
+                    IconButton(
+                        onClick = onCameraTap,
+                        enabled = isConnected,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Text(
+                            text = "📷",
+                            fontSize = 18.sp,
+                        )
+                    }
+
                     // Paperclip — attach file button
                     IconButton(
                         onClick = onAttachClick,

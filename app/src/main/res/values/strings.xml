@@ -292,10 +292,6 @@
     <string name="history_untitled">Untitled</string>
     <string name="history_message_count">%1$d messages</string>
 
-    <!-- Activity Screen -->
-    <string name="activity_empty_title">No activity yet</string>
-    <string name="activity_empty_desc">Cron job deliveries with output will appear here.</string>
-
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">No toolsets reported</string>
     <string name="toolsets_empty_desc">Verify configuration or retry</string>

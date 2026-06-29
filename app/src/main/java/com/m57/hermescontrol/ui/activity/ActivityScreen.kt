@@ -1,11 +1,11 @@
 package com.m57.hermescontrol.ui.activity
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,12 +31,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.CronJobsScreen
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.data.model.ActivityItem
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.listContentPadding
+import com.m57.hermescontrol.ui.common.listItemSpacing
 import java.time.Duration
 import java.time.Instant
 
@@ -78,18 +82,16 @@ fun ActivityScreen(
             }
             else -> {
                 LazyColumn(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                            .padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = listContentPadding,
+                    verticalArrangement = listItemSpacing,
                 ) {
-                    item { Spacer(Modifier.height(8.dp)) }
                     items(items, key = { it.id }) { item ->
-                        ActivityCard(item = item)
-                        Spacer(Modifier.height(8.dp))
+                        ActivityCard(
+                            item = item,
+                            onClick = { NavigationController.navigateTo(CronJobsScreen) },
+                        )
                     }
-                    item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
@@ -97,9 +99,15 @@ fun ActivityScreen(
 }
 
 @Composable
-private fun ActivityCard(item: ActivityItem) {
+private fun ActivityCard(
+    item: ActivityItem,
+    onClick: () -> Unit,
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,

@@ -1,5 +1,10 @@
 package com.m57.hermescontrol.data.model
 
+data class CronJobRepeat(
+    val times: Int? = null,
+    val completed: Int = 0,
+)
+
 data class CronJob(
     val id: String,
     val name: String,
@@ -23,7 +28,7 @@ data class CronJob(
     val enabled_toolsets: List<String>? = null,
     val workdir: String? = null,
     val no_agent: Boolean? = null,
-    val repeat: Int? = null,
+    val repeat: CronJobRepeat? = null,
 ) {
     val scheduleText: String
         get() =

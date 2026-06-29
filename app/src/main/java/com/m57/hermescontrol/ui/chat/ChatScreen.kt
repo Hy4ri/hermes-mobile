@@ -56,6 +56,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
@@ -445,7 +446,6 @@ fun ChatScreen(
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
                 pendingAttachments = state.pendingAttachments,
-                onAttachClick = { filePickerLauncher.launch("*/*") },
                 onCameraTap = {
                     try {
                         val timeStamp =
@@ -464,6 +464,8 @@ fun ChatScreen(
                         Log.e("ChatScreen", "Camera launch failed", e)
                     }
                 },
+                onImageTap = { filePickerLauncher.launch("image/*") },
+                onFileTap = { filePickerLauncher.launch("*/*") },
                 onRemoveAttachment = viewModel::removeAttachment,
             )
         }
@@ -539,8 +541,9 @@ private fun ChatInputBar(
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
     pendingAttachments: List<Attachment> = emptyList(),
-    onAttachClick: () -> Unit = {},
     onCameraTap: () -> Unit = {},
+    onImageTap: () -> Unit = {},
+    onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
 ) {
     // Allow sending slash commands even while agent is typing
@@ -548,6 +551,9 @@ private fun ChatInputBar(
     val canSend =
         (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) &&
             isConnected && (!isAgentTyping || isSlashCommand)
+
+    // Attachment menu state
+    var showAttachmentMenu by remember { mutableStateOf(false) }
 
     AnimatedVisibility(
         visible = true,
@@ -658,29 +664,64 @@ private fun ChatInputBar(
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Camera button
-                    IconButton(
-                        onClick = onCameraTap,
-                        enabled = isConnected,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Text(
-                            text = "📷",
-                            fontSize = 18.sp,
-                        )
-                    }
+                    Box {
+                        // Single attach button that opens a dropdown menu
+                        IconButton(
+                            onClick = { showAttachmentMenu = true },
+                            enabled = isConnected,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AttachFile,
+                                contentDescription = stringResource(R.string.chat_attach_desc),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
 
-                    // Paperclip — attach file button
-                    IconButton(
-                        onClick = onAttachClick,
-                        enabled = isConnected,
-                        modifier = Modifier.size(36.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AttachFile,
-                            contentDescription = stringResource(R.string.chat_attach_desc),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        DropdownMenu(
+                            expanded = showAttachmentMenu,
+                            onDismissRequest = { showAttachmentMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Camera") },
+                                onClick = {
+                                    showAttachmentMenu = false
+                                    onCameraTap()
+                                },
+                                leadingIcon = {
+                                    Text(
+                                        text = "📷",
+                                        fontSize = 18.sp,
+                                    )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Image") },
+                                onClick = {
+                                    showAttachmentMenu = false
+                                    onImageTap()
+                                },
+                                leadingIcon = {
+                                    Text(
+                                        text = "🖼️",
+                                        fontSize = 18.sp,
+                                    )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("File") },
+                                onClick = {
+                                    showAttachmentMenu = false
+                                    onFileTap()
+                                },
+                                leadingIcon = {
+                                    Text(
+                                        text = "📄",
+                                        fontSize = 18.sp,
+                                    )
+                                },
+                            )
+                        }
                     }
 
                     OutlinedTextField(

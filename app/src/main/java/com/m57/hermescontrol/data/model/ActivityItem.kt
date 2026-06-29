@@ -11,5 +11,5 @@ data class ActivityItem(
     val status: String,
     val formattedTime: String,
     val messageCount: Int,
-    val timestamp: Long,
+    val timestamp: Double,
 )

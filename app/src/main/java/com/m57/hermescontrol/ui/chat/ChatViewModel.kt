@@ -145,18 +145,6 @@ class ChatViewModel(
     init {
         refreshSettings()
 
-        // B7 (Jun 30 2026, kanban t_connection_loading): load last active session instantly from database
-        val lastSessionId = AuthManager.getLastSessionId()
-        if (lastSessionId != null) {
-            _uiState.update {
-                it.copy(
-                    currentSessionId = lastSessionId,
-                    chatTitle = "Hermes",
-                )
-            }
-            loadCachedMessages(lastSessionId)
-        }
-
         connectWebSocket(setLoading = false)
         viewModelScope.launch {
             wsClient.events.collect { event ->
@@ -276,7 +264,7 @@ class ChatViewModel(
                         initialSessionId = null
                         switchSession(initial)
                     } else {
-                        createNewSession()
+                        createNewSession(setLoading = false)
                     }
                 }
             }
@@ -949,10 +937,10 @@ class ChatViewModel(
         }
     }
 
-    fun createNewSession() {
+    fun createNewSession(setLoading: Boolean = true) {
         _uiState.update {
             it.copy(
-                isLoading = true,
+                isLoading = setLoading,
                 messages = emptyList(),
                 chatTitle = "Hermes",
             )

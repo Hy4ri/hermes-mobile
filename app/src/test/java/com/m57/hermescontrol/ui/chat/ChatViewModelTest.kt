@@ -407,44 +407,6 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun testOptimisticUiStartup_loadsLastSessionFromCacheAndResumesInBackground() =
-        runTest {
-            every { AuthManager.getLastSessionId() } returns "last-cached-session-id"
-            val cachedMsgEntity =
-                com.m57.hermescontrol.data.local.ChatMessageEntity(
-                    id = "msg-1",
-                    sessionId = "last-cached-session-id",
-                    role = "user",
-                    content = "hello cache",
-                    timestamp = System.currentTimeMillis(),
-                    isStreaming = false,
-                )
-            coEvery { mockDao.getMessagesForSession("last-cached-session-id") } returns listOf(cachedMsgEntity)
-
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            val initialState = viewModel.uiState.value
-            assertEquals("last-cached-session-id", initialState.currentSessionId)
-            assertEquals(1, initialState.messages.size)
-            assertEquals("hello cache", initialState.messages[0].content)
-            assertFalse(initialState.isLoading)
-
-            mockConnectionStatus.value = ConnectionStatus.CONNECTED
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-
-            verify {
-                HermesWsClient.send(
-                    WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to "last-cached-session-id"),
-                    any(),
-                )
-            }
-            assertFalse(viewModel.uiState.value.isLoading)
-        }
-
-    @Test
     fun testGatewayReady_createsSessionIfNoneExists() =
         runTest {
             val viewModel = ChatViewModel(app, startCleanup = false)
@@ -456,8 +418,8 @@ class ChatViewModelTest {
 
             val state = viewModel.uiState.value
             assertTrue(state.isConnected)
-            // Note: GatewayReady immediately calls createNewSession(), which sets isLoading = true and clears messages
-            assertTrue(state.isLoading)
+            // Note: GatewayReady immediately calls createNewSession(setLoading = false), which does NOT show a loading spinner
+            assertFalse(state.isLoading)
             assertEquals(0, state.messages.size)
 
             // Verify that list sessions and create session requests are triggered

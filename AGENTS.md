@@ -73,6 +73,46 @@ Uses `androidx.navigation3` (`NavKey`, `NavBackStack`, `NavDisplay`, `entry<T>`)
 deduplication guard. Bypassing it stacks duplicate screen entries that compete for
 touch events and become unresponsive.
 
+**⚠ Drawer scrim gets stuck when navigating to a non-gesture screen.** Screens
+not in `DRAWER_GESTURE_SCREENS` disable drawer gestures. If the drawer is open
+when this happens, the scrim stays visible and blocks touch. Always pair gesture
+transitions with a `LaunchedEffect`:
+```kotlin
+LaunchedEffect(gesturesEnabled) {
+    if (!gesturesEnabled && drawerState.isOpen) {
+        drawerState.snapTo(DrawerValue.Closed)
+    }
+}
+```
+
+### Activity-Scoped ViewModels
+
+Some ViewModels (e.g. `AuthLoginViewModel`) are created at the Activity scope via
+`viewModel()` at the navigation entry level. This means they **survive navigation**
+and cached state like `connectionSuccess` persists across screen entries.
+
+Always pair transient state flags with a `DisposableEffect` cleanup:
+```kotlin
+DisposableEffect(Unit) {
+    onDispose { viewModel.clearTransientState() }
+}
+```
+The cleanup function should reset self-transitioning flags (`connectionSuccess`,
+`isLoading`, `errorMessage`) so the screen can re-enter cleanly.
+
+### WebSocket Lifecycle
+
+`HermesWsClient` is a singleton that outlives individual screens. It must be
+explicitly disconnected on logout and reconnected after login:
+
+| Event | Action |
+|-------|--------|
+| Logout | `HermesWsClient.disconnect()` before clearing tokens |
+| Login success | `HermesWsClient.connect()` after `ApiClient.rebuild()` |
+
+The singleton's `connect()` has a guard (`if connected → skip`) so it's safe to
+call unconditionally.
+
 ### Shared Components
 
 - **`HermesScaffold`** — drawer-aware Scaffold + TopAppBar with refresh slot,

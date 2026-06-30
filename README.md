@@ -61,6 +61,38 @@
 
 ---
 
+## Authentication
+
+Once the app is installed, you need to point it at your Hermes gateway and authenticate.
+
+### 1. Find your dashboard token
+
+Your Hermes dashboard runs on `http://<host>:9119` (default). The token is displayed at the **bottom of the dashboard settings page** or inside `~/.hermes/dashboard-token.txt` on the host machine.
+
+### 2. Configure in the app
+
+Open the app's **Settings** screen (bottom nav or drawer) and fill in:
+
+| Field     | Description |
+|-----------|-------------|
+| **Host**  | Your Hermes gateway IP/hostname (default: `127.0.0.1` or `192.168.x.x` on LAN) |
+| **Port**  | Dashboard port (default: `9119`) |
+| **Token** | The dashboard token from step 1 |
+
+The app will automatically connect via WebSocket and you'll be able to chat and manage your agent.
+
+### Connection profiles
+
+If you have multiple Hermes gateways (e.g., local dev + production), you can add them as **connection profiles** in Settings. Each profile stores its own host, port, and token — switch between them anytime.
+
+### In-app browser login (optional)
+
+When creating a new connection profile, the app shows a **login screen** that opens the Hermes dashboard in a built-in WebView. You can authenticate there with your dashboard username/password (default: `admin` / `hermes`) to automatically capture the session token.
+
+> **Security note:** The app communicates over plain HTTP — it's designed for **trusted local networks only**. Do not expose your Hermes gateway or dashboard token to untrusted networks.
+
+---
+
 ## Project Structure
 
 ```

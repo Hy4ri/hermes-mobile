@@ -135,6 +135,13 @@ fun MainNavigation(sessionId: String? = null) {
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
+    // B7 (Jun 30 2026, kanban t_424): close drawer if gestures are disabled to dismiss scrim
+    LaunchedEffect(gesturesEnabled) {
+        if (!gesturesEnabled && drawerState.isOpen) {
+            drawerState.snapTo(DrawerValue.Closed)
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = gesturesEnabled,

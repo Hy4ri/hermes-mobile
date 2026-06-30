@@ -130,7 +130,7 @@ fun LogsScreen(
     // Auto-scroll to bottom when new logs arrive (unless paused)
     LaunchedEffect(filteredLogs.size, pauseScroll) {
         if (!pauseScroll && filteredLogs.isNotEmpty()) {
-            listState.animateScrollToItem(filteredLogs.size)
+            listState.scrollToItem(Int.MAX_VALUE)
         }
     }
 

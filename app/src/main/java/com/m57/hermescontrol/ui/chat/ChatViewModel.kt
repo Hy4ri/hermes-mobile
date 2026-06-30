@@ -142,6 +142,20 @@ class ChatViewModel(
 
     init {
         refreshSettings()
+
+        // Load last session from Room cache immediately — no need to wait for WS
+        val lastSessionId = AuthManager.getLastSessionId()
+        if (!lastSessionId.isNullOrBlank()) {
+            _uiState.update {
+                it.copy(
+                    currentSessionId = lastSessionId,
+                    isLoading = false,
+                    chatTitle = "Hermes",
+                )
+            }
+            loadCachedMessages(lastSessionId)
+        }
+
         connectWebSocket()
         viewModelScope.launch {
             wsClient.events.collect { event ->
@@ -157,9 +171,6 @@ class ChatViewModel(
 
     private fun connectWebSocket() {
         val token = AuthManager.getToken() ?: return
-
-        _uiState.update { it.copy(isLoading = true) }
-
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.connect()
         }
@@ -221,7 +232,8 @@ class ChatViewModel(
                 addSystemMessage("Connected to Hermes")
                 loadSessions()
                 fetchCommandCatalog()
-                if (_uiState.value.currentSessionId == null) {
+                val sessionId = _uiState.value.currentSessionId
+                if (sessionId == null) {
                     val initial = initialSessionId
                     if (!initial.isNullOrBlank()) {
                         initialSessionId = null
@@ -229,6 +241,16 @@ class ChatViewModel(
                     } else {
                         createNewSession()
                     }
+                } else {
+                    // Resumed a cached session — sync with server and fetch fresh data
+                    viewModelScope.launch(Dispatchers.IO) {
+                        wsClient.send(
+                            WsMethods.SESSION_RESUME,
+                            mapOf("session_id" to sessionId),
+                            onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                        )
+                    }
+                    loadSessionMessages(sessionId)
                 }
             }
 
@@ -984,6 +1006,8 @@ class ChatViewModel(
             )
         }
         _streamingState.update { StreamingState() }
+        // Persist as last session for resume on next cold start
+        AuthManager.setLastSessionId(sessionId)
         // Step 1: Load cached messages first — instant display
         loadCachedMessages(sessionId)
         // Step 2: Resume session on server

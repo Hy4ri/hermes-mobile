@@ -41,6 +41,7 @@ object AuthManager {
     private const val KEY_THEME_PRESET = "theme_preset"
     private const val KEY_BOTTOM_NAV_DISPLAY_MODE = "bottom_nav_display_mode"
     private const val KEY_PINNED_MODELS = "pinned_models"
+    private const val KEY_LAST_SESSION_ID = "last_session_id"
 
     private const val DEFAULT_HOST = "127.0.0.1"
     private const val DEFAULT_PORT = 9119
@@ -202,6 +203,14 @@ object AuthManager {
     fun savePinnedModels(pinned: List<com.m57.hermescontrol.data.model.PinnedModel>) {
         val json = gson.toJson(pinned)
         requirePrefs().edit().putString(KEY_PINNED_MODELS, json).apply()
+    }
+
+    // ── Last Session ID ──────────────────────────────────────────────────
+
+    fun getLastSessionId(): String? = requirePrefs().getString(KEY_LAST_SESSION_ID, null)
+
+    fun setLastSessionId(id: String?) {
+        requirePrefs().edit().putString(KEY_LAST_SESSION_ID, id).apply()
     }
 
     fun getProfileToken(profileId: String): String? = requirePrefs().getString("token_$profileId", null)

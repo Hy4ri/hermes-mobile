@@ -407,6 +407,19 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testAlreadyConnectedOnLaunch_createsSession() =
+        runTest {
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
+            verify { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
     fun testGatewayReady_createsSessionIfNoneExists() =
         runTest {
             val viewModel = ChatViewModel(app, startCleanup = false)

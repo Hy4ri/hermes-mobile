@@ -142,6 +142,16 @@ class ChatViewModel(
             _uiState.value,
         )
 
+    /**
+     * Session ID to resume when the WebSocket connects. Set synchronously by
+     * [ChatScreen] via `SideEffect` during composition — before any WS event
+     * can be processed. This prevents the race where [GatewayReady] fires
+     * before ChatScreen's `LaunchedEffect` can call [switchSession], causing
+     * [createNewSession] to create an empty chat that overwrites the
+     * notification session (issue #240).
+     */
+    var initialSessionId: String? = null
+
     init {
         refreshSettings()
 
@@ -165,6 +175,21 @@ class ChatViewModel(
         }
         if (startCleanup) {
             startPendingRequestCleanup()
+        }
+
+        // B7 (Jun 30 2026, kanban t_connection_loading): if already connected on launch, trigger setup immediately
+        if (wsClient.connectionStatus.value == ConnectionStatus.CONNECTED) {
+            loadSessions()
+            fetchCommandCatalog()
+            if (_uiState.value.currentSessionId == null) {
+                val initial = initialSessionId
+                if (!initial.isNullOrBlank()) {
+                    initialSessionId = null
+                    switchSession(initial)
+                } else {
+                    createNewSession(setLoading = false)
+                }
+            }
         }
     }
 
@@ -193,16 +218,6 @@ class ChatViewModel(
     }
 
     // ── WS Event Handling ────────────────────────────────────────────────
-
-    /**
-     * Session ID to resume when the WebSocket connects. Set synchronously by
-     * [ChatScreen] via `SideEffect` during composition — before any WS event
-     * can be processed. This prevents the race where [GatewayReady] fires
-     * before ChatScreen's `LaunchedEffect` can call [switchSession], causing
-     * [createNewSession] to create an empty chat that overwrites the
-     * notification session (issue #240).
-     */
-    var initialSessionId: String? = null
 
     private fun handleWsEvent(event: WsEvent) {
         // First, let the reducer compute the new state and any effects

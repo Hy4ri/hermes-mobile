@@ -7,23 +7,12 @@
   <br><br>
 </div>
 
-<h1 align="center">Hermes Control</h1>
-<p align="center"><strong>Remote control for your Hermes AI agent — from your pocket.</strong></p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#screenshots">Screenshots</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#project-structure">Project Structure</a> •
-  <a href="#tech-stack">Tech Stack</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#releases">Releases</a>
-</p>
+<h1 align="center">Hermes Mobile</h1>
+<p align="center"><strong>Native Android companion app for your Hermes AI agent.</strong></p>
 
 <p align="center">
   <a href="https://github.com/Hy4ri/hermes-mobile/releases/latest"><img src="https://img.shields.io/github/v/release/Hy4ri/hermes-mobile?color=6750A4&label=Latest%20Release&logo=github" alt="Latest Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/Hy4ri/hermes-mobile/android.yml?branch=main&label=CI&logo=githubactions" alt="CI">
-  <img src="https://img.shields.io/github/last-commit/Hy4ri/hermes-mobile?color=success&label=Last%20Commit" alt="Last Commit">
   <img src="https://img.shields.io/badge/minSdk-26-brightgreen" alt="minSdk 26">
   <img src="https://img.shields.io/badge/targetSdk-36-brightgreen" alt="targetSdk 36">
 </p>
@@ -32,257 +21,76 @@
 
 ## Overview
 
-**Hermes Control** is a native Android companion app for [Hermes Agent](https://hermes-agent.nousresearch.com) — the open-source, multi-platform AI assistant by Nous Research.
-
-Instead of pulling out a laptop or switching to Telegram/Discord, you can manage your Hermes agent directly from your phone:
-
-- 💬 Chat with your agent in real time
-- 🔧 Inspect and reconfigure system settings, profiles, and plugins
-- 📊 Monitor gateway status, MCP servers, and webhook health
-- 📋 Manage cron jobs, environment keys, and toolsets
-- 🗂️ Track kanban boards and agent achievements
-- 🔄 Pull-to-refresh every data screen
-
-All this with a **Material You** design that adapts to your device's dynamic color theme.
+**Hermes Mobile** is the native Android client for [Hermes Agent](https://hermes-agent.nousresearch.com). It connects securely to your local Hermes gateway (REST API and WebSocket TUI Gateway) over LAN, giving you pocket control over your AI assistant.
 
 ---
 
 ## Features
 
-### 🤖 Agent Chat
-- Real-time message exchange with your Hermes agent
-- Session management with profile switching
-- Message history with persistent storage (Room)
-
-### ⚙️ System Management
-- **Profiles** — View and switch between Hermes agent profiles
-- **Skills** — Browse installed skills with inline descriptions
-- **Plugins** — Manage active plugins and their configurations
-- **Toolsets** — See which toolsets are enabled per profile
-
-### 🛠️ Operations
-- **Cron Jobs** — View scheduled tasks, their schedules, and last-run status
-- **Webhooks** — Configure and test webhook endpoints
-- **Keys & Credentials** — Securely manage environment variables
-- **Logs** — Stream and filter agent logs
-
-### 📡 Connectivity
-- **Gateway Status** — Monitor WebSocket and API gateway health
-- **MCP Servers** — Manage Model Context Protocol server connections
-- **Channels** — View connected messaging platform status
-
-### 📊 Productivity
-- **Kanban Boards** — Track tasks across boards, columns, and cards
-- **System Info** — Runtime environment and configuration overview
-- **Achievements** — Agent milestone tracker
-
-### 🎨 UX
-- **Material You** — Dynamic color theming from your wallpaper
-- **Pull-to-Refresh** — Swipe down on any data screen to reload
-- **Shared Scaffold** — Consistent navigation and layout across all screens
-- **Scroll-aware TopBar** — Collapsing top bar on scroll
-
----
-
-## Screenshots
-
-> 📸 Screenshots coming soon. Build the app and see it in action!
-
-| Chat | System | Profile | Kanban |
-|:---:|:---:|:---:|:---:|
-| 🔲 | 🔲 | 🔲 | 🔲 |
+- **💬 Real-Time Chat:** Message your agent with Room-backed local database history.
+- **🔧 System Config:** Manage active profiles, installed skills, plugins, and LLM model selections.
+- **📊 Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, and test webhooks.
+- **📡 Gateway Status:** Monitor WebSocket connection, MCP servers, and messaging channel status.
+- **🗂️ Productivity:** View and manage tasks via integrated Kanban boards and track agent milestones.
+- **🎨 Modern UX:** Native Material You design supporting dynamic color theming, scroll-aware TopBar, and pull-to-refresh.
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
+- **JDK 21+** (required for Kotlin compilation and the Gradle toolchain)
+- **Android Studio** (Ladybug+) or a **Nix** development environment
 
-| Tool | Version | Reason |
-|------|---------|--------|
-| [JDK](https://adoptium.net/) | 17+ | Kotlin/JVM compilation |
-| [Android Studio](https://developer.android.com/studio) | Hedgehog+ | IDE + SDK management |
-| Android SDK | 36 (compile), 26 (min) | Via Android Studio SDK Manager |
-| Git | any | Clone the repo |
+### Build & Deploy
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Hy4ri/hermes-mobile.git
+   cd hermes-mobile
+   ```
+2. **Build the debug APK:**
+   ```bash
+   ./gradlew assembleDebug
+   ```
+3. **Install on your emulator/device:**
+   ```bash
+   adb install app/build/outputs/apk/debug/app-debug.apk
+   ```
 
-### Clone & Build
-
-```bash
-git clone https://github.com/Hy4ri/hermes-mobile.git
-cd hermes-mobile
-./gradlew assembleDebug
-```
-
-The debug APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
-
-### Build with custom version
-
-```bash
-./gradlew assembleRelease -PversionName="1.2.0" -PversionCode="120"
-```
-
-> **Note:** Release builds require proper signing configuration. Ensure the environment variables `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` are set before building.
-
-### Install
-
-```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
-```
-
-Or open the project in Android Studio and hit **Run ▶**.
+*Note: For release builds, ensure keystore environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) are configured, or let the GitHub Actions release workflow handle it on tag push (`v*`).*
 
 ---
 
 ## Project Structure
 
 ```
-hermes-mobile/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/m57/hermescontrol/
-│   │   │   │   ├── Navigation.kt              # Drawer + NavDisplay + entry wiring
-│   │   │   │   ├── NavigationController.kt    # Central navigation guard (dedup)
-│   │   │   │   ├── NavigationKeys.kt          # Screen key definitions
-│   │   │   │   ├── MainActivity.kt            # Single activity entry point
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── model/                 # API models / DTOs (20+ files)
-│   │   │   │   │   ├── remote/                # Retrofit + OkHttp API client
-│   │   │   │   │   ├── local/                 # Room DB (Dao, Entity, Mapper)
-│   │   │   │   │   └── ws/                    # WebSocket TUI Gateway (JSON-RPC 2.0)
-│   │   │   │   ├── notification/
-│   │   │   │   │   └── ChatNotificationService.kt  # Foreground service for reply alerts
-│   │   │   │   ├── theme/
-│   │   │   │   │   ├── Theme.kt               # Material You dynamic theming
-│   │   │   │   │   ├── Color.kt               # Color palette definitions
-│   │   │   │   │   ├── HermesStatusColors.kt  # Semantic status colours (CompositionLocal)
-│   │   │   │   │   ├── Type.kt                # Typography scale
-│   │   │   │   │   ├── Motion.kt              # Shared transition animations
-│   │   │   │   │   ├── Spacing.kt             # Spacing tokens (CompositionLocal)
-│   │   │   │   │   └── Shapes.kt              # Shape tokens
-│   │   │   │   ├── ui/
-│   │   │   │   │   ├── common/                # Shared components
-│   │   │   │   │   │   ├── HermesScaffold.kt  # Standardised screen layout
-│   │   │   │   │   │   ├── StateViews.kt      # Loading, error, empty placeholders
-│   │   │   │   │   │   └── SharedComponents.kt # SearchBar, FilterChips, ToggleRow, etc.
-│   │   │   │   │   ├── chat/                  # Chat screen + view model
-│   │   │   │   │   ├── settings/              # Settings screen + view model
-│   │   │   │   │   ├── connect/               # Connect / pairing screen
-│   │   │   │   │   ├── profiles/              # Profile management
-│   │   │   │   │   ├── skills/                # Skills browser
-│   │   │   │   │   ├── plugins/               # Plugin management
-│   │   │   │   │   ├── toolsets/              # Toolset viewer
-│   │   │   │   │   ├── cron/                  # Cron job viewer
-│   │   │   │   │   ├── webhooks/              # Webhook management
-│   │   │   │   │   ├── logs/                  # Log stream viewer
-│   │   │   │   │   ├── keys/                  # Environment variable manager
-│   │   │   │   │   ├── gateway/               # Gateway health monitor
-│   │   │   │   │   ├── mcp/                   # MCP server manager
-│   │   │   │   │   ├── model/                 # LLM model selector
-│   │   │   │   │   ├── channels/              # Messaging channels
-│   │   │   │   │   ├── pairing/               # Device pairing
-│   │   │   │   │   ├── config/                # Raw config viewer
-│   │   │   │   │   ├── system/                # System info screen
-│   │   │   │   │   ├── kanban/                # Kanban board viewer
-│   │   │   │   │   └── achievements/          # Agent achievements
-│   │   │   │   └── util/                      # Utility classes
-│   │   │   │       └── CronExpressionFormatter.kt
-│   │   │   ├── res/
-│   │   │   │   ├── values/
-│   │   │   │   │   └── strings.xml            # String resources
-│   │   │   │   ├── drawable/                  # Vector icons & drawables
-│   │   │   │   └── mipmap-*/                  # Launcher icons
-│   │   │   └── AndroidManifest.xml
-│   │   └── test/                              # Unit tests
-│   │       └── kotlin/com/m57/hermescontrol/
-│   └── build.gradle.kts                       # App-level build config
-├── gradle/
-│   └── libs.versions.toml                     # Version catalog
-├── .github/
-│   └── workflows/
-│       ├── android.yml                        # CI (ktlint + unit tests)
-│       └── release.yml                        # Release APK builder
-├── build.gradle.kts                           # Root build config
-├── settings.gradle.kts                        # Project settings
-└── gradlew                                    # Gradle wrapper
+app/src/main/java/com/m57/hermescontrol/
+├── data/          # Local (Room, EncryptedSharedPreferences) & Remote (Retrofit, OkHttp WS)
+├── notification/  # Foreground service for message notifications
+├── theme/         # Material You design system, status colors, spacing, and typography
+└── ui/            # Compose screens (Chat, Settings, Profiles, Kanban, etc.) + Navigation
 ```
-\n---
+
+---
 
 ## Tech Stack
 
-| Category | Library | Purpose |
-|----------|---------|---------|
-| **Language** | [Kotlin 2.3+](https://kotlinlang.org/) | Primary language |
-| **UI** | [Jetpack Compose](https://developer.android.com/develop/ui/compose) (BOM 2026.03.01) | Declarative UI |
-| **Design** | [Material3](https://m3.material.io/) (Compose) + Material You | Dynamic theming |
-| **Navigation** | [Navigation3](https://developer.android.com/develop/ui/compose/navigation) | Screen routing |
-| **Networking** | [Retrofit 2](https://square.github.io/retrofit/) + [OkHttp 4](https://square.github.io/okhttp/) | REST API calls |
-| **Persistence** | [Room](https://developer.android.com/training/data-storage/room) (SQLite) | Local message history |
-| **Encryption** | AndroidX Security Crypto | Secure key storage |
-| **Background** | Foreground Service | Notification polling (`ChatNotificationService`) |
-| **Serialization** | [Gson](https://github.com/google/gson) | JSON parsing |
-| **Testing** | jUnit 5 + [MockK](https://mockk.io/) + [OkHttp MockWebServer](https://github.com/square/okhttp/tree/master/mockwebserver) | Unit testing |
-| **Linting** | [ktlint](https://ktlint.github.io/) | Kotlin code style |
+- **Language:** Kotlin 2.4.0 with KSP compiler plugin
+- **UI & Layout:** Jetpack Compose (BOM 2026.03.01) & Material 3 / Material You
+- **Navigation:** Navigation3 (Compose-first Routing)
+- **Networking:** Retrofit 3.0.0, OkHttp 5.4.0, Gson 2.14.0
+- **Database:** Room 2.7.1 with SQLCipher encryption
+- **Security:** `EncryptedSharedPreferences` (AES256-GCM)
+- **Formatting:** `ktlint` style rules (checked automatically in CI)
 
 ---
 
-## Architecture
+## Development & Style Guidelines
 
-The app follows a **single-activity, Compose-first** architecture with MVVM:
+Every commit/PR is validated against strict quality gates in GitHub Actions. Refer to [AGENTS.md](AGENTS.md) for full style conventions, architecture designs, and local testing instructions.
 
-```
-View (Composable) → ViewModel → ApiClient (Retrofit) → Hermes Agent (HTTP)
-```
-
-- **Screens** are pure Compose functions that observe `StateFlow` from their ViewModel
-- **ViewModels** manage UI state and call the API client
-- **ApiClient** is a Retrofit-based HTTP client that talks to the Hermes Agent REST API
-- **Navigation** uses a custom NavHost with drawer-based routing
-
----
-
-## Contributing
-
-PRs are welcome! Here's the workflow:
-
-1. **Pick an issue** — or create one first to discuss the change
-2. **Branch** from `main` — use `feat/issue-N-description` or `fix/issue-N-description`
-3. **Implement** — one PR per logical change
-4. **CI must pass** — ktlint + lintDebug + unit tests run on every PR
-5. **Squash merge** into `main`
-
-### Code style
-
-- ktlint enforces consistent formatting (`./gradlew ktlintCheck`)
-- Use `HermesScaffold` for new screens (never raw Material3 `Scaffold`)
-- Compose parameters follow the standard order: `modifier`, callbacks, content
-
-### PR checklist
-
-- [ ] Branch from `main` and target `main`
-- [ ] CI is green (ktlint, lint, tests)
-- [ ] No unused imports or dead code
-- [ ] `contentDescription` on all `Image`/`Icon` elements (accessibility)
-- [ ] Follows the existing pattern for similar screens
-
----
-
-## Releases
-
-Pre-built APKs are available on the [Releases page](https://github.com/Hy4ri/hermes-mobile/releases).
-
-Each release is built automatically by CI when a maintainer pushes a `v*` tag:
-
-```bash
-git tag v1.2.0
-git push origin v1.2.0
-```
-
-The `release.yml` workflow will:
-1. Run full CI (ktlint, lint, tests)
-2. Build a release APK with the correct version
-3. Create a GitHub Release with auto-generated notes
-4. Attach the APK as a downloadable asset
+- **Check style locally:** Run `./ktlint <file>` or `./ktlint --format <file>` to format your imports and code style before pushing.
+- **PR Workflow:** Always create a branch (e.g. `fix/issue-N-description` or `feat/...`) and target the `main` branch via PR.
 
 ---
 

@@ -81,4 +81,3 @@ Before submitting your PR, please verify:
 - [ ] Every `Image` and `Icon` element has a descriptive `contentDescription` for accessibility.
 - [ ] New components match the UI/UX style of similar existing screens.
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are atomic (subject + ≤2 lines body).
-- [ ] If AI tools were used, no AI tool is listed as author or co-author in commit metadata.

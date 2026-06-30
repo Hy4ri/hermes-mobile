@@ -26,8 +26,6 @@ securityCrypto = "1.0.0"
 mockk = "1.14.11"
 coil = "2.7.0"
 room = "2.7.1"
-camerax = "1.4.1"
-mlkitBarcode = "17.3.0"
 sqlcipher = "4.16.0"
 
 [libraries]
@@ -80,15 +78,6 @@ sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher
 
 # Image loading
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
-
-# CameraX
-camerax-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
-camerax-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
-camerax-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
-
-# ML Kit Barcode Scanning (bundled — works without Google Play Services)
-mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version.ref = "mlkitBarcode" }
-
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

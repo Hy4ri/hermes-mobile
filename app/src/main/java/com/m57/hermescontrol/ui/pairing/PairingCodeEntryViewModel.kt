@@ -23,11 +23,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * UI state for the pairing code entry screen.
- *
- * @property hasCameraPermission null = not yet determined, true = granted, false = denied
  */
 data class PairingCodeEntryUiState(
-    val hasCameraPermission: Boolean? = null,
     val manualCode: String = "",
     val isConnecting: Boolean = false,
     val connectionSuccess: Boolean = false,
@@ -35,7 +32,7 @@ data class PairingCodeEntryUiState(
 )
 
 /**
- * ViewModel for the QR scan / manual code entry pairing flow.
+ * ViewModel for the manual code entry pairing flow.
  *
  * Accepts pairing strings in two formats handled by [onCodeDetected]:
  *  - `hermes://connect?host=...&port=...&token=...` (URI format)
@@ -51,16 +48,12 @@ class PairingCodeEntryViewModel(
         private const val TAG = "PairingCodeEntryVM"
     }
 
-    fun onPermissionResult(granted: Boolean) {
-        _uiState.update { it.copy(hasCameraPermission = granted) }
-    }
-
     fun onManualCodeChange(value: String) {
         _uiState.update { it.copy(manualCode = value.trim(), errorMessage = null) }
     }
 
     /**
-     * Process a pairing code (from QR scan or manual entry).
+     * Process a pairing code (from manual entry).
      *
      * Supported formats:
      *  1. `hermes://connect?host=<host>&port=<port>&token=<token>`

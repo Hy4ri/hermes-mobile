@@ -19,6 +19,39 @@ All code changes must go through a pull request (PR). Directly pushing to `main`
 
 ---
 
+## Commit Messages
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/) to keep the history scannable:
+
+- `feat:` — New feature for the user
+- `fix:` — Bug fix
+- `refactor:` — Code change with no functional change
+- `docs:` — Documentation only
+- `test:` — Adding or fixing tests
+- `ci:` — CI configuration or scripts
+- `chore:` — Maintenance, deps, tooling
+
+Keep commits **atomic**: one subject line (≤72 chars) + max 2 lines of body. If it needs more, split into multiple commits.
+
+```
+fix(#431): resume last session from Room cache on cold start
+
+Reorders init to show cached messages before WS connects,
+and resumes the last session on GatewayReady instead of
+always creating a blank new one.
+```
+
+---
+
+## AI Tool Usage
+
+If you use AI coding tools (including agents) to contribute:
+
+- **Never** add the AI tool as author, co-author, or `Co-Authored-By` in commit metadata.
+- Direct AI agents to [`AGENTS.md`](AGENTS.md) in the repo root — it contains agent-specific guidance on project conventions, build quirks, and security considerations that complement this guide.
+
+---
+
 ## Code Style
 
 We enforce Kotlin coding conventions and Jetpack Compose best practices.
@@ -47,3 +80,5 @@ Before submitting your PR, please verify:
 - [ ] No unused imports, unused parameters, or dead code.
 - [ ] Every `Image` and `Icon` element has a descriptive `contentDescription` for accessibility.
 - [ ] New components match the UI/UX style of similar existing screens.
+- [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are atomic (subject + ≤2 lines body).
+- [ ] If AI tools were used, no AI tool is listed as author or co-author in commit metadata.

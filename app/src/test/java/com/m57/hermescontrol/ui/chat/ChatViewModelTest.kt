@@ -74,6 +74,8 @@ class ChatViewModelTest {
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isAutoReconnect() } returns false
+        every { AuthManager.getLastSessionId() } returns null
+        every { AuthManager.setLastSessionId(any()) } returns Unit
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
         every { HermesWsClient.connect() } answers {
@@ -400,8 +402,46 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             verify { HermesWsClient.connect() }
-            assertTrue(viewModel.uiState.value.isLoading)
+            assertFalse(viewModel.uiState.value.isLoading)
             assertFalse(viewModel.uiState.value.isConnected)
+        }
+
+    @Test
+    fun testOptimisticUiStartup_loadsLastSessionFromCacheAndResumesInBackground() =
+        runTest {
+            every { AuthManager.getLastSessionId() } returns "last-cached-session-id"
+            val cachedMsgEntity =
+                com.m57.hermescontrol.data.local.ChatMessageEntity(
+                    id = "msg-1",
+                    sessionId = "last-cached-session-id",
+                    role = "user",
+                    content = "hello cache",
+                    timestamp = System.currentTimeMillis(),
+                    isStreaming = false,
+                )
+            coEvery { mockDao.getMessagesForSession("last-cached-session-id") } returns listOf(cachedMsgEntity)
+
+            val viewModel = ChatViewModel(app, startCleanup = false)
+            advanceUntilIdle()
+
+            val initialState = viewModel.uiState.value
+            assertEquals("last-cached-session-id", initialState.currentSessionId)
+            assertEquals(1, initialState.messages.size)
+            assertEquals("hello cache", initialState.messages[0].content)
+            assertFalse(initialState.isLoading)
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to "last-cached-session-id"),
+                    any(),
+                )
+            }
+            assertFalse(viewModel.uiState.value.isLoading)
         }
 
     @Test

@@ -144,7 +144,20 @@ class ChatViewModel(
 
     init {
         refreshSettings()
-        connectWebSocket()
+
+        // B7 (Jun 30 2026, kanban t_connection_loading): load last active session instantly from database
+        val lastSessionId = AuthManager.getLastSessionId()
+        if (lastSessionId != null) {
+            _uiState.update {
+                it.copy(
+                    currentSessionId = lastSessionId,
+                    chatTitle = "Hermes",
+                )
+            }
+            loadCachedMessages(lastSessionId)
+        }
+
+        connectWebSocket(setLoading = false)
         viewModelScope.launch {
             wsClient.events.collect { event ->
                 handleWsEvent(event)
@@ -169,10 +182,12 @@ class ChatViewModel(
 
     // ── Connection ───────────────────────────────────────────────────────
 
-    private fun connectWebSocket() {
+    private fun connectWebSocket(setLoading: Boolean = false) {
         val token = AuthManager.getToken() ?: return
 
-        _uiState.update { it.copy(isLoading = true) }
+        if (setLoading) {
+            _uiState.update { it.copy(isLoading = true) }
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.connect()
@@ -245,7 +260,17 @@ class ChatViewModel(
                 addSystemMessage("Connected to Hermes")
                 loadSessions()
                 fetchCommandCatalog()
-                if (_uiState.value.currentSessionId == null) {
+                val currentId = _uiState.value.currentSessionId
+                if (currentId != null) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        wsClient.send(
+                            WsMethods.SESSION_RESUME,
+                            mapOf("session_id" to currentId),
+                            onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                        )
+                    }
+                    loadSessionMessages(currentId)
+                } else {
                     val initial = initialSessionId
                     if (!initial.isNullOrBlank()) {
                         initialSessionId = null
@@ -412,6 +437,7 @@ class ChatViewModel(
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
                 val sessionId = resultMap["session_id"] as? String ?: return
+                AuthManager.setLastSessionId(sessionId)
                 _uiState.update {
                     it.copy(
                         currentSessionId = sessionId,
@@ -450,6 +476,7 @@ class ChatViewModel(
                 val sessionId =
                     (resultMap?.get("session_id") as? String)
                         ?: _uiState.value.currentSessionId
+                AuthManager.setLastSessionId(sessionId)
 
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
                 // cached messages here — switchSession() already did so before
@@ -990,6 +1017,7 @@ class ChatViewModel(
 
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
+        AuthManager.setLastSessionId(sessionId)
 
         // Reset streaming state
         streamingMessageId = null
@@ -1227,7 +1255,7 @@ class ChatViewModel(
         }
         viewModelScope.launch {
             delay(500)
-            connectWebSocket()
+            connectWebSocket(setLoading = true)
         }
     }
 

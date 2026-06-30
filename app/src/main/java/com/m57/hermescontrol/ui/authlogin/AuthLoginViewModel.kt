@@ -9,6 +9,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +64,11 @@ class AuthLoginViewModel(
 
     fun onHostChange(value: String) {
         _uiState.update { it.copy(host = value.trim(), errorMessage = null, authMode = null) }
+    }
+
+    /** Reset ephemeral connection state (called when screen leaves composition). */
+    fun clearConnectionState() {
+        _uiState.update { it.copy(connectionSuccess = false, errorMessage = null, isLoading = false) }
     }
 
     fun onPortChange(value: String) {
@@ -271,6 +277,7 @@ class AuthLoginViewModel(
                     AuthManager.setWsAuthParam("token")
                 }
                 ApiClient.rebuild()
+                HermesWsClient.connect()
                 _uiState.update { it.copy(isLoading = false, connectionSuccess = true) }
             }
         }

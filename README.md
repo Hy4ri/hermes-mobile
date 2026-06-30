@@ -63,33 +63,44 @@
 
 ## Authentication
 
-Once the app is installed, you need to point it at your Hermes gateway and authenticate.
+Once the app is installed, you need to point it at your Hermes gateway. The app auto-detects which auth mode the dashboard is using — just fill in the fields it shows.
 
-### 1. Find your dashboard token
+### 1. Start the dashboard
 
-Your Hermes dashboard runs on `http://<host>:9119` (default). The token is displayed at the **bottom of the dashboard settings page** or inside `~/.hermes/dashboard-token.txt` on the host machine.
+On your host machine, start the dashboard:
 
-### 2. Configure in the app
+```bash
+hermes dashboard                          # loopback (127.0.0.1:9119) — no auth needed
+hermes dashboard --host 0.0.0.0           # LAN — requires auth
+```
 
-Open the app's **Settings** screen (bottom nav or drawer) and fill in:
+For LAN access, configure credentials in `~/.hermes/config.yaml`:
 
-| Field     | Description |
-|-----------|-------------|
-| **Host**  | Your Hermes gateway IP/hostname (default: `127.0.0.1` or `192.168.x.x` on LAN) |
-| **Port**  | Dashboard port (default: `9119`) |
-| **Token** | The dashboard token from step 1 |
+```yaml
+dashboard:
+  basic_auth:
+    username: admin       # pick your own
+    password: hermes      # pick your own
+```
 
-The app will automatically connect via WebSocket and you'll be able to chat and manage your agent.
+### 2. Connect the app
+
+Tap **Sign in** on the landing screen and enter the dashboard host and port. The app probes the dashboard and reveals the fields you need:
+
+| Auth mode | When | What you fill |
+|-----------|------|---------------|
+| **Token only** | Dashboard on same machine (loopback) | **Token** — grab from `~/.hermes/dashboard-token.txt` or `~/.hermes/.env` (`HERMES_DASHBOARD_SESSION_TOKEN`). The app can also auto-extract it from the dashboard page |
+| **Basic auth** | Dashboard on LAN with password gate | **Username** + **Password** (default `admin` / `hermes`). The app logs in, gets a session cookie, and mints a WebSocket ticket automatically |
+
+> The app communicates over plain HTTP — it's designed for **trusted local networks only**. Do not expose your Hermes gateway to untrusted networks.
 
 ### Connection profiles
 
-If you have multiple Hermes gateways (e.g., local dev + production), you can add them as **connection profiles** in Settings. Each profile stores its own host, port, and token — switch between them anytime.
+Have multiple gateways? Switch between them in **Settings → Connection profiles**. Each profile stores its own host, port, and token — just tap to swap.
 
-### In-app browser login (optional)
+### Pairing (admin)
 
-When creating a new connection profile, the app shows a **login screen** that opens the Hermes dashboard in a built-in WebView. You can authenticate there with your dashboard username/password (default: `admin` / `hermes`) to automatically capture the session token.
-
-> **Security note:** The app communicates over plain HTTP — it's designed for **trusted local networks only**. Do not expose your Hermes gateway or dashboard token to untrusted networks.
+The **Pairing** screen lets you approve or revoke agents and services that are trying to connect to your gateway, such as Telegram or Discord sessions.
 
 ---
 
@@ -128,3 +139,4 @@ For developer-specific details, code conventions, and project architecture notes
 ## License
 
 This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
+renamed '/tmp/hermes-snap-800bd6e0cc89.sh.tmp.17855' -> '/tmp/hermes-snap-800bd6e0cc89.sh'

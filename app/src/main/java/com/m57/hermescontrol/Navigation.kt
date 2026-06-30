@@ -66,12 +66,13 @@ private fun appEntryProvider(
     openDrawer: () -> Unit,
 ) = entryProvider {
     entry<LandingScreen> {
+        // B7 (Jun 30 2026, kanban t_424): route landing screen buttons through navigateTo to prevent duplicate screens
         LandingScreenContent(
             onAuthLogin = {
-                NavigationController.backStack?.add(AuthLoginScreen)
+                NavigationController.navigateTo(AuthLoginScreen)
             },
             onPairingLogin = {
-                NavigationController.backStack?.add(PairingCodeEntryScreen)
+                NavigationController.navigateTo(PairingCodeEntryScreen)
             },
         )
     }

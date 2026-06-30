@@ -32,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -125,12 +126,18 @@ fun LogsScreen(
         viewModel.loadLogs()
     }
 
+    // Auto-refresh logs via polling while the screen is visible
+    DisposableEffect(Unit) {
+        viewModel.startAutoRefresh()
+        onDispose { viewModel.stopAutoRefresh() }
+    }
+
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
     // Auto-scroll to bottom when new logs arrive (unless paused)
     LaunchedEffect(filteredLogs.size, pauseScroll) {
         if (!pauseScroll && filteredLogs.isNotEmpty()) {
-            listState.animateScrollToItem(filteredLogs.size)
+            listState.scrollToItem(Int.MAX_VALUE)
         }
     }
 

@@ -179,17 +179,7 @@ class ChatViewModel(
 
         // B7 (Jun 30 2026, kanban t_connection_loading): if already connected on launch, trigger setup immediately
         if (wsClient.connectionStatus.value == ConnectionStatus.CONNECTED) {
-            loadSessions()
-            fetchCommandCatalog()
-            if (_uiState.value.currentSessionId == null) {
-                val initial = initialSessionId
-                if (!initial.isNullOrBlank()) {
-                    initialSessionId = null
-                    switchSession(initial)
-                } else {
-                    createNewSession(setLoading = false)
-                }
-            }
+            handleGatewayReady()
         }
     }
 
@@ -218,6 +208,32 @@ class ChatViewModel(
     }
 
     // ── WS Event Handling ────────────────────────────────────────────────
+
+    private fun handleGatewayReady() {
+        _uiState.update { it.copy(isLoading = false) }
+        addSystemMessage("Connected to Hermes")
+        loadSessions()
+        fetchCommandCatalog()
+        val currentId = _uiState.value.currentSessionId
+        if (currentId != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                wsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to currentId),
+                    onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                )
+            }
+            loadSessionMessages(currentId)
+        } else {
+            val initial = initialSessionId
+            if (!initial.isNullOrBlank()) {
+                initialSessionId = null
+                switchSession(initial)
+            } else {
+                createNewSession(setLoading = false)
+            }
+        }
+    }
 
     private fun handleWsEvent(event: WsEvent) {
         // First, let the reducer compute the new state and any effects
@@ -259,29 +275,7 @@ class ChatViewModel(
         // Handle complex events that need ViewModel-specific context
         when (event) {
             is WsEvent.GatewayReady -> {
-                _uiState.update { it.copy(isLoading = false) }
-                addSystemMessage("Connected to Hermes")
-                loadSessions()
-                fetchCommandCatalog()
-                val currentId = _uiState.value.currentSessionId
-                if (currentId != null) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        wsClient.send(
-                            WsMethods.SESSION_RESUME,
-                            mapOf("session_id" to currentId),
-                            onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
-                        )
-                    }
-                    loadSessionMessages(currentId)
-                } else {
-                    val initial = initialSessionId
-                    if (!initial.isNullOrBlank()) {
-                        initialSessionId = null
-                        switchSession(initial)
-                    } else {
-                        createNewSession(setLoading = false)
-                    }
-                }
+                handleGatewayReady()
             }
 
             is WsEvent.MessageToken -> {

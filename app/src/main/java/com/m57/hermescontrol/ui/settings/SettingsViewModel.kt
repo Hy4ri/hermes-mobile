@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -299,6 +300,7 @@ class SettingsViewModel(
         AuthManager.setToken(null)
         AuthManager.setSessionCookie(null)
         AuthManager.setWsAuthParam("token")
+        HermesWsClient.disconnect()
         // Don't rebuild ApiClient here — let the navigation complete first
     }
 

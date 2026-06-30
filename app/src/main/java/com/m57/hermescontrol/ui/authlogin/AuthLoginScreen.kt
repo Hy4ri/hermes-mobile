@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +68,13 @@ fun AuthLoginScreen(
         if (state.connectionSuccess) {
             onConnected()
         }
+    }
+
+    // Clear ephemeral connection state when screen leaves composition
+    // (ViewModel is Activity-scoped so it survives navigation — without
+    // this, stale connectionSuccess would auto-bounce the user on re-entry)
+    DisposableEffect(Unit) {
+        onDispose { viewModel.clearConnectionState() }
     }
 
     var passwordVisible by remember { mutableStateOf(false) }

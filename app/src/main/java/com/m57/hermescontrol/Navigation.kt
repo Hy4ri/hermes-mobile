@@ -66,12 +66,13 @@ private fun appEntryProvider(
     openDrawer: () -> Unit,
 ) = entryProvider {
     entry<LandingScreen> {
+        // B7 (Jun 30 2026, kanban t_424): route landing screen buttons through navigateTo to prevent duplicate screens
         LandingScreenContent(
             onAuthLogin = {
-                NavigationController.backStack?.add(AuthLoginScreen)
+                NavigationController.navigateTo(AuthLoginScreen)
             },
             onPairingLogin = {
-                NavigationController.backStack?.add(PairingCodeEntryScreen)
+                NavigationController.navigateTo(PairingCodeEntryScreen)
             },
         )
     }
@@ -133,6 +134,13 @@ fun MainNavigation(sessionId: String? = null) {
             currentScreen != PairingCodeEntryScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
+
+    // B7 (Jun 30 2026, kanban t_424): close drawer if gestures are disabled to dismiss scrim
+    LaunchedEffect(gesturesEnabled) {
+        if (!gesturesEnabled && drawerState.isOpen) {
+            drawerState.snapTo(DrawerValue.Closed)
+        }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,

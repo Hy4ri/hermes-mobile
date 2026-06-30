@@ -43,7 +43,9 @@ private const val TAG = "ChatViewModel"
 private const val PENDING_REQUEST_TIMEOUT_MS = 30_000L
 
 /** Thrown when an awaited RPC returns an error response. */
-private class RpcCallException(message: String) : Exception(message)
+private class RpcCallException(
+    message: String,
+) : Exception(message)
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -148,6 +150,18 @@ class ChatViewModel(
                 handleWsEvent(event)
             }
         }
+        // B7 (Jun 30 2026, kanban t_connection_loading): clear loading state on connection failure or status change
+        viewModelScope.launch {
+            wsClient.connectionStatus.collect { status ->
+                if (status == ConnectionStatus.DISCONNECTED ||
+                    status == ConnectionStatus.RECONNECTING ||
+                    status == ConnectionStatus.NO_NETWORK ||
+                    status == ConnectionStatus.AUTH_EXPIRED
+                ) {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            }
+        }
         if (startCleanup) {
             startPendingRequestCleanup()
         }
@@ -162,6 +176,14 @@ class ChatViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.connect()
+        }
+
+        // B7 (Jun 30 2026, kanban t_connection_loading): safety timeout to clear spinner if connection hangs
+        viewModelScope.launch {
+            delay(10_000L)
+            if (_uiState.value.isLoading) {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
@@ -653,8 +675,8 @@ class ChatViewModel(
     }
 
     /** Read bytes from a `content://` or `file://` URI via ContentResolver. */
-    private fun readContentUriBytes(uriString: String): ByteArray? {
-        return try {
+    private fun readContentUriBytes(uriString: String): ByteArray? =
+        try {
             val context = getApplication<Application>()
             val uri = Uri.parse(uriString)
             context.contentResolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
@@ -662,7 +684,6 @@ class ChatViewModel(
             Log.e(TAG, "Failed to read attachment bytes: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Send a JSON-RPC call and suspend until the response arrives.

@@ -27,12 +27,12 @@
 
 ## Features
 
-- **💬 Real-Time Chat:** Message your agent with Room-backed local database history.
-- **🔧 System Config:** Manage active profiles, installed skills, plugins, and LLM model selections.
-- **📊 Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, and test webhooks.
-- **📡 Gateway Status:** Monitor WebSocket connection, MCP servers, and messaging channel status.
-- **🗂️ Productivity:** View and manage tasks via integrated Kanban boards and track agent milestones.
-- **🎨 Modern UX:** Native Material You design supporting dynamic color theming, scroll-aware TopBar, and pull-to-refresh.
+- **Real-Time Chat:** Message your agent with Room-backed local database history.
+- **System Config:** Manage active profiles, installed skills, plugins, and LLM model selections.
+- **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, and test webhooks.
+- **Gateway Status:** Monitor WebSocket connection, MCP servers, and messaging channel status.
+- **Productivity:** View and manage tasks via integrated Kanban boards and track agent milestones.
+- **Modern UX:** Native Material You design supporting dynamic color theming, scroll-aware TopBar, and pull-to-refresh.
 
 ---
 

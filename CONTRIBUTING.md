@@ -1,0 +1,49 @@
+# Contributing to Hermes Mobile
+
+Thank you for your interest in contributing to Hermes Mobile! To maintain high code quality and consistency, we ask all contributors to follow the workflow and guidelines outlined below.
+
+---
+
+## PR Workflow
+
+All code changes must go through a pull request (PR). Directly pushing to `main` is not allowed.
+
+1. **Pick or open an issue** to discuss the changes you want to make.
+2. **Create a branch** off `main` using the following naming convention:
+   - Features: `feat/issue-N-description`
+   - Bug fixes: `fix/issue-N-description`
+3. **Implement your changes** and format them locally.
+4. **Submit a PR** targeting the `main` branch.
+5. **Ensure all CI checks pass** (formatting, linting, and unit tests).
+6. **Maintainers will squash-merge** your PR into `main`.
+
+---
+
+## Code Style
+
+We enforce Kotlin coding conventions and Jetpack Compose best practices.
+
+### Kotlin Formatting
+- Code formatting is checked and enforced by **ktlint 1.2.1**.
+- Run formatting check locally before committing:
+  ```bash
+  ./ktlint <file>            # Check one file
+  ./ktlint --format <file>   # Auto-fix formatting issues
+  ```
+- Import ordering is strictly ASCII-lexicographic (uppercase before lowercase: e.g., `LaunchedEffect` before `collectAsState`).
+
+### Compose Guidelines
+- Standard screen structures must use `HermesScaffold` rather than raw Material3 `Scaffold`.
+- Composable parameters must follow the standard order: `modifier` first, then event callbacks, and finally children content.
+
+---
+
+## PR Checklist
+
+Before submitting your PR, please verify:
+
+- [ ] Your branch is up-to-date with `main`.
+- [ ] Local build and `ktlint` checks pass successfully.
+- [ ] No unused imports, unused parameters, or dead code.
+- [ ] Every `Image` and `Icon` element has a descriptive `contentDescription` for accessibility.
+- [ ] New components match the UI/UX style of similar existing screens.

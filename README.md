@@ -85,12 +85,11 @@ app/src/main/java/com/m57/hermescontrol/
 
 ---
 
-## Development & Style Guidelines
+## Contributing
 
-Every commit/PR is validated against strict quality gates in GitHub Actions. Refer to [AGENTS.md](AGENTS.md) for full style conventions, architecture designs, and local testing instructions.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our branch workflow, code style guidelines, and PR checklist.
 
-- **Check style locally:** Run `./ktlint <file>` or `./ktlint --format <file>` to format your imports and code style before pushing.
-- **PR Workflow:** Always create a branch (e.g. `fix/issue-N-description` or `feat/...`) and target the `main` branch via PR.
+For developer-specific details, code conventions, and project architecture notes, refer to [AGENTS.md](AGENTS.md).
 
 ---
 

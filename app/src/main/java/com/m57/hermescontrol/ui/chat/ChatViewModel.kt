@@ -434,7 +434,6 @@ class ChatViewModel(
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
                 val sessionId = resultMap["session_id"] as? String ?: return
-                AuthManager.setLastSessionId(sessionId)
                 _uiState.update {
                     it.copy(
                         currentSessionId = sessionId,
@@ -473,7 +472,6 @@ class ChatViewModel(
                 val sessionId =
                     (resultMap?.get("session_id") as? String)
                         ?: _uiState.value.currentSessionId
-                AuthManager.setLastSessionId(sessionId)
 
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
                 // cached messages here — switchSession() already did so before
@@ -1014,7 +1012,6 @@ class ChatViewModel(
 
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
-        AuthManager.setLastSessionId(sessionId)
 
         // Reset streaming state
         streamingMessageId = null

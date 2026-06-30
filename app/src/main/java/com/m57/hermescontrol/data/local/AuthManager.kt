@@ -41,7 +41,6 @@ object AuthManager {
     private const val KEY_THEME_PRESET = "theme_preset"
     private const val KEY_BOTTOM_NAV_DISPLAY_MODE = "bottom_nav_display_mode"
     private const val KEY_PINNED_MODELS = "pinned_models"
-    private const val KEY_LAST_SESSION_ID = "last_session_id"
 
     private const val DEFAULT_HOST = "127.0.0.1"
     private const val DEFAULT_PORT = 9119
@@ -445,19 +444,5 @@ object AuthManager {
     fun setBottomNavDisplayMode(mode: BottomNavDisplayMode) {
         requirePrefs().edit().putString(KEY_BOTTOM_NAV_DISPLAY_MODE, mode.name).apply()
         _bottomNavDisplayModeFlow.value = mode
-    }
-
-    // ── Last Session ID ──────────────────────────────────────────────────
-
-    fun getLastSessionId(): String? {
-        val selectedId = getSelectedProfileId()
-        val key = if (selectedId != null) "last_session_$selectedId" else KEY_LAST_SESSION_ID
-        return requirePrefs().getString(key, null)
-    }
-
-    fun setLastSessionId(value: String?) {
-        val selectedId = getSelectedProfileId()
-        val key = if (selectedId != null) "last_session_$selectedId" else KEY_LAST_SESSION_ID
-        requirePrefs().edit().putString(key, value).apply()
     }
 }

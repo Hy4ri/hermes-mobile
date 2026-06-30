@@ -74,8 +74,6 @@ class ChatViewModelTest {
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isAutoReconnect() } returns false
-        every { AuthManager.getLastSessionId() } returns null
-        every { AuthManager.setLastSessionId(any()) } returns Unit
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
         every { HermesWsClient.connect() } answers {

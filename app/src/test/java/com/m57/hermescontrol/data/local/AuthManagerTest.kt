@@ -393,4 +393,22 @@ class AuthManagerTest {
         every { mockPrefs.getString("selected_profile_id", null) } returns "  "
         assertNull(AuthManager.getSelectedProfileId())
     }
+
+    // ── Last Session ID ─────────────────────────────────────────────────
+
+    @Test
+    fun testGetAndSetLastSessionId() {
+        every { mockPrefs.getString("last_session_id", null) } returns "session-abc"
+        assertEquals("session-abc", AuthManager.getLastSessionId())
+
+        AuthManager.setLastSessionId("session-xyz")
+        verify { mockEditor.putString("last_session_id", "session-xyz") }
+        verify { mockEditor.apply() }
+    }
+
+    @Test
+    fun testGetLastSessionId_defaultNull() {
+        every { mockPrefs.getString("last_session_id", null) } returns null
+        assertNull(AuthManager.getLastSessionId())
+    }
 }

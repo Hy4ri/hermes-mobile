@@ -111,13 +111,7 @@ fun MainNavigation(sessionId: String? = null) {
     val hasToken = !token.isNullOrBlank()
     val startScreen: NavKey = if (hasToken) ChatScreen else LandingScreen
 
-    val backStack = remember { NavBackStack(startScreen) }
-    LaunchedEffect(startScreen) {
-        if (backStack.lastOrNull() != startScreen) {
-            backStack.clear()
-            backStack.add(startScreen)
-        }
-    }
+    val backStack = remember(startScreen) { NavBackStack(startScreen) }
     NavigationController.backStack = backStack
 
     val currentScreen = backStack.lastOrNull() ?: startScreen

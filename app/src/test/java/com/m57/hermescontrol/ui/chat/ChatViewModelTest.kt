@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
+import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.ChatMessageDao
 import com.m57.hermescontrol.data.local.HermesDatabase
@@ -50,6 +51,12 @@ class ChatViewModelTest {
         Dispatchers.setMain(testDispatcher)
         val testMainDispatcher = Dispatchers.Main
 
+        mockkStatic(Log::class)
+        every { Log.d(any(), any()) } returns 0
+        every { Log.i(any(), any()) } returns 0
+        every { Log.w(any(), any<String>()) } returns 0
+        every { Log.e(any(), any(), any()) } returns 0
+
         mockkStatic(Dispatchers::class)
         every { Dispatchers.IO } returns testDispatcher
         every { Dispatchers.Main } returns testMainDispatcher
@@ -66,9 +73,12 @@ class ChatViewModelTest {
         every { AuthManager.getToken() } returns "test-token"
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
+        every { AuthManager.isAutoReconnect() } returns false
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
-        every { HermesWsClient.connect() } returns Unit
+        every { HermesWsClient.connect() } answers {
+            mockConnectionStatus.value = ConnectionStatus.CONNECTING
+        }
         every { HermesWsClient.disconnect() } returns Unit
         every { mockDb.chatMessageDao() } returns mockDao
         every { HermesDatabase.get(any()) } returns mockDb
@@ -385,6 +395,7 @@ class ChatViewModelTest {
     @Test
     fun testInitialStateAndConnection() =
         runTest {
+            mockConnectionStatus.value = ConnectionStatus.CONNECTING
             val viewModel = ChatViewModel(app, startCleanup = false)
             advanceUntilIdle()
 

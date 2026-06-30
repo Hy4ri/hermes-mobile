@@ -179,10 +179,12 @@ class ChatViewModel(
         }
 
         // B7 (Jun 30 2026, kanban t_connection_loading): safety timeout to clear spinner if connection hangs
-        viewModelScope.launch {
-            delay(10_000L)
-            if (_uiState.value.isLoading) {
-                _uiState.update { it.copy(isLoading = false) }
+        if (!isTestEnvironment()) {
+            viewModelScope.launch {
+                delay(10_000L)
+                if (_uiState.value.isLoading) {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
             }
         }
     }

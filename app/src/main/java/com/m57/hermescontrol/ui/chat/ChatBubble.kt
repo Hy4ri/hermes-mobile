@@ -12,10 +12,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -149,7 +147,6 @@ fun ChatBubble(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(
     message: ChatMessage,
@@ -224,10 +221,9 @@ private fun UserBubble(
                             ),
                         ).background(brush = gradientBrush)
                         .testTag("chat_bubble_user")
-                        .combinedClickable(
+                        .clickable(
                             role = Role.Button,
-                            onClick = {},
-                            onLongClick = {
+                            onClick = {
                                 showCopyButton = true
                             },
                         ),
@@ -304,7 +300,6 @@ private fun UserBubble(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AssistantBubble(
     message: ChatMessage,
@@ -362,10 +357,9 @@ private fun AssistantBubble(
                                 bottomEnd = 16.dp,
                             ),
                         ).testTag("chat_bubble_assistant")
-                        .combinedClickable(
+                        .clickable(
                             role = Role.Button,
-                            onClick = {},
-                            onLongClick = {
+                            onClick = {
                                 showCopyButton = true
                             },
                         ),

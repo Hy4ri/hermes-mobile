@@ -536,7 +536,7 @@ private fun AchievementCard(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val pct = achievement.progress_pct?.toFloat()?.div(100f) ?: 0f
+    val pct = achievement.progressPct?.toFloat()?.div(100f) ?: 0f
     val isUnlocked = achievement.unlocked
     val isDiscovered = achievement.discovered && !isUnlocked
 
@@ -655,7 +655,7 @@ private fun AchievementCard(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text(
-                        text = "${achievement.progress_pct?.toInt() ?: 0}%",
+                        text = "${achievement.progressPct?.toInt() ?: 0}%",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

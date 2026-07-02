@@ -88,6 +88,7 @@ class AchievementsViewModel : ViewModel() {
     fun loadScanStatus() {
         safeLaunchLoad(
             apiCall = { safeApiCall { api.getAchievementScanStatus() } },
+            onStart = { /* silent background refresh */ },
             onSuccess = { status ->
                 _uiState.update {
                     it.copy(
@@ -98,15 +99,18 @@ class AchievementsViewModel : ViewModel() {
                     )
                 }
             },
+            onError = { /* silent — scan runs independently */ },
         )
     }
 
     fun loadRecentUnlocks() {
         safeLaunchLoad(
             apiCall = { safeApiCall { api.getRecentUnlocks() } },
+            onStart = { /* silent background refresh */ },
             onSuccess = { unlocks ->
                 _uiState.update { it.copy(recentUnlocks = unlocks) }
             },
+            onError = { /* silent — recent unlocks is non-critical */ },
         )
     }
 

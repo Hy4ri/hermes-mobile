@@ -135,8 +135,6 @@ private fun ConfigContent(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
-
         // Path display
         state.path?.let { path ->
             Text(
@@ -176,6 +174,54 @@ private fun ConfigContent(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Top save bar — visible when there are pending changes
+        if (!state.yamlMode && state.modifiedKeys.isNotEmpty()) {
+            Card(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    ),
+            ) {
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${state.modifiedKeys.size} change(s) pending",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Button(
+                        onClick = onSave,
+                        enabled = !state.isSaving,
+                    ) {
+                        if (state.isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.width(16.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Save,
+                                contentDescription = null,
+                                modifier = Modifier.width(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Save", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
 
         if (state.yamlMode) {
             YAMLEditor(
@@ -307,6 +353,15 @@ private fun FormEditor(
         Spacer(modifier = Modifier.height(8.dp))
     }
 
+    // Non-schema config values — keys in the config that have zero schema coverage
+    val nonSchemaKeys =
+        remember(config, schema) {
+            val schemaPaths = schema.fields.keys
+            config.keys.filter { topKey ->
+                schemaPaths.none { it == topKey || it.startsWith("$topKey.") }
+            }.sorted()
+        }
+
     // Fields list
     visibleFields.forEach { (key, field) ->
         ConfigField(
@@ -325,6 +380,44 @@ private fun FormEditor(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 24.dp),
         )
+    }
+
+    // Render non-schema config keys as read-only cards
+    if (nonSchemaKeys.isNotEmpty()) {
+        Text(
+            text = "Other settings",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+        )
+        nonSchemaKeys.forEach { key ->
+            val jsonText = config[key]?.toString() ?: ""
+            Card(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = key,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = jsonText,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 
     Spacer(modifier = Modifier.height(12.dp))

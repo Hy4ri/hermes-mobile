@@ -99,15 +99,11 @@ fun WebhooksScreen(
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Delete Subscription")
+                    Text(stringResource(R.string.webhooks_dialog_delete_title))
                 }
             },
             text = {
-                Text(
-                    "Are you sure you want to delete \"${target.name}\"? " +
-                        "This action cannot be undone. All events sent to this URL " +
-                        "will be rejected.",
-                )
+                Text(stringResource(R.string.webhooks_dialog_delete_message, target.name))
             },
             confirmButton = {
                 Button(
@@ -126,7 +122,7 @@ fun WebhooksScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                     }
-                    Text("Delete")
+                    Text(stringResource(R.string.webhooks_action_delete))
                 }
             },
             dismissButton = {
@@ -144,14 +140,14 @@ fun WebhooksScreen(
     if (state.showCreateDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissCreateDialog() },
-            title = { Text("Create Subscription") },
+            title = { Text(stringResource(R.string.webhooks_dialog_create_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = state.createFormName,
                         onValueChange = viewModel::updateCreateFormName,
-                        label = { Text("Name *") },
-                        placeholder = { Text("e.g. github-push") },
+                        label = { Text(stringResource(R.string.webhooks_field_name)) },
+                        placeholder = { Text(stringResource(R.string.webhooks_hint_name)) },
                         singleLine = true,
                         isError = state.createFormError != null,
                         modifier = Modifier.fillMaxWidth(),
@@ -160,7 +156,7 @@ fun WebhooksScreen(
                     OutlinedTextField(
                         value = state.createFormDescription,
                         onValueChange = viewModel::updateCreateFormDescription,
-                        label = { Text("Description") },
+                        label = { Text(stringResource(R.string.webhooks_field_description)) },
                         placeholder = { Text("What this webhook does...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -169,8 +165,8 @@ fun WebhooksScreen(
                     OutlinedTextField(
                         value = state.createFormEvents,
                         onValueChange = viewModel::updateCreateFormEvents,
-                        label = { Text("Events") },
-                        placeholder = { Text("comma separated (e.g. push, pull_request)") },
+                        label = { Text(stringResource(R.string.webhooks_field_events)) },
+                        placeholder = { Text(stringResource(R.string.webhooks_hint_events)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -178,8 +174,8 @@ fun WebhooksScreen(
                     OutlinedTextField(
                         value = state.createFormDeliver,
                         onValueChange = viewModel::updateCreateFormDeliver,
-                        label = { Text("Deliver To") },
-                        placeholder = { Text("log, telegram, discord, origin, all...") },
+                        label = { Text(stringResource(R.string.webhooks_field_deliver)) },
+                        placeholder = { Text(stringResource(R.string.webhooks_hint_deliver)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -187,8 +183,8 @@ fun WebhooksScreen(
                     OutlinedTextField(
                         value = state.createFormSecret,
                         onValueChange = viewModel::updateCreateFormSecret,
-                        label = { Text("Secret") },
-                        placeholder = { Text("auto-generated if empty") },
+                        label = { Text(stringResource(R.string.webhooks_field_secret)) },
+                        placeholder = { Text(stringResource(R.string.webhooks_hint_secret)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -214,7 +210,7 @@ fun WebhooksScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                     }
-                    Text("Create")
+                    Text(stringResource(R.string.webhooks_action_create))
                 }
             },
             dismissButton = {
@@ -237,7 +233,7 @@ fun WebhooksScreen(
             IconButton(onClick = { viewModel.showCreateDialog() }) {
                 Icon(
                     imageVector = Icons.Filled.Add,
-                    contentDescription = "Add subscription",
+                    contentDescription = stringResource(R.string.webhooks_action_add),
                 )
             }
         },
@@ -332,7 +328,7 @@ fun WebhooksScreen(
                         SearchBar(
                             query = query,
                             onQueryChange = { query = it },
-                            placeholder = "Search subscriptions...",
+                            placeholder = stringResource(R.string.webhooks_search_placeholder),
                         )
                     }
 
@@ -343,13 +339,13 @@ fun WebhooksScreen(
                                     if (state.subscriptions.isEmpty()) {
                                         "No subscriptions"
                                     } else {
-                                        "No matching subscriptions"
+                                        stringResource(R.string.webhooks_no_matching)
                                     },
                                 subtitle =
                                     if (state.subscriptions.isEmpty()) {
                                         stringResource(R.string.webhooks_empty_desc)
                                     } else {
-                                        "Try adjusting your search."
+                                        stringResource(R.string.webhooks_no_matching_desc)
                                     },
                             )
                         }

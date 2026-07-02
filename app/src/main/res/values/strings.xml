@@ -300,6 +300,7 @@
     <string name="webhooks_sec_status">Global Webhooks Status</string>
     <string name="webhooks_sec_subscriptions">Subscriptions</string>
     <string name="webhooks_empty_desc">No webhook subscriptions configured.</string>
+    <string name="webhooks_search_placeholder">Search subscriptions…</string>
     <string name="webhooks_label_target">Target URL:</string>
     <string name="webhooks_label_events">Events Subscribed:</string>
     <string name="webhooks_action_add">Add subscription</string>
@@ -307,7 +308,7 @@
     <string name="webhooks_action_delete">Delete</string>
     <string name="webhooks_dialog_create_title">Create Subscription</string>
     <string name="webhooks_dialog_delete_title">Delete Subscription</string>
-    <string name="webhooks_dialog_delete_message">Are you sure you want to delete \"%1$s\"? This action cannot be undone.</string>
+    <string name="webhooks_dialog_delete_message">Are you sure you want to delete \"%1$s\"? This action cannot be undone. All events sent to this URL will be rejected.</string>
     <string name="webhooks_field_name">Name *</string>
     <string name="webhooks_field_description">Description</string>
     <string name="webhooks_field_events">Events</string>

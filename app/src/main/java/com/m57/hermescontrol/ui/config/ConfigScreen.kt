@@ -357,13 +357,10 @@ private fun FormEditor(
             }
         }
 
-    // Non-schema config values — keys in the config that have zero schema coverage
-    val nonSchemaKeys =
+    // Non-schema config values — all dot-paths in the config that aren't in the schema
+    val nonSchemaPaths =
         remember(config, schema) {
-            val schemaPaths = schema.fields.keys
-            config.keys.filter { topKey ->
-                schemaPaths.none { it == topKey || it.startsWith("$topKey.") }
-            }.sorted()
+            collectUncoveredPaths(config, schema.fields.keys.toSet())
         }
 
     val isOtherCategory = activeCategory == "Other"
@@ -376,7 +373,7 @@ private fun FormEditor(
     // Show tabs only when not searching
     if (!isSearching) {
         val allCategories =
-            if (nonSchemaKeys.isNotEmpty()) {
+            if (nonSchemaPaths.isNotEmpty()) {
                 schema.category_order.filter { it in categoryCounts } + "Other"
             } else {
                 schema.category_order.filter { it in categoryCounts }
@@ -393,9 +390,9 @@ private fun FormEditor(
 
     // Fields list
     if (isOtherCategory) {
-        // Render non-schema config keys as read-only cards
-        nonSchemaKeys.forEach { key ->
-            val jsonText = config[key]?.toString() ?: ""
+        // Render non-schema config dot-paths as read-only cards
+        nonSchemaPaths.forEach { dotPath ->
+            val jsonText = getJsonValue(config, dotPath)?.toString() ?: ""
             Card(
                 modifier =
                     Modifier
@@ -408,7 +405,7 @@ private fun FormEditor(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = key,
+                        text = dotPath,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Medium,
                     )
@@ -710,6 +707,43 @@ private fun DropdownField(
             }
         }
     }
+}
+
+/** Recursively find all config dot-paths not covered by the schema. */
+private fun collectUncoveredPaths(
+    config: Map<String, JsonElement>,
+    schemaPaths: Set<String>,
+    prefix: String = "",
+): List<String> {
+    val result = mutableListOf<String>()
+    for ((key, value) in config) {
+        val dotPath = if (prefix.isEmpty()) key else "$prefix.$key"
+        // If this exact path is in the schema, it's covered — skip entirely
+        if (dotPath in schemaPaths) continue
+        if (value is com.google.gson.JsonObject) {
+            // Recurse into nested objects to find uncovered leaves
+            val subKeys = value.keySet()
+            // Before recursing deeper, check if this whole sub-tree has any schema coverage
+            val hasSchemaCoverage = schemaPaths.any { it == dotPath || it.startsWith("$dotPath.") }
+            if (hasSchemaCoverage) {
+                // Schema covers some sub-paths — recurse to find what's NOT covered
+                val subMap = subKeys.associateWith { value.get(it) }
+                result.addAll(collectUncoveredPaths(subMap, schemaPaths, dotPath))
+            } else {
+                // No schema coverage at all for this subtree — add the whole thing
+                result.add(dotPath)
+            }
+        } else if (value is com.google.gson.JsonArray) {
+            // Arrays: check if the path is in schema; if not, add it
+            if (dotPath !in schemaPaths) {
+                result.add(dotPath)
+            }
+        } else {
+            // Leaf value (string, number, boolean, null) not in schema
+            result.add(dotPath)
+        }
+    }
+    return result.sorted()
 }
 
 /** Get a nested value from a flat config Map using a dot-path key. */

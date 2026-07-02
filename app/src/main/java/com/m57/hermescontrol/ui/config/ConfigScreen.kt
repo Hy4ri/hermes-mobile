@@ -357,18 +357,6 @@ private fun FormEditor(
             }
         }
 
-    // Show tabs only when not searching
-    if (!isSearching) {
-        ConfigTabs(
-            categories = schema.category_order.filter { it in categoryCounts },
-            categoryCounts = categoryCounts,
-            selectedCategory = activeCategory,
-            onCategorySelected = onCategoryChange,
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-    }
-
     // Non-schema config values — keys in the config that have zero schema coverage
     val nonSchemaKeys =
         remember(config, schema) {
@@ -378,35 +366,34 @@ private fun FormEditor(
             }.sorted()
         }
 
+    val isOtherCategory = activeCategory == "Other"
+    val isSearching = searchQuery.isNotBlank()
+    val categoryCounts =
+        remember(schema) {
+            schema.fields.values.groupingBy { it.category ?: "general" }.eachCount()
+        }
+
+    // Show tabs only when not searching
+    if (!isSearching) {
+        val allCategories =
+            if (nonSchemaKeys.isNotEmpty()) {
+                schema.category_order.filter { it in categoryCounts } + "Other"
+            } else {
+                schema.category_order.filter { it in categoryCounts }
+            }
+        ConfigTabs(
+            categories = allCategories,
+            categoryCounts = categoryCounts,
+            selectedCategory = activeCategory,
+            onCategorySelected = onCategoryChange,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+
     // Fields list
-    visibleFields.forEach { (key, field) ->
-        ConfigField(
-            key = key,
-            field = field,
-            currentValue = getJsonValue(config, key),
-            isModified = key in modifiedKeys,
-            onChange = { onFieldChange(key, it) },
-        )
-    }
-
-    if (visibleFields.isEmpty()) {
-        Text(
-            text = if (isSearching) "No settings match your search." else "No fields in this category.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(vertical = 24.dp),
-        )
-    }
-
-    // Render non-schema config keys as read-only cards
-    if (nonSchemaKeys.isNotEmpty()) {
-        Text(
-            text = "Other settings",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
-        )
+    if (isOtherCategory) {
+        // Render non-schema config keys as read-only cards
         nonSchemaKeys.forEach { key ->
             val jsonText = config[key]?.toString() ?: ""
             Card(
@@ -433,6 +420,42 @@ private fun FormEditor(
                     )
                 }
             }
+        }
+    } else {
+        val visibleFields: List<Pair<String, SchemaField>> =
+            remember(schema, activeCategory, searchQuery) {
+                if (isSearching) {
+                    val query = searchQuery.lowercase()
+                    schema.fields.filter { (key, field) ->
+                        val label = key.split(".").last().replace("_", " ")
+                        key.lowercase().contains(query) ||
+                            label.contains(query) ||
+                            (field.description?.lowercase()?.contains(query) == true) ||
+                            (field.category?.lowercase()?.contains(query) == true)
+                    }.entries.map { it.key to it.value }
+                } else {
+                    schema.fields.filter { (_, field) ->
+                        (field.category ?: "general") == activeCategory
+                    }.entries.map { it.key to it.value }
+                }
+            }
+        visibleFields.forEach { (key, field) ->
+            ConfigField(
+                key = key,
+                field = field,
+                currentValue = getJsonValue(config, key),
+                isModified = key in modifiedKeys,
+                onChange = { onFieldChange(key, it) },
+            )
+        }
+
+        if (visibleFields.isEmpty()) {
+            Text(
+                text = if (isSearching) "No settings match your search." else "No fields in this category.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 24.dp),
+            )
         }
     }
 

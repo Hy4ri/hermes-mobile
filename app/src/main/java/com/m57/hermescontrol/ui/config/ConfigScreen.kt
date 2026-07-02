@@ -108,7 +108,7 @@ fun ConfigScreen(
                     onYamlTextChange = viewModel::setYamlText,
                     onYamlSave = viewModel::saveYamlConfig,
                     onResetCategory = viewModel::resetCategoryToDefaults,
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
         }
@@ -128,126 +128,132 @@ private fun ConfigContent(
     onResetCategory: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-    ) {
-        // Path display
-        state.path?.let { path ->
-            Text(
-                text = "Path: $path",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-        }
-
-        // Mode toggle + YAML mode search bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    Column(modifier = modifier.fillMaxSize()) {
+        // ── Non-scrollable top section ──
+        Column(
+            modifier =
+                Modifier
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 8.dp),
         ) {
-            TextButton(onClick = onModeToggle) {
-                Icon(
-                    imageVector = if (state.yamlMode) Icons.Filled.Tune else Icons.Filled.Code,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 4.dp),
-                )
+            // Path display
+            state.path?.let { path ->
                 Text(
-                    if (state.yamlMode) "Form" else "YAML",
-                    fontWeight = FontWeight.Medium,
+                    text = "Path: $path",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
                 )
             }
 
-            if (!state.yamlMode) {
-                SearchBar(
-                    query = state.searchQuery,
-                    onQueryChange = onSearchQueryChange,
-                    placeholder = "Search settings…",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Top save bar — visible when there are pending changes
-        if (!state.yamlMode && state.modifiedKeys.isNotEmpty()) {
-            Card(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
+            // Mode toggle + search
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "${state.modifiedKeys.size} change(s) pending",
-                        style = MaterialTheme.typography.bodySmall,
+                TextButton(onClick = onModeToggle) {
+                    Icon(
+                        imageVector = if (state.yamlMode) Icons.Filled.Tune else Icons.Filled.Code,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 4.dp),
                     )
-                    Button(
-                        onClick = onSave,
-                        enabled = !state.isSaving,
+                    Text(
+                        if (state.yamlMode) "Form" else "YAML",
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+
+                if (!state.yamlMode) {
+                    SearchBar(
+                        query = state.searchQuery,
+                        onQueryChange = onSearchQueryChange,
+                        placeholder = "Search settings…",
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            // Top save bar — sticky, always visible when changes pending
+            if (!state.yamlMode && state.modifiedKeys.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (state.isSaving) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.width(16.dp),
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.Save,
-                                contentDescription = null,
-                                modifier = Modifier.width(16.dp),
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Save", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            text = "${state.modifiedKeys.size} change(s) pending",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(
+                            onClick = onSave,
+                            enabled = !state.isSaving,
+                        ) {
+                            if (state.isSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.width(16.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Save,
+                                    contentDescription = null,
+                                    modifier = Modifier.width(16.dp),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Save", style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
         }
 
-        if (state.yamlMode) {
-            YAMLEditor(
-                yamlText = state.yamlText ?: "",
-                onYamlTextChange = onYamlTextChange,
-                isSaving = state.yamlIsSaving,
-                isLoading = state.yamlIsLoading,
-                onSave = onYamlSave,
-            )
-        } else {
-            FormEditor(
-                schema = state.schema,
-                config = state.config,
-                defaults = state.defaults,
-                activeCategory = state.activeCategory,
-                searchQuery = state.searchQuery,
-                modifiedKeys = state.modifiedKeys,
-                isSaving = state.isSaving,
-                onCategoryChange = onCategoryChange,
-                onFieldChange = onFieldChange,
-                onSave = onSave,
-                onResetCategory = onResetCategory,
-            )
-        }
+        // ── Scrollable content ──
+        Column(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+        ) {
+            if (state.yamlMode) {
+                YAMLEditor(
+                    yamlText = state.yamlText ?: "",
+                    onYamlTextChange = onYamlTextChange,
+                    isSaving = state.yamlIsSaving,
+                    isLoading = state.yamlIsLoading,
+                    onSave = onYamlSave,
+                )
+            } else {
+                FormEditor(
+                    schema = state.schema,
+                    config = state.config,
+                    defaults = state.defaults,
+                    activeCategory = state.activeCategory,
+                    searchQuery = state.searchQuery,
+                    modifiedKeys = state.modifiedKeys,
+                    isSaving = state.isSaving,
+                    onCategoryChange = onCategoryChange,
+                    onFieldChange = onFieldChange,
+                    onSave = onSave,
+                    onResetCategory = onResetCategory,
+                )
+            }
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 }
 

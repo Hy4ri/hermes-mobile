@@ -410,6 +410,31 @@
     <string name="achievements_empty_title">No achievements yet</string>
     <string name="achievements_empty_desc">Complete tasks to unlock achievements.</string>
     <string name="achievements_label_progress">Progress: %1$d / %2$d</string>
+    <string name="achievements_search_hint">Search achievements…</string>
+    <string name="achievements_stat_unlocked">Unlocked</string>
+    <string name="achievements_stat_discovered">Discovered</string>
+    <string name="achievements_stat_secret">Secret</string>
+    <string name="achievements_stat_total">Total</string>
+    <string name="achievements_scan_idle">Idle</string>
+    <string name="achievements_scan_running">Scanning…</string>
+    <string name="achievements_scan_scanning">Rescanning…</string>
+    <string name="achievements_scan_error">Error</string>
+    <string name="achievements_scan_count">%1$d scans</string>
+    <string name="achievements_stale">Cached</string>
+    <string name="achievements_filter_all">All</string>
+    <string name="achievements_state_unlocked">Unlocked</string>
+    <string name="achievements_state_discovered">Discovered</string>
+    <string name="achievements_state_secret">Secret</string>
+    <string name="achievements_recent_title">Recent Unlocks</string>
+    <string name="achievements_count_label">%1$d of %2$d achievements</string>
+    <string name="achievements_criteria_show">Show criteria</string>
+    <string name="achievements_criteria_hide">Hide criteria</string>
+    <string name="achievements_unlocked_at">Unlocked %1$s</string>
+    <string name="achievements_menu_desc">Achievements menu</string>
+    <string name="achievements_action_rescan">Rescan all sessions</string>
+    <string name="achievements_action_reset">Reset all achievement data</string>
+    <string name="achievements_reset_title">Reset achievements?</string>
+    <string name="achievements_reset_desc">This will wipe all unlock and discovery data. Achievements will be re-scanned from scratch on the next scan. This cannot be undone.</string>
 
     <!-- Keys Screen -->
     <string name="keys_empty_title">No environment keys reported</string>

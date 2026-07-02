@@ -30,7 +30,9 @@ import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RawConfigResponse
+import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
+import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
@@ -183,6 +185,18 @@ interface HermesApiService {
 
     @GET("api/plugins/hermes-achievements/achievements")
     suspend fun getAchievements(): Response<AchievementsResponse>
+
+    @GET("api/plugins/hermes-achievements/scan-status")
+    suspend fun getAchievementScanStatus(): Response<ScanStatus>
+
+    @POST("api/plugins/hermes-achievements/rescan")
+    suspend fun rescanAchievements(): Response<AchievementsResponse>
+
+    @POST("api/plugins/hermes-achievements/reset-state")
+    suspend fun resetAchievementState(): Response<Unit>
+
+    @GET("api/plugins/hermes-achievements/recent-unlocks")
+    suspend fun getRecentUnlocks(): Response<List<RecentUnlock>>
 
     @GET("api/pairing")
     suspend fun getPairing(): Response<PairingResponse>

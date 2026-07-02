@@ -6,9 +6,13 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+  }:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
         pkgs = import nixpkgs {
           inherit system;
           config = {
@@ -18,20 +22,22 @@
         };
 
         buildToolsVersion = "35.0.0";
-        androidComposition = pkgs.androidenv.composeAndroidPackages {
+        androidSdk = (pkgs.androidenv.composeAndroidPackages {
           # Command-line & platform tools
           cmdLineToolsVersion = "11.0";
           platformToolsVersion = "35.0.2";
 
           # Build tools
-          buildToolsVersions = [ buildToolsVersion "34.0.0" ];
+          buildToolsVersions = [buildToolsVersion "34.0.0"];
 
           # Target platforms (36 required by AGP 9.0.1 / compileSdk 36)
-          platformVersions = [ "36" "35" "34" ];
+          platformVersions = ["36" "35" "34"];
 
-          # For the emulator
-          includeEmulator = false;
-          includeSystemImages = false;
+          # Emulator + system images for local AVD testing
+          includeEmulator = true;
+          includeSystemImages = true;
+          systemImageTypes = ["google_apis"];
+          abiVersions = ["x86_64"];
 
           # NDK (not needed for this project, but handy)
           includeNDK = false;
@@ -47,17 +53,14 @@
             "intel-android-sysimage-license"
             "mips-android-sysimage-license"
           ];
-        };
-
-        androidSdk = androidComposition.androidsdk;
-
+        }).androidsdk;
       in {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             # Java 21 (required for AGP 9.x / Gradle 9.x)
             jdk21
 
-            # Android SDK (platforms, build-tools, platform-tools)
+            # Android SDK (platforms, build-tools, platform-tools, emulator, system-images)
             androidSdk
 
             # Kotlin compiler
@@ -67,7 +70,7 @@
             gradle
 
             # Useful utilities
-            ktlint        # Kotlin linter
+            ktlint # Kotlin linter
           ];
 
           # Point everything at the Nix-managed SDK
@@ -80,9 +83,9 @@
 
           shellHook = ''
             echo "🤖 HermesControl Android dev shell"
-            echo "   Java:        $(java -version 2>&1 | head -1)"
-            echo "   Kotlin:      $(kotlin -version 2>&1)"
-            echo "   Gradle:      $(gradle --version 2>&1 | grep '^Gradle' || echo 'available')"
+            echo "   Java:              $(java -version 2>&1 | head -1)"
+            echo "   Kotlin:            $(kotlin -version 2>&1)"
+            echo "   Gradle:            $(gradle --version 2>&1 | grep '^Gradle' || echo 'available')"
             echo "   ANDROID_HOME: $ANDROID_HOME"
             echo ""
 

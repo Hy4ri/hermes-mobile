@@ -195,7 +195,7 @@ fun AchievementsScreen(
                         Modifier
                             .fillMaxSize()
                             .padding(paddingValues),
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     // Search

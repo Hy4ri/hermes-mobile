@@ -191,13 +191,7 @@ fun AchievementsScreen(
 
             else -> {
                 LazyColumn(
-<<<<<<< feat/447-webhooks-full-parity
                     modifier = Modifier.fillMaxSize(),
-=======
-                    modifier =
-                        Modifier
-                            .fillMaxSize(),
->>>>>>> main
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {

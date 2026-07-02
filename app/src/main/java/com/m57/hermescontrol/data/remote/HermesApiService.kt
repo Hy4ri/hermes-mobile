@@ -5,7 +5,9 @@ import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CreateTaskBody
+import com.m57.hermescontrol.data.model.CreateWebhookRequest
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.DeleteWebhookResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
@@ -45,6 +47,8 @@ import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
+import com.m57.hermescontrol.data.model.WebhookSubscription
+import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
 import com.m57.hermescontrol.data.model.WebhooksResponse
 import com.m57.hermescontrol.data.model.WebhooksToggleRequest
 import retrofit2.Response
@@ -243,6 +247,22 @@ interface HermesApiService {
     @POST("api/webhooks/enable")
     suspend fun toggleWebhooks(
         @Body body: WebhooksToggleRequest,
+    ): Response<Unit>
+
+    @POST("api/webhooks")
+    suspend fun createWebhook(
+        @Body body: CreateWebhookRequest,
+    ): Response<WebhookSubscription>
+
+    @DELETE("api/webhooks/{name}")
+    suspend fun deleteWebhook(
+        @Path("name") name: String,
+    ): Response<DeleteWebhookResponse>
+
+    @PUT("api/webhooks/{name}/enabled")
+    suspend fun setWebhookEnabled(
+        @Path("name") name: String,
+        @Body body: WebhookToggleSubscriptionRequest,
     ): Response<Unit>
 
     @GET("api/model/options")

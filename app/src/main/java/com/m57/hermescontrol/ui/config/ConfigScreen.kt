@@ -15,9 +15,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.FormInput
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -155,7 +155,7 @@ private fun ConfigContent(
         ) {
             TextButton(onClick = onModeToggle) {
                 Icon(
-                    imageVector = if (state.yamlMode) Icons.Filled.FormInput else Icons.Filled.Code,
+                    imageVector = if (state.yamlMode) Icons.Filled.Tune else Icons.Filled.Code,
                     contentDescription = null,
                     modifier = Modifier.padding(end = 4.dp),
                 )
@@ -371,6 +371,7 @@ private fun FormEditor(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ConfigTabs(
     categories: List<String>,
@@ -415,7 +416,7 @@ private fun ConfigField(
     onChange: (JsonElement) -> Unit,
 ) {
     val label = key.split(".").last().replace("_", " ").replaceFirstChar { it.uppercase() }
-    val description = field.description ?: key.replace(".", " → ").replace("_", " ").titlecase()
+    val description = field.description ?: key.replace(".", " → ").replace("_", " ").replaceFirstChar { it.uppercase() }
 
     Card(
         modifier =

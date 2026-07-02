@@ -83,6 +83,16 @@ fun ConfigScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadAll() },
+        actions = {
+            if (!state.yamlMode && state.modifiedKeys.isNotEmpty()) {
+                IconButton(onClick = { viewModel.saveConfig() }) {
+                    Icon(
+                        imageVector = Icons.Filled.Save,
+                        contentDescription = "Save changes",
+                    )
+                }
+            }
+        },
     ) { paddingValues ->
         when {
             state.isLoading && state.config == null -> {

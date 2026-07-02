@@ -1,8 +1,11 @@
 package com.m57.hermescontrol.data.remote
 
+import com.google.gson.JsonElement
 import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
+import com.m57.hermescontrol.data.model.ConfigSchemaResponse
+import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CronJob
@@ -216,6 +219,20 @@ interface HermesApiService {
     @PUT("api/config/raw")
     suspend fun updateRawConfig(
         @Body body: UpdateRawConfigRequest,
+    ): Response<Unit>
+
+    @GET("api/config")
+    suspend fun getConfig(): Response<Map<String, JsonElement>>
+
+    @GET("api/config/schema")
+    suspend fun getConfigSchema(): Response<ConfigSchemaResponse>
+
+    @GET("api/config/defaults")
+    suspend fun getConfigDefaults(): Response<Map<String, JsonElement>>
+
+    @PUT("api/config")
+    suspend fun updateConfig(
+        @Body body: ConfigUpdateRequest,
     ): Response<Unit>
 
     @GET("api/mcp/servers")

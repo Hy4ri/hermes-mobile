@@ -317,7 +317,8 @@
     <string name="config_screen_title">Configuration</string>
     <string name="config_placeholder_yaml">YAML Config...</string>
     <string name="config_action_reset">Reset</string>
-    <string name="config_action_save">Save Config</string>
+    <string name="config_action_save">Save</string>
+    <string name="config_action_save_yaml">Save YAML</string>
 
     <!-- Profiles Screen -->
     <string name="profiles_empty_title">No profiles available</string>

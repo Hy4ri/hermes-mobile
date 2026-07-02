@@ -257,10 +257,7 @@ fun WebhooksScreen(
 
             else -> {
                 LazyColumn(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {

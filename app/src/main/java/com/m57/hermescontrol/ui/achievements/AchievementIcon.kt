@@ -1,0 +1,53 @@
+package com.m57.hermescontrol.ui.achievements
+
+object AchievementIcon {
+    /** Map Lucide icon names to emoji for the mobile app. */
+    fun emoji(icon: String?): String =
+        when (icon) {
+            "flame" -> "\uD83D\uDD25"
+            "avalanche" -> "\u26F0\uFE0F"
+            "nodes" -> "\uD83D\uDD17"
+            "rocket" -> "\uD83D\uDE80"
+            "branch" -> "\uD83C\uDF3F"
+            "daemon" -> "\uD83D\uDC7B"
+            "clock" -> "\uD83D\uDD50"
+            "warning" -> "\u26A0\uFE0F"
+            "wine" -> "\uD83C\uDF77"
+            "scroll" -> "\uD83D\uDCDC"
+            "plug" -> "\uD83D\uDD0C"
+            "lock" -> "\uD83D\uDD12"
+            "package_skull" -> "\uD83D\uDC80"
+            "restart" -> "\uD83D\uDD04"
+            "key" -> "\uD83D\uDD11"
+            "colon" -> "\uFE0F\u003A"
+            "container" -> "\uD83D\uDCE6"
+            "melting_clock" -> "\u23F3"
+            "pencil" -> "\u270F\uFE0F"
+            "blueprint" -> "\uD83D\uDCD0"
+            "pixel" -> "\uD83C\uDFA8"
+            "ship" -> "\uD83D\uDEA2"
+            "spark_cursor" -> "\u2728"
+            "needle" -> "\uD83D\uDCCD"
+            "hammer_scroll" -> "\uD83D\uDD28"
+            "anvil" -> "\u2692\uFE0F"
+            "crystal" -> "\uD83D\uDC8E"
+            "palace" -> "\uD83C\uDFDB\uFE0F"
+            "dragon" -> "\uD83D\uDC09"
+            "antenna" -> "\uD83D\uDCE1"
+            "puzzle" -> "\uD83E\uDDE9"
+            "rewind" -> "\u23EA"
+            "spiral" -> "\uD83C\uDF00"
+            "quote" -> "\uD83D\uDCAC"
+            "compass" -> "\uD83E\uDDED"
+            "browser" -> "\uD83C\uDF10"
+            "terminal" -> "\uD83D\uDCBB"
+            "wand" -> "\uD83E\uDE84"
+            "folder" -> "\uD83D\uDCC1"
+            "eye" -> "\uD83D\uDC41\uFE0F"
+            "wave" -> "\uD83C\uDF0A"
+            "swap" -> "\uD83D\uDD04"
+            "router" -> "\uD83D\uDCF6"
+            "secret" -> "\u2753"
+            else -> "\uD83C\uDFC6" // default trophy
+        }
+}

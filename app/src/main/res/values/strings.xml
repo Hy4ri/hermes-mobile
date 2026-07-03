@@ -346,14 +346,24 @@
     <string name="profiles_empty_desc">Connection profiles from Hermes will appear here.</string>
     <string name="profiles_label_model">Model: %1$s</string>
     <string name="profiles_label_provider">Provider: %1$s</string>
+    <string name="profiles_label_skills">%1$d skills</string>
+    <string name="profiles_label_path">Path: %1$s</string>
+    <string name="profiles_badge_auto_generated">Auto-generated</string>
     <string name="profiles_action_activate">Activate</string>
     <string name="profiles_action_edit_soul">Edit Soul</string>
     <string name="profiles_action_set_model">Set Model</string>
+    <string name="profiles_action_clone">Clone</string>
+    <string name="profiles_action_edit_description">Edit Description</string>
     <string name="profiles_content_desc_active">Active Profile</string>
     <string name="profiles_title_edit_soul">Edit Soul Profile: %1$s</string>
     <string name="profiles_title_set_model">Set Model: %1$s</string>
+    <string name="profiles_title_clone">Clone Profile: %1$s</string>
+    <string name="profiles_title_edit_description">Edit Description: %1$s</string>
     <string name="profiles_label_provider_input">Provider</string>
     <string name="profiles_label_model_input">Model Name</string>
+    <string name="profiles_label_new_name_input">New Profile Name</string>
+    <string name="profiles_label_description_input">Description</string>
+    <string name="profiles_description_placeholder">No description provided. Describe this profile\'s role.</string>
 
     <!-- Plugins Screen -->
     <string name="plugins_empty_title">No plugins found</string>

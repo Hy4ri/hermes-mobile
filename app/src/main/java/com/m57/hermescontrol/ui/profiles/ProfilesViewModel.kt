@@ -2,8 +2,10 @@ package com.m57.hermescontrol.ui.profiles
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
+import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -28,7 +30,9 @@ data class ProfilesUiState(
     val toastMessage: String? = null,
 )
 
-class ProfilesViewModel : ViewModel(), ToastHost {
+class ProfilesViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ProfilesUiState())
     val uiState: StateFlow<ProfilesUiState> = _uiState.asStateFlow()
 
@@ -196,5 +200,79 @@ class ProfilesViewModel : ViewModel(), ToastHost {
 
     fun closeSoulDialog() {
         _uiState.update { it.copy(selectedSoulContent = null) }
+    }
+
+    fun cloneProfile(
+        sourceProfileName: String,
+        newProfileName: String,
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.cloneProfile(
+                            sourceProfileName,
+                            CloneProfileRequest(newProfileName),
+                        )
+                    }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Profile cloned successfully",
+                        )
+                    }
+                    loadProfiles()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to clone profile: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun updateProfileDescription(
+        profileName: String,
+        description: String,
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.updateProfileDescription(
+                            profileName,
+                            UpdateProfileDescriptionRequest(description),
+                        )
+                    }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Profile description updated",
+                        )
+                    }
+                    loadProfiles()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to update description: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 }

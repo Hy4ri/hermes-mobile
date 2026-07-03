@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
+import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
@@ -52,6 +53,7 @@ import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
+import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
@@ -180,6 +182,18 @@ interface HermesApiService {
     suspend fun updateProfileModel(
         @Path("name") name: String,
         @Body body: UpdateProfileModelRequest,
+    ): Response<Unit>
+
+    @POST("api/profiles/{name}/clone")
+    suspend fun cloneProfile(
+        @Path("name") name: String,
+        @Body body: CloneProfileRequest,
+    ): Response<Unit>
+
+    @PUT("api/profiles/{name}/description")
+    suspend fun updateProfileDescription(
+        @Path("name") name: String,
+        @Body body: UpdateProfileDescriptionRequest,
     ): Response<Unit>
 
     @GET("api/tools/toolsets")

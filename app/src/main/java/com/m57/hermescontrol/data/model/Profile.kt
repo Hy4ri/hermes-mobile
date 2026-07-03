@@ -14,6 +14,7 @@ data class ProfileInfo(
     val skill_count: Int?,
     val gateway_running: Boolean?,
     val description: String?,
+    val description_auto: Boolean?,
 )
 
 data class ActiveProfileResponse(
@@ -36,4 +37,12 @@ data class UpdateProfileSoulRequest(
 data class UpdateProfileModelRequest(
     val provider: String,
     val model: String,
+)
+
+data class CloneProfileRequest(
+    val name: String,
+)
+
+data class UpdateProfileDescriptionRequest(
+    val description: String,
 )

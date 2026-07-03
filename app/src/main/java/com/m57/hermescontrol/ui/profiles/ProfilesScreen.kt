@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.profiles
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,16 +14,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,7 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,6 +70,12 @@ fun ProfilesScreen(
     var modelEditProfileName by remember { mutableStateOf<String?>(null) }
     var tempModelProvider by remember { mutableStateOf("") }
     var tempModelName by remember { mutableStateOf("") }
+
+    var cloneProfileName by remember { mutableStateOf<String?>(null) }
+    var newCloneName by remember { mutableStateOf("") }
+
+    var descEditProfileName by remember { mutableStateOf<String?>(null) }
+    var tempDescription by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         viewModel.loadProfiles()
@@ -155,13 +169,49 @@ fun ProfilesScreen(
                                                     style = MaterialTheme.typography.titleLarge,
                                                     fontWeight = FontWeight.Bold,
                                                 )
-                                                profile.description?.let {
-                                                    if (it.isNotBlank()) {
-                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                val descriptionText =
+                                                    if (!profile.description.isNullOrBlank()) {
+                                                        profile.description
+                                                    } else {
+                                                        stringResource(R.string.profiles_description_placeholder)
+                                                    }
+                                                val isPlaceholder = profile.description.isNullOrBlank()
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = descriptionText,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontStyle =
+                                                        if (isPlaceholder) {
+                                                            FontStyle.Italic
+                                                        } else {
+                                                            FontStyle.Normal
+                                                        },
+                                                    color =
+                                                        if (isPlaceholder) {
+                                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                                alpha = 0.6f,
+                                                            )
+                                                        } else {
+                                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                                        },
+                                                )
+                                                if (profile.description_auto == true) {
+                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    Box(
+                                                        modifier =
+                                                            Modifier
+                                                                .clip(RoundedCornerShape(4.dp))
+                                                                .background(MaterialTheme.colorScheme.errorContainer)
+                                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    ) {
                                                         Text(
-                                                            text = it,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            text =
+                                                                stringResource(
+                                                                    R.string.profiles_badge_auto_generated,
+                                                                ),
+                                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontWeight = FontWeight.Bold,
                                                         )
                                                     }
                                                 }
@@ -186,7 +236,7 @@ fun ProfilesScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            Column {
+                                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                                 Text(
                                                     text =
                                                         stringResource(
@@ -204,6 +254,25 @@ fun ProfilesScreen(
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
+                                                Text(
+                                                    text =
+                                                        stringResource(
+                                                            R.string.profiles_label_skills,
+                                                            profile.skill_count ?: 0,
+                                                        ),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                                profile.path?.let {
+                                                    Text(
+                                                        text = stringResource(R.string.profiles_label_path, it),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color =
+                                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                                alpha = 0.8f,
+                                                            ),
+                                                    )
+                                                }
                                             }
                                         }
 
@@ -224,6 +293,7 @@ fun ProfilesScreen(
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.End,
+                                            verticalAlignment = Alignment.CenterVertically,
                                         ) {
                                             OutlinedButton(
                                                 onClick = {
@@ -247,8 +317,48 @@ fun ProfilesScreen(
                                                     tempModelProvider = profile.provider ?: ""
                                                     tempModelName = profile.model ?: ""
                                                 },
+                                                modifier = Modifier.padding(end = 8.dp),
                                             ) {
                                                 Text(stringResource(R.string.profiles_action_set_model))
+                                            }
+
+                                            var showMenu by remember { mutableStateOf(false) }
+
+                                            Box {
+                                                IconButton(onClick = { showMenu = true }) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.MoreVert,
+                                                        contentDescription = "More options",
+                                                    )
+                                                }
+
+                                                DropdownMenu(
+                                                    expanded = showMenu,
+                                                    onDismissRequest = { showMenu = false },
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                stringResource(
+                                                                    R.string.profiles_action_edit_description,
+                                                                ),
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showMenu = false
+                                                            descEditProfileName = profile.name
+                                                            tempDescription = profile.description ?: ""
+                                                        },
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.profiles_action_clone)) },
+                                                        onClick = {
+                                                            showMenu = false
+                                                            cloneProfileName = profile.name
+                                                            newCloneName = ""
+                                                        },
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -374,6 +484,95 @@ fun ProfilesScreen(
             dismissButton = {
                 TextButton(
                     onClick = { modelEditProfileName = null },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (cloneProfileName != null) {
+        AlertDialog(
+            onDismissRequest = { cloneProfileName = null },
+            title = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.profiles_title_clone,
+                            cloneProfileName.orEmpty(),
+                        ),
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = newCloneName,
+                    onValueChange = { newCloneName = it },
+                    label = { Text(stringResource(R.string.profiles_label_new_name_input)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val sourceName = cloneProfileName
+                        if (sourceName != null && newCloneName.isNotBlank()) {
+                            viewModel.cloneProfile(sourceName, newCloneName)
+                        }
+                        cloneProfileName = null
+                    },
+                    enabled = newCloneName.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.profiles_action_clone))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { cloneProfileName = null },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (descEditProfileName != null) {
+        AlertDialog(
+            onDismissRequest = { descEditProfileName = null },
+            title = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.profiles_title_edit_description,
+                            descEditProfileName.orEmpty(),
+                        ),
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = tempDescription,
+                    onValueChange = { tempDescription = it },
+                    label = { Text(stringResource(R.string.profiles_label_description_input)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 4,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val profileName = descEditProfileName
+                        if (profileName != null) {
+                            viewModel.updateProfileDescription(profileName, tempDescription)
+                        }
+                        descEditProfileName = null
+                    },
+                ) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { descEditProfileName = null },
                 ) {
                     Text(stringResource(R.string.action_cancel))
                 }

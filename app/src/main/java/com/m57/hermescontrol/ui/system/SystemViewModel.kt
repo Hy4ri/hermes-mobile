@@ -599,7 +599,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                         }
                     if (result is NetworkResult.Success) {
                         _uiState.update { it.copy(actionLog = result.data) }
-                        if (!result.data.running) {
+                        if (result.data.running != true) {
                             loadAll()
                             break
                         }

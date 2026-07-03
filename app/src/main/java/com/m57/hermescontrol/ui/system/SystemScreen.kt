@@ -48,7 +48,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SmallFilledTonalButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -919,7 +918,7 @@ private fun MemorySection(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                         ) {
-                            SmallFilledTonalButton(
+                            FilledTonalButton(
                                 onClick = { onResetRequest("memory") },
                                 modifier = Modifier.weight(1f),
                             ) {
@@ -927,7 +926,7 @@ private fun MemorySection(
                                 Spacer(modifier = Modifier.size(spacing.xs))
                                 Text(stringResource(R.string.system_memory_reset_memory), maxLines = 1)
                             }
-                            SmallFilledTonalButton(
+                            FilledTonalButton(
                                 onClick = { onResetRequest("user") },
                                 modifier = Modifier.weight(1f),
                             ) {
@@ -935,7 +934,7 @@ private fun MemorySection(
                                 Spacer(modifier = Modifier.size(spacing.xs))
                                 Text(stringResource(R.string.system_memory_reset_user), maxLines = 1)
                             }
-                            SmallFilledTonalButton(
+                            FilledTonalButton(
                                 onClick = { onResetRequest("all") },
                                 modifier = Modifier.weight(1f),
                             ) {
@@ -1150,7 +1149,7 @@ private fun OperationsSection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
-                    SmallFilledTonalButton(
+                    FilledTonalButton(
                         onClick = {
                             // loadAll already fetches doctor report, just call it
                             viewModel.loadAll()
@@ -1161,7 +1160,7 @@ private fun OperationsSection(
                         Spacer(modifier = Modifier.size(spacing.xs))
                         Text(stringResource(R.string.system_op_doctor), maxLines = 1)
                     }
-                    SmallFilledTonalButton(
+                    FilledTonalButton(
                         onClick = { viewModel.runSecurityAudit() },
                         modifier = Modifier.weight(1f),
                     ) {
@@ -1169,7 +1168,7 @@ private fun OperationsSection(
                         Spacer(modifier = Modifier.size(spacing.xs))
                         Text(stringResource(R.string.system_op_security_audit), maxLines = 1)
                     }
-                    SmallFilledTonalButton(
+                    FilledTonalButton(
                         onClick = { viewModel.runUpdateSkills() },
                         modifier = Modifier.weight(1f),
                     ) {
@@ -1186,7 +1185,7 @@ private fun OperationsSection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
-                    SmallFilledTonalButton(
+                    FilledTonalButton(
                         onClick = { viewModel.runPromptSize() },
                         modifier = Modifier.weight(1f),
                     ) {
@@ -1194,7 +1193,7 @@ private fun OperationsSection(
                         Spacer(modifier = Modifier.size(spacing.xs))
                         Text(stringResource(R.string.system_op_prompt_size), maxLines = 1)
                     }
-                    SmallFilledTonalButton(
+                    FilledTonalButton(
                         onClick = { viewModel.runDump() },
                         modifier = Modifier.weight(1f),
                     ) {
@@ -1202,7 +1201,7 @@ private fun OperationsSection(
                         Spacer(modifier = Modifier.size(spacing.xs))
                         Text(stringResource(R.string.system_op_dump), maxLines = 1)
                     }
-                    SmallFilledTonalButton(
+                    FilledTonalButton(
                         onClick = { viewModel.runConfigMigrate() },
                         modifier = Modifier.weight(1f),
                     ) {

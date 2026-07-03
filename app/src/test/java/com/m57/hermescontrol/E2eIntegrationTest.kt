@@ -983,32 +983,42 @@ class E2eIntegrationTest {
             val doctor = DoctorResponse(true, 24856, "doctor")
             coEvery { mockApiService.getSystemStats() } returns Response.success(stats)
             coEvery { mockApiService.runDoctor() } returns Response.success(doctor)
-            coEvery { mockApiService.getStatus() } returns Response.success(StatusResponse("1.0", true, 0, false, null))
+            coEvery { mockApiService.getStatus() } returns
+                Response.success(StatusResponse("1.0", true, 0, false, null))
             coEvery { mockApiService.getPortal() } returns
-                Response.success(
-                    PortalResponse(false, null, null, null, null, null),
-                )
-            coEvery { mockApiService.getCurator() } returns Response.success(CuratorResponse())
-            coEvery { mockApiService.getMemory() } returns Response.success(MemoryResponse())
-            coEvery { mockApiService.getCredentialPool() } returns Response.success(CredentialPoolResponse())
-            coEvery { mockApiService.getCheckpoints() } returns Response.success(CheckpointsResponse())
-            coEvery { mockApiService.getHooks() } returns Response.success(HookResponse())
-            coEvery { mockApiService.checkHermesUpdate(false) } returns Response.success(UpdateCheckResponse())
+                Response.success(PortalResponse(logged_in = false))
+            coEvery { mockApiService.getCurator() } returns
+                Response.success(CuratorResponse())
+            coEvery { mockApiService.getMemory() } returns
+                Response.success(MemoryResponse())
+            coEvery { mockApiService.getCredentialPool() } returns
+                Response.success(CredentialPoolResponse())
+            coEvery { mockApiService.getCheckpoints() } returns
+                Response.success(CheckpointsResponse())
+            coEvery { mockApiService.getHooks() } returns
+                Response.success(HookResponse())
+            coEvery { mockApiService.checkHermesUpdate(false) } returns
+                Response.success(UpdateCheckResponse())
             coEvery { mockApiService.triggerBackup() } returns Response.success(Unit)
 
+            // Use a fresh mockApiService for each endpoint setup
             val viewModel = SystemViewModel()
             viewModel.loadAll()
+            // Run the initial launch, then advance all idle coroutines
+            runCurrent()
             advanceUntilIdle()
 
+            assertNotNull(
+                viewModel.uiState.value.stats,
+                "stats should not be null after loadAll()",
+            )
             assertEquals(
                 50.0,
-                viewModel.uiState.value.stats
-                    ?.cpu_percent,
+                viewModel.uiState.value.stats?.cpu_percent,
             )
             assertEquals(
                 true,
-                viewModel.uiState.value.doctorReport
-                    ?.ok,
+                viewModel.uiState.value.doctorReport?.ok,
             )
 
             viewModel.triggerBackup()

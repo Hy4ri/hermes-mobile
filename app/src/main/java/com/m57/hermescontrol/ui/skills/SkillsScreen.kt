@@ -91,7 +91,7 @@ fun SkillsScreen(
     HermesScaffold(
         modifier = modifier,
         title = { Text(stringResource(R.string.skills_screen_title)) },
-        navigationIcon = NavIcon.OpenDrawer(onClick = onOpenDrawer),
+        navigationIcon = NavIcon.Menu(onClick = onOpenDrawer),
         actions = {
             if (state.viewMode == SkillsViewMode.INSTALLED) {
                 IconButton(onClick = { viewModel.updateSkillsFromHub() }) {
@@ -317,7 +317,7 @@ private fun InstalledSkillsView(
                 )
             else ->
                 LazyColumn(
-                    modifier = Modifier.listContentPadding(),
+                    modifier = Modifier.padding(listContentPadding),
                     verticalArrangement = listItemSpacing,
                 ) {
                     items(filteredSkills, key = { it.name }) { skill ->
@@ -549,7 +549,7 @@ private fun HubBrowseView(
             }
             state.hubResults.isNotEmpty() ->
                 LazyColumn(
-                    modifier = Modifier.listContentPadding(),
+                    modifier = Modifier.padding(listContentPadding),
                     verticalArrangement = listItemSpacing,
                 ) {
                     items(state.hubResults, key = { it.name }) { hubSkill ->

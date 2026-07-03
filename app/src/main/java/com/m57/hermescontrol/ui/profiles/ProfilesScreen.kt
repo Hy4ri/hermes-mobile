@@ -566,10 +566,13 @@ fun ProfilesScreen(
                 )
             },
             text = {
+                val errorMsg = if (newCloneName.isNotEmpty()) validateProfileName(newCloneName) else null
                 OutlinedTextField(
                     value = newCloneName,
                     onValueChange = { newCloneName = it },
                     label = { Text(stringResource(R.string.profiles_label_new_name_input)) },
+                    isError = errorMsg != null,
+                    supportingText = errorMsg?.let { { Text(it) } },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -578,12 +581,14 @@ fun ProfilesScreen(
                 TextButton(
                     onClick = {
                         val sourceName = cloneProfileName
-                        if (sourceName != null && newCloneName.isNotBlank()) {
+                        if (sourceName != null && newCloneName.isNotBlank() &&
+                            validateProfileName(newCloneName) == null
+                        ) {
                             viewModel.cloneProfile(sourceName, newCloneName)
                         }
                         cloneProfileName = null
                     },
-                    enabled = newCloneName.isNotBlank(),
+                    enabled = newCloneName.isNotBlank() && validateProfileName(newCloneName) == null,
                 ) {
                     Text(stringResource(R.string.profiles_action_clone))
                 }
@@ -687,7 +692,7 @@ fun ProfileBuilderView(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Step $step of 5",
+                text = stringResource(R.string.profiles_builder_step_indicator, step),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -695,11 +700,11 @@ fun ProfileBuilderView(
             Text(
                 text =
                     when (step) {
-                        1 -> "Identity"
-                        2 -> "Model Configuration"
-                        3 -> "Skills selection"
-                        4 -> "MCP Servers"
-                        else -> "Review & Create"
+                        1 -> stringResource(R.string.profiles_builder_step_identity)
+                        2 -> stringResource(R.string.profiles_builder_step_model)
+                        3 -> stringResource(R.string.profiles_builder_step_skills)
+                        4 -> stringResource(R.string.profiles_builder_step_mcp)
+                        else -> stringResource(R.string.profiles_builder_step_review)
                     },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
@@ -812,11 +817,11 @@ fun ProfileBuilderView(
         ) {
             if (step > 1) {
                 OutlinedButton(onClick = { step-- }) {
-                    Text("Back")
+                    Text(stringResource(R.string.profiles_builder_action_back))
                 }
             } else {
                 OutlinedButton(onClick = onCancel) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
 
@@ -829,7 +834,7 @@ fun ProfileBuilderView(
                             else -> true
                         },
                 ) {
-                    Text("Next")
+                    Text(stringResource(R.string.profiles_builder_action_next))
                 }
             } else {
                 Button(
@@ -855,7 +860,7 @@ fun ProfileBuilderView(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text("Create Profile")
+                        Text(stringResource(R.string.profiles_builder_action_create))
                     }
                 }
             }
@@ -885,7 +890,7 @@ private fun IdentityStep(
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
-            label = { Text("Profile Name") },
+            label = { Text(stringResource(R.string.profiles_builder_label_profile_name)) },
             placeholder = { Text("my-agent-profile") },
             isError = nameError != null,
             supportingText = nameError?.let { { Text(it) } },
@@ -896,7 +901,7 @@ private fun IdentityStep(
         OutlinedTextField(
             value = description,
             onValueChange = onDescriptionChange,
-            label = { Text("Description") },
+            label = { Text(stringResource(R.string.profiles_builder_label_description)) },
             placeholder = { Text("Describe the purpose of this profile") },
             modifier = Modifier.fillMaxWidth(),
             maxLines = 4,
@@ -920,7 +925,7 @@ private fun ModelStep(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            text = "Select Provider (Optional)",
+            text = stringResource(R.string.profiles_builder_title_provider),
             style = MaterialTheme.typography.titleSmall,
         )
         Row(
@@ -928,9 +933,9 @@ private fun ModelStep(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             providers.forEach { provider ->
-                val isSelected = selectedProvider == provider.name
+                val isSelected = selectedProvider == provider.slug
                 OutlinedButton(
-                    onClick = { onProviderChange(provider.name) },
+                    onClick = { onProviderChange(provider.slug) },
                     modifier = Modifier.weight(1f),
                     colors =
                         if (isSelected) {
@@ -947,10 +952,10 @@ private fun ModelStep(
         }
 
         if (selectedProvider.isNotBlank()) {
-            val providerObj = providers.find { it.name == selectedProvider }
+            val providerObj = providers.find { it.slug == selectedProvider }
             providerObj?.models?.let { models ->
                 Text(
-                    text = "Select Model",
+                    text = stringResource(R.string.profiles_builder_title_model),
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Column(
@@ -1031,11 +1036,11 @@ private fun SkillsStep(
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(
-                    text = "Include default skills bundle",
+                    text = stringResource(R.string.profiles_builder_skills_default),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    text = "Automatically bundles common system tools",
+                    text = stringResource(R.string.profiles_builder_skills_default_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1046,7 +1051,7 @@ private fun SkillsStep(
 
         if (!useDefaultSkills) {
             Text(
-                text = "Select Local Skills",
+                text = stringResource(R.string.profiles_builder_skills_local),
                 style = MaterialTheme.typography.titleSmall,
             )
             LazyColumn(
@@ -1101,7 +1106,7 @@ private fun SkillsStep(
         } else {
             // Browse and add Skills from Hermes Hub
             Text(
-                text = "Add Skills from Hermes Hub",
+                text = stringResource(R.string.profiles_builder_skills_hub_title),
                 style = MaterialTheme.typography.titleSmall,
             )
 
@@ -1112,7 +1117,7 @@ private fun SkillsStep(
                 OutlinedTextField(
                     value = hubSearchQuery,
                     onValueChange = { hubSearchQuery = it },
-                    label = { Text("Search Hub") },
+                    label = { Text(stringResource(R.string.profiles_builder_skills_search_hub)) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                 )
@@ -1134,7 +1139,7 @@ private fun SkillsStep(
 
             if (addedHubSkills.isNotEmpty()) {
                 Text(
-                    text = "Added Skills:",
+                    text = stringResource(R.string.profiles_builder_skills_added),
                     style = MaterialTheme.typography.labelMedium,
                 )
                 LazyColumn(
@@ -1177,7 +1182,7 @@ private fun SkillsStep(
 
             if (hubSearchResults.isNotEmpty()) {
                 Text(
-                    text = "Search Results:",
+                    text = stringResource(R.string.profiles_builder_skills_search_results),
                     style = MaterialTheme.typography.labelMedium,
                 )
                 LazyColumn(
@@ -1208,6 +1213,14 @@ private fun SkillsStep(
                                         text = it,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                if (!skill.source.isNullOrBlank()) {
+                                    Text(
+                                        text = "Source: ${skill.source}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontStyle = FontStyle.Italic,
                                     )
                                 }
                             }
@@ -1264,11 +1277,11 @@ private fun McpStep(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Configured MCP Servers",
+                text = stringResource(R.string.profiles_builder_mcp_title),
                 style = MaterialTheme.typography.titleSmall,
             )
             Button(onClick = { showAddDialog = true }) {
-                Text("Add Server")
+                Text(stringResource(R.string.profiles_builder_mcp_add))
             }
         }
 
@@ -1281,7 +1294,7 @@ private fun McpStep(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "No MCP servers configured yet",
+                    text = stringResource(R.string.profiles_builder_mcp_none),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -1365,7 +1378,7 @@ private fun AddMcpDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add MCP Server") },
+        title = { Text(stringResource(R.string.profiles_builder_mcp_dialog_title)) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -1373,14 +1386,14 @@ private fun AddMcpDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Server Name") },
+                    label = { Text(stringResource(R.string.profiles_builder_mcp_name)) },
                     placeholder = { Text("postgres-mcp") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
 
                 Text(
-                    text = "Transport Protocol",
+                    text = stringResource(R.string.profiles_builder_mcp_transport),
                     style = MaterialTheme.typography.labelMedium,
                 )
 
@@ -1400,7 +1413,7 @@ private fun AddMcpDialog(
                                 ButtonDefaults.outlinedButtonColors()
                             },
                     ) {
-                        Text("SSE (HTTP)")
+                        Text(stringResource(R.string.profiles_builder_mcp_transport_sse))
                     }
 
                     OutlinedButton(
@@ -1415,7 +1428,7 @@ private fun AddMcpDialog(
                                 ButtonDefaults.outlinedButtonColors()
                             },
                     ) {
-                        Text("Stdio")
+                        Text(stringResource(R.string.profiles_builder_mcp_transport_stdio))
                     }
                 }
 
@@ -1423,7 +1436,7 @@ private fun AddMcpDialog(
                     OutlinedTextField(
                         value = url,
                         onValueChange = { url = it },
-                        label = { Text("SSE URL") },
+                        label = { Text(stringResource(R.string.profiles_builder_mcp_sse_url)) },
                         placeholder = { Text("http://localhost:8000/sse") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -1432,7 +1445,7 @@ private fun AddMcpDialog(
                     OutlinedTextField(
                         value = command,
                         onValueChange = { command = it },
-                        label = { Text("Command") },
+                        label = { Text(stringResource(R.string.profiles_builder_mcp_command)) },
                         placeholder = { Text("npx") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -1440,7 +1453,7 @@ private fun AddMcpDialog(
                     OutlinedTextField(
                         value = argsInput,
                         onValueChange = { argsInput = it },
-                        label = { Text("Arguments (comma separated)") },
+                        label = { Text(stringResource(R.string.profiles_builder_mcp_args)) },
                         placeholder = {
                             Text("-y, @modelcontextprotocol/server-postgres")
                         },
@@ -1474,12 +1487,12 @@ private fun AddMcpDialog(
                             (transport == "stdio" && command.isNotBlank())
                     ),
             ) {
-                Text("Add")
+                Text(stringResource(R.string.profiles_builder_action_add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.action_cancel))
             }
         },
     )
@@ -1506,7 +1519,7 @@ private fun ReviewStep(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Profile Name",
+                    text = stringResource(R.string.profiles_builder_review_name),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1519,7 +1532,7 @@ private fun ReviewStep(
                 if (description.isNotBlank()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Description",
+                        text = stringResource(R.string.profiles_builder_review_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1534,22 +1547,22 @@ private fun ReviewStep(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Model Settings",
+                    text = stringResource(R.string.profiles_builder_review_model_settings),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (provider.isNotBlank() && model.isNotBlank()) {
                     Text(
-                        text = "Provider: $provider",
+                        text = stringResource(R.string.profiles_builder_review_provider, provider),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        text = "Model: $model",
+                        text = stringResource(R.string.profiles_builder_review_model, model),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
                     Text(
-                        text = "Using system defaults",
+                        text = stringResource(R.string.profiles_builder_review_system_defaults),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -1559,18 +1572,18 @@ private fun ReviewStep(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Skills Configuration",
+                    text = stringResource(R.string.profiles_builder_review_skills_title),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (useDefaultSkills) {
                     Text(
-                        text = "Full Default Bundle",
+                        text = stringResource(R.string.profiles_builder_review_skills_default),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
                     Text(
-                        text = "${selectedSkills.size} local skills selected",
+                        text = stringResource(R.string.profiles_builder_review_skills_local, selectedSkills.size),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -1578,7 +1591,7 @@ private fun ReviewStep(
                 if (addedHubSkills.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${addedHubSkills.size} hub skills added",
+                        text = stringResource(R.string.profiles_builder_review_skills_hub, addedHubSkills.size),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -1588,7 +1601,7 @@ private fun ReviewStep(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "MCP Servers",
+                    text = stringResource(R.string.profiles_builder_review_mcp_title),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1601,7 +1614,7 @@ private fun ReviewStep(
                     }
                 } else {
                     Text(
-                        text = "No MCP servers configured",
+                        text = stringResource(R.string.profiles_builder_review_mcp_none),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

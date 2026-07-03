@@ -232,7 +232,7 @@ class ProfilesViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            toastMessage = "Profile cloned successfully",
+                            toastMessage = "Profile '$sourceProfileName' cloned successfully to '$newProfileName'",
                         )
                     }
                     loadProfiles()
@@ -242,7 +242,7 @@ class ProfilesViewModel :
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = "Failed to clone profile: ${result.error.message}",
+                            toastMessage = "Failed to clone profile '$sourceProfileName': ${result.error.message}",
                         )
                     }
                 }
@@ -269,7 +269,7 @@ class ProfilesViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            toastMessage = "Profile description updated",
+                            toastMessage = "Profile '$profileName' description updated",
                         )
                     }
                     loadProfiles()
@@ -279,7 +279,7 @@ class ProfilesViewModel :
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            toastMessage = "Failed to update description: ${result.error.message}",
+                            toastMessage = "Failed to update description for '$profileName': ${result.error.message}",
                         )
                     }
                 }

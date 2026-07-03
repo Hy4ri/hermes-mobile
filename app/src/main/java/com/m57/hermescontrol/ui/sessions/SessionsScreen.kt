@@ -243,9 +243,10 @@ fun SessionsScreen(
 
     // Single-session delete confirmation dialog
     if (state.sessionToDeleteConfirm != null) {
+        val sessionToDelete = state.sessionToDeleteConfirm
         val sessionTitle =
             state.sessions
-                .find { it.id == state.sessionToDeleteConfirm }
+                .find { it.id == sessionToDelete }
                 ?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
         AlertDialog(
             onDismissRequest = { viewModel.cancelDeleteSession() },
@@ -317,8 +318,9 @@ fun SessionsScreen(
             }
 
             state.errorMessage != null -> {
+                val errorMsg = state.errorMessage
                 ErrorState(
-                    message = state.errorMessage ?: stringResource(R.string.error_unknown),
+                    message = errorMsg ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.loadSessions() },
                 )
             }
@@ -385,9 +387,10 @@ fun SessionsScreen(
                         }
                     }
                     // Stats error snack
-                    if (state.statsError != null) {
+                    val statsError = state.statsError
+                    if (statsError != null) {
                         Text(
-                            text = state.statsError,
+                            text = statsError,
                             style = MaterialTheme.typography.labelSmall,
                             color = statusColors.error,
                             modifier = Modifier.padding(horizontal = spacing.md),

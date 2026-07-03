@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Preview
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -301,7 +302,7 @@ private fun InstalledSkillsView(
             else ->
                 LazyColumn(
                     modifier = Modifier.listContentPadding(),
-                    verticalArrangement = Arrangement.spacedBy(listItemSpacing),
+                    verticalArrangement = listItemSpacing,
                 ) {
                     items(filteredSkills, key = { it.name }) { skill ->
                         SkillCard(
@@ -532,7 +533,7 @@ private fun HubBrowseView(
             state.hubResults.isNotEmpty() ->
                 LazyColumn(
                     modifier = Modifier.listContentPadding(),
-                    verticalArrangement = Arrangement.spacedBy(listItemSpacing),
+                    verticalArrangement = listItemSpacing,
                 ) {
                     items(state.hubResults, key = { it.name }) { hubSkill ->
                         HubSkillCard(

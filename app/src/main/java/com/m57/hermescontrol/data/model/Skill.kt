@@ -6,7 +6,7 @@ data class Skill(
     val category: String?,
     val enabled: Boolean,
     val content: String? = null,
-    val source: String? = null,  // built-in, hub, optional
+    val source: String? = null, // built-in, hub, optional
     val pinned: Boolean? = null,
     val linked_files: List<String>? = null,
 )

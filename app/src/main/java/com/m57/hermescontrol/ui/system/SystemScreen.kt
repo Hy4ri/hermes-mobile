@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -277,55 +278,35 @@ fun SystemScreen(
                     verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     // ── 1. Host ────────────────────────────────────────────
-                    item {
-                        HostSection(state, spacing, statusColors, viewModel)
-                    }
+                    hostSection(state, spacing, statusColors, viewModel)
 
                     // ── 2. Portal ──────────────────────────────────────────
-                    item {
-                        PortalSection(state, spacing, uriHandler)
-                    }
+                    portalSection(state, spacing, uriHandler)
 
                     // ── 3. Curator ─────────────────────────────────────────
-                    item {
-                        CuratorSection(state, spacing, statusColors, viewModel)
-                    }
+                    curatorSection(state, spacing, statusColors, viewModel)
 
                     // ── 4. Gateway ─────────────────────────────────────────
-                    item {
-                        GatewaySection(state, spacing, statusColors, viewModel)
-                    }
+                    gatewaySection(state, spacing, statusColors, viewModel)
 
                     // ── 5. Memory ──────────────────────────────────────────
-                    item {
-                        MemorySection(state, spacing, resetTarget, { resetTarget = it }, viewModel)
-                    }
+                    memorySection(state, spacing, resetTarget, { resetTarget = it }, viewModel)
 
                     // ── 6. Credentials ─────────────────────────────────────
-                    item {
-                        CredentialsSection(state, spacing, viewModel, credToRemove, { credToRemove = it })
-                    }
+                    credentialsSection(state, spacing, viewModel, credToRemove, { credToRemove = it })
 
                     // ── 7. Operations ──────────────────────────────────────
-                    item {
-                        OperationsSection(state, spacing, viewModel, importConfirm, { importConfirm = it })
-                    }
+                    operationsSection(state, spacing, viewModel, importConfirm, { importConfirm = it })
 
                     // ── 8. Checkpoints ─────────────────────────────────────
-                    item {
-                        CheckpointsSection(state, spacing, pruneConfirm, { pruneConfirm = it })
-                    }
+                    checkpointsSection(state, spacing, pruneConfirm, { pruneConfirm = it })
 
                     // ── 9. Shell Hooks ─────────────────────────────────────
-                    item {
-                        ShellHooksSection(state, spacing, viewModel)
-                    }
+                    shellHooksSection(state, spacing, viewModel)
 
                     // ── 10. Action Log ─────────────────────────────────────
                     if (state.activeAction != null) {
-                        item {
-                            ActionLogSection(state, viewModel)
-                        }
+                        actionLogSection(state, viewModel)
                     }
                 }
             }
@@ -336,8 +317,7 @@ fun SystemScreen(
 // ── Section composables ─────────────────────────────────────────────────
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-private fun HostSection(
+private fun LazyListScope.hostSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     statusColors: com.m57.hermescontrol.theme.HermesStatusColors,
@@ -528,8 +508,7 @@ private fun HostSection(
     }
 }
 
-@Composable
-private fun PortalSection(
+private fun LazyListScope.portalSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     uriHandler: androidx.compose.ui.platform.UriHandler,
@@ -609,8 +588,7 @@ private fun PortalSection(
     }
 }
 
-@Composable
-private fun CuratorSection(
+private fun LazyListScope.curatorSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     statusColors: com.m57.hermescontrol.theme.HermesStatusColors,
@@ -714,8 +692,7 @@ private fun CuratorSection(
     }
 }
 
-@Composable
-private fun GatewaySection(
+private fun LazyListScope.gatewaySection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     statusColors: com.m57.hermescontrol.theme.HermesStatusColors,
@@ -881,8 +858,7 @@ private fun GatewaySection(
     }
 }
 
-@Composable
-private fun MemorySection(
+private fun LazyListScope.memorySection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     resetTarget: String?,
@@ -974,8 +950,7 @@ private fun MemorySection(
     }
 }
 
-@Composable
-private fun CredentialsSection(
+private fun LazyListScope.credentialsSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     viewModel: SystemViewModel,
@@ -1144,8 +1119,7 @@ private fun CredentialEntryRow(
     }
 }
 
-@Composable
-private fun OperationsSection(
+private fun LazyListScope.operationsSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     viewModel: SystemViewModel,
@@ -1416,8 +1390,7 @@ private fun OperationsSection(
     }
 }
 
-@Composable
-private fun CheckpointsSection(
+private fun LazyListScope.checkpointsSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     pruneConfirm: Boolean,
@@ -1469,8 +1442,7 @@ private fun CheckpointsSection(
     }
 }
 
-@Composable
-private fun ShellHooksSection(
+private fun LazyListScope.shellHooksSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
     viewModel: SystemViewModel,
@@ -1677,8 +1649,7 @@ private fun HookCard(
     }
 }
 
-@Composable
-private fun ActionLogSection(
+private fun LazyListScope.actionLogSection(
     state: SystemUiState,
     viewModel: SystemViewModel,
 ) {

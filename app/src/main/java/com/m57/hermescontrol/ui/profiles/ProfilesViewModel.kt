@@ -3,8 +3,13 @@ package com.m57.hermescontrol.ui.profiles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.CloneProfileRequest
+import com.m57.hermescontrol.data.model.CreateProfileRequest
+import com.m57.hermescontrol.data.model.HubSkill
+import com.m57.hermescontrol.data.model.McpServerConfigInput
+import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
+import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
@@ -28,6 +33,12 @@ data class ProfilesUiState(
     val isLoadingSoul: Boolean = false,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    // Profile Builder states
+    val modelProviders: List<ModelProvider> = emptyList(),
+    val isLoadingBuilderData: Boolean = false,
+    val availableSkills: List<Skill> = emptyList(),
+    val hubSearchResults: List<HubSkill> = emptyList(),
+    val isSearchingHub: Boolean = false,
 )
 
 class ProfilesViewModel :
@@ -269,6 +280,102 @@ class ProfilesViewModel :
                         it.copy(
                             isLoading = false,
                             toastMessage = "Failed to update description: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun loadBuilderData() {
+        _uiState.update { it.copy(isLoadingBuilderData = true, errorMessage = null) }
+        viewModelScope.launch {
+            val modelsResult =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getModelOptions() }
+                }
+            val skillsResult =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getSkills() }
+                }
+
+            if (modelsResult is NetworkResult.Success && skillsResult is NetworkResult.Success) {
+                _uiState.update {
+                    it.copy(
+                        isLoadingBuilderData = false,
+                        modelProviders = modelsResult.data.providers,
+                        availableSkills = skillsResult.data,
+                    )
+                }
+            } else {
+                val modelsError = (modelsResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+                val skillsError = (skillsResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+                _uiState.update {
+                    it.copy(
+                        isLoadingBuilderData = false,
+                        errorMessage = "Failed to load builder data: Models: $modelsError, Skills: $skillsError",
+                    )
+                }
+            }
+        }
+    }
+
+    fun searchHub(query: String) {
+        if (query.isBlank()) return
+        _uiState.update { it.copy(isSearchingHub = true) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.searchSkillsHub(query) }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isSearchingHub = false,
+                            hubSearchResults = result.data,
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isSearchingHub = false,
+                            toastMessage = "Failed to search skills hub: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun createProfile(
+        request: CreateProfileRequest,
+        onSuccess: () -> Unit,
+    ) {
+        _uiState.update { it.copy(isLoading = true) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.createProfile(request) }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Profile ${request.name} created successfully",
+                        )
+                    }
+                    loadProfiles()
+                    onSuccess()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to create profile: ${result.error.message}",
                         )
                     }
                 }

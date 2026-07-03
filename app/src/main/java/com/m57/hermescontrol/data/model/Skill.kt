@@ -7,3 +7,9 @@ data class Skill(
     val enabled: Boolean,
     val content: String? = null,
 )
+
+data class HubSkill(
+    val name: String,
+    val description: String?,
+    val source: String?,
+)

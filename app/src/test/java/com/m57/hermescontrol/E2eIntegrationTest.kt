@@ -5,7 +5,6 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
-import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
@@ -15,11 +14,8 @@ import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
-import com.m57.hermescontrol.data.model.MainModelAssignment
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
-import com.m57.hermescontrol.data.model.MoaConfigResponse
-import com.m57.hermescontrol.data.model.MoaModelSlot
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PluginInfo
@@ -1051,25 +1047,6 @@ class E2eIntegrationTest {
                 Response.success(ActiveProfileResponse("default", null))
             coEvery { mockApiService.getProfiles() } returns Response.success(ProfilesResponse(listOf(profile)))
             coEvery { mockApiService.updateProfileModel("default", any()) } returns Response.success(Unit)
-            coEvery { mockApiService.getAuxiliaryModels() } returns
-                Response.success(
-                    AuxiliaryModelsResponse(
-                        tasks = emptyList(),
-                        main = MainModelAssignment("openai", "gpt-4"),
-                    ),
-                )
-            coEvery { mockApiService.getMoaModels() } returns
-                Response.success<MoaConfigResponse>(
-                    MoaConfigResponse(
-                        presets = emptyMap(),
-                        default_preset = "",
-                        reference_models = emptyList(),
-                        aggregator = MoaModelSlot("openai", "gpt-4"),
-                        reference_temperature = 0.7,
-                        aggregator_temperature = 0.7,
-                        max_tokens = 4096,
-                    ),
-                )
 
             val viewModel = ModelViewModel()
             viewModel.loadModelOptions()
@@ -1091,7 +1068,7 @@ class E2eIntegrationTest {
             advanceUntilIdle()
 
             coVerify { mockApiService.updateProfileModel("default", any()) }
-            assertEquals("Successfully set profile model to llama3", viewModel.uiState.value.toastMessage)
+            assertEquals("Successfully set model to llama3", viewModel.uiState.value.toastMessage)
         }
 
     @Test

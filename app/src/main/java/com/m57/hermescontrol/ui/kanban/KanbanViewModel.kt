@@ -28,7 +28,9 @@ data class KanbanUiState(
     val toastMessage: String? = null,
 )
 
-class KanbanViewModel : ViewModel(), ToastHost {
+class KanbanViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(KanbanUiState())
     val uiState: StateFlow<KanbanUiState> = _uiState.asStateFlow()
 

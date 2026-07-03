@@ -49,7 +49,10 @@ fun mapHttpError(
     val detail =
         if (errorBody != null) {
             try {
-                val parsed = com.google.gson.JsonParser.parseString(errorBody).asJsonObject
+                val parsed =
+                    com.google.gson.JsonParser
+                        .parseString(errorBody)
+                        .asJsonObject
                 parsed.get("detail")?.asString
             } catch (_: Exception) {
                 null

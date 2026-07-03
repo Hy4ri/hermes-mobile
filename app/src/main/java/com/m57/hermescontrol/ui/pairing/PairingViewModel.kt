@@ -26,7 +26,9 @@ data class PairingUiState(
     val toastMessage: String? = null,
 )
 
-class PairingViewModel : ViewModel(), ToastHost {
+class PairingViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(PairingUiState())
     val uiState: StateFlow<PairingUiState> = _uiState.asStateFlow()
 

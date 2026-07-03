@@ -70,15 +70,25 @@ private enum class LogSeverity {
 private fun detectSeverity(line: String): LogSeverity? {
     val upper = line.uppercase()
     return when {
-        Regex("\\[ERROR\\]|\\bERROR\\b|\\|ERROR\\||^ERROR[\\s:]").containsMatchIn(upper) ->
+        Regex("\\[ERROR\\]|\\bERROR\\b|\\|ERROR\\||^ERROR[\\s:]").containsMatchIn(upper) -> {
             LogSeverity.ERROR
-        Regex("\\[WARN(?:ING)?\\]|\\bWARN\\b|\\|WARN(?:ING)?\\||^WARN(?:ING)?[\\s:]").containsMatchIn(upper) ->
+        }
+
+        Regex("\\[WARN(?:ING)?\\]|\\bWARN\\b|\\|WARN(?:ING)?\\||^WARN(?:ING)?[\\s:]").containsMatchIn(upper) -> {
             LogSeverity.WARN
-        Regex("\\[INFO\\]|\\bINFO\\b|\\|INFO\\||^INFO[\\s:]").containsMatchIn(upper) ->
+        }
+
+        Regex("\\[INFO\\]|\\bINFO\\b|\\|INFO\\||^INFO[\\s:]").containsMatchIn(upper) -> {
             LogSeverity.INFO
-        Regex("\\[DEBUG\\]|\\bDEBUG\\b|\\|DEBUG\\||^DEBUG[\\s:]").containsMatchIn(upper) ->
+        }
+
+        Regex("\\[DEBUG\\]|\\bDEBUG\\b|\\|DEBUG\\||^DEBUG[\\s:]").containsMatchIn(upper) -> {
             LogSeverity.DEBUG
-        else -> null
+        }
+
+        else -> {
+            null
+        }
     }
 }
 

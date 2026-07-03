@@ -42,7 +42,9 @@ data class WebhooksUiState(
     val togglingName: String? = null,
 )
 
-class WebhooksViewModel : ViewModel(), ToastHost {
+class WebhooksViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(WebhooksUiState())
     val uiState: StateFlow<WebhooksUiState> = _uiState.asStateFlow()
 
@@ -185,6 +187,7 @@ class WebhooksViewModel : ViewModel(), ToastHost {
                     }
                     loadWebhooks()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -225,6 +228,7 @@ class WebhooksViewModel : ViewModel(), ToastHost {
                     }
                     loadWebhooks()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(toastMessage = "Failed to toggle \"$name\": ${result.error.message}")
@@ -261,6 +265,7 @@ class WebhooksViewModel : ViewModel(), ToastHost {
                     }
                     loadWebhooks()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(toastMessage = "Failed to delete \"${target.name}\": ${result.error.message}")

@@ -305,7 +305,8 @@ private fun ModelSettingsSection(
 ) {
     val auxOverrideCount =
         auxTasks?.let { tasks ->
-            tasks.filterIsInstance<com.m57.hermescontrol.data.model.AuxiliaryTaskAssignment>()
+            tasks
+                .filterIsInstance<com.m57.hermescontrol.data.model.AuxiliaryTaskAssignment>()
                 .count { a -> a.provider.isNotBlank() && a.provider != "auto" }
         } ?: 0
 
@@ -700,7 +701,9 @@ private fun MoaConfigDialog(
 }
 
 private sealed class MoaPickerTarget {
-    data class Reference(val index: Int) : MoaPickerTarget()
+    data class Reference(
+        val index: Int,
+    ) : MoaPickerTarget()
 
     data object Aggregator : MoaPickerTarget()
 }
@@ -947,14 +950,18 @@ private fun MoaSlotPicker(
                                     com.m57.hermescontrol.data.model.MoaConfigPreset,
                                 ) -> com.m57.hermescontrol.data.model.MoaConfigPreset = { preset ->
                                     when (pickerTarget) {
-                                        is MoaPickerTarget.Aggregator -> preset.copy(aggregator = slot)
-                                        is MoaPickerTarget.Reference ->
+                                        is MoaPickerTarget.Aggregator -> {
+                                            preset.copy(aggregator = slot)
+                                        }
+
+                                        is MoaPickerTarget.Reference -> {
                                             preset.copy(
                                                 reference_models =
                                                     preset.reference_models.toMutableList().also {
                                                         it[pickerTarget.index] = slot
                                                     },
                                             )
+                                        }
                                     }
                                 }
                                 val preset = draft.presets[selectedPreset]

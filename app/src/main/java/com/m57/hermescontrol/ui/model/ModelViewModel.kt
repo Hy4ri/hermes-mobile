@@ -152,6 +152,7 @@ class ModelViewModel :
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -224,6 +225,7 @@ class ModelViewModel :
                         loadAll()
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -265,6 +267,7 @@ class ModelViewModel :
                     }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -340,6 +343,7 @@ class ModelViewModel :
                     }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -375,6 +379,7 @@ class ModelViewModel :
                     }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -417,6 +422,7 @@ class ModelViewModel :
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -450,6 +456,7 @@ class ModelViewModel :
                     }
                     return@launch
                 }
+
                 is NetworkResult.Success -> {
                     val activeProfileName = activeProfileNameResResult.data.active
                     val updateResResult =
@@ -466,6 +473,7 @@ class ModelViewModel :
                             _uiState.update { it.copy(toastMessage = "Successfully set profile model to $modelName") }
                             loadAll()
                         }
+
                         is NetworkResult.Failure -> {
                             _uiState.update {
                                 it.copy(

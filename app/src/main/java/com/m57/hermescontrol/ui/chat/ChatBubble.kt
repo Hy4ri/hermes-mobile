@@ -537,7 +537,9 @@ fun parseToolOutput(
     val trimmed = content.trim()
     if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
     return try {
-        val element = com.google.gson.JsonParser.parseString(trimmed)
+        val element =
+            com.google.gson.JsonParser
+                .parseString(trimmed)
         if (!element.isJsonObject) return null
         val obj = element.asJsonObject
 
@@ -566,7 +568,10 @@ fun parseToolOutput(
                 val truncated = if (raw.length > 100) raw.take(100) + "…" else raw
                 if (truncated.isNotBlank()) "${config.summaryPrefix}$truncated" else null
             } else {
-                null ?: obj.get("context")?.takeIf { !it.isJsonNull }?.asString
+                null ?: obj
+                    .get("context")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asString
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { "${config.summaryPrefix}$it" }
             }
@@ -576,11 +581,13 @@ fun parseToolOutput(
         // build a clean one-line summary and formatted item list.
         if (resolvedToolName == "todo") {
             val todosArray =
-                dataSource.get("todos")
+                dataSource
+                    .get("todos")
                     ?.takeIf { !it.isJsonNull && it.isJsonArray }
                     ?.asJsonArray
             val summaryObj =
-                dataSource.get("summary")
+                dataSource
+                    .get("summary")
                     ?.takeIf { !it.isJsonNull && it.isJsonObject }
                     ?.asJsonObject
 
@@ -605,21 +612,23 @@ fun parseToolOutput(
                 }
 
             val formattedTodos =
-                todosArray?.mapNotNull { element ->
-                    if (!element.isJsonObject) return@mapNotNull null
-                    val item = element.asJsonObject
-                    val id = item.get("id")?.asString ?: ""
-                    val content = item.get("content")?.asString ?: ""
-                    val status = item.get("status")?.asString ?: "pending"
-                    val marker =
-                        when (status) {
-                            "completed" -> "[x]"
-                            "in_progress" -> "[>]"
-                            "cancelled" -> "[~]"
-                            else -> "[ ]"
-                        }
-                    "$marker $id. $content"
-                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+                todosArray
+                    ?.mapNotNull { element ->
+                        if (!element.isJsonObject) return@mapNotNull null
+                        val item = element.asJsonObject
+                        val id = item.get("id")?.asString ?: ""
+                        val content = item.get("content")?.asString ?: ""
+                        val status = item.get("status")?.asString ?: "pending"
+                        val marker =
+                            when (status) {
+                                "completed" -> "[x]"
+                                "in_progress" -> "[>]"
+                                "cancelled" -> "[~]"
+                                else -> "[ ]"
+                            }
+                        "$marker $id. $content"
+                    }?.joinToString("\n")
+                    ?.takeIf { it.isNotEmpty() }
 
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
 
@@ -645,16 +654,28 @@ fun parseToolOutput(
 
             // Try both key shapes: results[] (probe/search/reason/related/contradict) and facts[] (list)
             val factsArray =
-                dataSource.get("results")
+                dataSource
+                    .get("results")
                     ?.takeIf { !it.isJsonNull && it.isJsonArray }
                     ?.asJsonArray
-                    ?: dataSource.get("facts")
+                    ?: dataSource
+                        .get("facts")
                         ?.takeIf { !it.isJsonNull && it.isJsonArray }
                         ?.asJsonArray
 
-            val count = dataSource.get("count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt() ?: 0
+            val count =
+                dataSource
+                    .get("count")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asDouble
+                    ?.toInt() ?: 0
             val status = dataSource.get("status")?.takeIf { !it.isJsonNull }?.asString
-            val factId = dataSource.get("fact_id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val factId =
+                dataSource
+                    .get("fact_id")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asDouble
+                    ?.toInt()
             val removed = dataSource.get("removed")?.takeIf { !it.isJsonNull }?.asBoolean
             val updated = dataSource.get("updated")?.takeIf { !it.isJsonNull }?.asBoolean
 
@@ -677,26 +698,28 @@ fun parseToolOutput(
 
             // Format each fact as a compact block: #ID + content on first line, meta on indented second line
             val formattedFacts =
-                factsArray?.mapNotNull { element ->
-                    if (!element.isJsonObject) return@mapNotNull null
-                    val item = element.asJsonObject
-                    val fid = item.get("fact_id")?.asDouble?.toInt() ?: 0
-                    val content = item.get("content")?.asString ?: ""
-                    val category = item.get("category")?.asString
-                    val trust = item.get("trust_score")?.asDouble
-                    val tags = item.get("tags")?.asString?.takeIf { it.isNotEmpty() }
+                factsArray
+                    ?.mapNotNull { element ->
+                        if (!element.isJsonObject) return@mapNotNull null
+                        val item = element.asJsonObject
+                        val fid = item.get("fact_id")?.asDouble?.toInt() ?: 0
+                        val content = item.get("content")?.asString ?: ""
+                        val category = item.get("category")?.asString
+                        val trust = item.get("trust_score")?.asDouble
+                        val tags = item.get("tags")?.asString?.takeIf { it.isNotEmpty() }
 
-                    val firstLine = "#$fid  $content"
-                    val metaParts = mutableListOf<String>()
-                    if (category != null) metaParts.add("[$category]")
-                    if (trust != null) metaParts.add("trust: ${"%.2f".format(trust)}")
-                    if (tags != null) metaParts.add("🏷️ $tags")
-                    if (metaParts.isNotEmpty()) {
-                        "$firstLine\n      ${metaParts.joinToString("  ")}"
-                    } else {
-                        firstLine
-                    }
-                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+                        val firstLine = "#$fid  $content"
+                        val metaParts = mutableListOf<String>()
+                        if (category != null) metaParts.add("[$category]")
+                        if (trust != null) metaParts.add("trust: ${"%.2f".format(trust)}")
+                        if (tags != null) metaParts.add("🏷️ $tags")
+                        if (metaParts.isNotEmpty()) {
+                            "$firstLine\n      ${metaParts.joinToString("  ")}"
+                        } else {
+                            firstLine
+                        }
+                    }?.joinToString("\n")
+                    ?.takeIf { it.isNotEmpty() }
 
             val factMainOutput =
                 when {
@@ -732,8 +755,18 @@ fun parseToolOutput(
                 dataSource.get("results")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
             val messagesArray =
                 dataSource.get("messages")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
-            val count = dataSource.get("count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
-            val msgCount = dataSource.get("message_count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val count =
+                dataSource
+                    .get("count")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asDouble
+                    ?.toInt()
+            val msgCount =
+                dataSource
+                    .get("message_count")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asDouble
+                    ?.toInt()
             val truncated = dataSource.get("truncated")?.takeIf { !it.isJsonNull }?.asBoolean
 
             // Build summary line
@@ -744,70 +777,93 @@ fun parseToolOutput(
                             60,
                         )}"
                     } ?: ""}"
+
                     "scroll" -> "📜 ${messagesArray?.size() ?: 0} messages (scroll)"
+
                     "read" -> "📖 ${msgCount ?: messagesArray?.size() ?: 0} messages${
                         if (truncated == true) " (truncated)" else ""
                     }"
+
                     "browse" -> "📋 ${count ?: 0} recent sessions"
+
                     else -> "🔍 session_search"
                 }
 
             // Format results (discover / browse)
             val formattedResults =
-                resultsArray?.mapIndexedNotNull { idx, element ->
-                    if (!element.isJsonObject) return@mapIndexedNotNull null
-                    val item = element.asJsonObject
-                    val whenField =
-                        item.get("when")?.takeIf { !it.isJsonNull }?.asString
-                            ?: item.get("started_at")?.takeIf { !it.isJsonNull }?.asString
-                    val source = item.get("source")?.takeIf { !it.isJsonNull }?.asString
-                    val title = item.get("title")?.takeIf { !it.isJsonNull }?.asString
-                    val snippet = item.get("snippet")?.takeIf { !it.isJsonNull }?.asString
-                    val preview = item.get("preview")?.takeIf { !it.isJsonNull }?.asString
-                    val model = item.get("model")?.takeIf { !it.isJsonNull }?.asString
-                    val sessionMsgCount = item.get("message_count")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
-                    val matchedRole = item.get("matched_role")?.takeIf { !it.isJsonNull }?.asString
+                resultsArray
+                    ?.mapIndexedNotNull { idx, element ->
+                        if (!element.isJsonObject) return@mapIndexedNotNull null
+                        val item = element.asJsonObject
+                        val whenField =
+                            item.get("when")?.takeIf { !it.isJsonNull }?.asString
+                                ?: item.get("started_at")?.takeIf { !it.isJsonNull }?.asString
+                        val source = item.get("source")?.takeIf { !it.isJsonNull }?.asString
+                        val title = item.get("title")?.takeIf { !it.isJsonNull }?.asString
+                        val snippet = item.get("snippet")?.takeIf { !it.isJsonNull }?.asString
+                        val preview = item.get("preview")?.takeIf { !it.isJsonNull }?.asString
+                        val model = item.get("model")?.takeIf { !it.isJsonNull }?.asString
+                        val sessionMsgCount =
+                            item
+                                .get("message_count")
+                                ?.takeIf { !it.isJsonNull }
+                                ?.asDouble
+                                ?.toInt()
+                        val matchedRole = item.get("matched_role")?.takeIf { !it.isJsonNull }?.asString
 
-                    val header = whenField?.let { "📅 $it" } ?: ""
-                    val sourceTag = source?.let { "[$it]" } ?: ""
-                    val titleLine = title?.let { "\n     📄 $it" } ?: ""
-                    val modelLine = model?.let { "\n     🤖 $it" } ?: ""
-                    val matchedLine = matchedRole?.let { "\n     🎯 matched: $it" } ?: ""
-                    val countLine = sessionMsgCount?.let { "\n     $it msgs" } ?: ""
-                    val snippetText = snippet ?: preview
-                    val snippetLine =
-                        snippetText?.let {
-                            val clean = it.take(200).replace("\n", " ")
-                            "\n     ┃ $clean"
-                        } ?: ""
+                        val header = whenField?.let { "📅 $it" } ?: ""
+                        val sourceTag = source?.let { "[$it]" } ?: ""
+                        val titleLine = title?.let { "\n     📄 $it" } ?: ""
+                        val modelLine = model?.let { "\n     🤖 $it" } ?: ""
+                        val matchedLine = matchedRole?.let { "\n     🎯 matched: $it" } ?: ""
+                        val countLine = sessionMsgCount?.let { "\n     $it msgs" } ?: ""
+                        val snippetText = snippet ?: preview
+                        val snippetLine =
+                            snippetText?.let {
+                                val clean = it.take(200).replace("\n", " ")
+                                "\n     ┃ $clean"
+                            } ?: ""
 
-                    "━━━ #${idx + 1}  $header$sourceTag$titleLine$modelLine$matchedLine$countLine$snippetLine"
-                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+                        "━━━ #${idx + 1}  $header$sourceTag$titleLine$modelLine$matchedLine$countLine$snippetLine"
+                    }?.joinToString("\n")
+                    ?.takeIf { it.isNotEmpty() }
 
             // Format messages (scroll / read)
-            val anchorId = dataSource.get("around_message_id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val anchorId =
+                dataSource
+                    .get("around_message_id")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asDouble
+                    ?.toInt()
             val formattedMessages =
-                messagesArray?.mapNotNull { element ->
-                    if (!element.isJsonObject) return@mapNotNull null
-                    val item = element.asJsonObject
-                    val msgId = item.get("id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
-                    val role = item.get("role")?.takeIf { !it.isJsonNull }?.asString ?: "?"
-                    val content = item.get("content")?.takeIf { !it.isJsonNull }?.asString ?: ""
-                    val toolName = item.get("tool_name")?.takeIf { !it.isJsonNull }?.asString
+                messagesArray
+                    ?.mapNotNull { element ->
+                        if (!element.isJsonObject) return@mapNotNull null
+                        val item = element.asJsonObject
+                        val msgId =
+                            item
+                                .get("id")
+                                ?.takeIf { !it.isJsonNull }
+                                ?.asDouble
+                                ?.toInt()
+                        val role = item.get("role")?.takeIf { !it.isJsonNull }?.asString ?: "?"
+                        val content = item.get("content")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                        val toolName = item.get("tool_name")?.takeIf { !it.isJsonNull }?.asString
 
-                    val roleEmoji =
-                        when (role) {
-                            "user" -> "👤"
-                            "assistant" -> "🤖"
-                            "tool" -> "🔧"
-                            else -> "❓"
-                        }
-                    val namePart = if (toolName != null) " ($toolName)" else ""
-                    val anchor = if (anchorId != null && msgId == anchorId) "  ⬅️" else ""
-                    val cleanContent = content.take(300).replace("\n", " ")
+                        val roleEmoji =
+                            when (role) {
+                                "user" -> "👤"
+                                "assistant" -> "🤖"
+                                "tool" -> "🔧"
+                                else -> "❓"
+                            }
+                        val namePart = if (toolName != null) " ($toolName)" else ""
+                        val anchor = if (anchorId != null && msgId == anchorId) "  ⬅️" else ""
+                        val cleanContent = content.take(300).replace("\n", " ")
 
-                    "[$msgId] $roleEmoji $role$namePart$anchor\n     $cleanContent"
-                }?.joinToString("\n")?.takeIf { it.isNotEmpty() }
+                        "[$msgId] $roleEmoji $role$namePart$anchor\n     $cleanContent"
+                    }?.joinToString("\n")
+                    ?.takeIf { it.isNotEmpty() }
 
             val ssMainOutput = formattedResults ?: formattedMessages
 
@@ -856,31 +912,46 @@ fun parseToolOutput(
         if (resolvedToolName == "cronjob") {
             val action = argsObj?.get("action")?.takeIf { !it.isJsonNull }?.asString ?: ""
             val jobsArray = dataSource.get("jobs")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
-            val jobId = dataSource.get("job_id")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val jobId =
+                dataSource
+                    .get("job_id")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asDouble
+                    ?.toInt()
             val jobName = dataSource.get("name")?.takeIf { !it.isJsonNull }?.asString
             val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
 
             val summaryText = "🔄 $action${jobName?.let { ": $it" } ?: jobId?.let { " (ID: $it)" } ?: ""}"
             val mainOutput =
                 when {
-                    errorMsg != null -> "❌ $errorMsg"
-                    jobsArray != null -> {
-                        jobsArray.mapNotNull { el ->
-                            if (!el.isJsonObject) return@mapNotNull null
-                            val j = el.asJsonObject
-                            val name = j.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
-                            val schedule = j.get("schedule")?.takeIf { !it.isJsonNull }?.asString
-                            val status = j.get("status")?.takeIf { !it.isJsonNull }?.asString
-                            val lastRun = j.get("last_run")?.takeIf { !it.isJsonNull }?.asString
-                            val parts = mutableListOf("📌 $name")
-                            if (schedule != null) parts.add("     ⏱ $schedule")
-                            if (status != null) parts.add("     📊 $status")
-                            if (lastRun != null) parts.add("     ⏮ $lastRun")
-                            parts.joinToString("\n")
-                        }.joinToString("\n\n")
+                    errorMsg != null -> {
+                        "❌ $errorMsg"
                     }
-                    jobId != null -> "✅ $action (ID: $jobId)"
-                    else -> "✅ $action done"
+
+                    jobsArray != null -> {
+                        jobsArray
+                            .mapNotNull { el ->
+                                if (!el.isJsonObject) return@mapNotNull null
+                                val j = el.asJsonObject
+                                val name = j.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
+                                val schedule = j.get("schedule")?.takeIf { !it.isJsonNull }?.asString
+                                val status = j.get("status")?.takeIf { !it.isJsonNull }?.asString
+                                val lastRun = j.get("last_run")?.takeIf { !it.isJsonNull }?.asString
+                                val parts = mutableListOf("📌 $name")
+                                if (schedule != null) parts.add("     ⏱ $schedule")
+                                if (status != null) parts.add("     📊 $status")
+                                if (lastRun != null) parts.add("     ⏮ $lastRun")
+                                parts.joinToString("\n")
+                            }.joinToString("\n\n")
+                    }
+
+                    jobId != null -> {
+                        "✅ $action (ID: $jobId)"
+                    }
+
+                    else -> {
+                        "✅ $action done"
+                    }
                 }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
@@ -900,28 +971,49 @@ fun parseToolOutput(
             val success = dataSource.get("success")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
             val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
             val webArr =
-                dataSource.get("data")?.takeIf { !it.isJsonNull && it.isJsonObject }
-                    ?.asJsonObject?.get("web")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+                dataSource
+                    .get("data")
+                    ?.takeIf { !it.isJsonNull && it.isJsonObject }
+                    ?.asJsonObject
+                    ?.get("web")
+                    ?.takeIf { !it.isJsonNull && it.isJsonArray }
+                    ?.asJsonArray
 
             val summaryText = "🌐 $query${webArr?.let { " (${it.size()} results)" } ?: ""}"
             val mainOutput =
                 when {
-                    errorMsg != null -> "❌ $errorMsg"
-                    webArr != null ->
-                        webArr.mapNotNull { el ->
-                            if (!el.isJsonObject) return@mapNotNull null
-                            val item = el.asJsonObject
-                            val title = item.get("title")?.takeIf { !it.isJsonNull }?.asString ?: ""
-                            val url = item.get("url")?.takeIf { !it.isJsonNull }?.asString
-                            val desc = item.get("description")?.takeIf { !it.isJsonNull }?.asString
-                            val pos = item.get("position")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
-                            val lines = mutableListOf("${pos?.let { "$it. " } ?: ""}$title")
-                            if (desc != null) lines.add("     $desc")
-                            if (url != null) lines.add("     🔗 $url")
-                            lines.joinToString("\n")
-                        }.joinToString("\n\n")
-                    !success -> "❌ Search failed"
-                    else -> "No results"
+                    errorMsg != null -> {
+                        "❌ $errorMsg"
+                    }
+
+                    webArr != null -> {
+                        webArr
+                            .mapNotNull { el ->
+                                if (!el.isJsonObject) return@mapNotNull null
+                                val item = el.asJsonObject
+                                val title = item.get("title")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                                val url = item.get("url")?.takeIf { !it.isJsonNull }?.asString
+                                val desc = item.get("description")?.takeIf { !it.isJsonNull }?.asString
+                                val pos =
+                                    item
+                                        .get("position")
+                                        ?.takeIf { !it.isJsonNull }
+                                        ?.asDouble
+                                        ?.toInt()
+                                val lines = mutableListOf("${pos?.let { "$it. " } ?: ""}$title")
+                                if (desc != null) lines.add("     $desc")
+                                if (url != null) lines.add("     🔗 $url")
+                                lines.joinToString("\n")
+                            }.joinToString("\n\n")
+                    }
+
+                    !success -> {
+                        "❌ Search failed"
+                    }
+
+                    else -> {
+                        "No results"
+                    }
                 }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
@@ -940,21 +1032,23 @@ fun parseToolOutput(
             val category = argsObj?.get("category")?.takeIf { !it.isJsonNull }?.asString
             val skillsArr =
                 (dataSource.get("skills") ?: dataSource.get("results"))
-                    ?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
+                    ?.takeIf { !it.isJsonNull && it.isJsonArray }
+                    ?.asJsonArray
 
             val summaryText = "📚 ${skillsArr?.size() ?: 0} skills${category?.let { " ($it)" } ?: ""}"
             val mainOutput =
-                skillsArr?.mapNotNull { el ->
-                    if (!el.isJsonObject) return@mapNotNull null
-                    val s = el.asJsonObject
-                    val name = s.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
-                    val desc = s.get("description")?.takeIf { !it.isJsonNull }?.asString
-                    val cat = s.get("category")?.takeIf { !it.isJsonNull }?.asString
-                    val lines = mutableListOf("📌 $name")
-                    if (desc != null) lines.add("     $desc")
-                    if (cat != null) lines.add("     [$cat]")
-                    lines.joinToString("\n")
-                }?.joinToString("\n\n") ?: "📚 No skills found"
+                skillsArr
+                    ?.mapNotNull { el ->
+                        if (!el.isJsonObject) return@mapNotNull null
+                        val s = el.asJsonObject
+                        val name = s.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                        val desc = s.get("description")?.takeIf { !it.isJsonNull }?.asString
+                        val cat = s.get("category")?.takeIf { !it.isJsonNull }?.asString
+                        val lines = mutableListOf("📌 $name")
+                        if (desc != null) lines.add("     $desc")
+                        if (cat != null) lines.add("     [$cat]")
+                        lines.joinToString("\n")
+                    }?.joinToString("\n\n") ?: "📚 No skills found"
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName ?: "",
@@ -1018,27 +1112,42 @@ fun parseToolOutput(
             val summaryText = "⚙️ $action${procId?.let { ": $it" } ?: ""}"
             val mainOutput =
                 when {
-                    errorMsg != null -> "❌ $errorMsg"
-                    processesArr != null -> {
-                        processesArr.mapNotNull { el ->
-                            if (!el.isJsonObject) return@mapNotNull null
-                            val p = el.asJsonObject
-                            val pid =
-                                p.get(
-                                    "session_id",
-                                )?.takeIf { !it.isJsonNull }?.asString ?: p.get("id")?.asString ?: "?"
-                            val pStatus = p.get("status")?.takeIf { !it.isJsonNull }?.asString
-                            val cmd = p.get("command")?.takeIf { !it.isJsonNull }?.asString
-                            val running = p.get("running")?.takeIf { !it.isJsonNull }?.asBoolean
-                            val parts = mutableListOf("📌 $pid${cmd?.let { ": $it" } ?: ""}")
-                            if (pStatus != null) parts.add("     Status: $pStatus")
-                            if (running != null) parts.add("     Running: $running")
-                            parts.joinToString("\n")
-                        }.joinToString("\n\n")
+                    errorMsg != null -> {
+                        "❌ $errorMsg"
                     }
-                    outputText != null -> "${status?.let { "Status: $it\n" } ?: ""}$outputText"
-                    status != null -> "✅ $status"
-                    else -> "✅ $action done"
+
+                    processesArr != null -> {
+                        processesArr
+                            .mapNotNull { el ->
+                                if (!el.isJsonObject) return@mapNotNull null
+                                val p = el.asJsonObject
+                                val pid =
+                                    p
+                                        .get(
+                                            "session_id",
+                                        )?.takeIf { !it.isJsonNull }
+                                        ?.asString ?: p.get("id")?.asString ?: "?"
+                                val pStatus = p.get("status")?.takeIf { !it.isJsonNull }?.asString
+                                val cmd = p.get("command")?.takeIf { !it.isJsonNull }?.asString
+                                val running = p.get("running")?.takeIf { !it.isJsonNull }?.asBoolean
+                                val parts = mutableListOf("📌 $pid${cmd?.let { ": $it" } ?: ""}")
+                                if (pStatus != null) parts.add("     Status: $pStatus")
+                                if (running != null) parts.add("     Running: $running")
+                                parts.joinToString("\n")
+                            }.joinToString("\n\n")
+                    }
+
+                    outputText != null -> {
+                        "${status?.let { "Status: $it\n" } ?: ""}$outputText"
+                    }
+
+                    status != null -> {
+                        "✅ $status"
+                    }
+
+                    else -> {
+                        "✅ $action done"
+                    }
                 }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
@@ -1063,7 +1172,10 @@ fun parseToolOutput(
             val summaryText = "𝕏 $query${if (degraded == true) " (no citations)" else ""}"
             val mainOutput =
                 when {
-                    errorMsg != null -> "❌ $errorMsg"
+                    errorMsg != null -> {
+                        "❌ $errorMsg"
+                    }
+
                     answer != null -> {
                         val lines = mutableListOf(answer)
                         if (citationsArr != null && citationsArr.size() > 0) {
@@ -1080,7 +1192,10 @@ fun parseToolOutput(
                         if (degraded == true) lines.add("\n⚠️ No citations — answer based on model's knowledge")
                         lines.joinToString("\n")
                     }
-                    else -> "𝕏 No results"
+
+                    else -> {
+                        "𝕏 No results"
+                    }
                 }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
@@ -1132,12 +1247,19 @@ fun parseToolOutput(
             val summaryText = "🕸️ ${urls?.size() ?: 0} page(s)"
             val mainOutput =
                 when {
-                    errorMsg != null -> "❌ $errorMsg"
-                    content != null ->
+                    errorMsg != null -> {
+                        "❌ $errorMsg"
+                    }
+
+                    content != null -> {
                         content.take(
                             3000,
                         ) + if (content.length > 3000) "\n... [${content.length - 3000} more chars]" else ""
-                    else -> "🕸️ No content extracted"
+                    }
+
+                    else -> {
+                        "🕸️ No content extracted"
+                    }
                 }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
@@ -1154,20 +1276,26 @@ fun parseToolOutput(
         // ── Tool Search-specific formatting ──
         if (resolvedToolName == "tool_search") {
             val query = argsObj?.get("query")?.takeIf { !it.isJsonNull }?.asString ?: ""
-            val limit = argsObj?.get("limit")?.takeIf { !it.isJsonNull }?.asDouble?.toInt()
+            val limit =
+                argsObj
+                    ?.get("limit")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asDouble
+                    ?.toInt()
             val matchesArr = dataSource.get("matches")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
 
             val summaryText = "🔍 $query${matchesArr?.let { " (${it.size()} matches)" } ?: ""}"
             val mainOutput =
-                matchesArr?.mapNotNull { el ->
-                    if (!el.isJsonObject) return@mapNotNull null
-                    val m = el.asJsonObject
-                    val name = m.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
-                    val desc = m.get("description")?.takeIf { !it.isJsonNull }?.asString
-                    val lines = mutableListOf("🔧 $name")
-                    if (desc != null) lines.add("     $desc")
-                    lines.joinToString("\n")
-                }?.joinToString("\n\n") ?: "🔍 No matching tools"
+                matchesArr
+                    ?.mapNotNull { el ->
+                        if (!el.isJsonObject) return@mapNotNull null
+                        val m = el.asJsonObject
+                        val name = m.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
+                        val desc = m.get("description")?.takeIf { !it.isJsonNull }?.asString
+                        val lines = mutableListOf("🔧 $name")
+                        if (desc != null) lines.add("     $desc")
+                        lines.joinToString("\n")
+                    }?.joinToString("\n\n") ?: "🔍 No matching tools"
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName ?: "",
@@ -1232,20 +1360,21 @@ fun parseToolOutput(
             val summaryText = "📂 ${projectsArr?.size() ?: "?"} projects${activeId?.let { " (1 active)" } ?: ""}"
             val mainOutput =
                 if (projectsArr != null) {
-                    projectsArr.mapNotNull { el ->
-                        if (!el.isJsonObject) return@mapNotNull null
-                        val p = el.asJsonObject
-                        val id = p.get("id")?.takeIf { !it.isJsonNull }?.asString ?: ""
-                        val name = p.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
-                        val slug = p.get("slug")?.takeIf { !it.isJsonNull }?.asString
-                        val path = p.get("primary_path")?.takeIf { !it.isJsonNull }?.asString
-                        val isActive = p.get("active")?.takeIf { !it.isJsonNull }?.asBoolean ?: false
-                        val lines = mutableListOf("${if (isActive) "⭐ " else "📁 "}$name")
-                        if (slug != null) lines.add("     🏷️ $slug")
-                        if (path != null) lines.add("     📍 $path")
-                        if (isActive) lines.add("     ✅ ACTIVE PROJECT")
-                        lines.joinToString("\n")
-                    }.joinToString("\n\n")
+                    projectsArr
+                        .mapNotNull { el ->
+                            if (!el.isJsonObject) return@mapNotNull null
+                            val p = el.asJsonObject
+                            val id = p.get("id")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                            val name = p.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
+                            val slug = p.get("slug")?.takeIf { !it.isJsonNull }?.asString
+                            val path = p.get("primary_path")?.takeIf { !it.isJsonNull }?.asString
+                            val isActive = p.get("active")?.takeIf { !it.isJsonNull }?.asBoolean ?: false
+                            val lines = mutableListOf("${if (isActive) "⭐ " else "📁 "}$name")
+                            if (slug != null) lines.add("     🏷️ $slug")
+                            if (path != null) lines.add("     📍 $path")
+                            if (isActive) lines.add("     ✅ ACTIVE PROJECT")
+                            lines.joinToString("\n")
+                        }.joinToString("\n\n")
                 } else {
                     ""
                 }
@@ -1361,18 +1490,19 @@ fun parseToolOutput(
                 if (isMultimodal) {
                     val contentArr =
                         dataSource.get("content")?.takeIf { !it.isJsonNull && it.isJsonArray }?.asJsonArray
-                    contentArr?.mapNotNull { el ->
-                        if (el.isJsonObject) {
-                            val eObj = el.asJsonObject
-                            if (eObj.get("type")?.takeIf { !it.isJsonNull }?.asString == "text") {
-                                eObj.get("text")?.takeIf { !it.isJsonNull }?.asString
+                    contentArr
+                        ?.mapNotNull { el ->
+                            if (el.isJsonObject) {
+                                val eObj = el.asJsonObject
+                                if (eObj.get("type")?.takeIf { !it.isJsonNull }?.asString == "text") {
+                                    eObj.get("text")?.takeIf { !it.isJsonNull }?.asString
+                                } else {
+                                    null
+                                }
                             } else {
                                 null
                             }
-                        } else {
-                            null
-                        }
-                    }?.joinToString("\n")
+                        }?.joinToString("\n")
                 } else {
                     null
                 }
@@ -1409,8 +1539,16 @@ fun parseToolOutput(
                     } else if (appsArr != null) {
                         appsArr.forEachIndexed { idx, el ->
                             if (el.isJsonObject) {
-                                val name = el.asJsonObject.get("name")?.takeIf { !it.isJsonNull }?.asString ?: "?"
-                                val pid = el.asJsonObject.get("pid")?.takeIf { !it.isJsonNull }?.asInt
+                                val name =
+                                    el.asJsonObject
+                                        .get("name")
+                                        ?.takeIf { !it.isJsonNull }
+                                        ?.asString ?: "?"
+                                val pid =
+                                    el.asJsonObject
+                                        .get("pid")
+                                        ?.takeIf { !it.isJsonNull }
+                                        ?.asInt
                                 append("${idx + 1}. $name")
                                 if (pid != null) append(" (PID: $pid)")
                                 append("\n")
@@ -1428,9 +1566,21 @@ fun parseToolOutput(
                             for (i in 0 until previewCount) {
                                 val el = elementsArr[i]
                                 if (el.isJsonObject) {
-                                    val idx = el.asJsonObject.get("index")?.takeIf { !it.isJsonNull }?.asInt
-                                    val role = el.asJsonObject.get("role")?.takeIf { !it.isJsonNull }?.asString
-                                    val label = el.asJsonObject.get("label")?.takeIf { !it.isJsonNull }?.asString
+                                    val idx =
+                                        el.asJsonObject
+                                            .get("index")
+                                            ?.takeIf { !it.isJsonNull }
+                                            ?.asInt
+                                    val role =
+                                        el.asJsonObject
+                                            .get("role")
+                                            ?.takeIf { !it.isJsonNull }
+                                            ?.asString
+                                    val label =
+                                        el.asJsonObject
+                                            .get("label")
+                                            ?.takeIf { !it.isJsonNull }
+                                            ?.asString
                                     append("  #$idx ${role ?: ""}${label?.let { " '$it'" } ?: ""}\n")
                                 }
                             }
@@ -1467,10 +1617,25 @@ fun parseToolOutput(
         val hasExitCode = dataSource.has("exit_code") || dataSource.has("exitCode")
 
         if (hasStdout || hasStderr || hasExitCode) {
-            val stdout = dataSource.get("stdout")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
-            val stderr = dataSource.get("stderr")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val stdout =
+                dataSource
+                    .get("stdout")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asString
+                    ?.takeIf { it.isNotEmpty() }
+            val stderr =
+                dataSource
+                    .get("stderr")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asString
+                    ?.takeIf { it.isNotEmpty() }
             val exitCode = (dataSource.get("exit_code") ?: dataSource.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
-            val error = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() }
+            val error =
+                dataSource
+                    .get("error")
+                    ?.takeIf { !it.isJsonNull }
+                    ?.asString
+                    ?.takeIf { it.isNotEmpty() }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
 
             ParsedToolData(

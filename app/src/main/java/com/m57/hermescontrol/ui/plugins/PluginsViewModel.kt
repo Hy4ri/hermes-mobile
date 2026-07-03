@@ -51,7 +51,9 @@ data class PluginsUiState(
     }
 }
 
-class PluginsViewModel : ViewModel(), ToastHost {
+class PluginsViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(PluginsUiState())
     val uiState: StateFlow<PluginsUiState> = _uiState.asStateFlow()
 
@@ -137,6 +139,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     }
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -177,6 +180,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     _uiState.update { it.copy(providerBusy = false, toastMessage = "Plugin providers saved") }
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -201,6 +205,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     _uiState.update { it.copy(rescanBusy = false, toastMessage = "Plugins rescanned") }
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -257,6 +262,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     _uiState.update { it.copy(toastMessage = "Plugin enabled successfully") }
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to enable plugin: ${result.error.message}") }
                 }
@@ -289,6 +295,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     clearRowBusy(name)
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to uninstall plugin: ${result.error.message}") }
                     clearRowBusy(name)
@@ -310,6 +317,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     clearRowBusy(name)
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to update plugin: ${result.error.message}") }
                     clearRowBusy(name)
@@ -337,6 +345,7 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     clearRowBusy(plugin.name)
                     loadPlugins()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to update visibility: ${result.error.message}") }
                     clearRowBusy(plugin.name)

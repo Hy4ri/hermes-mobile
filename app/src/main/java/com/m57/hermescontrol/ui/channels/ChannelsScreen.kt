@@ -59,7 +59,11 @@ import com.m57.hermescontrol.ui.common.listItemSpacing
 
 // ── State → badge colour / label  ──────────────────────────────────────
 
-private data class StateStyle(val label: String, val color: Color, val icon: ImageVector)
+private data class StateStyle(
+    val label: String,
+    val color: Color,
+    val icon: ImageVector,
+)
 
 @Composable
 private fun platformStateStyle(state: String): StateStyle =

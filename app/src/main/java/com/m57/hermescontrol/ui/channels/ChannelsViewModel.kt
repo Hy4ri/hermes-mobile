@@ -26,7 +26,9 @@ data class ChannelsUiState(
     val testingId: String? = null,
 )
 
-class ChannelsViewModel : ViewModel(), ToastHost {
+class ChannelsViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ChannelsUiState())
     val uiState: StateFlow<ChannelsUiState> = _uiState.asStateFlow()
 

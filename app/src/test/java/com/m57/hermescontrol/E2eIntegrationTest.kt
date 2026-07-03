@@ -15,6 +15,7 @@ import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
+import com.m57.hermescontrol.data.model.MainModelAssignment
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MoaConfigResponse
@@ -1051,7 +1052,12 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getProfiles() } returns Response.success(ProfilesResponse(listOf(profile)))
             coEvery { mockApiService.updateProfileModel("default", any()) } returns Response.success(Unit)
             coEvery { mockApiService.getAuxiliaryModels() } returns
-                Response.success(AuxiliaryModelsResponse(emptyList()))
+                Response.success(
+                    AuxiliaryModelsResponse(
+                        tasks = emptyList(),
+                        main = MainModelAssignment("openai", "gpt-4"),
+                    ),
+                )
             coEvery { mockApiService.getMoaModels() } returns
                 Response.success<MoaConfigResponse>(
                     MoaConfigResponse(

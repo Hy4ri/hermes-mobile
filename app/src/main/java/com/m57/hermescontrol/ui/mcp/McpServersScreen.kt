@@ -345,7 +345,7 @@ private fun ServerCard(
 
             // Error diagnostics
             server.error?.let { error ->
-                if (showDiagnostics || error.isNotBlank()) {
+                if (error.isNotBlank()) {
                     Spacer(modifier = Modifier.height(spacing.sm))
                     StatusBadge(
                         text = error,

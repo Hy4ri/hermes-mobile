@@ -1052,8 +1052,8 @@ class E2eIntegrationTest {
             coEvery { mockApiService.updateProfileModel("default", any()) } returns Response.success(Unit)
             coEvery { mockApiService.getAuxiliaryModels() } returns
                 Response.success(AuxiliaryModelsResponse(emptyList()))
-            coEvery { mockApiService.getMoaConfig() } returns
-                Response.success(
+            coEvery { mockApiService.getMoaModels() } returns
+                Response.success<MoaConfigResponse>(
                     MoaConfigResponse(
                         presets = emptyMap(),
                         default_preset = "",

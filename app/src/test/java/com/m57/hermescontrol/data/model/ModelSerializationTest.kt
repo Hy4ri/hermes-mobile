@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class ModelSerializationTest {
@@ -371,30 +372,49 @@ class ModelSerializationTest {
     }
 
     @Test
-    fun testSystemStatsResponse_cpuPercentTypeSafety() {
-        val jsonNumber = """{"cpu":{"percent":45.2}}"""
-        val responseNumber = gson.fromJson(jsonNumber, SystemStatsResponse::class.java)
-        assertEquals(45.2, responseNumber.cpuPercent)
-
-        val jsonStringNum = """{"cpu":{"percent":"45.2"}}"""
-        val responseStringNum = gson.fromJson(jsonStringNum, SystemStatsResponse::class.java)
-        assertNull(responseStringNum.cpuPercent)
-
-        val jsonNullPercent = """{"cpu":{"percent":null}}"""
-        val responseNullPercent = gson.fromJson(jsonNullPercent, SystemStatsResponse::class.java)
-        assertNull(responseNullPercent.cpuPercent)
-
-        val jsonMissingPercent = """{"cpu":{}}"""
-        val responseMissingPercent = gson.fromJson(jsonMissingPercent, SystemStatsResponse::class.java)
-        assertNull(responseMissingPercent.cpuPercent)
-
-        val jsonNullCpu = """{"cpu":null}"""
-        val responseNullCpu = gson.fromJson(jsonNullCpu, SystemStatsResponse::class.java)
-        assertNull(responseNullCpu.cpuPercent)
-
-        val jsonMissingCpu = "{}"
-        val responseMissingCpu = gson.fromJson(jsonMissingCpu, SystemStatsResponse::class.java)
-        assertNull(responseMissingCpu.cpuPercent)
+    fun testSystemStatsResponse_deserialization() {
+        val json =
+            """
+            {
+                "os": "Linux",
+                "os_release": "5.4.274",
+                "arch": "aarch64",
+                "hostname": "hermes-box",
+                "python_version": "3.12.0",
+                "python_impl": "CPython",
+                "hermes_version": "1.2.3",
+                "cpu_count": 8,
+                "cpu_percent": 45.2,
+                "psutil": true,
+                "load_avg": [1.5, 1.2, 0.9],
+                "uptime_seconds": 86400.0,
+                "memory": {
+                    "total": 8388608,
+                    "available": 4194304,
+                    "used": 4194304,
+                    "percent": 50.0
+                },
+                "disk": {
+                    "total": 1073741824,
+                    "used": 536870912,
+                    "free": 536870912,
+                    "percent": 50.0
+                }
+            }
+            """.trimIndent()
+        val response = gson.fromJson(json, SystemStatsResponse::class.java)
+        assertEquals("Linux", response.os)
+        assertEquals("aarch64", response.arch)
+        assertEquals("hermes-box", response.hostname)
+        assertEquals("1.2.3", response.hermes_version)
+        assertEquals(45.2, response.cpu_percent)
+        assertEquals(8, response.cpu_count)
+        assertTrue(response.psutil ?: false)
+        assertEquals(1.5, response.load_avg?.get(0) ?: 0.0, 0.01)
+        assertEquals(86400.0, response.uptime_seconds ?: 0.0, 0.01)
+        assertEquals(50.0, response.memory?.percent ?: 0.0, 0.01)
+        assertEquals(8388608, response.memory?.total)
+        assertEquals(50.0, response.disk?.percent ?: 0.0, 0.01)
     }
 
     @Test

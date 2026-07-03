@@ -899,14 +899,14 @@ class ChatViewModel(
             when (result) {
                 is NetworkResult.Success -> {
                     val body = result.data
-                    val cpuPct = body.cpuPercent?.let { String.format("%.1f%%", it) } ?: "N/A"
-                    val memPct = body.memoryPercent?.let { String.format("%.1f%%", it) } ?: "N/A"
+                    val cpuPct = body.cpu_percent?.let { String.format("%.1f%%", it) } ?: "N/A"
+                    val memPct = body.memory?.percent?.let { String.format("%.1f%%", it) } ?: "N/A"
                     addAssistantMessage(
                         """
                         **System Resource Stats:**
                         • **CPU Usage:** $cpuPct
                         • **Memory Usage:** $memPct
-                        • **Uptime:** ${body.uptime ?: "N/A"}
+                        • **Uptime:** ${body.uptime_seconds?.let { "${it.toLong()}s" } ?: "N/A"}
                         """.trimIndent(),
                     )
                 }

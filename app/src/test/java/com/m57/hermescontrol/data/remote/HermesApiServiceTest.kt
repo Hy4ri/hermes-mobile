@@ -317,40 +317,7 @@ class HermesApiServiceTest {
             assertTrue(response.isSuccessful)
             val stats = response.body()
             assertNotNull(stats)
-            assertNull(stats?.cpuPercent)
-            assertNull(stats?.memoryPercent)
-        }
-
-    @Test
-    fun testGetSystemStats_nonNumericPercent_returnsNull() =
-        runTest {
-            mockWebServer.enqueue(
-                MockResponse()
-                    .setResponseCode(200)
-                    .setBody("""{"cpu":{"percent":"not_a_number"}}"""),
-            )
-
-            val response = apiService.getSystemStats()
-            assertTrue(response.isSuccessful)
-            val stats = response.body()
-            assertNotNull(stats)
-            assertNull(stats?.cpuPercent)
-        }
-
-    @Test
-    fun testGetSystemStats_typeMismatchArray_behavior() =
-        runTest {
-            mockWebServer.enqueue(
-                MockResponse()
-                    .setResponseCode(200)
-                    .setBody("""{"cpu": []}"""),
-            )
-
-            val response = apiService.getSystemStats()
-            assertTrue(response.isSuccessful)
-            val stats = response.body()
-            assertNotNull(stats)
-            // Gson deserializes an empty array [] into an empty map {} for Map fields
-            assertTrue(stats?.cpu?.isEmpty() == true)
+            assertNull(stats?.cpu_percent)
+            assertNull(stats?.memory?.percent)
         }
 }

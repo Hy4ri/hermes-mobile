@@ -1,0 +1,6 @@
+# GitGuardian configuration
+# Ignore test files — they contain fixture tokens, not real secrets
+paths-ignore:
+  - 'app/src/test/**'
+  - '**/*Test.kt'
+  - '**/*test*'

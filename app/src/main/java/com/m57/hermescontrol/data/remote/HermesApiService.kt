@@ -32,6 +32,7 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
 import com.m57.hermescontrol.data.model.McpCatalogResponse
+import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MemoryResponse

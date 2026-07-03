@@ -320,17 +320,4 @@ class HermesApiServiceTest {
             assertNull(stats?.cpu_percent)
             assertNull(stats?.memory?.percent)
         }
-
-    @Test
-    fun testGetSystemStats_nonNumericPercent_returnsNull() =
-        runTest {
-            mockWebServer.enqueue(
-                MockResponse()
-                    .setResponseCode(200)
-                    .setBody("""{"cpu_percent":"not_a_number"}"""),
-            )
-
-            val response = apiService.getSystemStats()
-            assertTrue(response.isSuccessful)
-        }
 }

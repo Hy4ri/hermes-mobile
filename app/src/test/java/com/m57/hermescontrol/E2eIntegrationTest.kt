@@ -74,10 +74,9 @@ class E2eIntegrationTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        val testMainDispatcher = Dispatchers.Main
         mockkStatic(Dispatchers::class)
-        every { Dispatchers.IO } returns testDispatcher
-        every { Dispatchers.Main } returns testMainDispatcher
+        // Make IO return whatever Main currently is (runTest overrides Main per-test)
+        every { Dispatchers.IO } answers { Dispatchers.Main }
 
         mockkObject(AuthManager)
         mockkObject(ApiClient)

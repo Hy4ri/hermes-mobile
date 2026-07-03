@@ -71,6 +71,9 @@ class PluginsViewModel : ViewModel(), ToastHost {
                                 PluginInfo(
                                     name = it.name ?: "unknown",
                                     description = it.description ?: it.label,
+                                    version = null,
+                                    source = null,
+                                    runtimeStatus = null,
                                 )
                             },
                         memoryProvider = providers?.memoryProvider ?: "",

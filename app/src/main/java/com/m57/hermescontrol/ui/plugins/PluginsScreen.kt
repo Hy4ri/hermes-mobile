@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -118,8 +119,6 @@ fun PluginsScreen(
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_plugins)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
-        isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadPlugins() },
         actions = {
             IconButton(
                 enabled = !state.rescanBusy,
@@ -136,74 +135,80 @@ fun PluginsScreen(
             }
         },
     ) { paddingValues ->
-        when {
-            state.isLoading && state.plugins.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
-            }
+        PullToRefreshBox(
+            isRefreshing = state.isLoading,
+            onRefresh = { viewModel.loadPlugins() },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            when {
+                state.isLoading && state.plugins.isEmpty() -> {
+                    LoadingState(modifier = Modifier.padding(paddingValues))
+                }
 
-            state.errorMessage != null -> {
-                ErrorState(
-                    message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadPlugins() },
-                    modifier = Modifier.padding(paddingValues),
-                )
-            }
+                state.errorMessage != null -> {
+                    ErrorState(
+                        message = state.errorMessage ?: "",
+                        onRetry = { viewModel.loadPlugins() },
+                        modifier = Modifier.padding(paddingValues),
+                    )
+                }
 
-            state.plugins.isEmpty() && state.orphanPlugins.isEmpty() -> {
-                EmptyState(
-                    title = stringResource(R.string.plugins_empty_title),
-                    subtitle = stringResource(R.string.plugins_empty_desc),
-                    onAction = { viewModel.loadPlugins() },
-                    actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier.padding(paddingValues),
-                )
-            }
+                state.plugins.isEmpty() && state.orphanPlugins.isEmpty() -> {
+                    EmptyState(
+                        title = stringResource(R.string.plugins_empty_title),
+                        subtitle = stringResource(R.string.plugins_empty_desc),
+                        onAction = { viewModel.loadPlugins() },
+                        actionLabel = stringResource(R.string.content_desc_refresh),
+                        modifier = Modifier.padding(paddingValues),
+                    )
+                }
 
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = listContentPadding,
-                    verticalArrangement = listItemSpacing,
-                ) {
-                    // Provider selection section
-                    if (state.memoryOptions.isNotEmpty() || state.contextOptions.isNotEmpty()) {
-                        item(key = "providers") {
-                            ProviderSelectionSection(state, viewModel)
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = listContentPadding,
+                        verticalArrangement = listItemSpacing,
+                    ) {
+                        // Provider selection section
+                        if (state.memoryOptions.isNotEmpty() || state.contextOptions.isNotEmpty()) {
+                            item(key = "providers") {
+                                ProviderSelectionSection(state, viewModel)
+                            }
                         }
-                    }
 
-                    // Install section
-                    item(key = "install") {
-                        InstallSection(state, viewModel)
-                    }
+                        // Install section
+                        item(key = "install") {
+                            InstallSection(state, viewModel)
+                        }
 
-                    // Search bar
-                    item(key = "search") {
-                        SearchBar(
-                            query = query,
-                            onQueryChange = { query = it },
-                            placeholder = "Search plugins...",
-                        )
-                    }
-
-                    // Plugin list
-                    items(filteredPlugins, key = { it.name }) { plugin ->
-                        PluginCard(plugin = plugin, state = state, viewModel = viewModel)
-                    }
-
-                    // Orphan dashboard plugins section
-                    if (state.orphanPlugins.isNotEmpty()) {
-                        item(key = "orphan-header") {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = stringResource(R.string.plugins_orphan_heading),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp),
+                        // Search bar
+                        item(key = "search") {
+                            SearchBar(
+                                query = query,
+                                onQueryChange = { query = it },
+                                placeholder = "Search plugins...",
                             )
                         }
-                        items(state.orphanPlugins, key = { "orphan-${it.name}" }) { plugin ->
-                            OrphanPluginCard(plugin = plugin)
+
+                        // Plugin list
+                        items(filteredPlugins, key = { it.name }) { plugin ->
+                            PluginCard(plugin = plugin, state = state, viewModel = viewModel)
+                        }
+
+                        // Orphan dashboard plugins section
+                        if (state.orphanPlugins.isNotEmpty()) {
+                            item(key = "orphan-header") {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(R.string.plugins_orphan_heading),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                            }
+                            items(state.orphanPlugins, key = { "orphan-${it.name}" }) { plugin ->
+                                OrphanPluginCard(plugin = plugin)
+                            }
                         }
                     }
                 }

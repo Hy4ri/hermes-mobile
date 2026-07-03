@@ -28,6 +28,8 @@
     <string name="content_desc_back">Back</string>
     <string name="content_desc_open_drawer">Open navigation drawer</string>
     <string name="content_desc_refresh">Refresh</string>
+    <string name="common_save">Save</string>
+    <string name="common_cancel">Cancel</string>
     <string name="content_desc_clear_search">Clear search</string>
 
     <!-- General Errors -->
@@ -360,6 +362,25 @@
     <string name="plugins_action_update">Update</string>
     <string name="plugins_action_uninstall">Uninstall</string>
     <string name="plugins_action_install">Install</string>
+    <string name="plugins_action_remove">Remove</string>
+    <string name="plugins_action_rescan">Rescan</string>
+    <string name="plugins_install_heading">Install Plugin</string>
+    <string name="plugins_install_hint">Install a plugin from a git/URL source</string>
+    <string name="plugins_force_reinstall">Force reinstall</string>
+    <string name="plugins_enable_after_install">Enable after install</string>
+    <string name="plugins_providers_heading">Plugin Providers</string>
+    <string name="plugins_providers_hint">Select active memory and context providers</string>
+    <string name="plugins_memory_provider_label">Memory Provider</string>
+    <string name="plugins_context_engine_label">Context Engine</string>
+    <string name="plugins_provider_defaults">(config defaults)</string>
+    <string name="plugins_remove_confirm_title">Remove Plugin</string>
+    <string name="plugins_remove_confirm_text">This will remove the "%1$s" plugin from your agent.</string>
+    <string name="plugins_auth_required">Auth Required</string>
+    <string name="plugins_auth_command_hint">Auth command: %1$s</string>
+    <string name="plugins_dashboard_slots">Dashboard slots: %1$s</string>
+    <string name="plugins_orphan_heading">Orphaned Dashboard Plugins</string>
+    <string name="plugins_show_in_sidebar">Show in sidebar</string>
+    <string name="plugins_hide_from_sidebar">Hide from sidebar</string>
 
     <!-- McpServers Screen -->
     <string name="mcp_servers_label_transport">Transport: %1$s</string>

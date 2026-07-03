@@ -961,9 +961,10 @@ class E2eIntegrationTest {
             viewModel.loadKeys()
             advanceUntilIdle()
 
-            val allVars = viewModel.uiState.value.categories
-                .flatMap { it.vars.entries }
-                .associate { it.key to it.value }
+            val allVars =
+                viewModel.uiState.value.categories
+                    .flatMap { it.vars.entries }
+                    .associate { it.key to it.value }
             assertEquals("value1", allVars["KEY1"]?.redactedValue)
 
             viewModel.updateKey("KEY1", "newValue")

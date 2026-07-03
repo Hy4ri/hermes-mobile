@@ -2,7 +2,6 @@ package com.m57.hermescontrol.ui.config
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
@@ -10,7 +9,6 @@ import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
@@ -44,7 +42,6 @@ class ConfigViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(ConfigUiState())
     val uiState: StateFlow<ConfigUiState> = _uiState.asStateFlow()
 
-    private val gson: Gson = OkHttpProvider.gson
     private val pendingChanges = mutableMapOf<String, JsonElement>()
 
     init {
@@ -253,7 +250,7 @@ class ConfigViewModel : ViewModel(), ToastHost {
 
         val categoryFields =
             schema.fields.filter { (_, field) ->
-                field.category == category
+                (field.category ?: "general") == category
             }
 
         var count = 0

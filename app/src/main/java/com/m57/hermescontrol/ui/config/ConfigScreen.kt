@@ -339,25 +339,6 @@ private fun FormEditor(
             schema.fields.values.groupingBy { it.category ?: "general" }.eachCount()
         }
 
-    // Compute which fields to show
-    val visibleFields: List<Pair<String, SchemaField>> =
-        remember(schema, activeCategory, searchQuery) {
-            if (isSearching) {
-                val query = searchQuery.lowercase()
-                schema.fields.filter { (key, field) ->
-                    val label = key.split(".").last().replace("_", " ")
-                    key.lowercase().contains(query) ||
-                        label.contains(query) ||
-                        (field.description?.lowercase()?.contains(query) == true) ||
-                        (field.category?.lowercase()?.contains(query) == true)
-                }.entries.map { it.key to it.value }
-            } else {
-                schema.fields.filter { (_, field) ->
-                    (field.category ?: "general") == activeCategory
-                }.entries.map { it.key to it.value }
-            }
-        }
-
     // Non-schema config values — all dot-paths in the config that aren't in the schema
     val nonSchemaPaths =
         remember(config, schema) {

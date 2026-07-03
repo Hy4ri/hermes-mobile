@@ -245,7 +245,8 @@ fun SessionsScreen(
         val sessionTitle =
             state.sessions
                 .find { it.id == sessionToDelete }
-                ?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
+                ?.title
+                ?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
         AlertDialog(
             onDismissRequest = { viewModel.cancelDeleteSession() },
             title = { Text(stringResource(R.string.sessions_delete_title)) },

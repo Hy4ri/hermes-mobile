@@ -336,7 +336,9 @@ private fun FormEditor(
     val isSearching = searchQuery.isNotBlank()
     val categoryCounts =
         remember(schema) {
-            schema.fields.values.groupingBy { it.category ?: "general" }.eachCount()
+            schema.fields.values
+                .groupingBy { it.category ?: "general" }
+                .eachCount()
         }
 
     // Non-schema config values — all dot-paths in the config that aren't in the schema
@@ -400,17 +402,21 @@ private fun FormEditor(
             remember(schema, activeCategory, searchQuery) {
                 if (isSearching) {
                     val query = searchQuery.lowercase()
-                    schema.fields.filter { (key, field) ->
-                        val label = key.split(".").last().replace("_", " ")
-                        key.lowercase().contains(query) ||
-                            label.contains(query) ||
-                            (field.description?.lowercase()?.contains(query) == true) ||
-                            (field.category?.lowercase()?.contains(query) == true)
-                    }.entries.map { it.key to it.value }
+                    schema.fields
+                        .filter { (key, field) ->
+                            val label = key.split(".").last().replace("_", " ")
+                            key.lowercase().contains(query) ||
+                                label.contains(query) ||
+                                (field.description?.lowercase()?.contains(query) == true) ||
+                                (field.category?.lowercase()?.contains(query) == true)
+                        }.entries
+                        .map { it.key to it.value }
                 } else {
-                    schema.fields.filter { (_, field) ->
-                        (field.category ?: "general") == activeCategory
-                    }.entries.map { it.key to it.value }
+                    schema.fields
+                        .filter { (_, field) ->
+                            (field.category ?: "general") == activeCategory
+                        }.entries
+                        .map { it.key to it.value }
                 }
             }
         visibleFields.forEach { (key, field) ->
@@ -521,7 +527,12 @@ private fun ConfigField(
     isModified: Boolean,
     onChange: (JsonElement) -> Unit,
 ) {
-    val label = key.split(".").last().replace("_", " ").replaceFirstChar { it.uppercase() }
+    val label =
+        key
+            .split(".")
+            .last()
+            .replace("_", " ")
+            .replaceFirstChar { it.uppercase() }
     val description = field.description ?: key.replace(".", " → ").replace("_", " ").replaceFirstChar { it.uppercase() }
 
     Card(

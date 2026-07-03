@@ -38,7 +38,9 @@ data class ConfigUiState(
     val toastMessage: String? = null,
 )
 
-class ConfigViewModel : ViewModel(), ToastHost {
+class ConfigViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ConfigUiState())
     val uiState: StateFlow<ConfigUiState> = _uiState.asStateFlow()
 
@@ -147,6 +149,7 @@ class ConfigViewModel : ViewModel(), ToastHost {
                             )
                         }
                     }
+
                     is NetworkResult.Failure -> {
                         _uiState.update {
                             it.copy(
@@ -193,6 +196,7 @@ class ConfigViewModel : ViewModel(), ToastHost {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -231,6 +235,7 @@ class ConfigViewModel : ViewModel(), ToastHost {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

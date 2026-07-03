@@ -140,6 +140,7 @@ class PairingCodeEntryViewModel(
                     ApiClient.rebuild()
                     _uiState.update { it.copy(isConnecting = false, connectionSuccess = true) }
                 }
+
                 is NetworkResult.Failure -> {
                     val msg = buildErrorMessage(result)
                     setError(msg)
@@ -148,8 +149,8 @@ class PairingCodeEntryViewModel(
         }
     }
 
-    private fun buildErrorMessage(result: NetworkResult.Failure): String {
-        return when (val err = result.error) {
+    private fun buildErrorMessage(result: NetworkResult.Failure): String =
+        when (val err = result.error) {
             is NetworkError.Http -> {
                 when (err.code) {
                     401 -> app.getString(R.string.connect_error_401)
@@ -157,13 +158,19 @@ class PairingCodeEntryViewModel(
                     else -> app.getString(R.string.connect_error_http_code, err.code)
                 }
             }
-            is NetworkError.AuthExpired -> app.getString(R.string.connect_error_401)
-            is NetworkError.Connection ->
+
+            is NetworkError.AuthExpired -> {
+                app.getString(R.string.connect_error_401)
+            }
+
+            is NetworkError.Connection -> {
                 app.getString(R.string.connect_error_connection_failed, err.cause.message ?: "")
-            is NetworkError.Unknown ->
+            }
+
+            is NetworkError.Unknown -> {
                 app.getString(R.string.connect_error_connection_failed, err.cause.message ?: "")
+            }
         }
-    }
 
     private fun setError(msg: String) {
         _uiState.update { it.copy(isConnecting = false, errorMessage = msg) }

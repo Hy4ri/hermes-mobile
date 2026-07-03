@@ -27,10 +27,14 @@ import com.m57.hermescontrol.R
 /** Sealed interface for navigation icon types — eliminates boolean-flag anti-pattern. */
 sealed interface NavIcon {
     /** Hamburger menu icon that opens the drawer. */
-    data class Menu(val onOpen: () -> Unit) : NavIcon
+    data class Menu(
+        val onOpen: () -> Unit,
+    ) : NavIcon
 
     /** Back arrow icon. */
-    data class Back(val onBack: () -> Unit) : NavIcon
+    data class Back(
+        val onBack: () -> Unit,
+    ) : NavIcon
 }
 
 /**

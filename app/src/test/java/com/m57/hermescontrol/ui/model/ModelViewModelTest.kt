@@ -67,7 +67,10 @@ class ModelViewModelTest {
     @Test
     fun `init with empty pinned models`() {
         val viewModel = createViewModel()
-        assertTrue(viewModel.uiState.value.pinnedModels.isEmpty())
+        assertTrue(
+            viewModel.uiState.value.pinnedModels
+                .isEmpty(),
+        )
     }
 
     @Test
@@ -178,7 +181,10 @@ class ModelViewModelTest {
 
         viewModel.unpinModel("openai", "gpt-4")
         testDispatcher.scheduler.advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.pinnedModels.isEmpty())
+        assertTrue(
+            viewModel.uiState.value.pinnedModels
+                .isEmpty(),
+        )
 
         // Re-pin same model after unpin
         viewModel.pinModel("openai", "gpt-4")

@@ -77,7 +77,9 @@ data class SystemUiState(
     val updateConfirmOpen: Boolean = false,
 )
 
-class SystemViewModel : ViewModel(), ToastHost {
+class SystemViewModel :
+    ViewModel(),
+    ToastHost {
     companion object {
         private const val TAG = "SystemViewModel"
     }
@@ -186,6 +188,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     _uiState.update { it.copy(toastMessage = "Gateway ${name}ed successfully") }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to $name gateway: ${result.error.message}") }
                 }
@@ -206,6 +209,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(checkingUpdate = false, updateInfo = result.data) }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -251,6 +255,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to toggle curator: ${result.error.message}") }
                 }
@@ -278,6 +283,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     _uiState.update { it.copy(toastMessage = "Memory ($target) reset successfully") }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to reset memory: ${result.error.message}") }
                 }
@@ -329,6 +335,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(addingCred = false, toastMessage = "Failed to add credential: ${result.error.message}")
@@ -352,6 +359,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     _uiState.update { it.copy(toastMessage = "Credential removed") }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to remove credential: ${result.error.message}") }
                 }
@@ -411,6 +419,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to trigger backup: ${result.error.message}") }
                 }
@@ -433,6 +442,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Backup downloaded") }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to download backup: ${result.error.message}") }
                 }
@@ -475,6 +485,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -556,6 +567,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -582,6 +594,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     _uiState.update { it.copy(toastMessage = "Hook deleted") }
                     loadAll()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to delete hook: ${result.error.message}") }
                 }
@@ -631,6 +644,7 @@ class SystemViewModel : ViewModel(), ToastHost {
                     result.data?.name?.let { pollActionStatus(it) }
                     _uiState.update { it.copy(toastMessage = "$label started") }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "$label failed: ${result.error.message}") }
                 }

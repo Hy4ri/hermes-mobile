@@ -155,8 +155,7 @@ fun KanbanScreen(
                                     contentPadding = PaddingValues(16.dp),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
-                                    items(state.columns.size, key = {
-                                            index ->
+                                    items(state.columns.size, key = { index ->
                                         state.columns[index].name
                                     }) { columnIndex ->
                                         val column = state.columns[columnIndex]

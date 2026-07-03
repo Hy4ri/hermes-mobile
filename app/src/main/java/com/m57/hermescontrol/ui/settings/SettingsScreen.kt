@@ -157,12 +157,14 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
                     }
+
                     SettingsTab.BEHAVIOR -> {
                         BehaviorSection(
                             autoReconnect = state.autoReconnect,
                             onAutoReconnectChange = viewModel::onAutoReconnectChange,
                         )
                     }
+
                     SettingsTab.APPEARANCE -> {
                         AppearanceSection(
                             themePreference = state.themePreference,
@@ -190,6 +192,7 @@ fun SettingsScreen(
                             onAddNavItem = viewModel::addNavItem,
                         )
                     }
+
                     SettingsTab.ABOUT -> {
                         // ── About section ─────────────────────────────────────────
                         SectionCard(title = stringResource(R.string.settings_sec_about)) {
@@ -876,30 +879,41 @@ private fun AppearanceSection(
                         text = {
                             Text(
                                 when (preset) {
-                                    ThemePreset.DEFAULT ->
+                                    ThemePreset.DEFAULT -> {
                                         stringResource(
                                             R.string.theme_preset_default,
                                         )
-                                    ThemePreset.MONOCHROME ->
+                                    }
+
+                                    ThemePreset.MONOCHROME -> {
                                         stringResource(
                                             R.string.theme_preset_monochrome,
                                         )
-                                    ThemePreset.GRUVBOX ->
+                                    }
+
+                                    ThemePreset.GRUVBOX -> {
                                         stringResource(
                                             R.string.theme_preset_gruvbox,
                                         )
-                                    ThemePreset.CATPPUCCIN ->
+                                    }
+
+                                    ThemePreset.CATPPUCCIN -> {
                                         stringResource(
                                             R.string.theme_preset_catppuccin,
                                         )
-                                    ThemePreset.AMOLED ->
+                                    }
+
+                                    ThemePreset.AMOLED -> {
                                         stringResource(
                                             R.string.theme_preset_amoled,
                                         )
-                                    ThemePreset.NEON_NOIR ->
+                                    }
+
+                                    ThemePreset.NEON_NOIR -> {
                                         stringResource(
                                             R.string.theme_preset_neon_noir,
                                         )
+                                    }
                                 },
                             )
                         },

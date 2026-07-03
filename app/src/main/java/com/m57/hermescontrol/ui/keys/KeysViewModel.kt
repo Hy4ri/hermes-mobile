@@ -26,7 +26,9 @@ data class KeysUiState(
     val toastMessage: String? = null,
 )
 
-class KeysViewModel : ViewModel(), ToastHost {
+class KeysViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(KeysUiState())
     val uiState: StateFlow<KeysUiState> = _uiState.asStateFlow()
 

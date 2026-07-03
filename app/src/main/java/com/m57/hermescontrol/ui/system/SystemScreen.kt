@@ -88,14 +88,13 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-private fun formatBytes(bytes: Long): String {
-    return when {
+private fun formatBytes(bytes: Long): String =
+    when {
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> "${bytes / 1024} KB"
         bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
         else -> "${"%.1f".format(bytes.toDouble() / (1024 * 1024 * 1024))} GB"
     }
-}
 
 private fun formatDuration(totalSeconds: Double): String {
     val days = (totalSeconds / 86400).toInt()
@@ -341,8 +340,7 @@ private fun LazyListScope.hostSection(
                     stats.os?.let { InfoRow(stringResource(R.string.system_label_os), it) }
                     stats.arch?.let { InfoRow(stringResource(R.string.system_label_arch), it) }
                     stats.hostname?.let { InfoRow(stringResource(R.string.system_label_hostname), it) }
-                    stats.python_version?.let {
-                            python ->
+                    stats.python_version?.let { python ->
                         val impl = stats.python_impl?.let { " ($it)" } ?: ""
                         InfoRow(stringResource(R.string.system_label_python), "$python$impl")
                     }
@@ -352,14 +350,21 @@ private fun LazyListScope.hostSection(
                         val updateBadge =
                             state.updateInfo?.let { info ->
                                 when {
-                                    info.update_available == true && info.behind != null && info.behind > 0 ->
+                                    info.update_available == true && info.behind != null && info.behind > 0 -> {
                                         " (${stringResource(
                                             R.string.system_version_update_available,
                                         )}: ${stringResource(R.string.system_version_behind, info.behind)})"
-                                    info.update_available == true -> " (${stringResource(
-                                        R.string.system_version_update_available,
-                                    )})"
-                                    else -> " (${stringResource(R.string.system_version_latest)})"
+                                    }
+
+                                    info.update_available == true -> {
+                                        " (${stringResource(
+                                            R.string.system_version_update_available,
+                                        )})"
+                                    }
+
+                                    else -> {
+                                        " (${stringResource(R.string.system_version_latest)})"
+                                    }
                                 }
                             } ?: ""
                         InfoRow(stringResource(R.string.system_label_hermes_version), "$ver$updateBadge")
@@ -620,10 +625,12 @@ private fun LazyListScope.curatorSection(
                                 statusText = stringResource(R.string.system_status_disabled)
                                 statusType = StatusBadgeType.ERROR
                             }
+
                             curator.paused == true -> {
                                 statusText = stringResource(R.string.system_status_paused)
                                 statusType = StatusBadgeType.WARNING
                             }
+
                             else -> {
                                 statusText = stringResource(R.string.system_status_active)
                                 statusType = StatusBadgeType.SUCCESS

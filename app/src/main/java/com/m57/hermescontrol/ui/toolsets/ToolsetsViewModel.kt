@@ -24,7 +24,9 @@ data class ToolsetsUiState(
     val toastMessage: String? = null,
 )
 
-class ToolsetsViewModel : ViewModel(), ToastHost {
+class ToolsetsViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ToolsetsUiState())
     val uiState: StateFlow<ToolsetsUiState> = _uiState.asStateFlow()
 

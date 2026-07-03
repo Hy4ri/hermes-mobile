@@ -24,7 +24,9 @@ data class GatewayUiState(
     val toastMessage: String? = null,
 )
 
-class GatewayViewModel : ViewModel(), ToastHost {
+class GatewayViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(GatewayUiState())
     val uiState: StateFlow<GatewayUiState> = _uiState.asStateFlow()
 

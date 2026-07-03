@@ -574,16 +574,26 @@ class ConnectViewModelTest {
     fun testMultipleProfiles_loadedOnInit() {
         val profiles =
             listOf(
-                com.m57.hermescontrol.data.model.ConnectionProfile("a", "Alpha", "10.0.0.1", 9119),
-                com.m57.hermescontrol.data.model.ConnectionProfile("b", "Beta", "10.0.0.2", 9220),
+                com.m57.hermescontrol.data.model
+                    .ConnectionProfile("a", "Alpha", "10.0.0.1", 9119),
+                com.m57.hermescontrol.data.model
+                    .ConnectionProfile("b", "Beta", "10.0.0.2", 9220),
             )
         every { AuthManager.getConnectionProfiles() } returns profiles
         every { AuthManager.getSelectedProfileId() } returns null
 
         val viewModel = ConnectViewModel(mockApp)
         assertEquals(2, viewModel.uiState.value.profiles.size)
-        assertEquals("Alpha", viewModel.uiState.value.profiles[0].name)
-        assertEquals("Beta", viewModel.uiState.value.profiles[1].name)
+        assertEquals(
+            "Alpha",
+            viewModel.uiState.value.profiles[0]
+                .name,
+        )
+        assertEquals(
+            "Beta",
+            viewModel.uiState.value.profiles[1]
+                .name,
+        )
     }
 
     @Test

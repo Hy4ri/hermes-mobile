@@ -130,6 +130,7 @@ class CronJobsViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Job triggered successfully") }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to trigger cron job: ${result.error.message}") }
                 }
@@ -210,6 +211,7 @@ class CronJobsViewModel :
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -300,6 +302,7 @@ class CronJobsViewModel :
                     closeEditor()
                     loadCronJobs()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -340,7 +343,8 @@ class CronJobsViewModel :
     }
 
     private fun parseLines(skills: String): List<String> =
-        skills.lines()
+        skills
+            .lines()
             .map { it.trim() }
             .filter { it.isNotEmpty() }
 

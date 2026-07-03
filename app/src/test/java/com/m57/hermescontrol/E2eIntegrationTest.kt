@@ -1005,7 +1005,8 @@ class E2eIntegrationTest {
 
             assertEquals(
                 50.0,
-                viewModel.uiState.value.stats?.cpu_percent,
+                viewModel.uiState.value.stats
+                    ?.cpu_percent,
             )
 
             viewModel.triggerBackup()

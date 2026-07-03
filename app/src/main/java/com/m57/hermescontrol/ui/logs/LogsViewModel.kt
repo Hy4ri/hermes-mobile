@@ -22,7 +22,9 @@ data class LogsUiState(
     val toastMessage: String? = null,
 )
 
-class LogsViewModel : ViewModel(), ToastHost {
+class LogsViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(LogsUiState())
     val uiState: StateFlow<LogsUiState> = _uiState.asStateFlow()
 

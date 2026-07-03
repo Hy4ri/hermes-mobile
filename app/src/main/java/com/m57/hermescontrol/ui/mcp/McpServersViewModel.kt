@@ -25,7 +25,9 @@ data class McpServersUiState(
     val toastMessage: String? = null,
 )
 
-class McpServersViewModel : ViewModel(), ToastHost {
+class McpServersViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(McpServersUiState())
     val uiState: StateFlow<McpServersUiState> = _uiState.asStateFlow()
 

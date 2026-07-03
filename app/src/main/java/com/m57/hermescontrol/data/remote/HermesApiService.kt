@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
+import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
@@ -37,12 +38,16 @@ import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
+import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.RawConfigResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
+import com.m57.hermescontrol.data.model.SessionPromptResponse
+import com.m57.hermescontrol.data.model.SessionRenameRequest
+import com.m57.hermescontrol.data.model.SessionStatsResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
@@ -94,6 +99,30 @@ interface HermesApiService {
     suspend fun getSessionMessages(
         @Path("id") sessionId: String,
     ): Response<SessionMessagesResponse>
+
+    @GET("api/sessions/stats")
+    suspend fun getSessionStats(): Response<SessionStatsResponse>
+
+    @PUT("api/sessions/{id}/rename")
+    suspend fun renameSession(
+        @Path("id") sessionId: String,
+        @Body body: SessionRenameRequest,
+    ): Response<Unit>
+
+    @POST("api/sessions/delete")
+    suspend fun bulkDeleteSessions(
+        @Body body: BulkDeleteRequest,
+    ): Response<Unit>
+
+    @POST("api/sessions/prune")
+    suspend fun pruneSessions(
+        @Body body: PruneRequest,
+    ): Response<Unit>
+
+    @GET("api/sessions/{id}/prompt")
+    suspend fun getSessionPrompt(
+        @Path("id") sessionId: String,
+    ): Response<SessionPromptResponse>
 
     @GET("api/system/stats")
     suspend fun getSystemStats(): Response<SystemStatsResponse>

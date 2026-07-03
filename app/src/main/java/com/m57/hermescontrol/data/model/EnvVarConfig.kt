@@ -26,3 +26,8 @@ data class EnvVarUpdate(
     val value: String,
     val profile: String? = null,
 )
+
+data class EnvVarDeleteRequest(
+    val key: String,
+    val profile: String? = null,
+)

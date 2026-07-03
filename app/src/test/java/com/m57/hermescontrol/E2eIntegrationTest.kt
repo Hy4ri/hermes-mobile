@@ -958,14 +958,14 @@ class E2eIntegrationTest {
             coEvery { mockApiService.updateEnvVar(any()) } returns Response.success(Unit)
 
             val viewModel = KeysViewModel()
-            viewModel.loadKeys(reveal = false)
+            viewModel.loadKeys()
             advanceUntilIdle()
 
-            assertEquals(
-                "value1",
-                viewModel.uiState.value.envVars["KEY1"]
-                    ?.redactedValue,
-            )
+            val allVars =
+                viewModel.uiState.value.categories
+                    .flatMap { it.vars.entries }
+                    .associate { it.key to it.value }
+            assertEquals("value1", allVars["KEY1"]?.redactedValue)
 
             viewModel.updateKey("KEY1", "newValue")
             advanceUntilIdle()

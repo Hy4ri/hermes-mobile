@@ -21,6 +21,7 @@
     <!-- Actions -->
     <string name="action_retry">Retry</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_clear">Clear</string>
     <string name="action_ok">OK</string>
     <string name="action_delete">Delete</string>
 
@@ -235,17 +236,29 @@
     <string name="skills_category_all">All</string>
     <string name="skills_no_skills">No skills found</string>
     <string name="skills_no_skills_desc">Skills loaded from Hermes will appear here.</string>
+    <string name="skills_screen_title">Skills</string>
     <string name="skills_search_placeholder">Search skills\u2026</string>
     <string name="skills_filter_status">Status</string>
     <string name="skills_filter_category">Category</string>
     <string name="skills_no_matching">No matching skills</string>
     <string name="skills_no_matching_desc">Try adjusting your search or filters.</string>
     <string name="skills_edit_title">Edit: %1$s</string>
+    <string name="skills_preview_title">Preview: %1$s</string>
+    <string name="skills_preview_empty">No content to preview</string>
+    <string name="skills_hub_search_placeholder">Search skill hub\u2026</string>
+    <string name="skills_hub_search_button">Search Hub</string>
+    <string name="skills_hub_empty_results">No skills found in hub</string>
+    <string name="skills_hub_search_hint">Type a search term to browse the skill hub</string>
+    <string name="skills_hub_install">Install</string>
     <string name="skills_content_placeholder">Enter skill content\u2026</string>
+    <string name="skills_empty_message">No skills found</string>
     <string name="skills_discard_title">Discard changes?</string>
     <string name="skills_discard_message">You have unsaved changes. Are you sure you want to discard them?</string>
     <string name="action_discard">Discard</string>
     <string name="content_desc_edit_skill">Edit Skill File</string>
+    <string name="content_desc_preview_skill">Preview Skill File</string>
+    <string name="content_desc_uninstall_skill">Uninstall Skill</string>
+    <string name="content_desc_update_skills_hub">Update Skills from Hub</string>
     <string name="content_desc_save_changes">Save Changes</string>
 
     <!-- Logs Screen -->

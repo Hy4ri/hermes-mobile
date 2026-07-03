@@ -277,35 +277,55 @@ fun SystemScreen(
                     verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     // ── 1. Host ────────────────────────────────────────────
-                    HostSection(state, spacing, statusColors, viewModel)
+                    item {
+                        HostSection(state, spacing, statusColors, viewModel)
+                    }
 
                     // ── 2. Portal ──────────────────────────────────────────
-                    PortalSection(state, spacing, uriHandler)
+                    item {
+                        PortalSection(state, spacing, uriHandler)
+                    }
 
                     // ── 3. Curator ─────────────────────────────────────────
-                    CuratorSection(state, spacing, statusColors, viewModel)
+                    item {
+                        CuratorSection(state, spacing, statusColors, viewModel)
+                    }
 
                     // ── 4. Gateway ─────────────────────────────────────────
-                    GatewaySection(state, spacing, statusColors, viewModel)
+                    item {
+                        GatewaySection(state, spacing, statusColors, viewModel)
+                    }
 
                     // ── 5. Memory ──────────────────────────────────────────
-                    MemorySection(state, spacing, resetTarget, { resetTarget = it }, viewModel)
+                    item {
+                        MemorySection(state, spacing, resetTarget, { resetTarget = it }, viewModel)
+                    }
 
                     // ── 6. Credentials ─────────────────────────────────────
-                    CredentialsSection(state, spacing, viewModel, credToRemove, { credToRemove = it })
+                    item {
+                        CredentialsSection(state, spacing, viewModel, credToRemove, { credToRemove = it })
+                    }
 
                     // ── 7. Operations ──────────────────────────────────────
-                    OperationsSection(state, spacing, viewModel, importConfirm, { importConfirm = it })
+                    item {
+                        OperationsSection(state, spacing, viewModel, importConfirm, { importConfirm = it })
+                    }
 
                     // ── 8. Checkpoints ─────────────────────────────────────
-                    CheckpointsSection(state, spacing, pruneConfirm, { pruneConfirm = it })
+                    item {
+                        CheckpointsSection(state, spacing, pruneConfirm, { pruneConfirm = it })
+                    }
 
                     // ── 9. Shell Hooks ─────────────────────────────────────
-                    ShellHooksSection(state, spacing, viewModel)
+                    item {
+                        ShellHooksSection(state, spacing, viewModel)
+                    }
 
                     // ── 10. Action Log ─────────────────────────────────────
                     if (state.activeAction != null) {
-                        ActionLogSection(state, viewModel)
+                        item {
+                            ActionLogSection(state, viewModel)
+                        }
                     }
                 }
             }

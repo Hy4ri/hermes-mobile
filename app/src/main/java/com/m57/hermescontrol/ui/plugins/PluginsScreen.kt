@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.InstallDesktop
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -119,21 +118,6 @@ fun PluginsScreen(
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_plugins)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
-        actions = {
-            IconButton(
-                enabled = !state.rescanBusy,
-                onClick = { viewModel.rescanPlugins() },
-            ) {
-                if (state.rescanBusy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.plugins_action_rescan))
-                }
-            }
-        },
     ) { paddingValues ->
         PullToRefreshBox(
             isRefreshing = state.isLoading,

@@ -1091,7 +1091,7 @@ class E2eIntegrationTest {
             advanceUntilIdle()
 
             coVerify { mockApiService.updateProfileModel("default", any()) }
-            assertEquals("Successfully set model to llama3", viewModel.uiState.value.toastMessage)
+            assertEquals("Successfully set profile model to llama3", viewModel.uiState.value.toastMessage)
         }
 
     @Test

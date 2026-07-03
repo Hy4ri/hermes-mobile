@@ -57,11 +57,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -86,7 +85,6 @@ import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
-import kotlinx.coroutines.launch
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -1321,8 +1319,7 @@ private fun LazyListScope.operationsSection(
                 // Debug share results
                 state.debugShare?.let { share ->
                     Spacer(modifier = Modifier.height(spacing.sm))
-                    val scope = rememberCoroutineScope()
-                    val clipboard = LocalClipboard.current
+                    val clipboardManager = LocalClipboardManager.current
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1369,7 +1366,8 @@ private fun LazyListScope.operationsSection(
                                 modifier = Modifier.weight(1f),
                             )
                             IconButton(onClick = {
-                                scope.launch { clipboard.setText(AnnotatedString(url)) }
+                                @Suppress("DEPRECATION")
+                                clipboardManager.setText(AnnotatedString(url))
                             }) {
                                 Icon(
                                     Icons.Filled.ContentCopy,

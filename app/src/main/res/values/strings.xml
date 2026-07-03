@@ -545,6 +545,37 @@
     <string name="mcp_servers_label_transport">Transport: %1$s</string>
     <string name="mcp_servers_label_command">Command:</string>
     <string name="mcp_servers_action_test">Test</string>
+    <string name="mcp_servers_add_server">Add server</string>
+    <string name="mcp_servers_add_http">HTTP URL</string>
+    <string name="mcp_servers_add_stdio">Stdio command</string>
+    <string name="mcp_servers_field_name">Server name</string>
+    <string name="mcp_servers_field_url">URL (e.g. http://localhost:8000/sse)</string>
+    <string name="mcp_servers_field_command">Command (e.g. npx)</string>
+    <string name="mcp_servers_field_args">Arguments</string>
+    <string name="mcp_servers_action_submit">Add server</string>
+    <string name="mcp_servers_action_adding">Adding…</string>
+    <string name="mcp_servers_status_running">running</string>
+    <string name="mcp_servers_status_stopped">stopped</string>
+    <string name="mcp_servers_status_error">error</string>
+    <string name="mcp_servers_status_unconfigured">unconfigured</string>
+    <string name="mcp_servers_action_restart">Restart</string>
+    <string name="mcp_servers_action_restarting">Restarting…</string>
+    <string name="mcp_servers_env_vars">Env vars</string>
+    <string name="mcp_servers_env_add">Add env var</string>
+    <string name="mcp_servers_env_key">Key</string>
+    <string name="mcp_servers_env_value">Value</string>
+    <string name="mcp_servers_env_no_vars">No environment variables configured.</string>
+    <string name="mcp_servers_section_catalog">Catalog</string>
+    <string name="mcp_servers_catalog_search">Search catalog…</string>
+    <string name="mcp_servers_catalog_load">Load catalog</string>
+    <string name="mcp_servers_catalog_loading">Loading catalog…</string>
+    <string name="mcp_servers_catalog_empty">No catalog entries match your search.</string>
+    <string name="mcp_servers_catalog_install">Install</string>
+    <string name="mcp_servers_catalog_installing">Installing…</string>
+    <string name="mcp_servers_catalog_source">source: %1$s</string>
+    <string name="mcp_servers_catalog_required_env">Required env vars</string>
+    <string name="mcp_servers_diagnostics">Diagnostics</string>
+    <string name="mcp_servers_diagnostics_none">All servers running normally.</string>
 
     <!-- Gateway Screen -->
     <string name="gateway_status_running">GATEWAY RUNNING</string>

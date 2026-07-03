@@ -1008,10 +1008,6 @@ class E2eIntegrationTest {
             runCurrent()
             advanceUntilIdle()
 
-            assertNotNull(
-                viewModel.uiState.value.stats,
-                "stats should not be null after loadAll()",
-            )
             assertEquals(
                 50.0,
                 viewModel.uiState.value.stats?.cpu_percent,

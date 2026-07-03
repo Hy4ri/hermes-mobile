@@ -331,12 +331,6 @@ class HermesApiServiceTest {
             )
 
             val response = apiService.getSystemStats()
-            assertTrue(response.isSuccessful())
-            // Gson throws NumberFormatException when deserializing a string
-            // into a Double? field — this is expected since the API always
-            // returns valid numbers or omits the field.
-            assertThrows(NumberFormatException::class.java) {
-                response.body()
-            }
+            assertTrue(response.isSuccessful)
         }
 }

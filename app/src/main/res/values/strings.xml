@@ -705,6 +705,15 @@
     <string name="keys_empty_desc">Environment keys from Hermes will appear here.</string>
     <string name="keys_label_not_configured">Not configured</string>
     <string name="keys_action_toggle_visibility">Toggle Visibility</string>
+    <string name="keys_search_placeholder">Search keys…</string>
+    <string name="keys_add_header">Add new key</string>
+    <string name="keys_add_key_label">Key</string>
+    <string name="keys_add_value_label">Value</string>
+    <string name="keys_add_action">Add key</string>
+    <string name="keys_restart_title">Gateway restart required</string>
+    <string name="keys_restart_desc">Environment changes take effect after a gateway restart.</string>
+    <string name="keys_restart_action">Restart gateway</string>
+    <string name="content_desc_delete_key">Delete key</string>
 
     <!-- Channels Screen -->
     <string name="channels_empty_title">No channels configured</string>

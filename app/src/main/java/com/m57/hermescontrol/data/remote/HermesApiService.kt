@@ -24,6 +24,7 @@ import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DeleteWebhookResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
+import com.m57.hermescontrol.data.model.EnvVarDeleteRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealResponse
 import com.m57.hermescontrol.data.model.EnvVarUpdate
@@ -87,6 +88,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -481,6 +483,11 @@ interface HermesApiService {
     suspend fun revealEnvVar(
         @Body request: EnvVarRevealRequest,
     ): Response<EnvVarRevealResponse>
+
+    @HTTP(method = "DELETE", path = "api/env", hasBody = true)
+    suspend fun deleteEnvVar(
+        @Body request: EnvVarDeleteRequest,
+    ): Response<Unit>
 
     @POST("api/ops/backup")
     suspend fun triggerBackup(): Response<ActionResponse>

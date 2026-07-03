@@ -254,7 +254,20 @@
     <string name="skills_empty_message">No skills found</string>
     <string name="skills_discard_title">Discard changes?</string>
     <string name="skills_discard_message">You have unsaved changes. Are you sure you want to discard them?</string>
+    <string name="skills_mode_installed">Installed</string>
+    <string name="skills_mode_hub">Browse Hub</string>
+    <string name="skills_source_all">All sources</string>
+    <string name="skills_install_success">Installed: %1$s</string>
+    <string name="skills_install_failure">Failed to install %1$s: %2$s</string>
+    <string name="skills_uninstall_success">Uninstalled: %1$s</string>
+    <string name="skills_uninstall_failure">Failed to uninstall %1$s: %2$s</string>
+    <string name="skills_preview_failure">Failed to load preview: %1$s</string>
+    <string name="skills_load_failure">Failed to load skills: %1$s</string>
+    <string name="skills_search_failure">Search failed: %1$s</string>
+    <string name="skills_toggle_failure">Failed to toggle skill: %1$s</string>
+    <string name="skills_toggle_success">Toggled %1$s</string>
     <string name="action_discard">Discard</string>
+
     <string name="content_desc_edit_skill">Edit Skill File</string>
     <string name="content_desc_preview_skill">Preview Skill File</string>
     <string name="content_desc_uninstall_skill">Uninstall Skill</string>

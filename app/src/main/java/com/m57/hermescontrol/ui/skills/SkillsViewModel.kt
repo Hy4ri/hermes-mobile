@@ -1,7 +1,9 @@
 package com.m57.hermescontrol.ui.skills
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.Skill
@@ -25,6 +27,16 @@ import kotlinx.coroutines.withContext
 enum class SkillsViewMode {
     INSTALLED,
     HUB,
+}
+
+enum class SkillFilter(val labelRes: Int) {
+    ALL_STATUSES(R.string.skills_status_all),
+    ENABLED(R.string.skills_status_enabled),
+    DISABLED(R.string.skills_status_disabled),
+}
+
+enum class CategoryFilter {
+    ALL,
 }
 
 data class SkillsUiState(
@@ -57,8 +69,8 @@ data class SkillsUiState(
     val sourceFilter: String? = null,
 )
 
-class SkillsViewModel :
-    ViewModel(),
+class SkillsViewModel(application: Application) :
+    AndroidViewModel(application),
     ToastHost {
     private val _uiState = MutableStateFlow(SkillsUiState())
     val uiState: StateFlow<SkillsUiState> = _uiState.asStateFlow()
@@ -79,7 +91,11 @@ class SkillsViewModel :
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = "Failed to load skills: $errorMsg",
+                            errorMessage =
+                                getApplication<Application>().getString(
+                                    R.string.skills_load_failure,
+                                    errorMsg,
+                                ),
                         )
                     }
                 },
@@ -95,6 +111,10 @@ class SkillsViewModel :
 
     fun setSourceFilter(source: String?) {
         _uiState.update { it.copy(sourceFilter = source) }
+    }
+
+    fun setHubQuery(query: String) {
+        _uiState.update { it.copy(hubQuery = query) }
     }
 
     // ── Hub search ──────────────────────────────────────────────────────────
@@ -120,7 +140,11 @@ class SkillsViewModel :
                     _uiState.update {
                         it.copy(
                             isHubSearching = false,
-                            hubSearchError = "Search failed: $errorMsg",
+                            hubSearchError =
+                                getApplication<Application>().getString(
+                                    R.string.skills_search_failure,
+                                    errorMsg,
+                                ),
                         )
                     }
                 },
@@ -157,7 +181,11 @@ class SkillsViewModel :
                         it.copy(
                             isInstalling = false,
                             installingSkillName = null,
-                            toastMessage = "Installed: $identifier",
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    R.string.skills_install_success,
+                                    identifier,
+                                ),
                         )
                     }
                     // Refresh installed skills
@@ -168,7 +196,12 @@ class SkillsViewModel :
                         it.copy(
                             isInstalling = false,
                             installingSkillName = null,
-                            toastMessage = "Failed to install $identifier: ${result.error.message}",
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    R.string.skills_install_failure,
+                                    identifier,
+                                    result.error.message,
+                                ),
                         )
                     }
                 }
@@ -194,7 +227,11 @@ class SkillsViewModel :
                         it.copy(
                             isUninstalling = false,
                             uninstallingSkillName = null,
-                            toastMessage = "Uninstalled: $name",
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    R.string.skills_uninstall_success,
+                                    name,
+                                ),
                         )
                     }
                     loadSkills()
@@ -204,7 +241,12 @@ class SkillsViewModel :
                         it.copy(
                             isUninstalling = false,
                             uninstallingSkillName = null,
-                            toastMessage = "Failed to uninstall $name: ${result.error.message}",
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    R.string.skills_uninstall_failure,
+                                    name,
+                                    result.error.message,
+                                ),
                         )
                     }
                 }
@@ -240,7 +282,11 @@ class SkillsViewModel :
                     _uiState.update {
                         it.copy(
                             isLoadingPreview = false,
-                            toastMessage = "Failed to load preview: ${result.error.message}",
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    R.string.skills_preview_failure,
+                                    result.error.message,
+                                ),
                         )
                     }
                 }
@@ -279,7 +325,11 @@ class SkillsViewModel :
                     safeApiCall { ApiClient.hermesApi.toggleSkill(ToggleSkillRequest(skill.name, targetEnabled)) }
                 }
             if (result is NetworkResult.Failure) {
-                revertSkillToggle(skill.name, originalEnabled, "Failed to toggle skill: ${result.error.message}")
+                revertSkillToggle(
+                    skill.name,
+                    originalEnabled,
+                    getApplication<Application>().getString(R.string.skills_toggle_failure, result.error.message),
+                )
             }
         }
     }

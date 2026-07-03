@@ -59,6 +59,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.Skill
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.FilterChipRow
@@ -70,6 +71,8 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 
+private const val CATEGORY_ALL = "All"
+
 @Composable
 fun SkillsScreen(
     modifier: Modifier = Modifier,
@@ -78,8 +81,8 @@ fun SkillsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
-    var selectedStatus by remember { mutableStateOf("All Statuses") }
-    var selectedCategory by remember { mutableStateOf("All") }
+    var selectedStatus by remember { mutableStateOf(SkillFilter.ALL_STATUSES) }
+    var selectedCategory by remember { mutableStateOf(CATEGORY_ALL) }
 
     LaunchedEffect(Unit) {
         viewModel.loadSkills()
@@ -111,12 +114,12 @@ fun SkillsScreen(
                 FilterChip(
                     selected = state.viewMode == SkillsViewMode.INSTALLED,
                     onClick = { viewModel.setViewMode(SkillsViewMode.INSTALLED) },
-                    label = { Text("Installed") },
+                    label = { Text(stringResource(R.string.skills_mode_installed)) },
                 )
                 FilterChip(
                     selected = state.viewMode == SkillsViewMode.HUB,
                     onClick = { viewModel.setViewMode(SkillsViewMode.HUB) },
-                    label = { Text("Browse Hub") },
+                    label = { Text(stringResource(R.string.skills_mode_hub)) },
                 )
             }
 
@@ -143,6 +146,8 @@ fun SkillsScreen(
                 SkillsViewMode.HUB ->
                     HubBrowseView(
                         state = state,
+                        hubQuery = state.hubQuery,
+                        onHubQueryChange = viewModel::setHubQuery,
                         onSearch = viewModel::searchHub,
                         onClearSearch = viewModel::clearHubSearch,
                         onInstall = viewModel::installSkill,
@@ -190,8 +195,8 @@ private fun InstalledSkillsView(
     state: SkillsUiState,
     query: String,
     onQueryChange: (String) -> Unit,
-    selectedStatus: String,
-    onStatusChange: (String) -> Unit,
+    selectedStatus: SkillFilter,
+    onStatusChange: (SkillFilter) -> Unit,
     selectedCategory: String,
     onCategoryChange: (String) -> Unit,
     onToggle: (Skill) -> Unit,
@@ -227,11 +232,11 @@ private fun InstalledSkillsView(
                         skill.description?.contains(query, ignoreCase = true) == true
                 ) &&
                     (
-                        selectedStatus == "All Statuses" ||
-                            (selectedStatus == "Enabled" && skill.enabled) ||
-                            (selectedStatus == "Disabled" && !skill.enabled)
+                        selectedStatus == SkillFilter.ALL_STATUSES ||
+                            (selectedStatus == SkillFilter.ENABLED && skill.enabled) ||
+                            (selectedStatus == SkillFilter.DISABLED && !skill.enabled)
                     ) &&
-                    (selectedCategory == "All" || skill.category == selectedCategory) &&
+                    (selectedCategory == CATEGORY_ALL || skill.category == selectedCategory) &&
                     (sourceFilter == null || skill.source == sourceFilter)
             }
         }
@@ -251,15 +256,21 @@ private fun InstalledSkillsView(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FilterChipRow(
-                chips = listOf("All Statuses", "Enabled", "Disabled"),
+                chips =
+                    listOf(
+                        SkillFilter.ALL_STATUSES,
+                        SkillFilter.ENABLED,
+                        SkillFilter.DISABLED,
+                    ),
                 selectedChip = selectedStatus,
                 onChipSelected = onStatusChange,
+                chipLabel = { chip -> Text(stringResource(chip.labelRes)) },
             )
         }
 
         if (categories.isNotEmpty() || sources.isNotEmpty()) {
             FilterChipRow(
-                chips = listOf("All") + categories,
+                chips = listOf(stringResource(R.string.skills_category_all)) + categories,
                 selectedChip = selectedCategory,
                 onChipSelected = onCategoryChange,
             )
@@ -274,7 +285,12 @@ private fun InstalledSkillsView(
                     FilterChip(
                         selected = sourceFilter == null,
                         onClick = { onSetSourceFilter(null) },
-                        label = { Text("All sources", style = MaterialTheme.typography.labelSmall) },
+                        label = {
+                            Text(
+                                stringResource(R.string.skills_source_all),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
                     )
                     sources.forEach { source ->
                         FilterChip(
@@ -419,10 +435,11 @@ private fun SkillCard(
                                 strokeWidth = 2.dp,
                             )
                         } else {
+                            val statusColors = LocalHermesStatusColors.current
                             Icon(
                                 imageVector = Icons.Filled.CloudOff,
                                 contentDescription = stringResource(R.string.content_desc_uninstall_skill),
-                                tint = MaterialTheme.colorScheme.error,
+                                tint = statusColors.error,
                             )
                         }
                     }
@@ -465,18 +482,18 @@ private fun SourceBadge(source: String) {
 @Composable
 private fun HubBrowseView(
     state: SkillsUiState,
+    hubQuery: String,
+    onHubQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
     onClearSearch: () -> Unit,
     onInstall: (String) -> Unit,
     isInstalling: Boolean,
     installingSkillName: String?,
 ) {
-    var hubQuery by remember { mutableStateOf("") }
-
     Column(modifier = Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = hubQuery,
-            onValueChange = { hubQuery = it },
+            onValueChange = onHubQueryChange,
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -491,7 +508,7 @@ private fun HubBrowseView(
             trailingIcon = {
                 if (hubQuery.isNotEmpty()) {
                     IconButton(onClick = {
-                        hubQuery = ""
+                        onHubQueryChange("")
                         onClearSearch()
                     }) {
                         Icon(

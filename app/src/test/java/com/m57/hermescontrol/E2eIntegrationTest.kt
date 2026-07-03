@@ -67,15 +67,15 @@ import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class E2eIntegrationTest {
-    private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApiService: HermesApiService
     private val mockApp = mockk<Application>(relaxed = true)
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(testDispatcher)
+        // runTest handles Dispatchers.Main — don't setMain here
         mockkStatic(Dispatchers::class)
-        // Make IO return whatever Main currently is (runTest overrides Main per-test)
+        // Make IO return whatever Main currently is
+        // (runTest overrides Main per-test to its TestScope dispatcher)
         every { Dispatchers.IO } answers { Dispatchers.Main }
 
         mockkObject(AuthManager)

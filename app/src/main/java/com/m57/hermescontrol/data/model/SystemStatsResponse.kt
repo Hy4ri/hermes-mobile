@@ -1,24 +1,42 @@
 package com.m57.hermescontrol.data.model
 
-/**
- * Wrapper around the /api/system/stats response.
- *
- * The payload shape can change across Hermes versions, so we keep it
- * flexible with a Map and provide convenience accessors for the
- * most commonly used fields.
- */
 data class SystemStatsResponse(
-    val cpu: Map<String, Any?>? = null,
-    val memory: Map<String, Any?>? = null,
-    val disk: Map<String, Any?>? = null,
-    val uptime: Any? = null,
-    val extra: Map<String, Any?>? = null,
-) {
-    /** CPU usage percentage, if available. */
-    val cpuPercent: Double?
-        get() = (cpu?.get("percent") as? Number)?.toDouble()
+    val os: String? = null,
+    val os_release: String? = null,
+    val os_version: String? = null,
+    val platform: String? = null,
+    val arch: String? = null,
+    val hostname: String? = null,
+    val python_version: String? = null,
+    val python_impl: String? = null,
+    val hermes_version: String? = null,
+    val cpu_count: Int? = null,
+    val cpu_percent: Double? = null,
+    val psutil: Boolean? = null,
+    val load_avg: List<Double>? = null,
+    val uptime_seconds: Double? = null,
+    val memory: MemoryStats? = null,
+    val disk: DiskStats? = null,
+    val process: ProcessStats? = null,
+)
 
-    /** Memory usage percentage, if available. */
-    val memoryPercent: Double?
-        get() = (memory?.get("percent") as? Number)?.toDouble()
-}
+data class MemoryStats(
+    val total: Long? = null,
+    val available: Long? = null,
+    val used: Long? = null,
+    val percent: Double? = null,
+)
+
+data class DiskStats(
+    val total: Long? = null,
+    val used: Long? = null,
+    val free: Long? = null,
+    val percent: Double? = null,
+)
+
+data class ProcessStats(
+    val pid: Int? = null,
+    val rss: Long? = null,
+    val create_time: Double? = null,
+    val num_threads: Int? = null,
+)

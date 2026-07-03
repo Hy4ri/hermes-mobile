@@ -4,11 +4,16 @@ import android.app.Application
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
+import com.m57.hermescontrol.data.model.CheckpointsResponse
+import com.m57.hermescontrol.data.model.CredentialPoolResponse
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.CuratorResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
+import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
@@ -16,6 +21,8 @@ import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.MainModelAssignment
+import com.m57.hermescontrol.data.model.MemoryResponse
+import com.m57.hermescontrol.data.model.MemoryStats
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MoaConfigResponse
@@ -24,6 +31,7 @@ import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginsHubResponse
+import com.m57.hermescontrol.data.model.PortalResponse
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.SessionInfo
@@ -32,6 +40,7 @@ import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
+import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.ui.channels.ChannelsViewModel
@@ -66,8 +75,8 @@ class E2eIntegrationTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        val testMainDispatcher = Dispatchers.Main
         mockkStatic(Dispatchers::class)
+        val testMainDispatcher = Dispatchers.Main
         every { Dispatchers.IO } returns testDispatcher
         every { Dispatchers.Main } returns testMainDispatcher
 
@@ -966,32 +975,44 @@ class E2eIntegrationTest {
 
     @Test
     fun testSystemDiagnostics_success() =
-        runTest {
-            val stats = SystemStatsResponse(cpu = mapOf("percent" to 50.0), memory = mapOf("percent" to 60.0))
+        runTest(testDispatcher) {
+            val stats =
+                SystemStatsResponse(
+                    cpu_percent = 50.0,
+                    memory = MemoryStats(total = 8192, used = 4096, percent = 60.0),
+                )
             val doctor = DoctorResponse(true, 24856, "doctor")
             coEvery { mockApiService.getSystemStats() } returns Response.success(stats)
             coEvery { mockApiService.runDoctor() } returns Response.success(doctor)
-            coEvery { mockApiService.triggerBackup() } returns Response.success(Unit)
+            coEvery { mockApiService.getStatus() } returns
+                Response.success(StatusResponse("1.0", true, 0, false, null))
+            coEvery { mockApiService.getPortal() } returns
+                Response.success(PortalResponse(logged_in = false))
+            coEvery { mockApiService.getCurator() } returns Response.success(CuratorResponse())
+            coEvery { mockApiService.getMemory() } returns Response.success(MemoryResponse())
+            coEvery { mockApiService.getCredentialPool() } returns
+                Response.success(CredentialPoolResponse())
+            coEvery { mockApiService.getCheckpoints() } returns
+                Response.success(CheckpointsResponse())
+            coEvery { mockApiService.getHooks() } returns Response.success(HookResponse())
+            coEvery { mockApiService.checkHermesUpdate(false) } returns
+                Response.success(UpdateCheckResponse())
+            coEvery { mockApiService.triggerBackup() } returns Response.success(ActionResponse())
 
             val viewModel = SystemViewModel()
-            viewModel.loadSystemData()
+            viewModel.loadAll()
             advanceUntilIdle()
 
             assertEquals(
                 50.0,
                 viewModel.uiState.value.stats
-                    ?.cpuPercent,
-            )
-            assertEquals(
-                true,
-                viewModel.uiState.value.doctorReport
-                    ?.ok,
+                    ?.cpu_percent,
             )
 
             viewModel.triggerBackup()
             advanceUntilIdle()
 
-            assertEquals("Backup triggered successfully", viewModel.uiState.value.toastMessage)
+            assertEquals("Backup triggered", viewModel.uiState.value.toastMessage)
         }
 
     @Test

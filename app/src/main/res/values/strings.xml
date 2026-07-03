@@ -264,16 +264,153 @@
     <!-- System Screen -->
     <string name="system_empty_title">No system data</string>
     <string name="system_empty_desc">Tap refresh to load system diagnostics.</string>
-    <string name="system_sec_performance">Performance</string>
-    <string name="system_metric_cpu">CPU Usage</string>
-    <string name="system_metric_memory">Memory</string>
-    <string name="system_sec_doctor">Doctor</string>
+
+    <!-- Host section -->
+    <string name="system_sec_host">Host</string>
+    <string name="system_label_os">OS</string>
+    <string name="system_label_arch">Arch</string>
+    <string name="system_label_hostname">Host</string>
+    <string name="system_label_python">Python</string>
+    <string name="system_label_hermes_version">Hermes</string>
+    <string name="system_label_cpu">CPU</string>
+    <string name="system_label_memory">Memory</string>
+    <string name="system_label_disk">Disk</string>
+    <string name="system_label_uptime">Uptime</string>
+    <string name="system_label_load_avg">Load avg</string>
+    <string name="system_label_cores">cores</string>
+    <string name="system_label_used_total">%1$s / %2$s</string>
+    <string name="system_label_used_total_percent">%1$s / %2$s (%3$s%%)</string>
+    <string name="system_psutil_warning">Install the psutil extra for CPU / memory / disk metrics.</string>
+    <string name="system_version_latest">latest</string>
+    <string name="system_version_update_available">update available</string>
+    <string name="system_version_behind">%1$d behind</string>
+    <string name="system_action_check_updates">Check for updates</string>
+    <string name="system_action_update_now">Update now</string>
+    <string name="system_update_confirm_title">Update Hermes?</string>
+    <string name="system_update_confirm_desc">This will run hermes update and restart the gateway.</string>
+
+    <!-- Portal section -->
+    <string name="system_sec_portal">Nous Portal</string>
+    <string name="system_status_logged_in">logged in</string>
+    <string name="system_status_not_logged_in">not logged in</string>
+    <string name="system_portal_provider">inference provider: %1$s</string>
+    <string name="system_portal_manage_subscription">Manage subscription</string>
+    <string name="system_portal_feature_routing">Tool Gateway routing</string>
+    <string name="system_portal_login_hint">Log in with hermes portal.</string>
+
+    <!-- Curator section -->
+    <string name="system_sec_curator">Skill curator</string>
+    <string name="system_status_active">active</string>
+    <string name="system_status_paused">paused</string>
+    <string name="system_status_disabled">disabled</string>
+    <string name="system_curator_interval">every %1$dh</string>
+    <string name="system_curator_last_run">last run %1$s</string>
+    <string name="system_curator_never_run">never run</string>
+    <string name="system_curator_resume">Resume</string>
+    <string name="system_curator_pause">Pause</string>
+    <string name="system_curator_run_now">Run now</string>
+
+    <!-- Gateway section -->
+    <string name="system_sec_gateway">Gateway</string>
     <string name="system_status_running">Running</string>
-    <string name="system_status_failed">Failed</string>
-    <string name="system_info_pid">Process PID</string>
-    <string name="system_info_proc_name">Process Name</string>
-    <string name="system_sec_admin">Administration</string>
-    <string name="system_action_backup">Trigger System Backup</string>
+    <string name="system_status_stopped">Stopped</string>
+    <string name="system_gateway_start">Start</string>
+    <string name="system_gateway_restart">Restart</string>
+    <string name="system_gateway_stop">Stop</string>
+
+    <!-- Memory section -->
+    <string name="system_sec_memory">Memory</string>
+    <string name="system_memory_external">External provider: %1$s</string>
+    <string name="system_memory_builtin">built-in only</string>
+    <string name="system_memory_change_plugins">Change in Plugins</string>
+    <string name="system_memory_new_creds">New credentials: hermes memory setup</string>
+    <string name="system_memory_builtin_label">Built-in files — MEMORY.md: %1$s · USER.md: %2$s</string>
+    <string name="system_memory_reset_memory">Reset MEMORY.md</string>
+    <string name="system_memory_reset_user">Reset USER.md</string>
+    <string name="system_memory_reset_all">Reset all</string>
+    <string name="system_memory_reset_confirm_title">Reset memory</string>
+    <string name="system_memory_reset_confirm_desc">This permanently erases the selected built-in memory files. This cannot be undone.</string>
+
+    <!-- Credential pool section -->
+    <string name="system_sec_credentials">Credential pool</string>
+    <string name="system_credentials_provider">Provider</string>
+    <string name="system_credentials_api_key">API key</string>
+    <string name="system_credentials_label">Label</string>
+    <string name="system_credentials_add_key">Add key</string>
+    <string name="system_credentials_empty">No pooled credentials. Add one above to enable key rotation.</string>
+    <string name="system_credentials_remove_confirm_title">Remove credential</string>
+    <string name="system_credentials_remove_confirm_desc">Remove this pooled API key? The agent will no longer rotate through it.</string>
+
+    <!-- Operations section -->
+    <string name="system_sec_operations">Operations</string>
+    <string name="system_op_doctor">Run doctor</string>
+    <string name="system_op_security_audit">Security audit</string>
+    <string name="system_op_update_skills">Update skills</string>
+    <string name="system_op_prompt_size">Prompt size</string>
+    <string name="system_op_dump">Support dump</string>
+    <string name="system_op_config_migrate">Migrate config</string>
+    <string name="system_op_backup_create">Create backup</string>
+    <string name="system_op_backup_download">Download backup</string>
+    <string name="system_op_backup_restore_upload">Restore from backup upload</string>
+    <string name="system_op_choose_zip">Choose restore zip</string>
+    <string name="system_op_restore_upload">Restore upload</string>
+    <string name="system_op_restore_path_label">Restore from backups path</string>
+    <string name="system_op_restore_path">Restore path</string>
+    <string name="system_op_no_backup">No backup created yet</string>
+    <string name="system_op_no_archive">No backup archive selected</string>
+    <string name="system_op_import_confirm_title">Restore full Hermes backup?</string>
+    <string name="system_op_import_confirm_desc">This will overwrite your current Hermes configuration, skills, sessions, and data. This cannot be undone.</string>
+
+    <!-- Debug share section -->
+    <string name="system_sec_debug_share">Debug share</string>
+    <string name="system_debug_share_description">Uploads system info + logs to a public paste service and returns links to send the Hermes team. Pastes auto-delete after 6 hours.</string>
+    <string name="system_debug_share_generate">Generate share link</string>
+    <string name="system_debug_share_uploading">Uploading…</string>
+    <string name="system_debug_share_redact">Redact credential-shaped tokens before upload (recommended)</string>
+    <string name="system_debug_share_uploaded">uploaded</string>
+    <string name="system_debug_share_redacted">redacted</string>
+    <string name="system_debug_share_not_redacted">not redacted</string>
+    <string name="system_debug_share_auto_delete">auto-deletes in %1$dh</string>
+    <string name="system_debug_share_copy_all">Copy all</string>
+
+    <!-- Checkpoints section -->
+    <string name="system_sec_checkpoints">Checkpoints</string>
+    <string name="system_checkpoints_summary">%1$d session(s) · %2$s</string>
+    <string name="system_checkpoints_prune">Prune</string>
+    <string name="system_checkpoints_prune_confirm_title">Prune checkpoints</string>
+    <string name="system_checkpoints_prune_confirm_desc">Delete the rollback checkpoint shadow store? Existing /rollback points will be lost.</string>
+
+    <!-- Shell hooks section -->
+    <string name="system_sec_hooks">Shell hooks</string>
+    <string name="system_hooks_new">New hook</string>
+    <string name="system_hooks_empty">No shell hooks configured.</string>
+    <string name="system_hooks_matcher">matcher: %1$s</string>
+    <string name="system_hooks_not_executable">not executable</string>
+    <string name="system_hooks_allowed">allowed</string>
+    <string name="system_hooks_not_approved">not approved</string>
+    <string name="system_hooks_remove_confirm_title">Remove shell hook</string>
+    <string name="system_hooks_remove_confirm_desc">Remove this hook from config and revoke its consent? It stops firing on the next restart.</string>
+    <string name="system_hooks_modal_title">New shell hook</string>
+    <string name="system_hooks_field_event">Event</string>
+    <string name="system_hooks_field_command">Command (absolute path)</string>
+    <string name="system_hooks_field_matcher">Matcher (optional)</string>
+    <string name="system_hooks_field_timeout">Timeout (s)</string>
+    <string name="system_hooks_field_approve">Approve now (grant consent so it fires; otherwise it stays configured but inactive)</string>
+    <string name="system_hooks_warning">Shell hooks run arbitrary commands on this host. Only add scripts you trust. Takes effect on the next gateway/session restart.</string>
+    <string name="system_hooks_create">Create hook</string>
+    <string name="system_hooks_creating">Creating</string>
+
+    <!-- Action log viewer -->
+    <string name="system_action_log_title">Action log</string>
+    <string name="system_action_log_running">running</string>
+    <string name="system_action_log_done">done</string>
+    <string name="system_action_log_exit">exit %1$d</string>
+    <string name="system_action_log_starting">Starting…</string>
+
+    <!-- Confirmation dialog -->
+    <string name="system_confirm_cancel">Cancel</string>
+    <string name="system_confirm_restore">Restore</string>
+    <string name="system_confirm_update_now">Update now</string>
 
     <!-- Model Screen -->
     <string name="model_empty_title">No model providers reported</string>
@@ -293,6 +430,28 @@
     <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
     <string name="history_untitled">Untitled</string>
     <string name="history_message_count">%1$d messages</string>
+    <string name="history_load_more">Load more sessions…</string>
+
+    <!-- Sessions Stats -->
+    <string name="sessions_search_placeholder">Search sessions…</string>
+    <string name="sessions_stat_total">Total</string>
+    <string name="sessions_stat_active">Active</string>
+    <string name="sessions_action_prune">Prune</string>
+    <string name="sessions_prune_title">Prune Old Sessions</string>
+    <string name="sessions_prune_desc">Delete sessions older than the specified number of days.</string>
+    <string name="sessions_prune_days_label">Days threshold</string>
+    <string name="sessions_prune_confirm">Prune</string>
+    <string name="sessions_delete_title">Delete Session?</string>
+    <string name="sessions_delete_message">Are you sure you want to delete \"%1$s\"? This can\'t be undone.</string>
+    <string name="sessions_bulk_delete_title">Delete Sessions?</string>
+    <string name="sessions_bulk_delete_message">Are you sure you want to delete %1$d session(s)? This can\'t be undone.</string>
+    <string name="sessions_action_select_all">Select All</string>
+    <string name="sessions_action_deselect_all">Deselect</string>
+    <string name="sessions_action_delete_n">Delete %1$d</string>
+    <string name="sessions_action_copy_prompt">Copy prompt</string>
+    <string name="sessions_rename_placeholder">New title…</string>
+    <string name="content_desc_enter_selection">Select sessions</string>
+    <string name="content_desc_exit_selection">Exit selection</string>
 
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">No toolsets reported</string>

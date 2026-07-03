@@ -2,9 +2,13 @@ package com.m57.hermescontrol.data.remote
 
 import com.google.gson.JsonElement
 import com.m57.hermescontrol.data.model.AchievementsResponse
+import com.m57.hermescontrol.data.model.ActionResponse
+import com.m57.hermescontrol.data.model.ActionStatusResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
+import com.m57.hermescontrol.data.model.BulkDeleteRequest
+import com.m57.hermescontrol.data.model.CheckpointsResponse
 import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
@@ -12,13 +16,17 @@ import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateWebhookRequest
+import com.m57.hermescontrol.data.model.CredentialPoolResponse
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.CuratorResponse
+import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DeleteWebhookResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealResponse
 import com.m57.hermescontrol.data.model.EnvVarUpdate
+import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
@@ -26,6 +34,7 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
+import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
@@ -38,14 +47,19 @@ import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
+import com.m57.hermescontrol.data.model.PortalResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
+import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.RawConfigResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
+import com.m57.hermescontrol.data.model.SessionPromptResponse
+import com.m57.hermescontrol.data.model.SessionRenameRequest
+import com.m57.hermescontrol.data.model.SessionStatsResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
@@ -54,6 +68,7 @@ import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
+import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
@@ -63,6 +78,7 @@ import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
 import com.m57.hermescontrol.data.model.WebhooksResponse
 import com.m57.hermescontrol.data.model.WebhooksToggleRequest
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -98,6 +114,35 @@ interface HermesApiService {
     suspend fun getSessionMessages(
         @Path("id") sessionId: String,
     ): Response<SessionMessagesResponse>
+
+    @GET("api/sessions/stats")
+    suspend fun getSessionStats(): Response<SessionStatsResponse>
+
+    @PUT("api/sessions/{id}/rename")
+    suspend fun renameSession(
+        @Path("id") sessionId: String,
+        @Body body: SessionRenameRequest,
+    ): Response<Unit>
+
+    @POST("api/sessions/delete")
+    suspend fun bulkDeleteSessions(
+        @Body body: BulkDeleteRequest,
+    ): Response<Unit>
+
+    @DELETE("api/sessions/{id}")
+    suspend fun deleteSession(
+        @Path("id") sessionId: String,
+    ): Response<Unit>
+
+    @POST("api/sessions/prune")
+    suspend fun pruneSessions(
+        @Body body: PruneRequest,
+    ): Response<Unit>
+
+    @GET("api/sessions/{id}/prompt")
+    suspend fun getSessionPrompt(
+        @Path("id") sessionId: String,
+    ): Response<SessionPromptResponse>
 
     @GET("api/system/stats")
     suspend fun getSystemStats(): Response<SystemStatsResponse>
@@ -410,7 +455,7 @@ interface HermesApiService {
     ): Response<EnvVarRevealResponse>
 
     @POST("api/ops/backup")
-    suspend fun triggerBackup(): Response<Unit>
+    suspend fun triggerBackup(): Response<ActionResponse>
 
     @POST("api/ops/doctor")
     suspend fun runDoctor(): Response<DoctorResponse>
@@ -437,4 +482,117 @@ interface HermesApiService {
         @Query("board") board: String?,
         @Body task: CreateTaskBody,
     ): Response<KanbanTask>
+
+    // ── Admin: Hermes update ──────────────────────────────────────────
+    @GET("api/hermes/update/check")
+    suspend fun checkHermesUpdate(
+        @Query("force") force: Boolean = false,
+    ): Response<UpdateCheckResponse>
+
+    @POST("api/hermes/update")
+    suspend fun updateHermes(): Response<ActionResponse>
+
+    // ── Admin: Portal ─────────────────────────────────────────────────
+    @GET("api/portal")
+    suspend fun getPortal(): Response<PortalResponse>
+
+    // ── Admin: Curator ────────────────────────────────────────────────
+    @GET("api/curator")
+    suspend fun getCurator(): Response<CuratorResponse>
+
+    @PUT("api/curator/paused")
+    suspend fun setCuratorPaused(
+        @Body body: Map<String, Boolean>,
+    ): Response<Map<String, Any>>
+
+    @POST("api/curator/run")
+    suspend fun runCurator(): Response<ActionResponse>
+
+    // ── Admin: Memory ─────────────────────────────────────────────────
+    @GET("api/memory")
+    suspend fun getMemory(): Response<MemoryResponse>
+
+    @POST("api/memory/reset")
+    suspend fun resetMemory(
+        @Body body: Map<String, String>,
+    ): Response<Map<String, Any>>
+
+    // ── Admin: Credential pool ────────────────────────────────────────
+    @GET("api/credentials/pool")
+    suspend fun getCredentialPool(): Response<CredentialPoolResponse>
+
+    @POST("api/credentials/pool")
+    suspend fun addCredentialPoolEntry(
+        @Body body: Map<String, String>,
+    ): Response<Map<String, Any>>
+
+    @DELETE("api/credentials/pool/{provider}/{index}")
+    suspend fun removeCredentialPoolEntry(
+        @Path("provider") provider: String,
+        @Path("index") index: Int,
+    ): Response<Map<String, Any>>
+
+    // ── Admin: Operations ─────────────────────────────────────────────
+    @POST("api/ops/security-audit")
+    suspend fun runSecurityAudit(): Response<ActionResponse>
+
+    @POST("api/ops/prompt-size")
+    suspend fun runPromptSize(): Response<ActionResponse>
+
+    @POST("api/ops/dump")
+    suspend fun runDump(): Response<ActionResponse>
+
+    @POST("api/ops/config-migrate")
+    suspend fun runConfigMigrate(): Response<ActionResponse>
+
+    @POST("api/skills/hub/update")
+    suspend fun updateSkillsFromHub(
+        @Body body: Map<String, String> = emptyMap(),
+    ): Response<ActionResponse>
+
+    // ── Admin: Backup download ────────────────────────────────────────
+    @GET("api/ops/backup/download")
+    suspend fun downloadBackup(
+        @Query("archive") archive: String,
+    ): Response<ResponseBody>
+
+    // ── Admin: Backup import ──────────────────────────────────────────
+    @POST("api/ops/import")
+    suspend fun runImport(
+        @Body body: Map<String, Any>,
+    ): Response<ActionResponse>
+
+    // ── Admin: Debug share ────────────────────────────────────────────
+    @POST("api/ops/debug-share")
+    suspend fun runDebugShare(
+        @Body body: Map<String, Any>,
+    ): Response<DebugShareResponse>
+
+    // ── Admin: Checkpoints ────────────────────────────────────────────
+    @GET("api/ops/checkpoints")
+    suspend fun getCheckpoints(): Response<CheckpointsResponse>
+
+    @POST("api/ops/checkpoints/prune")
+    suspend fun pruneCheckpoints(): Response<ActionResponse>
+
+    // ── Admin: Shell hooks ────────────────────────────────────────────
+    @GET("api/ops/hooks")
+    suspend fun getHooks(): Response<HookResponse>
+
+    @POST("api/ops/hooks")
+    suspend fun createHook(
+        @Body body: Map<String, Any>,
+    ): Response<Map<String, Any>>
+
+    @DELETE("api/ops/hooks")
+    suspend fun deleteHook(
+        @Body body: Map<String, String>,
+    ): Response<Map<String, Any>>
+
+    // ── Admin: Action status (log viewer) ────────────────────────────
+    @GET("api/actions/{name}/status")
+    suspend fun getActionStatus(
+        @Path("name") name: String,
+        @Query("lines") lines: Int = 200,
+    ): Response<ActionStatusResponse>
 }

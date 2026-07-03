@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.HubSkill
-import com.m57.hermescontrol.data.model.McpServerConfigInput
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest

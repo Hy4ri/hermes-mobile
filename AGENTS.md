@@ -122,6 +122,55 @@ call unconditionally.
 - **`StateViews`** — `LoadingState`, `ErrorState`, `EmptyState`. Every data screen
   must implement all three branches in its `when { }` block.
 
+### ⚠ HermesScaffold Padding Foot-Gun
+
+**This is the #1 recurring bug in this codebase.** It has been re-introduced on 4+ screens
+across 3+ PRs (Settings, Achievements, Webhooks, Config — PRs #445, #454, #455).
+
+**Root cause:** `HermesScaffold` wraps content in an internal `Box(Modifier.padding(paddingValues))`
+that already offsets for the top bar. But it also passes `paddingValues` into the content lambda,
+which looks like it should be applied — and every new screen does exactly that:
+
+```kotlin
+HermesScaffold(...) { paddingValues ->      // ← scaffold already handles top bar offset via Box
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues),         // ← ❌ double-stacked top padding
+        contentPadding = listContentPadding, // ← extra 8dp, now triple-stacked
+    ) { ... }
+}
+```
+
+**The deeper issue:** Passing `paddingValues` into the lambda implies "you need to use this,"
+when the scaffold has ALREADY pre-applied it in its own outer `Box`. This API design creates
+a natural foot-gun: every developer instinctively adds `.padding(paddingValues)` on inner
+content because it seems correct.
+
+**Correct pattern — do NOT apply `paddingValues` on inner content:**
+
+```kotlin
+// ✅ List screens:
+LazyColumn(
+    modifier = Modifier.fillMaxSize(),    // no .padding(paddingValues)!!
+    contentPadding = listContentPadding,  // this is the ONLY padding needed
+    verticalArrangement = listItemSpacing,
+)
+
+// ✅ Non-list screens (Column/Box wrapping):
+Column(
+    modifier = Modifier.fillMaxSize(),    // no .padding(paddingValues)!!
+) { ... }
+
+// ✅ Loading/Error/Empty states — these DO need it:
+LoadingState(modifier = Modifier.padding(paddingValues))
+```
+
+**Quick test:** If your screen's top gap is wider than CronJobsScreen's, you've double-stacked.
+
+**See also:** `references/hermes-scaffold-padding.md` in the skill doc for the full
+breakdown, edge cases, and timeline of previous occurrences.
+
 ### Room Persistence
 
 - `ChatMessageEntity` / `ChatMessageDao` / `HermesDatabase` — chat messages survive

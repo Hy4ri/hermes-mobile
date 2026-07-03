@@ -29,6 +29,7 @@ import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
+import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
@@ -317,6 +318,20 @@ interface HermesApiService {
     @POST("api/dashboard/agent-plugins/{name}/disable")
     suspend fun disablePlugin(
         @Path("name", encoded = true) name: String,
+    ): Response<Unit>
+
+    @POST("api/dashboard/plugins/rescan")
+    suspend fun rescanPlugins(): Response<Unit>
+
+    @PUT("api/dashboard/plugin-providers")
+    suspend fun savePluginProviders(
+        @Body body: PluginProvidersPutRequest,
+    ): Response<Unit>
+
+    @POST("api/dashboard/plugins/{name}/visibility")
+    suspend fun setPluginVisibility(
+        @Path("name", encoded = true) name: String,
+        @Body body: Map<String, Boolean>,
     ): Response<Unit>
 
     @GET("api/messaging/platforms")

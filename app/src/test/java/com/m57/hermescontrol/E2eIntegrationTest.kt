@@ -130,7 +130,7 @@ class E2eIntegrationTest {
             val skill2 = Skill("Skill 2", "Description 2", "Category 2", false)
             coEvery { mockApiService.getSkills() } returns Response.success(listOf(skill1, skill2))
 
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
 
             assertTrue(viewModel.uiState.value.isLoading)
@@ -178,7 +178,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getSkills() } returns Response.success(listOf(skill))
             coEvery { mockApiService.toggleSkill(ToggleSkillRequest("Skill 1", true)) } returns Response.success(Unit)
 
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
 
@@ -210,7 +210,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getSkills() } returns Response.success(listOf(skill))
             coEvery { mockApiService.toggleSkill(ToggleSkillRequest("Skill 1", true)) } returns createErrorResponse(500)
 
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
 
@@ -244,7 +244,7 @@ class E2eIntegrationTest {
         runTest {
             coEvery { mockApiService.getSkills() } returns createErrorResponse(500)
 
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
 
@@ -268,7 +268,7 @@ class E2eIntegrationTest {
                     Response.success(listOf(skillB)),
                 )
 
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
             assertEquals(
@@ -553,7 +553,7 @@ class E2eIntegrationTest {
     fun testSkillsLoad_httpError_400() =
         runTest {
             coEvery { mockApiService.getSkills() } returns createErrorResponse(400)
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
             assertTrue(
@@ -566,7 +566,7 @@ class E2eIntegrationTest {
     fun testSkillsLoad_httpError_404() =
         runTest {
             coEvery { mockApiService.getSkills() } returns createErrorResponse(404)
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
             assertTrue(
@@ -579,7 +579,7 @@ class E2eIntegrationTest {
     fun testSkillsLoad_httpError_500() =
         runTest {
             coEvery { mockApiService.getSkills() } returns createErrorResponse(500)
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
             assertTrue(
@@ -592,7 +592,7 @@ class E2eIntegrationTest {
     fun testSkillsLoad_networkTimeout() =
         runTest {
             coEvery { mockApiService.getSkills() } throws IOException("Timeout")
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
             assertTrue(
@@ -605,7 +605,7 @@ class E2eIntegrationTest {
     fun testSkillsLoad_emptyResponse() =
         runTest {
             coEvery { mockApiService.getSkills() } returns Response.success(emptyList())
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
             assertFalse(viewModel.uiState.value.isLoading)
@@ -623,7 +623,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getSkills() } returns Response.success(listOf(skill))
             coEvery { mockApiService.toggleSkill(any()) } returns createErrorResponse(500)
 
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
 
@@ -752,7 +752,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getSkills() } returns Response.success(listOf(skill))
             coEvery { mockApiService.toggleSkill(any()) } returns Response.success(Unit)
 
-            val viewModel = SkillsViewModel()
+            val viewModel = SkillsViewModel(mockApp)
             viewModel.loadSkills()
             advanceUntilIdle()
 
@@ -824,7 +824,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getSkills() } returns Response.success(listOf(skill))
             coEvery { mockApiService.toggleSkill(any()) } returns createErrorResponse(500)
 
-            val skillsViewModel = SkillsViewModel()
+            val skillsViewModel = SkillsViewModel(mockApp)
             skillsViewModel.loadSkills()
             advanceUntilIdle()
 

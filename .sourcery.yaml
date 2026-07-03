@@ -1,0 +1,33 @@
+# Sourcery configuration for Hermes Control
+# https://docs.sourcery.ai/References/Legacy-Configuration/sourcery-yaml/
+#
+# This file controls which files Sourcery analyzes, clone detection,
+# metrics, and GitHub bot behaviour.
+
+ignore:
+  - .git
+  - .gradle/
+  - .kotlin/
+  - .idea/
+  - .vscode/
+  - build/
+  - app/build/
+  - '*.iml'
+  - '*.hprof'
+  - ktlint
+
+github:
+  labels: []
+  ignore_labels:
+    - sourcery-ignore
+    - dependencies       # Dependabot auto-PRs — skip AI review
+  request_review: author
+  sourcery_branch: sourcery/{base_branch}
+
+clone_detection:
+  min_lines: 5           # tuned above default 3 to reduce noise in Compose UI blocks
+  min_duplicates: 2
+  identical_clones_only: false
+
+metrics:
+  quality_threshold: 25.0

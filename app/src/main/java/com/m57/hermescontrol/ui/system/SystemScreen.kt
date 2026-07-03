@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -306,7 +307,7 @@ fun SystemScreen(
 
                     // ── 10. Action Log ─────────────────────────────────────
                     if (state.activeAction != null) {
-                        actionLogSection(state, viewModel)
+                        actionLogSection(state, spacing, viewModel)
                     }
                 }
             }
@@ -1481,80 +1482,82 @@ private fun LazyListScope.shellHooksSection(
 
     // Hook creation modal
     if (state.hookModalOpen) {
-        AlertDialog(
-            onDismissRequest = { viewModel.toggleHookModal() },
-            title = { Text(stringResource(R.string.system_hooks_modal_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-                    OutlinedTextField(
-                        value = state.hookEvent,
-                        onValueChange = viewModel::updateHookEvent,
-                        label = { Text(stringResource(R.string.system_hooks_field_event)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = state.hookCommand,
-                        onValueChange = viewModel::updateHookCommand,
-                        label = { Text(stringResource(R.string.system_hooks_field_command)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = state.hookMatcher,
-                        onValueChange = viewModel::updateHookMatcher,
-                        label = { Text(stringResource(R.string.system_hooks_field_matcher)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = state.hookTimeout,
-                        onValueChange = viewModel::updateHookTimeout,
-                        label = { Text(stringResource(R.string.system_hooks_field_timeout)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        androidx.compose.material3.Switch(
-                            checked = state.hookApprove,
-                            onCheckedChange = viewModel::updateHookApprove,
+        item {
+            AlertDialog(
+                onDismissRequest = { viewModel.toggleHookModal() },
+                title = { Text(stringResource(R.string.system_hooks_modal_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                        OutlinedTextField(
+                            value = state.hookEvent,
+                            onValueChange = viewModel::updateHookEvent,
+                            label = { Text(stringResource(R.string.system_hooks_field_event)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                        Spacer(modifier = Modifier.width(spacing.sm))
+                        OutlinedTextField(
+                            value = state.hookCommand,
+                            onValueChange = viewModel::updateHookCommand,
+                            label = { Text(stringResource(R.string.system_hooks_field_command)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = state.hookMatcher,
+                            onValueChange = viewModel::updateHookMatcher,
+                            label = { Text(stringResource(R.string.system_hooks_field_matcher)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = state.hookTimeout,
+                            onValueChange = viewModel::updateHookTimeout,
+                            label = { Text(stringResource(R.string.system_hooks_field_timeout)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Switch(
+                                checked = state.hookApprove,
+                                onCheckedChange = viewModel::updateHookApprove,
+                            )
+                            Spacer(modifier = Modifier.width(spacing.sm))
+                            Text(
+                                text = stringResource(R.string.system_hooks_field_approve),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Text(
-                            text = stringResource(R.string.system_hooks_field_approve),
+                            text = stringResource(R.string.system_hooks_warning),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.system_hooks_warning),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.createHook() },
-                    enabled = !state.creatingHook && state.hookCommand.isNotBlank(),
-                ) {
-                    if (state.creatingHook) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(modifier = Modifier.size(spacing.sm))
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = { viewModel.createHook() },
+                        enabled = !state.creatingHook && state.hookCommand.isNotBlank(),
+                    ) {
+                        if (state.creatingHook) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(modifier = Modifier.size(spacing.sm))
+                        }
+                        Text(stringResource(R.string.system_hooks_create))
                     }
-                    Text(stringResource(R.string.system_hooks_create))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.toggleHookModal() }) {
-                    Text(stringResource(R.string.system_confirm_cancel))
-                }
-            },
-        )
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.toggleHookModal() }) {
+                        Text(stringResource(R.string.system_confirm_cancel))
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -1651,10 +1654,9 @@ private fun HookCard(
 
 private fun LazyListScope.actionLogSection(
     state: SystemUiState,
+    spacing: com.m57.hermescontrol.theme.Spacing,
     viewModel: SystemViewModel,
 ) {
-    val spacing = LocalSpacing.current
-
     item {
         SectionHeader(
             title = stringResource(R.string.system_action_log_title),

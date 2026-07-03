@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActionStatusResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
+import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
@@ -32,6 +33,9 @@ import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
+import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
+import com.m57.hermescontrol.data.model.McpCatalogResponse
+import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
@@ -333,6 +337,30 @@ interface HermesApiService {
     suspend fun deleteMcpServer(
         @Path("name") name: String,
     ): Response<Unit>
+
+    @POST("api/mcp/servers")
+    suspend fun addMcpServer(
+        @Body body: AddMcpServerRequest,
+    ): Response<McpServer>
+
+    @PUT("api/mcp/servers/{name}")
+    suspend fun updateMcpServer(
+        @Path("name") name: String,
+        @Body body: Map<String, Any>,
+    ): Response<McpServer>
+
+    @POST("api/mcp/servers/{name}/restart")
+    suspend fun restartMcpServer(
+        @Path("name") name: String,
+    ): Response<Unit>
+
+    @GET("api/mcp/catalog")
+    suspend fun getMcpCatalog(): Response<McpCatalogResponse>
+
+    @POST("api/mcp/catalog/install")
+    suspend fun installMcpCatalogEntry(
+        @Body body: McpCatalogInstallRequest,
+    ): Response<Map<String, Any>>
 
     @GET("api/webhooks")
     suspend fun getWebhooks(): Response<WebhooksResponse>

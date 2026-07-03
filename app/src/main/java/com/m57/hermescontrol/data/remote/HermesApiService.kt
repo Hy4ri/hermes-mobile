@@ -4,6 +4,7 @@ import com.google.gson.JsonElement
 import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
+import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
@@ -25,6 +26,9 @@ import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.data.model.MoaConfigResponse
+import com.m57.hermescontrol.data.model.ModelAssignmentRequest
+import com.m57.hermescontrol.data.model.ModelAssignmentResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
@@ -284,6 +288,22 @@ interface HermesApiService {
 
     @GET("api/model/options")
     suspend fun getModelOptions(): Response<ModelOptionsResponse>
+
+    @GET("api/model/auxiliary")
+    suspend fun getAuxiliaryModels(): Response<AuxiliaryModelsResponse>
+
+    @GET("api/model/moa")
+    suspend fun getMoaModels(): Response<MoaConfigResponse>
+
+    @PUT("api/model/moa")
+    suspend fun saveMoaModels(
+        @Body body: MoaConfigResponse,
+    ): Response<MoaConfigResponse>
+
+    @POST("api/model/set")
+    suspend fun setModelAssignment(
+        @Body body: ModelAssignmentRequest,
+    ): Response<ModelAssignmentResponse>
 
     @GET("api/logs")
     suspend fun getLogs(

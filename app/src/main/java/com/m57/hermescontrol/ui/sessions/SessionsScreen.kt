@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,11 +28,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Terminal
@@ -121,6 +124,8 @@ private fun sourceLabel(source: String?): String =
 private fun highlightText(
     text: String,
     query: String,
+    highlightBackground: Color,
+    highlightForeground: Color,
 ): AnnotatedString =
     buildAnnotatedString {
         if (query.isBlank()) {
@@ -141,8 +146,8 @@ private fun highlightText(
             }
             withStyle(
                 SpanStyle(
-                    background = MaterialTheme.colorScheme.primaryContainer,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    background = highlightBackground,
+                    color = highlightForeground,
                     fontWeight = FontWeight.Bold,
                 ),
             ) {
@@ -162,6 +167,8 @@ fun SessionsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimaryContainer = MaterialTheme.colorScheme.onPrimaryContainer
 
     var query by remember { mutableStateOf("") }
     var pruneDays by remember { mutableStateOf("7") }
@@ -358,6 +365,8 @@ fun SessionsScreen(
                                 isSelected = session.id in state.selectedIds,
                                 isDeleting = session.id in state.deletingSessionIds,
                                 isRenaming = state.renamingSessionId == session.id,
+                                highlightBackground = primaryContainer,
+                                highlightForeground = onPrimaryContainer,
                                 onCardClick = {
                                     if (state.isSelecting) {
                                         viewModel.toggleSessionSelection(session.id)
@@ -518,6 +527,8 @@ private fun SessionCard(
     isSelected: Boolean,
     isDeleting: Boolean,
     isRenaming: Boolean,
+    highlightBackground: Color,
+    highlightForeground: Color,
     onCardClick: () -> Unit,
     onCardLongClick: () -> Unit,
     onToggleSelection: () -> Unit,
@@ -538,18 +549,9 @@ private fun SessionCard(
             Modifier
                 .fillMaxWidth()
                 .testTag("session_card_${session.id}")
-                .then(
-                    if (isActive && !isSelecting) {
-                        Modifier.combinedClickable(
-                            onClick = onCardClick,
-                            onLongClick = onCardLongClick,
-                        )
-                    } else {
-                        Modifier.combinedClickable(
-                            onClick = onCardClick,
-                            onLongClick = onCardLongClick,
-                        )
-                    },
+                .combinedClickable(
+                    onClick = onCardClick,
+                    onLongClick = onCardLongClick,
                 ),
         colors =
             CardDefaults.cardColors(
@@ -602,7 +604,7 @@ private fun SessionCard(
                     Text(
                         text =
                             if (query.isNotBlank()) {
-                                highlightText(displayTitle, query)
+                                highlightText(displayTitle, query, highlightBackground, highlightForeground)
                             } else {
                                 AnnotatedString(displayTitle)
                             },

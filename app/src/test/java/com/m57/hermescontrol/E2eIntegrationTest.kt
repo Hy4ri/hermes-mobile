@@ -1010,7 +1010,7 @@ class E2eIntegrationTest {
             viewModel.triggerBackup()
             advanceUntilIdle()
 
-            assertEquals("Backup triggered successfully", viewModel.uiState.value.toastMessage)
+            assertEquals("Backup triggered", viewModel.uiState.value.toastMessage)
         }
 
     @Test

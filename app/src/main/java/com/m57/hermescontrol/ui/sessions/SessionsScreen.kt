@@ -25,13 +25,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SelectAll
@@ -438,7 +435,6 @@ fun SessionsScreen(
                                 isSelecting = state.isSelecting,
                                 isSelected = session.id in state.selectedIds,
                                 isDeleting = session.id in state.deletingSessionIds,
-                                isRenaming = state.renamingSessionId == session.id,
                                 highlightBackground = primaryContainer,
                                 highlightForeground = onPrimaryContainer,
                                 onCardClick = {
@@ -456,10 +452,6 @@ fun SessionsScreen(
                                     }
                                 },
                                 onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
-                                onRenameClick = { viewModel.startRenaming(session.id) },
-                                onRenameConfirm = { newTitle -> viewModel.renameSession(session.id, newTitle) },
-                                onRenameCancel = { viewModel.cancelRenaming() },
-                                onCopyPrompt = { viewModel.copySessionPrompt(session.id) },
                                 onDelete = { viewModel.requestDeleteSession(session.id) },
                             )
                         }
@@ -600,16 +592,11 @@ private fun SessionCard(
     isSelecting: Boolean,
     isSelected: Boolean,
     isDeleting: Boolean,
-    isRenaming: Boolean,
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
     onCardLongClick: () -> Unit,
     onToggleSelection: () -> Unit,
-    onRenameClick: () -> Unit,
-    onRenameConfirm: (String) -> Unit,
-    onRenameCancel: () -> Unit,
-    onCopyPrompt: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -667,27 +654,18 @@ private fun SessionCard(
 
             // Main content
             Column(modifier = Modifier.weight(1f)) {
-                // Title (with rename support)
-                if (isRenaming) {
-                    RenameTextField(
-                        currentTitle = session.title ?: "",
-                        onConfirm = onRenameConfirm,
-                        onCancel = onRenameCancel,
-                    )
-                } else {
-                    Text(
-                        text =
-                            if (query.isNotBlank()) {
-                                highlightText(displayTitle, query, highlightBackground, highlightForeground)
-                            } else {
-                                AnnotatedString(displayTitle)
-                            },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Text(
+                    text =
+                        if (query.isNotBlank()) {
+                            highlightText(displayTitle, query, highlightBackground, highlightForeground)
+                        } else {
+                            AnnotatedString(displayTitle)
+                        },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
 
                 Spacer(modifier = Modifier.height(spacing.xs))
 
@@ -712,32 +690,6 @@ private fun SessionCard(
             // Action buttons (not in select mode)
             if (!isSelecting) {
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    // Copy prompt
-                    IconButton(
-                        onClick = onCopyPrompt,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = stringResource(R.string.sessions_action_copy_prompt),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    // Rename
-                    IconButton(
-                        onClick = onRenameClick,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = stringResource(R.string.action_rename),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
                     // Delete
                     if (isDeleting) {
                         CircularProgressIndicator(
@@ -759,48 +711,6 @@ private fun SessionCard(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun RenameTextField(
-    currentTitle: String,
-    onConfirm: (String) -> Unit,
-    onCancel: () -> Unit,
-) {
-    val spacing = LocalSpacing.current
-    var text by remember { mutableStateOf(currentTitle) }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            singleLine = true,
-            modifier = Modifier.weight(1f),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onConfirm(text) }),
-            placeholder = { Text(stringResource(R.string.sessions_rename_placeholder)) },
-        )
-        Spacer(modifier = Modifier.width(spacing.xs))
-        IconButton(onClick = { onConfirm(text) }, modifier = Modifier.size(32.dp)) {
-            Icon(
-                imageVector = Icons.Filled.CheckCircle,
-                contentDescription = stringResource(R.string.action_save),
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        IconButton(onClick = onCancel, modifier = Modifier.size(32.dp)) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.action_cancel),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
         }
     }
 }

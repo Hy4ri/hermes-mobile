@@ -27,7 +27,6 @@ data class McpServersUiState(
     val servers: List<McpServer> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
-    val serverDiagnostics: Map<String, String> = emptyMap(),
     // Add server form
     val showAddForm: Boolean = false,
     val addMode: AddServerMode = AddServerMode.HTTP,
@@ -405,12 +404,6 @@ class McpServersViewModel : ViewModel(), ToastHost {
         value: String,
     ) {
         _uiState.update { it.copy(catalogInstallEnv = it.catalogInstallEnv + (key to value)) }
-    }
-
-    // ── Diagnostics ──────────────────────────────────────────
-
-    fun refreshDiagnostics() {
-        loadServers()
     }
 
     // ── Helpers ──────────────────────────────────────────────

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.mcp
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -279,7 +281,6 @@ private fun ServerCard(
     spacing: com.m57.hermescontrol.theme.Spacing,
 ) {
     var showEnv by remember { mutableStateOf(false) }
-    var showDiagnostics by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -531,12 +532,11 @@ private fun CatalogSection(
             // Loading / error / content
             when {
                 state.catalogLoading -> {
-                    Text(
-                        text = stringResource(R.string.mcp_servers_catalog_loading),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = spacing.md),
-                    )
+                    Spacer(modifier = Modifier.height(spacing.sm))
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.height(spacing.sm))
                 }
                 state.catalogError != null -> {
                     ErrorState(

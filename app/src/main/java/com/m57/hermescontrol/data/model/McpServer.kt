@@ -53,9 +53,3 @@ data class McpCatalogInstallRequest(
     val name: String,
     val env: Map<String, String>? = null,
 )
-
-data class McpServerTestResponse(
-    val ok: Boolean? = null,
-    val tools: List<String>? = null,
-    val error: String? = null,
-)

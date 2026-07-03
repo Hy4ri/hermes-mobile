@@ -559,7 +559,6 @@
     <string name="mcp_servers_status_error">error</string>
     <string name="mcp_servers_status_unconfigured">unconfigured</string>
     <string name="mcp_servers_action_restart">Restart</string>
-    <string name="mcp_servers_action_restarting">Restarting…</string>
     <string name="mcp_servers_env_vars">Env vars</string>
     <string name="mcp_servers_env_add">Add env var</string>
     <string name="mcp_servers_env_key">Key</string>
@@ -567,17 +566,14 @@
     <string name="mcp_servers_env_no_vars">No environment variables configured.</string>
     <string name="mcp_servers_section_catalog">Catalog</string>
     <string name="mcp_servers_catalog_search">Search catalog…</string>
-    <string name="mcp_servers_catalog_load">Load catalog</string>
     <string name="mcp_servers_catalog_loading">Loading catalog…</string>
     <string name="mcp_servers_catalog_empty">No catalog entries match your search.</string>
     <string name="mcp_servers_catalog_install">Install</string>
     <string name="mcp_servers_catalog_installing">Installing…</string>
     <string name="mcp_servers_catalog_source">source: %1$s</string>
     <string name="mcp_servers_catalog_required_env">Required env vars</string>
-    <string name="mcp_servers_diagnostics">Diagnostics</string>
-    <string name="mcp_servers_diagnostics_none">All servers running normally.</string>
-
-    <!-- Gateway Screen -->
+ 
+     <!-- Gateway Screen -->
     <string name="gateway_status_running">GATEWAY RUNNING</string>
     <string name="gateway_status_stopped">GATEWAY STOPPED</string>
     <string name="gateway_label_version">Version: %1$s</string>

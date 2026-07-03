@@ -91,7 +91,7 @@ fun SkillsScreen(
     HermesScaffold(
         modifier = modifier,
         title = { Text(stringResource(R.string.skills_screen_title)) },
-        navigationIcon = NavIcon.Menu(onClick = onOpenDrawer),
+        navigationIcon = NavIcon.Menu(onOpen = onOpenDrawer),
         actions = {
             if (state.viewMode == SkillsViewMode.INSTALLED) {
                 IconButton(onClick = { viewModel.updateSkillsFromHub() }) {

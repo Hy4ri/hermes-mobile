@@ -77,10 +77,6 @@ class ModelViewModel :
     }
 
     fun loadAll() {
-        loadModelOptions()
-    }
-
-    fun loadModelOptions() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             val optionsDeferred =
@@ -225,7 +221,7 @@ class ModelViewModel :
                                 modelPickerBusy = false,
                             )
                         }
-                        loadModelOptions()
+                        loadAll()
                     }
                 }
                 is NetworkResult.Failure -> {
@@ -267,7 +263,7 @@ class ModelViewModel :
                             modelPickerBusy = false,
                         )
                     }
-                    loadModelOptions()
+                    loadAll()
                 }
                 is NetworkResult.Failure -> {
                     _uiState.update {
@@ -342,7 +338,7 @@ class ModelViewModel :
                             auxPickerTask = "",
                         )
                     }
-                    loadModelOptions()
+                    loadAll()
                 }
                 is NetworkResult.Failure -> {
                     _uiState.update {
@@ -377,7 +373,7 @@ class ModelViewModel :
                     _uiState.update {
                         it.copy(toastMessage = "All auxiliary tasks reset to auto", modelPickerBusy = false)
                     }
-                    loadModelOptions()
+                    loadAll()
                 }
                 is NetworkResult.Failure -> {
                     _uiState.update {
@@ -468,7 +464,7 @@ class ModelViewModel :
                     when (updateResResult) {
                         is NetworkResult.Success -> {
                             _uiState.update { it.copy(toastMessage = "Successfully set profile model to $modelName") }
-                            loadModelOptions()
+                            loadAll()
                         }
                         is NetworkResult.Failure -> {
                             _uiState.update {

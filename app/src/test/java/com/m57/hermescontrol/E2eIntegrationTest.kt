@@ -1072,7 +1072,7 @@ class E2eIntegrationTest {
                 )
 
             val viewModel = ModelViewModel()
-            viewModel.loadModelOptions()
+            viewModel.loadAll()
             advanceUntilIdle()
 
             assertEquals(1, viewModel.uiState.value.providers.size)

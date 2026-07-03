@@ -218,6 +218,8 @@ private fun ProviderSelectionSection(
     state: PluginsUiState,
     viewModel: PluginsViewModel,
 ) {
+    val providerDefaultsLabel = stringResource(R.string.plugins_provider_defaults)
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -242,18 +244,16 @@ private fun ProviderSelectionSection(
                 label = stringResource(R.string.plugins_memory_provider_label),
                 options =
                     listOf(
-                        stringResource(R.string.plugins_provider_defaults),
+                        providerDefaultsLabel,
                     ) + state.memoryOptions.map { it.name },
                 selectedValue =
                     if (state.isMemoryBuiltin) {
-                        stringResource(
-                            R.string.plugins_provider_defaults,
-                        )
+                        providerDefaultsLabel
                     } else {
                         state.memoryProvider
                     },
                 onOptionSelected = { selected ->
-                    if (selected == stringResource(R.string.plugins_provider_defaults)) {
+                    if (selected == providerDefaultsLabel) {
                         viewModel.updateMemoryProvider(PluginsUiState.MEMORY_PROVIDER_BUILTIN)
                     } else {
                         viewModel.updateMemoryProvider(selected)

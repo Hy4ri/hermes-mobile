@@ -66,7 +66,13 @@ class PluginsViewModel : ViewModel(), ToastHost {
                     it.copy(
                         isLoading = false,
                         plugins = plugins,
-                        orphanPlugins = data.orphanDashboardPlugins.orEmpty(),
+                        orphanPlugins =
+                            data.orphanDashboardPlugins.orEmpty().map {
+                                PluginInfo(
+                                    name = it.name ?: "unknown",
+                                    description = it.description ?: it.label,
+                                )
+                            },
                         memoryProvider = providers?.memoryProvider ?: "",
                         memoryOptions = providers?.memoryOptions.orEmpty(),
                         contextEngine = providers?.contextEngine ?: "compressor",

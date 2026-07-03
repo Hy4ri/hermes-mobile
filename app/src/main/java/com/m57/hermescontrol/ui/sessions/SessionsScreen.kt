@@ -7,7 +7,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -242,6 +241,69 @@ fun SessionsScreen(
         )
     }
 
+    // Single-session delete confirmation dialog
+    if (state.sessionToDeleteConfirm != null) {
+        val sessionTitle =
+            state.sessions
+                .find { it.id == state.sessionToDeleteConfirm }
+                ?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelDeleteSession() },
+            title = { Text(stringResource(R.string.sessions_delete_title)) },
+            text = {
+                Text(stringResource(R.string.sessions_delete_message, sessionTitle))
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmDeleteSession() },
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = statusColors.error,
+                        ),
+                ) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelDeleteSession() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    // Bulk delete confirmation dialog
+    if (state.showBulkDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelBulkDelete() },
+            title = { Text(stringResource(R.string.sessions_bulk_delete_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.sessions_bulk_delete_message,
+                        state.selectedIds.size,
+                    ),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmBulkDelete() },
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = statusColors.error,
+                        ),
+                ) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelBulkDelete() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_history)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
@@ -322,6 +384,15 @@ fun SessionsScreen(
                             }
                         }
                     }
+                    // Stats error snack
+                    if (state.statsError != null) {
+                        Text(
+                            text = state.statsError,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = statusColors.error,
+                            modifier = Modifier.padding(horizontal = spacing.md),
+                        )
+                    }
 
                     // ── Search + bulk toggle ────────────────────────────
                     Row(
@@ -386,7 +457,7 @@ fun SessionsScreen(
                                 onRenameConfirm = { newTitle -> viewModel.renameSession(session.id, newTitle) },
                                 onRenameCancel = { viewModel.cancelRenaming() },
                                 onCopyPrompt = { viewModel.copySessionPrompt(session.id) },
-                                onDelete = { viewModel.deleteSingleSession(session.id) },
+                                onDelete = { viewModel.requestDeleteSession(session.id) },
                             )
                         }
 
@@ -484,7 +555,7 @@ fun SessionsScreen(
 
                     // Delete selected
                     Button(
-                        onClick = { viewModel.deleteSelected() },
+                        onClick = { viewModel.requestBulkDelete() },
                         enabled = !state.isDeletingBulk,
                         colors =
                             ButtonDefaults.buttonColors(

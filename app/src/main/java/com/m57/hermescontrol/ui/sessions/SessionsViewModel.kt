@@ -39,6 +39,8 @@ data class SessionsUiState(
     val isPruning: Boolean = false,
     val isDeletingBulk: Boolean = false,
     val toastMessage: String? = null,
+    val sessionToDeleteConfirm: String? = null,
+    val showBulkDeleteConfirm: Boolean = false,
 ) {
     val hasMore: Boolean get() = total > sessions.size
 }
@@ -269,13 +271,68 @@ class SessionsViewModel : ViewModel() {
         }
     }
 
+    // ── Delete (single) ──────────────────────────────────────────────────
+
+    fun requestDeleteSession(sessionId: String) {
+        _uiState.update { it.copy(sessionToDeleteConfirm = sessionId) }
+    }
+
+    fun cancelDeleteSession() {
+        _uiState.update { it.copy(sessionToDeleteConfirm = null) }
+    }
+
+    fun confirmDeleteSession() {
+        val sessionId = _uiState.value.sessionToDeleteConfirm ?: return
+        _uiState.update {
+            it.copy(
+                sessionToDeleteConfirm = null,
+                deletingSessionIds = it.deletingSessionIds + sessionId,
+            )
+        }
+        viewModelScope.launch {
+            val result =
+                safeApiCall {
+                    ApiClient.hermesApi.deleteSession(sessionId)
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            deletingSessionIds = it.deletingSessionIds - sessionId,
+                            sessions = it.sessions.filter { s -> s.id != sessionId },
+                            total = it.total - 1,
+                            toastMessage = "Session deleted",
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            deletingSessionIds = it.deletingSessionIds - sessionId,
+                            toastMessage = "Delete failed: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     // ── Bulk delete ──────────────────────────────────────────────────────
 
-    fun deleteSelected() {
+    fun requestBulkDelete() {
+        _uiState.update { it.copy(showBulkDeleteConfirm = true) }
+    }
+
+    fun cancelBulkDelete() {
+        _uiState.update { it.copy(showBulkDeleteConfirm = false) }
+    }
+
+    fun confirmBulkDelete() {
         val ids = _uiState.value.selectedIds.toList()
         if (ids.isEmpty()) return
 
-        _uiState.update { it.copy(isDeletingBulk = true) }
+        _uiState.update { it.copy(showBulkDeleteConfirm = false, isDeletingBulk = true) }
         viewModelScope.launch {
             val result =
                 safeApiCall {
@@ -301,39 +358,6 @@ class SessionsViewModel : ViewModel() {
                     _uiState.update {
                         it.copy(
                             isDeletingBulk = false,
-                            toastMessage = "Delete failed: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    fun deleteSingleSession(sessionId: String) {
-        _uiState.update { it.copy(deletingSessionIds = it.deletingSessionIds + sessionId) }
-        viewModelScope.launch {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.bulkDeleteSessions(
-                        body = BulkDeleteRequest(ids = listOf(sessionId)),
-                    )
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            deletingSessionIds = it.deletingSessionIds - sessionId,
-                            sessions = it.sessions.filter { s -> s.id != sessionId },
-                            total = it.total - 1,
-                            toastMessage = "Session deleted",
-                        )
-                    }
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            deletingSessionIds = it.deletingSessionIds - sessionId,
                             toastMessage = "Delete failed: ${result.error.message}",
                         )
                     }

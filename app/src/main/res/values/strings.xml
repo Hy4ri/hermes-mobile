@@ -304,6 +304,10 @@
     <string name="sessions_prune_desc">Delete sessions older than the specified number of days.</string>
     <string name="sessions_prune_days_label">Days threshold</string>
     <string name="sessions_prune_confirm">Prune</string>
+    <string name="sessions_delete_title">Delete Session?</string>
+    <string name="sessions_delete_message">Are you sure you want to delete \"%1$s\"? This can\'t be undone.</string>
+    <string name="sessions_bulk_delete_title">Delete Sessions?</string>
+    <string name="sessions_bulk_delete_message">Are you sure you want to delete %1$d session(s)? This can\'t be undone.</string>
     <string name="sessions_action_select_all">Select All</string>
     <string name="sessions_action_deselect_all">Deselect</string>
     <string name="sessions_action_delete_n">Delete %1$d</string>

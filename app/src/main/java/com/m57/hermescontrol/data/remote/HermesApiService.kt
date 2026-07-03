@@ -114,6 +114,11 @@ interface HermesApiService {
         @Body body: BulkDeleteRequest,
     ): Response<Unit>
 
+    @DELETE("api/sessions/{id}")
+    suspend fun deleteSession(
+        @Path("id") sessionId: String,
+    ): Response<Unit>
+
     @POST("api/sessions/prune")
     suspend fun pruneSessions(
         @Body body: PruneRequest,

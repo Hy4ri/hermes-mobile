@@ -293,6 +293,28 @@
     <string name="history_empty_desc">Previous chat sessions from Hermes will appear here.</string>
     <string name="history_untitled">Untitled</string>
     <string name="history_message_count">%1$d messages</string>
+    <string name="history_load_more">Load more sessions…</string>
+
+    <!-- Sessions Stats -->
+    <string name="sessions_search_placeholder">Search sessions…</string>
+    <string name="sessions_stat_total">Total</string>
+    <string name="sessions_stat_active">Active</string>
+    <string name="sessions_action_prune">Prune</string>
+    <string name="sessions_prune_title">Prune Old Sessions</string>
+    <string name="sessions_prune_desc">Delete sessions older than the specified number of days.</string>
+    <string name="sessions_prune_days_label">Days threshold</string>
+    <string name="sessions_prune_confirm">Prune</string>
+    <string name="sessions_delete_title">Delete Session?</string>
+    <string name="sessions_delete_message">Are you sure you want to delete \"%1$s\"? This can\'t be undone.</string>
+    <string name="sessions_bulk_delete_title">Delete Sessions?</string>
+    <string name="sessions_bulk_delete_message">Are you sure you want to delete %1$d session(s)? This can\'t be undone.</string>
+    <string name="sessions_action_select_all">Select All</string>
+    <string name="sessions_action_deselect_all">Deselect</string>
+    <string name="sessions_action_delete_n">Delete %1$d</string>
+    <string name="sessions_action_copy_prompt">Copy prompt</string>
+    <string name="sessions_rename_placeholder">New title…</string>
+    <string name="content_desc_enter_selection">Select sessions</string>
+    <string name="content_desc_exit_selection">Exit selection</string>
 
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">No toolsets reported</string>

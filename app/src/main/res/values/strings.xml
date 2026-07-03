@@ -314,7 +314,6 @@
     <string name="system_sec_gateway">Gateway</string>
     <string name="system_status_running">Running</string>
     <string name="system_status_stopped">Stopped</string>
-    <string name="system_gateway_state_pid">%1$s · pid %2$d</string>
     <string name="system_gateway_start">Start</string>
     <string name="system_gateway_restart">Restart</string>
     <string name="system_gateway_stop">Stop</string>

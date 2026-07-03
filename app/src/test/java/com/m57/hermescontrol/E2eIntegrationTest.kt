@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.CheckpointsResponse
@@ -996,7 +997,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getHooks() } returns Response.success(HookResponse())
             coEvery { mockApiService.checkHermesUpdate(false) } returns
                 Response.success(UpdateCheckResponse())
-            coEvery { mockApiService.triggerBackup() } returns Response.success(Unit)
+            coEvery { mockApiService.triggerBackup() } returns Response.success(ActionResponse())
 
             val viewModel = SystemViewModel()
             viewModel.loadAll()

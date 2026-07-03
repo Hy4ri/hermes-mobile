@@ -403,7 +403,12 @@ class SystemViewModel : ViewModel(), ToastHost {
             val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.triggerBackup() } }
             when (result) {
                 is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Backup triggered") }
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Backup triggered",
+                            backupArchive = result.data?.archive,
+                        )
+                    }
                     loadAll()
                 }
                 is NetworkResult.Failure -> {

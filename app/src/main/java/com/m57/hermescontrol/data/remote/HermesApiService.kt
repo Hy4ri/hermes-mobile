@@ -429,7 +429,7 @@ interface HermesApiService {
     ): Response<EnvVarRevealResponse>
 
     @POST("api/ops/backup")
-    suspend fun triggerBackup(): Response<Unit>
+    suspend fun triggerBackup(): Response<ActionResponse>
 
     @POST("api/ops/doctor")
     suspend fun runDoctor(): Response<DoctorResponse>

@@ -57,10 +57,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -85,6 +86,7 @@ import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
+import kotlinx.coroutines.launch
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -735,28 +737,19 @@ private fun LazyListScope.gatewaySection(
                         }
                     }
 
-                    // Version + PID
+                    // Version · Sessions · PID
                     status.version?.let { ver ->
-                        val pidText =
-                            status.active_sessions?.let { sessions ->
-                                "$ver · $sessions session(s)"
-                            } ?: ver
-                        InfoRow(label = stringResource(R.string.system_label_hermes_version), value = pidText)
-                    }
-
-                    // Gateway state with PID (from status version or doctor pid)
-                    state.doctorReport?.let { report ->
-                        if (report.ok && report.pid != null) {
-                            InfoRow(
-                                label = stringResource(R.string.system_label_hermes_version),
-                                value =
-                                    stringResource(
-                                        R.string.system_gateway_state_pid,
-                                        status.version ?: "",
-                                        report.pid,
-                                    ),
-                            )
+                        val parts = mutableListOf(ver)
+                        status.active_sessions?.let { parts.add("$it session(s)") }
+                        state.doctorReport?.let { report ->
+                            if (report.ok && report.pid != null) {
+                                parts.add("pid ${report.pid}")
+                            }
                         }
+                        InfoRow(
+                            label = stringResource(R.string.system_label_hermes_version),
+                            value = parts.joinToString(" · "),
+                        )
                     }
 
                     // Auth required
@@ -1328,7 +1321,8 @@ private fun LazyListScope.operationsSection(
                 // Debug share results
                 state.debugShare?.let { share ->
                     Spacer(modifier = Modifier.height(spacing.sm))
-                    val clipboardManager = LocalClipboardManager.current
+                    val scope = rememberCoroutineScope()
+                    val clipboard = LocalClipboard.current
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1375,7 +1369,7 @@ private fun LazyListScope.operationsSection(
                                 modifier = Modifier.weight(1f),
                             )
                             IconButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(url))
+                                scope.launch { clipboard.setText(AnnotatedString(url)) }
                             }) {
                                 Icon(
                                     Icons.Filled.ContentCopy,

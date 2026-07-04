@@ -104,7 +104,7 @@ fun SkillsScreen(
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize(),
         ) {
             // ── View mode tabs ──────────────────────────────────────
             Row(

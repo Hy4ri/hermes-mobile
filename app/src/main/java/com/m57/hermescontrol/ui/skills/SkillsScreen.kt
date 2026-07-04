@@ -353,66 +353,79 @@ private fun SkillCard(
                 containerColor = MaterialTheme.colorScheme.surface,
             ),
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
         ) {
-            Icon(
-                imageVector = Icons.Filled.Extension,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = skill.name,
-                        style =
-                            MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    skill.source?.let { source ->
-                        SourceBadge(source = source)
-                    }
-                }
-                skill.category?.let { cat ->
-                    Text(
-                        text = cat,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                skill.description?.let { desc ->
-                    Text(
-                        text = desc,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+            // ── Top row: icon + name + source badge + toggle ──
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                IconButton(onClick = onAction) {
-                    Icon(
-                        imageVector = Icons.Filled.Edit,
-                        contentDescription = stringResource(R.string.content_desc_edit_skill),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Icon(
+                    imageVector = Icons.Filled.Extension,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = skill.name,
+                    style =
+                        MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                skill.source?.let { source ->
+                    Spacer(modifier = Modifier.width(6.dp))
+                    SourceBadge(source = source)
                 }
-                if (onUninstall != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Switch(
+                    checked = skill.enabled,
+                    onCheckedChange = { onToggle() },
+                )
+            }
+
+            // ── Category ──
+            skill.category?.let { cat ->
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = cat,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // ── Description ──
+            skill.description?.let { desc ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = desc,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            // ── Action buttons row ──
+            if (onUninstall != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onAction) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.content_desc_edit_skill),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     IconButton(
                         onClick = onUninstall,
                         enabled = !isUninstalling,
@@ -432,10 +445,21 @@ private fun SkillCard(
                         }
                     }
                 }
-                Switch(
-                    checked = skill.enabled,
-                    onCheckedChange = { onToggle() },
-                )
+            } else {
+                // No uninstall — just the edit button inline
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = onAction) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.content_desc_edit_skill),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }

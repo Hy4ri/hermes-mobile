@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -50,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -522,40 +526,44 @@ private fun HubBrowseView(
                     .fillMaxWidth()
                     .padding(16.dp),
             placeholder = { Text(stringResource(R.string.skills_hub_search_placeholder)) },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = null,
-                )
-            },
             trailingIcon = {
-                if (hubQuery.isNotEmpty()) {
-                    IconButton(onClick = {
-                        onHubQueryChange("")
-                        onClearSearch()
-                    }) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (hubQuery.isNotEmpty()) {
+                        IconButton(onClick = {
+                            onHubQueryChange("")
+                            onClearSearch()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.action_clear),
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = { onSearch(hubQuery) },
+                        enabled = hubQuery.isNotBlank(),
+                    ) {
                         Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.action_clear),
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.skills_hub_search_button),
                         )
                     }
                 }
             },
             singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions =
+                KeyboardActions(
+                    onSearch = {
+                        if (hubQuery.isNotBlank()) {
+                            onSearch(hubQuery)
+                        }
+                    },
+                ),
         )
-
-        Button(
-            onClick = { onSearch(hubQuery) },
-            modifier =
-                Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(bottom = 8.dp),
-            enabled = hubQuery.isNotBlank(),
-        ) {
-            Icon(Icons.Filled.Search, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.skills_hub_search_button))
-        }
 
         when {
             state.isHubSearching -> {

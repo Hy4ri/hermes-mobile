@@ -99,14 +99,25 @@ class E2eIntegrationTest {
         every { AuthManager.getSelectedProfileId() } returns null
 
         // Mock AndroidViewModel string resources (no real resources in unit tests)
-        // getString(int resId, Object... formatArgs) is the Java vararg method.
-        // We match ANY number of vararg elements via anyVararg<String>() (String
-        // satisfies the T : Any bound and is the actual runtime type of format
-        // args passed by our ViewModels). Returns the format args joined by space.
-        every { mockApp.getString(any<Int>(), *anyVararg<String>()) } answers {
-            this.invocation.args.drop(1).filterNotNull().joinToString(" ")
-        }
+        // mockk has a known bug matching Java vararg methods like
+        // Context.getString(int, Object...) with anyVararg. Workaround: stub each
+        // resource ID explicitly with the exact number of format args. For formatted
+        // strings, return the format args joined by space (preserving error messages).
         every { mockApp.getString(any<Int>()) } returns ""
+        // 1-arg format strings — return the format arg (the dynamic error message)
+        every { mockApp.getString(R.string.skills_load_failure, any<String>()) } answers { secondArg<String>() }
+        every { mockApp.getString(R.string.skills_toggle_failure, any<String>()) } answers { secondArg<String>() }
+        every { mockApp.getString(R.string.skills_search_failure, any<String>()) } answers { secondArg<String>() }
+        every { mockApp.getString(R.string.skills_preview_failure, any<String>()) } answers { secondArg<String>() }
+        every { mockApp.getString(R.string.skills_install_success, any<String>()) } answers { secondArg<String>() }
+        every { mockApp.getString(R.string.skills_uninstall_success, any<String>()) } answers { secondArg<String>() }
+        // 2-arg format strings — return the second arg (the error message)
+        every {
+            mockApp.getString(R.string.skills_install_failure, any<String>(), any<String>())
+        } answers { thirdArg<String>() }
+        every {
+            mockApp.getString(R.string.skills_uninstall_failure, any<String>(), any<String>())
+        } answers { thirdArg<String>() }
         every { AuthManager.setSelectedProfileId(any()) } returns Unit
         every { AuthManager.getProfileToken(any()) } returns null
         every { AuthManager.setProfileToken(any(), any()) } returns Unit

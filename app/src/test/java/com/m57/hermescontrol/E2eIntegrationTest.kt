@@ -36,7 +36,9 @@ import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
+import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.Skill
+import com.m57.hermescontrol.data.model.SkillContentResponse
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
@@ -98,26 +100,10 @@ class E2eIntegrationTest {
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } returns null
 
-        // Mock AndroidViewModel string resources (no real resources in unit tests)
-        // mockk has a known bug matching Java vararg methods like
-        // Context.getString(int, Object...) with anyVararg. Workaround: stub each
-        // resource ID explicitly with the exact number of format args. For formatted
-        // strings, return the format args joined by space (preserving error messages).
+        // Mock Application string resources (no real resources in unit tests)
+        // SkillsViewModel uses hardcoded strings (not getApplication().getString()),
+        // so only resources used by ConnectViewModel + enum labels need stubs.
         every { mockApp.getString(any<Int>()) } returns ""
-        // 1-arg format strings — return the format arg (the dynamic error message)
-        every { mockApp.getString(R.string.skills_load_failure, any<String>()) } answers { secondArg<String>() }
-        every { mockApp.getString(R.string.skills_toggle_failure, any<String>()) } answers { secondArg<String>() }
-        every { mockApp.getString(R.string.skills_search_failure, any<String>()) } answers { secondArg<String>() }
-        every { mockApp.getString(R.string.skills_preview_failure, any<String>()) } answers { secondArg<String>() }
-        every { mockApp.getString(R.string.skills_install_success, any<String>()) } answers { secondArg<String>() }
-        every { mockApp.getString(R.string.skills_uninstall_success, any<String>()) } answers { secondArg<String>() }
-        // 2-arg format strings — return the second arg (the error message)
-        every {
-            mockApp.getString(R.string.skills_install_failure, any<String>(), any<String>())
-        } answers { thirdArg<String>() }
-        every {
-            mockApp.getString(R.string.skills_uninstall_failure, any<String>(), any<String>())
-        } answers { thirdArg<String>() }
         every { AuthManager.setSelectedProfileId(any()) } returns Unit
         every { AuthManager.getProfileToken(any()) } returns null
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
@@ -304,6 +290,204 @@ class E2eIntegrationTest {
                 "Skill B",
                 viewModel.uiState.value.skills[0]
                     .name,
+            )
+        }
+
+    // ── Skills Hub: Search ────────────────────────────────────────────────
+
+    @Test
+    fun testSkillsHub_search_success() =
+        runTest {
+            val hubSkill = HubSkill("Test Skill", "A test hub skill", "hub", "General")
+            coEvery { mockApiService.searchSkillsHub(any()) } returns
+                Response.success(listOf(hubSkill))
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.searchHub("test")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isHubSearching)
+            assertEquals(1, viewModel.uiState.value.hubResults.size)
+            assertEquals(
+                "Test Skill",
+                viewModel.uiState.value.hubResults[0]
+                    .name,
+            )
+            assertEquals(
+                "hub",
+                viewModel.uiState.value.hubResults[0]
+                    .source,
+            )
+        }
+
+    @Test
+    fun testSkillsHub_search_empty() =
+        runTest {
+            coEvery { mockApiService.searchSkillsHub(any()) } returns
+                Response.success(emptyList())
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.searchHub("nonexistent")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isHubSearching)
+            assertTrue(viewModel.uiState.value.hubResults.isEmpty())
+            assertNull(viewModel.uiState.value.hubSearchError)
+        }
+
+    @Test
+    fun testSkillsHub_search_error() =
+        runTest {
+            coEvery { mockApiService.searchSkillsHub(any()) } returns
+                createErrorResponse(500)
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.searchHub("test")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isHubSearching)
+            assertNotNull(viewModel.uiState.value.hubSearchError)
+            assertTrue(
+                viewModel.uiState.value.hubSearchError!!.contains("HTTP 500"),
+            )
+        }
+
+    @Test
+    fun testSkillsHub_search_emptyQuery() =
+        runTest {
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.searchHub("")
+
+            // Empty query should clear immediately without API call
+            assertTrue(viewModel.uiState.value.hubResults.isEmpty())
+            assertFalse(viewModel.uiState.value.isHubSearching)
+            // Verify searchSkillsHub was never called
+            coVerify(exactly = 0) { mockApiService.searchSkillsHub(any()) }
+        }
+
+    // ── Skills Hub: Install / Uninstall ────────────────────────────────────
+
+    @Test
+    fun testSkillsHub_install_success() =
+        runTest {
+            val installed = Skill("New Skill", "Just installed", "General", false)
+            coEvery { mockApiService.installHubSkill(any()) } returns
+                Response.success(ActionResponse("success", "Installed"))
+            coEvery { mockApiService.getSkills() } returns
+                Response.success(listOf(installed))
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.installSkill("new-skill")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isInstalling)
+            assertNull(viewModel.uiState.value.installingSkillName)
+            assertNotNull(viewModel.uiState.value.toastMessage)
+            assertTrue(
+                viewModel.uiState.value.toastMessage!!.contains("Installed"),
+            )
+            // Refresh was called
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertEquals(1, viewModel.uiState.value.skills.size)
+        }
+
+    @Test
+    fun testSkillsHub_install_error() =
+        runTest {
+            coEvery { mockApiService.installHubSkill(any()) } returns
+                createErrorResponse(500)
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.installSkill("failing-skill")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isInstalling)
+            assertNull(viewModel.uiState.value.installingSkillName)
+            assertNotNull(viewModel.uiState.value.toastMessage)
+            assertTrue(
+                viewModel.uiState.value.toastMessage!!.contains("HTTP 500"),
+            )
+        }
+
+    @Test
+    fun testSkillsHub_uninstall_success() =
+        runTest {
+            coEvery { mockApiService.uninstallHubSkill(any()) } returns
+                Response.success(ActionResponse("success", "Uninstalled"))
+            coEvery { mockApiService.getSkills() } returns
+                Response.success(emptyList())
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.uninstallSkill("hub-skill")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isUninstalling)
+            assertNull(viewModel.uiState.value.uninstallingSkillName)
+            assertNotNull(viewModel.uiState.value.toastMessage)
+            assertTrue(
+                viewModel.uiState.value.toastMessage!!.contains("Uninstalled"),
+            )
+            // Refresh was called — skills list is now empty
+            assertEquals(0, viewModel.uiState.value.skills.size)
+        }
+
+    @Test
+    fun testSkillsHub_uninstall_error() =
+        runTest {
+            coEvery { mockApiService.uninstallHubSkill(any()) } returns
+                createErrorResponse(500)
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.uninstallSkill("failing-skill")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isUninstalling)
+            assertNull(viewModel.uiState.value.uninstallingSkillName)
+            assertNotNull(viewModel.uiState.value.toastMessage)
+            assertTrue(
+                viewModel.uiState.value.toastMessage!!.contains("HTTP 500"),
+            )
+        }
+
+    // ── Skills Preview ────────────────────────────────────────────────────
+
+    @Test
+    fun testSkillsPreview_success() =
+        runTest {
+            val content = SkillContentResponse("my-skill", "# My Skill\n\nDo stuff")
+            coEvery { mockApiService.getSkillContent(any()) } returns
+                Response.success(content)
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.previewSkill("my-skill")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isLoadingPreview)
+            assertEquals(
+                "my-skill",
+                viewModel.uiState.value.previewSkillName,
+            )
+            assertEquals(
+                content.content,
+                viewModel.uiState.value.previewSkillContent,
+            )
+        }
+
+    @Test
+    fun testSkillsPreview_error() =
+        runTest {
+            coEvery { mockApiService.getSkillContent(any()) } returns
+                createErrorResponse(500)
+
+            val viewModel = SkillsViewModel(mockApp)
+            viewModel.previewSkill("failing-skill")
+
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isLoadingPreview)
+            assertNull(viewModel.uiState.value.previewSkillContent)
+            assertNotNull(viewModel.uiState.value.toastMessage)
+            assertTrue(
+                viewModel.uiState.value.toastMessage!!.contains("HTTP 500"),
             )
         }
 

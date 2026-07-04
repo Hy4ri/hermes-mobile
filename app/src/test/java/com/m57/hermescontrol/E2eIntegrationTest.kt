@@ -39,6 +39,7 @@ import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
+import com.m57.hermescontrol.data.model.SkillHubSearchResponse
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
@@ -300,7 +301,7 @@ class E2eIntegrationTest {
         runTest {
             val hubSkill = HubSkill("Test Skill", "A test hub skill", "hub", "General")
             coEvery { mockApiService.searchSkillsHub(any()) } returns
-                Response.success(listOf(hubSkill))
+                Response.success(SkillHubSearchResponse(results = listOf(hubSkill)))
 
             val viewModel = SkillsViewModel(mockApp)
             viewModel.searchHub("test")
@@ -324,7 +325,7 @@ class E2eIntegrationTest {
     fun testSkillsHub_search_empty() =
         runTest {
             coEvery { mockApiService.searchSkillsHub(any()) } returns
-                Response.success(emptyList())
+                Response.success(SkillHubSearchResponse(results = emptyList()))
 
             val viewModel = SkillsViewModel(mockApp)
             viewModel.searchHub("nonexistent")

@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Preview
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
@@ -197,7 +196,7 @@ private fun InstalledSkillsView(
     selectedStatus: SkillFilter,
     onStatusChange: (SkillFilter) -> Unit,
     selectedCategory: String?,
-    onCategoryChange: (String?) -> Unit,
+    onCategoryChange: (String) -> Unit,
     onToggle: (Skill) -> Unit,
     onEdit: (String) -> Unit,
     onUninstall: (String) -> Unit,

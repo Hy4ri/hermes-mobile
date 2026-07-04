@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -124,7 +124,7 @@ fun SkillsScreen(
             }
 
             when (state.viewMode) {
-                SkillsViewMode.INSTALLED ->
+                SkillsViewMode.INSTALLED -> {
                     InstalledSkillsView(
                         state = state,
                         query = query,
@@ -142,7 +142,9 @@ fun SkillsScreen(
                         uninstallingSkillName = state.uninstallingSkillName,
                         onRefresh = viewModel::loadSkills,
                     )
-                SkillsViewMode.HUB ->
+                }
+
+                SkillsViewMode.HUB -> {
                     HubBrowseView(
                         state = state,
                         hubQuery = state.hubQuery,
@@ -153,6 +155,7 @@ fun SkillsScreen(
                         isInstalling = state.isInstalling,
                         installingSkillName = state.installingSkillName,
                     )
+                }
             }
         }
     }
@@ -302,23 +305,33 @@ private fun InstalledSkillsView(
         }
 
         when {
-            state.isLoading -> LoadingState()
-            state.errorMessage != null ->
+            state.isLoading -> {
+                LoadingState()
+            }
+
+            state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage,
                     onRetry = onRefresh,
                 )
-            filteredSkills.isEmpty() ->
+            }
+
+            filteredSkills.isEmpty() -> {
                 EmptyState(
                     icon = Icons.Filled.Extension,
                     title = stringResource(R.string.skills_empty_message),
                 )
-            else ->
+            }
+
+            else -> {
                 LazyColumn(
                     modifier = Modifier.padding(listContentPadding),
                     verticalArrangement = listItemSpacing,
                 ) {
-                    items(filteredSkills, key = { it.name }) { skill ->
+                    itemsIndexed(
+                        filteredSkills,
+                        key = { index, skill -> "${skill.name}:${skill.source ?: "unknown"}:$index" },
+                    ) { _, skill ->
                         SkillCard(
                             skill = skill,
                             onToggle = { onToggle(skill) },
@@ -333,6 +346,7 @@ private fun InstalledSkillsView(
                         )
                     }
                 }
+            }
         }
     }
 }
@@ -544,24 +558,33 @@ private fun HubBrowseView(
         }
 
         when {
-            state.isHubSearching -> LoadingState()
-            state.hubSearchError != null ->
+            state.isHubSearching -> {
+                LoadingState()
+            }
+
+            state.hubSearchError != null -> {
                 ErrorState(
                     message = state.hubSearchError,
                     onRetry = { onSearch(hubQuery) },
                 )
+            }
+
             state.hubResults.isEmpty() && hubQuery.isNotBlank() && !state.isHubSearching -> {
                 EmptyState(
                     icon = Icons.Filled.Extension,
                     title = stringResource(R.string.skills_hub_empty_results),
                 )
             }
-            state.hubResults.isNotEmpty() ->
+
+            state.hubResults.isNotEmpty() -> {
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(listContentPadding),
                     verticalArrangement = listItemSpacing,
                 ) {
-                    items(state.hubResults, key = { "${it.name}:${it.source ?: "unknown"}" }) { hubSkill ->
+                    itemsIndexed(
+                        state.hubResults,
+                        key = { index, hubSkill -> "${hubSkill.name}:${hubSkill.source ?: "unknown"}:$index" },
+                    ) { _, hubSkill ->
                         HubSkillCard(
                             hubSkill = hubSkill,
                             onInstall = { onInstall(hubSkill.name) },
@@ -569,6 +592,8 @@ private fun HubBrowseView(
                         )
                     }
                 }
+            }
+
             else -> {
                 EmptyState(
                     icon = Icons.Filled.Search,
@@ -704,7 +729,10 @@ fun SkillPreviewDialog(
                             .fillMaxSize(),
                 ) {
                     when {
-                        isLoading -> LoadingState()
+                        isLoading -> {
+                            LoadingState()
+                        }
+
                         content != null -> {
                             Column(
                                 modifier =
@@ -722,11 +750,13 @@ fun SkillPreviewDialog(
                                 )
                             }
                         }
-                        else ->
+
+                        else -> {
                             EmptyState(
                                 icon = Icons.Filled.Extension,
                                 title = stringResource(R.string.skills_preview_empty),
                             )
+                        }
                     }
                 }
             }

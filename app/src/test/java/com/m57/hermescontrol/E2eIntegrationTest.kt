@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.model.CuratorResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.HookResponse
+import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
@@ -36,7 +37,6 @@ import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
-import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
 import com.m57.hermescontrol.data.model.StatusResponse

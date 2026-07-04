@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
 
+import com.google.gson.annotations.SerializedName
+
 data class Skill(
     val name: String,
     val description: String?,
@@ -16,6 +18,23 @@ data class HubSkill(
     val description: String?,
     val source: String?,
     val category: String? = null,
+    val identifier: String? = null,
+    @SerializedName("trust_level") val trustLevel: String? = null,
+    val repo: String? = null,
+    val tags: List<String>? = null,
+)
+
+data class SkillHubSearchResponse(
+    val results: List<HubSkill>,
+    @SerializedName("source_counts") val sourceCounts: Map<String, Int>? = null,
+    @SerializedName("timed_out") val timedOut: List<String>? = null,
+    val installed: Map<String, SkillHubInstalledEntry>? = null,
+)
+
+data class SkillHubInstalledEntry(
+    val name: String? = null,
+    @SerializedName("trust_level") val trustLevel: String? = null,
+    @SerializedName("scan_verdict") val scanVerdict: String? = null,
 )
 
 data class SkillHubInstallRequest(

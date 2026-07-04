@@ -130,7 +130,7 @@ class SkillsViewModel(application: Application) :
                 },
                 onStart = { _uiState.update { it.copy(isHubSearching = true) } },
                 onSuccess = { data ->
-                    _uiState.update { it.copy(isHubSearching = false, hubResults = data.orEmpty()) }
+                    _uiState.update { it.copy(isHubSearching = false, hubResults = data?.results.orEmpty()) }
                 },
                 onError = { errorMsg ->
                     _uiState.update {

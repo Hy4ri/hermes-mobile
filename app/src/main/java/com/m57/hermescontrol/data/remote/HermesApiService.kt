@@ -29,7 +29,6 @@ import com.m57.hermescontrol.data.model.EnvVarRevealRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealResponse
 import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.model.HookResponse
-import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanTask
@@ -68,6 +67,10 @@ import com.m57.hermescontrol.data.model.SessionStatsResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
+import com.m57.hermescontrol.data.model.SkillHubInstallRequest
+import com.m57.hermescontrol.data.model.SkillHubSearchResponse
+import com.m57.hermescontrol.data.model.SkillHubUninstallRequest
+import com.m57.hermescontrol.data.model.SkillScanResponse
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
@@ -156,10 +159,35 @@ interface HermesApiService {
     @GET("api/skills")
     suspend fun getSkills(): Response<List<Skill>>
 
-    @POST("api/skills/hub/search")
+    @GET("api/skills/hub/search")
     suspend fun searchSkillsHub(
         @Query("q") q: String,
-    ): Response<List<HubSkill>>
+        @Query("source") source: String? = null,
+        @Query("limit") limit: Int? = null,
+    ): Response<SkillHubSearchResponse>
+
+    @GET("api/skills/hub/preview")
+    suspend fun previewHubSkill(
+        @Query("identifier") identifier: String,
+    ): Response<SkillContentResponse>
+
+    @GET("api/skills/hub/scan")
+    suspend fun scanHubSkill(
+        @Query("identifier") identifier: String,
+    ): Response<SkillScanResponse>
+
+    @GET("api/skills/hub/sources")
+    suspend fun getHubSources(): Response<List<String>>
+
+    @POST("api/skills/hub/install")
+    suspend fun installHubSkill(
+        @Body body: SkillHubInstallRequest,
+    ): Response<ActionResponse>
+
+    @POST("api/skills/hub/uninstall")
+    suspend fun uninstallHubSkill(
+        @Body body: SkillHubUninstallRequest,
+    ): Response<ActionResponse>
 
     @PUT("api/skills/toggle")
     suspend fun toggleSkill(

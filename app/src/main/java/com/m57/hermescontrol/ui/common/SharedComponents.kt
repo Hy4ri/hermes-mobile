@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -230,35 +231,28 @@ fun SearchBar(
 // ── FilterChipRow — horizontally scrollable filter chips ───────────────
 
 @Composable
-fun FilterChipRow(
-    chips: List<String>,
-    selectedChip: String?,
-    onChipSelected: (String) -> Unit,
+fun <T> FilterChipRow(
+    chips: List<T>,
+    selectedChip: T?,
+    onChipSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
+    chipLabel: @Composable (T) -> Unit = { Text(it.toString()) },
 ) {
     val spacing = LocalSpacing.current
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         contentPadding =
-            androidx.compose.foundation.layout.PaddingValues(
+            PaddingValues(
                 horizontal = spacing.md,
                 vertical = spacing.xs,
             ),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
     ) {
-        items(chips, key = { it }) { chip ->
+        items(chips, key = { it.toString() }) { chip ->
             FilterChip(
                 selected = chip == selectedChip,
                 onClick = { onChipSelected(chip) },
-                label = {
-                    Text(
-                        if (chip == "All") {
-                            stringResource(R.string.skills_category_all)
-                        } else {
-                            chip
-                        },
-                    )
-                },
+                label = { chipLabel(chip) },
             )
         }
     }

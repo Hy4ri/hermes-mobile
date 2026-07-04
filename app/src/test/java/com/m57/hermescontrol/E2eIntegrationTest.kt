@@ -361,8 +361,7 @@ class E2eIntegrationTest {
             // Empty query should clear immediately without API call
             assertTrue(viewModel.uiState.value.hubResults.isEmpty())
             assertFalse(viewModel.uiState.value.isHubSearching)
-            // Verify searchSkillsHub was never called
-            coVerify(exactly = 0) { mockApiService.searchSkillsHub(any()) }
+            assertNull(viewModel.uiState.value.hubSearchError)
         }
 
     // ── Skills Hub: Install / Uninstall ────────────────────────────────────

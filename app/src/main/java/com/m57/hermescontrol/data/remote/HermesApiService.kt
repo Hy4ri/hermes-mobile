@@ -43,6 +43,11 @@ import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.data.model.TelegramOnboardingApplyRequest
+import com.m57.hermescontrol.data.model.TelegramOnboardingApplyResponse
+import com.m57.hermescontrol.data.model.TelegramOnboardingStartRequest
+import com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse
+import com.m57.hermescontrol.data.model.TelegramOnboardingStatusResponse
 import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.ModelAssignmentRequest
 import com.m57.hermescontrol.data.model.ModelAssignmentResponse
@@ -470,6 +475,38 @@ interface HermesApiService {
     suspend fun testMessagingPlatform(
         @Path("platform_id") platformId: String,
     ): Response<MessagingPlatformTestResult>
+
+    @DELETE("api/messaging/platforms/{platform_id}")
+    suspend fun removeMessagingPlatform(
+        @Path("platform_id") platformId: String,
+    ): Response<Unit>
+
+    @POST("api/messaging/telegram/onboarding/start")
+    suspend fun startTelegramOnboarding(
+        @Body body: TelegramOnboardingStartRequest,
+    ): Response<TelegramOnboardingStartResponse>
+
+    @GET("api/messaging/telegram/onboarding/{pairing_id}")
+    suspend fun getTelegramOnboardingStatus(
+        @Path("pairing_id") pairingId: String,
+    ): Response<TelegramOnboardingStatusResponse>
+
+    @POST("api/messaging/telegram/onboarding/{pairing_id}/apply")
+    suspend fun applyTelegramOnboarding(
+        @Path("pairing_id") pairingId: String,
+        @Body body: TelegramOnboardingApplyRequest,
+    ): Response<TelegramOnboardingApplyResponse>
+
+    @HTTP(method = "DELETE", path = "api/messaging/telegram/onboarding/{pairing_id}", hasBody = false)
+    suspend fun cancelTelegramOnboarding(
+        @Path("pairing_id") pairingId: String,
+    ): Response<Unit>
+
+    @GET("api/actions/{name}/status")
+    suspend fun getActionStatus(
+        @Path("name") name: String,
+        @Query("lines") lines: Int = 200,
+    ): Response<ActionStatusResponse>
 
     @GET("api/env")
     suspend fun getEnvVars(): Response<Map<String, EnvVarConfig>>

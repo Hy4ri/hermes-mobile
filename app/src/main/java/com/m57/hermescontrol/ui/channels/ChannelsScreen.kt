@@ -14,20 +14,29 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,11 +49,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.EnvVarField
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -56,6 +67,31 @@ import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+
+// ── Validation helpers ──────────────────────────────────────────────────
+
+private val SLACK_MEMBER_ID_RE = Regex("^[UW][A-Z0-9]{2,}$")
+private val SLACK_TOKEN_PREFIXES = mapOf(
+    "SLACK_BOT_TOKEN" to "xoxb-",
+    "SLACK_APP_TOKEN" to "xapp-",
+)
+
+private fun validateEnvField(field: EnvVarField, value: String): String? {
+    val trimmed = value.trim()
+    if (!trimmed.isNotEmpty()) return null
+    val expectedPrefix = SLACK_TOKEN_PREFIXES[field.key]
+    if (expectedPrefix != null && !trimmed.startsWith(expectedPrefix)) {
+        return "${field.prompt ?: field.key} must start with $expectedPrefix"
+    }
+    if (field.key == "SLACK_ALLOWED_USERS") {
+        val parts = trimmed.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val invalid = parts.firstOrNull { it != "*" && !SLACK_MEMBER_ID_RE.matches(it) }
+        if (invalid != null) {
+            return "$invalid does not look like a Slack member ID. Use IDs like U01ABC2DEF3."
+        }
+    }
+    return null
+}
 
 // ── State → badge colour / label  ──────────────────────────────────────
 
@@ -119,6 +155,18 @@ fun ChannelsScreen(
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 
+    // ── Telegram onboarding dialog ────────────────────────────────
+    if (state.onboardingPhase != OnboardingPhase.IDLE) {
+        TelegramOnboardingDialog(
+            state = state,
+            onDismiss = { viewModel.cancelTelegramOnboarding() },
+            onAddAllowedId = { viewModel.addOnboardingAllowedId() },
+            onRemoveAllowedId = { viewModel.removeOnboardingAllowedId(it) },
+            onNewAllowedIdChange = { viewModel.setOnboardingNewAllowedId(it) },
+            onApply = { viewModel.applyTelegramOnboarding() },
+        )
+    }
+
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_channels)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
@@ -170,7 +218,7 @@ fun ChannelsScreen(
                     // ── Gateway-not-running hint ──
                     if (!gatewayRunning && !state.restartNeeded) {
                         item(key = "gateway_offline") {
-                            GatewayOfflineBanner()
+                            GatewayOfflineBanner(gatewayCommand = state.gatewayStartCommand)
                         }
                     }
 
@@ -189,9 +237,20 @@ fun ChannelsScreen(
                             platform = platform,
                             isToggling = state.togglingId == platform.id,
                             isTesting = state.testingId == platform.id,
+                            isRemoving = state.removingId == platform.id,
                             onToggle = { enabled -> viewModel.togglePlatform(platform.id, enabled) },
                             onTest = { viewModel.testPlatform(platform.id) },
                             onSave = { env -> viewModel.configurePlatform(platform.id, env) },
+                            onRemove = { viewModel.removePlatform(platform.id) },
+                            onStartOnboarding = { viewModel.startTelegramOnboarding() },
+                        )
+                    }
+
+                    // ── Admin section ──
+                    item(key = "admin_section") {
+                        AdminSection(
+                            envPath = state.envPath,
+                            gatewayCommand = state.gatewayStartCommand,
                         )
                     }
                 }
@@ -249,30 +308,39 @@ private fun RestartBanner(
 // ── Gateway offline banner  ───────────────────────────────────────────
 
 @Composable
-private fun GatewayOfflineBanner() {
+private fun GatewayOfflineBanner(gatewayCommand: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
         ) {
-            Icon(
-                imageVector = Icons.Filled.Warning,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.channels_gateway_offline),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "The gateway is not running. Configure channels here, then start the gateway with:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(4.dp),
+            ) {
+                Text(
+                    text = "  $gatewayCommand",
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
         }
     }
 }
@@ -284,11 +352,15 @@ private fun PlatformCard(
     platform: MessagingPlatform,
     isToggling: Boolean,
     isTesting: Boolean,
+    isRemoving: Boolean,
     onToggle: (Boolean) -> Unit,
     onTest: () -> Unit,
     onSave: (MessagingPlatformUpdate) -> Unit,
+    onRemove: () -> Unit,
+    onStartOnboarding: () -> Unit,
 ) {
     var showConfigureForm by remember { mutableStateOf(false) }
+    var showRemoveConfirm by remember { mutableStateOf(false) }
     val style = platformStateStyle(platform.state)
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -318,14 +390,10 @@ private fun PlatformCard(
                         Spacer(modifier = Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StateBadge(state = platform.state)
-                            if (platform.id == "telegram") {
-                                // reserved for onboarding badge later
-                            }
                         }
                     }
                 }
 
-                // Toggle switch
                 if (isToggling) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
@@ -395,13 +463,80 @@ private fun PlatformCard(
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
+
+                // Remove button
+                IconButton(
+                    onClick = { showRemoveConfirm = true },
+                    enabled = !isRemoving,
+                ) {
+                    if (isRemoving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = "Remove platform",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+
+            // ── Telegram onboarding (only for unconfigured telegram) ──
+            if (platform.id == "telegram" && !platform.configured) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onStartOnboarding,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.QrCode,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Set up with QR",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
 
             // ── Configure form ──
             if (showConfigureForm) {
-                ConfigureForm(platform = platform, onSave = onSave, onClose = { showConfigureForm = false })
+                ConfigureForm(
+                    platform = platform,
+                    onSave = onSave,
+                    onClose = { showConfigureForm = false },
+                )
             }
         }
+    }
+
+    // Remove confirmation
+    if (showRemoveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRemoveConfirm = false },
+            title = { Text("Remove ${platform.name}?") },
+            text = { Text("This will permanently remove this platform's configuration.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRemoveConfirm = false
+                        onRemove()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -415,6 +550,7 @@ private fun ConfigureForm(
 ) {
     val envFields = platform.envVars.orEmpty()
     val inputValues = remember { mutableStateMapOf<String, String>() }
+    val fieldErrors = remember { mutableStateMapOf<String, String>() }
 
     Spacer(modifier = Modifier.height(16.dp))
     Text(
@@ -426,11 +562,36 @@ private fun ConfigureForm(
     envFields.forEach { field ->
         OutlinedTextField(
             value = inputValues[field.key].orEmpty(),
-            onValueChange = { inputValues[field.key] = it },
+            onValueChange = {
+                inputValues[field.key] = it
+                fieldErrors.remove(field.key)
+            },
             label = { Text(field.prompt ?: field.key) },
             placeholder = {
                 if (field.isSet) {
                     Text(field.redactedValue ?: "******** (Already Configured)")
+                }
+            },
+            supportingText = {
+                fieldErrors[field.key]?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                if (field.help != null && !fieldErrors.containsKey(field.key)) {
+                    Text(
+                        text = field.help,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                field.expiresAt?.let { expiry ->
+                    Text(
+                        text = "Expires: ${formatTimestamp(expiry)}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
             },
             singleLine = true,
@@ -441,6 +602,7 @@ private fun ConfigureForm(
                     androidx.compose.ui.text.input.VisualTransformation.None
                 },
             modifier = Modifier.fillMaxWidth(),
+            isError = fieldErrors.containsKey(field.key),
         )
         Spacer(modifier = Modifier.height(8.dp))
     }
@@ -461,6 +623,16 @@ private fun ConfigureForm(
         Spacer(modifier = Modifier.width(8.dp))
         Button(
             onClick = {
+                val errors = mutableMapOf<String, String>()
+                envFields.forEach { field ->
+                    val value = inputValues[field.key].orEmpty()
+                    val error = validateEnvField(field, value)
+                    if (error != null) errors[field.key] = error
+                }
+                if (errors.isNotEmpty()) {
+                    fieldErrors.putAll(errors)
+                    return@Button
+                }
                 val filledEnv = inputValues.filterValues { it.isNotBlank() }
                 val update =
                     MessagingPlatformUpdate(
@@ -476,5 +648,226 @@ private fun ConfigureForm(
                 style = MaterialTheme.typography.labelSmall,
             )
         }
+    }
+}
+
+// ── Admin section  ────────────────────────────────────────────────────
+
+@Composable
+private fun AdminSection(
+    envPath: String,
+    gatewayCommand: String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+        ) {
+            Text(
+                text = "Admin",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Credentials are written to $envPath",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+// ── Telegram Onboarding Dialog ────────────────────────────────────────
+
+@Composable
+private fun TelegramOnboardingDialog(
+    state: ChannelsUiState,
+    onDismiss: () -> Unit,
+    onAddAllowedId: () -> Unit,
+    onRemoveAllowedId: (String) -> Unit,
+    onNewAllowedIdChange: (String) -> Unit,
+    onApply: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = when (state.onboardingPhase) {
+                    OnboardingPhase.STARTING -> "Starting…"
+                    OnboardingPhase.WAITING -> "Scan QR code"
+                    OnboardingPhase.READY -> "Telegram connected"
+                    OnboardingPhase.APPLYING -> "Saving…"
+                    OnboardingPhase.IDLE -> "Telegram Setup"
+                },
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                state.onboardingError?.let { error ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                }
+
+                when (state.onboardingPhase) {
+                    OnboardingPhase.STARTING -> {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    OnboardingPhase.WAITING -> {
+                        Text(
+                            text = "Open Telegram and scan the QR code displayed in the app.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (state.onboardingExpiresIn.isNotEmpty()) {
+                            Text(
+                                text = "QR code expires in: ${state.onboardingExpiresIn}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    OnboardingPhase.READY -> {
+                        state.onboardingBotUsername?.let { username ->
+                            Text(
+                                text = "Connected as @$username",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Allowed users:",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        state.onboardingDetectedOwnerId?.let { ownerId ->
+                            if (state.onboardingAllowedIds.contains(ownerId)) {
+                                Text(
+                                    text = "$ownerId (owner detected)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        state.onboardingAllowedIds.forEach { id ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = id,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                IconButton(onClick = { onRemoveAllowedId(id) }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Remove",
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedTextField(
+                                value = state.onboardingNewAllowedId,
+                                onValueChange = onNewAllowedIdChange,
+                                placeholder = { Text("Telegram user ID") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = onAddAllowedId) {
+                                Icon(Icons.Filled.Add, contentDescription = "Add user ID")
+                            }
+                        }
+                    }
+
+                    OnboardingPhase.APPLYING -> {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Saving configuration…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+
+                    OnboardingPhase.IDLE -> { }
+                }
+            }
+        },
+        confirmButton = {
+            when (state.onboardingPhase) {
+                OnboardingPhase.READY -> {
+                    Button(
+                        onClick = onApply,
+                        enabled = state.onboardingAllowedIds.isNotEmpty(),
+                    ) {
+                        Text("Save and restart")
+                    }
+                }
+                OnboardingPhase.WAITING -> {
+                    Button(onClick = onDismiss) { Text("Cancel") }
+                }
+                else -> {}
+            }
+        },
+        dismissButton = {
+            when (state.onboardingPhase) {
+                OnboardingPhase.READY -> {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                }
+                OnboardingPhase.WAITING -> {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                }
+                OnboardingPhase.IDLE, OnboardingPhase.STARTING, OnboardingPhase.APPLYING -> {}
+            }
+        },
+    )
+}
+
+private fun formatTimestamp(isoDate: String): String {
+    return try {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+        val parsed = sdf.parse(isoDate) ?: return ""
+        java.text.SimpleDateFormat("MMM d, yyyy HH:mm", java.util.Locale.US).format(parsed)
+    } catch (_: Exception) {
+        ""
     }
 }

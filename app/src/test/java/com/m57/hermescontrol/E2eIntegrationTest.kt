@@ -99,9 +99,14 @@ class E2eIntegrationTest {
         every { AuthManager.getSelectedProfileId() } returns null
 
         // Mock AndroidViewModel string resources (no real resources in unit tests)
-        every { mockApp.getString(any<Int>(), *anyVararg<Any>()) } answers {
+        // getString(int resId, Object... formatArgs) is the Java vararg method.
+        // We match ANY number of vararg elements via anyVararg<String>() (String
+        // satisfies the T : Any bound and is the actual runtime type of format
+        // args passed by our ViewModels). Returns the format args joined by space.
+        every { mockApp.getString(any<Int>(), *anyVararg<String>()) } answers {
             this.invocation.args.drop(1).filterNotNull().joinToString(" ")
         }
+        every { mockApp.getString(any<Int>()) } returns ""
         every { AuthManager.setSelectedProfileId(any()) } returns Unit
         every { AuthManager.getProfileToken(any()) } returns null
         every { AuthManager.setProfileToken(any(), any()) } returns Unit

@@ -558,10 +558,10 @@ private fun HubBrowseView(
             }
             state.hubResults.isNotEmpty() ->
                 LazyColumn(
-                    modifier = Modifier.padding(listContentPadding),
+                    modifier = Modifier.weight(1f).padding(listContentPadding),
                     verticalArrangement = listItemSpacing,
                 ) {
-                    items(state.hubResults, key = { it.name }) { hubSkill ->
+                    items(state.hubResults, key = { "${it.name}:${it.source ?: "unknown"}" }) { hubSkill ->
                         HubSkillCard(
                             hubSkill = hubSkill,
                             onInstall = { onInstall(hubSkill.name) },

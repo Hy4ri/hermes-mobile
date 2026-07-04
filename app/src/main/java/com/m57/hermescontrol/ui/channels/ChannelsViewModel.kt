@@ -268,7 +268,11 @@ class ChannelsViewModel :
 
     fun startTelegramOnboarding() {
         val state = _uiState.value
-        if (state.onboardingPhase == OnboardingPhase.STARTING || state.onboardingPhase == OnboardingPhase.WAITING) return
+        if (state.onboardingPhase == OnboardingPhase.STARTING ||
+            state.onboardingPhase == OnboardingPhase.WAITING
+        ) {
+            return
+        }
         _uiState.update {
             it.copy(
                 onboardingPhase = OnboardingPhase.STARTING,
@@ -280,11 +284,12 @@ class ChannelsViewModel :
             )
         }
         viewModelScope.launch {
-            val result = safeApiCall {
-                ApiClient.hermesApi.startTelegramOnboarding(
-                    TelegramOnboardingStartRequest(botName = "Hermes Agent"),
-                )
-            }
+            val result =
+                safeApiCall {
+                    ApiClient.hermesApi.startTelegramOnboarding(
+                        TelegramOnboardingStartRequest(botName = "Hermes Agent"),
+                    )
+                }
             _uiState.update {
                 when (result) {
                     is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
@@ -312,65 +317,69 @@ class ChannelsViewModel :
 
     private fun pollOnboardingStatus() {
         launchJob?.cancel()
-        launchJob = viewModelScope.launch {
-            while (_uiState.value.onboardingPhase == OnboardingPhase.WAITING) {
-                delay(2000)
-                val pairingId = _uiState.value.onboardingSetup?.pairingId ?: break
-                val result = safeApiCall {
-                    ApiClient.hermesApi.getTelegramOnboardingStatus(pairingId)
-                }
-                when (result) {
-                    is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
-                        val status = result.data
-                        if (status?.status == "ready") {
-                            _uiState.update {
-                                it.copy(
-                                    onboardingPhase = OnboardingPhase.READY,
-                                    onboardingBotUsername = status.botUsername,
-                                    onboardingError = null,
-                                )
-                            }
-                            val ownerId = status.ownerUserId
-                            if (ownerId != null && TELEGRAM_USER_ID_RE.matches(ownerId)) {
+        launchJob =
+            viewModelScope.launch {
+                while (_uiState.value.onboardingPhase == OnboardingPhase.WAITING) {
+                    delay(2000)
+                    val pairingId = _uiState.value.onboardingSetup?.pairingId ?: break
+                    val result =
+                        safeApiCall {
+                            ApiClient.hermesApi.getTelegramOnboardingStatus(pairingId)
+                        }
+                    when (result) {
+                        is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
+                            val status = result.data
+                            if (status?.status == "ready") {
                                 _uiState.update {
                                     it.copy(
-                                        onboardingDetectedOwnerId = ownerId,
-                                        onboardingAllowedIds = listOf(ownerId),
+                                        onboardingPhase = OnboardingPhase.READY,
+                                        onboardingBotUsername = status.botUsername,
+                                        onboardingError = null,
                                     )
                                 }
+                                val ownerId = status.ownerUserId
+                                if (ownerId != null && TELEGRAM_USER_ID_RE.matches(ownerId)) {
+                                    _uiState.update {
+                                        it.copy(
+                                            onboardingDetectedOwnerId = ownerId,
+                                            onboardingAllowedIds = listOf(ownerId),
+                                        )
+                                    }
+                                }
+                                return@launch
                             }
-                            return@launch
+                            _uiState.update { it.copy(onboardingError = null) }
                         }
-                        _uiState.update { it.copy(onboardingError = null) }
-                    }
-                    is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
-                        val expired = isOnboardingExpired(_uiState.value.onboardingSetup)
-                        if (expired) {
+                        is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
+                            val expired = isOnboardingExpired(_uiState.value.onboardingSetup)
+                            if (expired) {
+                                _uiState.update {
+                                    it.copy(
+                                        onboardingPhase = OnboardingPhase.IDLE,
+                                        onboardingSetup = null,
+                                        onboardingQrDataUrl = null,
+                                        onboardingError =
+                                            "Telegram pairing expired. " +
+                                                "Start a new QR setup to try again.",
+                                    )
+                                }
+                                return@launch
+                            }
                             _uiState.update {
                                 it.copy(
-                                    onboardingPhase = OnboardingPhase.IDLE,
-                                    onboardingSetup = null,
-                                    onboardingQrDataUrl = null,
-                                    onboardingError = "Telegram pairing expired. Start a new QR setup to try again.",
+                                    onboardingError = "Still waiting for Telegram. Retrying…",
                                 )
                             }
-                            return@launch
-                        }
-                        _uiState.update {
-                            it.copy(
-                                onboardingError = "Still waiting for Telegram. Retrying…",
-                            )
                         }
                     }
-                }
-                // Update expiry countdown
-                _uiState.update {
-                    it.copy(
-                        onboardingExpiresIn = formatExpiry(it.onboardingSetup?.expiresAt),
-                    )
+                    // Update expiry countdown
+                    _uiState.update {
+                        it.copy(
+                            onboardingExpiresIn = formatExpiry(it.onboardingSetup?.expiresAt),
+                        )
+                    }
                 }
             }
-        }
     }
 
     fun cancelTelegramOnboarding() {
@@ -437,14 +446,15 @@ class ChannelsViewModel :
             )
         }
         viewModelScope.launch {
-            val result = safeApiCall {
-                ApiClient.hermesApi.applyTelegramOnboarding(
-                    setup.pairingId,
-                    TelegramOnboardingApplyRequest(
-                        allowedUserIds = allowedIds,
-                    ),
-                )
-            }
+            val result =
+                safeApiCall {
+                    ApiClient.hermesApi.applyTelegramOnboarding(
+                        setup.pairingId,
+                        TelegramOnboardingApplyRequest(
+                            allowedUserIds = allowedIds,
+                        ),
+                    )
+                }
             when (result) {
                 is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
                     val applyResult = result.data
@@ -500,26 +510,37 @@ class ChannelsViewModel :
 
 private val TELEGRAM_USER_ID_RE = Regex("^\\d+$")
 
+private val isoTimestampParser =
+    java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).apply {
+        timeZone = java.util.TimeZone.getTimeZone("UTC")
+    }
+
 private fun formatExpiry(expiresAt: String?): String {
     if (expiresAt == null) return ""
-    val ms = try {
-        java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-            .parse(expiresAt)?.time?.minus(System.currentTimeMillis())
-    } catch (_: Exception) { null }
-        ?: return ""
+    val ms =
+        try {
+            isoTimestampParser
+                .parse(expiresAt)?.time?.minus(System.currentTimeMillis())
+        } catch (_: Exception) {
+            null
+        }
+            ?: return ""
     if (ms <= 0) return "expired"
     val seconds = (ms / 1000).toInt()
     val mins = seconds / 60
     val secs = seconds % 60
-    return "${mins}:${secs.toString().padStart(2, '0')}"
+    return "$mins:${secs.toString().padStart(2, '0')}"
 }
 
 private fun isOnboardingExpired(setup: com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse?): Boolean {
     val expiresAt = setup?.expiresAt ?: return false
-    val ms = try {
-        java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-            .parse(expiresAt)?.time
-    } catch (_: Exception) { null }
-        ?: return false
+    val ms =
+        try {
+            isoTimestampParser
+                .parse(expiresAt)?.time
+        } catch (_: Exception) {
+            null
+        }
+            ?: return false
     return System.currentTimeMillis() >= ms
 }

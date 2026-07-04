@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.channels
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +59,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.EnvVarField
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -71,12 +73,16 @@ import com.m57.hermescontrol.ui.common.listItemSpacing
 // ── Validation helpers ──────────────────────────────────────────────────
 
 private val SLACK_MEMBER_ID_RE = Regex("^[UW][A-Z0-9]{2,}$")
-private val SLACK_TOKEN_PREFIXES = mapOf(
-    "SLACK_BOT_TOKEN" to "xoxb-",
-    "SLACK_APP_TOKEN" to "xapp-",
-)
+private val SLACK_TOKEN_PREFIXES =
+    mapOf(
+        "SLACK_BOT_TOKEN" to "xoxb-",
+        "SLACK_APP_TOKEN" to "xapp-",
+    )
 
-private fun validateEnvField(field: EnvVarField, value: String): String? {
+private fun validateEnvField(
+    field: EnvVarField,
+    value: String,
+): String? {
     val trimmed = value.trim()
     if (!trimmed.isNotEmpty()) return null
     val expectedPrefix = SLACK_TOKEN_PREFIXES[field.key]
@@ -250,7 +256,6 @@ fun ChannelsScreen(
                     item(key = "admin_section") {
                         AdminSection(
                             envPath = state.envPath,
-                            gatewayCommand = state.gatewayStartCommand,
                         )
                     }
                 }
@@ -332,7 +337,7 @@ private fun GatewayOfflineBanner(gatewayCommand: String) {
             }
             Spacer(modifier = Modifier.height(8.dp))
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = LocalHermesStatusColors.current.warningContainer,
                 shape = RoundedCornerShape(4.dp),
             ) {
                 Text(
@@ -654,10 +659,7 @@ private fun ConfigureForm(
 // ── Admin section  ────────────────────────────────────────────────────
 
 @Composable
-private fun AdminSection(
-    envPath: String,
-    gatewayCommand: String,
-) {
+private fun AdminSection(envPath: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -703,13 +705,14 @@ private fun TelegramOnboardingDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = when (state.onboardingPhase) {
-                    OnboardingPhase.STARTING -> "Starting…"
-                    OnboardingPhase.WAITING -> "Scan QR code"
-                    OnboardingPhase.READY -> "Telegram connected"
-                    OnboardingPhase.APPLYING -> "Saving…"
-                    OnboardingPhase.IDLE -> "Telegram Setup"
-                },
+                text =
+                    when (state.onboardingPhase) {
+                        OnboardingPhase.STARTING -> "Starting…"
+                        OnboardingPhase.WAITING -> "Scan QR code"
+                        OnboardingPhase.READY -> "Telegram connected"
+                        OnboardingPhase.APPLYING -> "Saving…"
+                        OnboardingPhase.IDLE -> "Telegram Setup"
+                    },
             )
         },
         text = {
@@ -719,7 +722,7 @@ private fun TelegramOnboardingDialog(
             ) {
                 state.onboardingError?.let { error ->
                     Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
+                        color = LocalHermesStatusColors.current.errorContainer,
                         shape = RoundedCornerShape(8.dp),
                     ) {
                         Text(
@@ -842,9 +845,6 @@ private fun TelegramOnboardingDialog(
                         Text("Save and restart")
                     }
                 }
-                OnboardingPhase.WAITING -> {
-                    Button(onClick = onDismiss) { Text("Cancel") }
-                }
                 else -> {}
             }
         },
@@ -862,11 +862,18 @@ private fun TelegramOnboardingDialog(
     )
 }
 
+private val isoTimestampParser =
+    java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).apply {
+        timeZone = java.util.TimeZone.getTimeZone("UTC")
+    }
+
+private val displayTimestampFormatter =
+    java.text.SimpleDateFormat("MMM d, yyyy HH:mm", java.util.Locale.US)
+
 private fun formatTimestamp(isoDate: String): String {
     return try {
-        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-        val parsed = sdf.parse(isoDate) ?: return ""
-        java.text.SimpleDateFormat("MMM d, yyyy HH:mm", java.util.Locale.US).format(parsed)
+        val parsed = isoTimestampParser.parse(isoDate) ?: return ""
+        displayTimestampFormatter.format(parsed)
     } catch (_: Exception) {
         ""
     }

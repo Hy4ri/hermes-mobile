@@ -43,11 +43,6 @@ import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
-import com.m57.hermescontrol.data.model.TelegramOnboardingApplyRequest
-import com.m57.hermescontrol.data.model.TelegramOnboardingApplyResponse
-import com.m57.hermescontrol.data.model.TelegramOnboardingStartRequest
-import com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse
-import com.m57.hermescontrol.data.model.TelegramOnboardingStatusResponse
 import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.ModelAssignmentRequest
 import com.m57.hermescontrol.data.model.ModelAssignmentResponse
@@ -75,6 +70,11 @@ import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillContentResponse
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
+import com.m57.hermescontrol.data.model.TelegramOnboardingApplyRequest
+import com.m57.hermescontrol.data.model.TelegramOnboardingApplyResponse
+import com.m57.hermescontrol.data.model.TelegramOnboardingStartRequest
+import com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse
+import com.m57.hermescontrol.data.model.TelegramOnboardingStatusResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
@@ -501,12 +501,6 @@ interface HermesApiService {
     suspend fun cancelTelegramOnboarding(
         @Path("pairing_id") pairingId: String,
     ): Response<Unit>
-
-    @GET("api/actions/{name}/status")
-    suspend fun getActionStatus(
-        @Path("name") name: String,
-        @Query("lines") lines: Int = 200,
-    ): Response<ActionStatusResponse>
 
     @GET("api/env")
     suspend fun getEnvVars(): Response<Map<String, EnvVarConfig>>

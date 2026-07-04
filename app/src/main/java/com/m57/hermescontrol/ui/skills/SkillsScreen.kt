@@ -135,7 +135,6 @@ fun SkillsScreen(
                         onCategoryChange = { selectedCategory = it },
                         onToggle = viewModel::toggleSkill,
                         onEdit = viewModel::loadSkillContent,
-                        onPreview = viewModel::previewSkill,
                         onUninstall = viewModel::uninstallSkill,
                         onSetSourceFilter = viewModel::setSourceFilter,
                         sourceFilter = state.sourceFilter,
@@ -197,11 +196,10 @@ private fun InstalledSkillsView(
     onQueryChange: (String) -> Unit,
     selectedStatus: SkillFilter,
     onStatusChange: (SkillFilter) -> Unit,
-    selectedCategory: String,
-    onCategoryChange: (String) -> Unit,
+    selectedCategory: String?,
+    onCategoryChange: (String?) -> Unit,
     onToggle: (Skill) -> Unit,
     onEdit: (String) -> Unit,
-    onPreview: (String) -> Unit,
     onUninstall: (String) -> Unit,
     onSetSourceFilter: (String?) -> Unit,
     sourceFilter: String?,
@@ -324,8 +322,7 @@ private fun InstalledSkillsView(
                         SkillCard(
                             skill = skill,
                             onToggle = { onToggle(skill) },
-                            onEdit = { onEdit(skill.name) },
-                            onPreview = { onPreview(skill.name) },
+                            onAction = { onEdit(skill.name) },
                             onUninstall =
                                 if (skill.source == "hub") {
                                     { onUninstall(skill.name) }
@@ -346,8 +343,7 @@ private fun InstalledSkillsView(
 private fun SkillCard(
     skill: Skill,
     onToggle: () -> Unit,
-    onEdit: () -> Unit,
-    onPreview: () -> Unit,
+    onAction: () -> Unit,
     onUninstall: (() -> Unit)?,
     isUninstalling: Boolean,
 ) {
@@ -410,14 +406,7 @@ private fun SkillCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                IconButton(onClick = onPreview) {
-                    Icon(
-                        imageVector = Icons.Filled.Preview,
-                        contentDescription = stringResource(R.string.content_desc_preview_skill),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onEdit) {
+                IconButton(onClick = onAction) {
                     Icon(
                         imageVector = Icons.Filled.Edit,
                         contentDescription = stringResource(R.string.content_desc_edit_skill),

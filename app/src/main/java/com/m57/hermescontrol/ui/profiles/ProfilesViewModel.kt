@@ -332,7 +332,7 @@ class ProfilesViewModel :
                     _uiState.update {
                         it.copy(
                             isSearchingHub = false,
-                            hubSearchResults = result.data,
+                            hubSearchResults = result.data?.results.orEmpty(),
                         )
                     }
                 }

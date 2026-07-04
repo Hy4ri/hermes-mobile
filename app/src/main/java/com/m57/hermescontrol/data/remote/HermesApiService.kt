@@ -29,7 +29,6 @@ import com.m57.hermescontrol.data.model.EnvVarRevealRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealResponse
 import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.model.HookResponse
-import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanTask

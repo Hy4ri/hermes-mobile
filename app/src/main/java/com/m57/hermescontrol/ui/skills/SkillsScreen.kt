@@ -358,12 +358,6 @@ private fun SkillCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Filled.Extension,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp).padding(start = 12.dp),
-            )
             Column(
                 modifier = Modifier.weight(1f).padding(16.dp),
             ) {

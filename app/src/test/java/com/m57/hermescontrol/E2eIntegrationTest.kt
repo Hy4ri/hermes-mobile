@@ -99,7 +99,7 @@ class E2eIntegrationTest {
         every { AuthManager.getSelectedProfileId() } returns null
 
         // Mock AndroidViewModel string resources (no real resources in unit tests)
-        every { mockApp.getString(any<Int>(), *anyVararg<Any?>()) } answers {
+        every { mockApp.getString(any<Int>(), *anyVararg<Any>()) } answers {
             this.invocation.args.drop(1).filterNotNull().joinToString(" ")
         }
         every { AuthManager.setSelectedProfileId(any()) } returns Unit

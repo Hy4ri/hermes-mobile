@@ -91,11 +91,7 @@ class SkillsViewModel(application: Application) :
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage =
-                                getApplication<Application>().getString(
-                                    R.string.skills_load_failure,
-                                    errorMsg,
-                                ),
+                            errorMessage = "Failed to load skills: $errorMsg",
                         )
                     }
                 },
@@ -140,11 +136,7 @@ class SkillsViewModel(application: Application) :
                     _uiState.update {
                         it.copy(
                             isHubSearching = false,
-                            hubSearchError =
-                                getApplication<Application>().getString(
-                                    R.string.skills_search_failure,
-                                    errorMsg,
-                                ),
+                            hubSearchError = "Search failed: $errorMsg",
                         )
                     }
                 },
@@ -181,11 +173,7 @@ class SkillsViewModel(application: Application) :
                         it.copy(
                             isInstalling = false,
                             installingSkillName = null,
-                            toastMessage =
-                                getApplication<Application>().getString(
-                                    R.string.skills_install_success,
-                                    identifier,
-                                ),
+                            toastMessage = "Installed: $identifier",
                         )
                     }
                     // Refresh installed skills
@@ -196,12 +184,7 @@ class SkillsViewModel(application: Application) :
                         it.copy(
                             isInstalling = false,
                             installingSkillName = null,
-                            toastMessage =
-                                getApplication<Application>().getString(
-                                    R.string.skills_install_failure,
-                                    identifier,
-                                    result.error.message,
-                                ),
+                            toastMessage = "Failed to install $identifier: ${result.error.message}",
                         )
                     }
                 }
@@ -227,11 +210,7 @@ class SkillsViewModel(application: Application) :
                         it.copy(
                             isUninstalling = false,
                             uninstallingSkillName = null,
-                            toastMessage =
-                                getApplication<Application>().getString(
-                                    R.string.skills_uninstall_success,
-                                    name,
-                                ),
+                            toastMessage = "Uninstalled: $name",
                         )
                     }
                     loadSkills()
@@ -241,12 +220,7 @@ class SkillsViewModel(application: Application) :
                         it.copy(
                             isUninstalling = false,
                             uninstallingSkillName = null,
-                            toastMessage =
-                                getApplication<Application>().getString(
-                                    R.string.skills_uninstall_failure,
-                                    name,
-                                    result.error.message,
-                                ),
+                            toastMessage = "Failed to uninstall $name: ${result.error.message}",
                         )
                     }
                 }
@@ -282,11 +256,7 @@ class SkillsViewModel(application: Application) :
                     _uiState.update {
                         it.copy(
                             isLoadingPreview = false,
-                            toastMessage =
-                                getApplication<Application>().getString(
-                                    R.string.skills_preview_failure,
-                                    result.error.message,
-                                ),
+                            toastMessage = "Failed to load preview: ${result.error.message}",
                         )
                     }
                 }
@@ -328,7 +298,7 @@ class SkillsViewModel(application: Application) :
                 revertSkillToggle(
                     skill.name,
                     originalEnabled,
-                    getApplication<Application>().getString(R.string.skills_toggle_failure, result.error.message),
+                    "Failed to toggle skill: ${result.error.message}",
                 )
             }
         }

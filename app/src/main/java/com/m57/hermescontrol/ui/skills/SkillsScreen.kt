@@ -684,8 +684,7 @@ fun SkillPreviewDialog(
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxSize()
-                            .padding(padding),
+                            .fillMaxSize(),
                 ) {
                     when {
                         isLoading -> LoadingState()
@@ -804,8 +803,7 @@ fun SkillEditorDialog(
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxSize()
-                            .padding(padding),
+                            .fillMaxSize(),
                 ) {
                     when {
                         isLoading -> {

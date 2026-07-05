@@ -223,7 +223,7 @@ class HermesApiServiceMockWebServerTest {
                                 },
                                 {
                                     "role": "tool",
-                                    "content": "{"result": 42}",
+                                    "content": "Result: 42",
                                     "timestamp": "1718000020",
                                     "type": "tool_execution"
                                 }

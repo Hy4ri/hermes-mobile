@@ -117,16 +117,16 @@ class ChatViewModelTest {
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
      * and return a Pair(viewModel, sessionId).
      */
-    private fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
+    private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
-        mockEventsFlow.tryEmit(WsEvent.GatewayReady(null))
+        mockEventsFlow.emit(WsEvent.GatewayReady(null))
         advanceUntilIdle()
 
         // The init block sends SESSION_CREATE (stub generates "req-id-1")
-        mockEventsFlow.tryEmit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
+        mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
         advanceUntilIdle()
 
         return Pair(viewModel, "session-123")

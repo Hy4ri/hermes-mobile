@@ -107,11 +107,9 @@ class ChatViewModelTest {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    /** Create a ViewModel with the fake repo injected. */
+    /** Create a ViewModel with the fake repo injected directly. */
     private fun createViewModel(startCleanup: Boolean = false): ChatViewModel {
-        val vm = ChatViewModel(app, startCleanup)
-        vm.repo = fakeRepo
-        return vm
+        return ChatViewModel(app, startCleanup, fakeRepo)
     }
 
     /**

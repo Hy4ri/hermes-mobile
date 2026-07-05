@@ -6,13 +6,13 @@ import com.m57.hermescontrol.ui.chat.ChatPersistenceRepository
  * In-memory [ChatPersistenceRepository] for tests.
  *
  * Wraps [FakeChatMessageDao] so tests can read/write messages
- * without Room or SQLCipher. DAO is exposed for direct inspection.
+ * without Room or SQLCipher. Pass to [ChatViewModel]'s `repo`
+ * constructor parameter in tests.
  *
- * Usage:
  * ```
  * val fakeRepo = FakeChatPersistenceRepository()
  * fakeRepo.dao.addMessageDirect(someEntity)
- * viewModel.injectRepo(fakeRepo)
+ * val vm = ChatViewModel(app, startCleanup, fakeRepo)
  * ```
  */
 class FakeChatPersistenceRepository(

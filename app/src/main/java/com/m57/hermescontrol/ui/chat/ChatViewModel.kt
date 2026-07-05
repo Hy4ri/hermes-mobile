@@ -4,7 +4,6 @@ import android.app.Application
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
-import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
@@ -95,6 +94,10 @@ data class ClarifyUi(
 class ChatViewModel(
     application: Application,
     private val startCleanup: Boolean,
+    private val repo: ChatPersistenceRepository =
+        ChatPersistenceRepository(
+            HermesDatabase.get(application).chatMessageDao(),
+        ),
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -106,9 +109,6 @@ class ChatViewModel(
 
     private val wsClient = HermesWsClient
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
-
-    @VisibleForTesting
-    internal lateinit var repo: ChatPersistenceRepository
 
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchController = ChatSearchController()
@@ -154,10 +154,6 @@ class ChatViewModel(
     var initialSessionId: String? = null
 
     init {
-        repo =
-            ChatPersistenceRepository(
-                HermesDatabase.get(application).chatMessageDao(),
-            )
         refreshSettings()
 
         connectWebSocket(setLoading = false)

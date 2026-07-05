@@ -9,11 +9,11 @@ data class McpServersResponse(
 @Serializable
 data class McpServer(
     val name: String,
-    val transport: String?,
-    val url: String?,
-    val command: String?,
-    val args: List<String>?,
-    val env: Map<String, String>?,
+    val transport: String? = null,
+    val url: String? = null,
+    val command: String? = null,
+    val args: List<String>? = null,
+    val env: Map<String, String>? = null,
     val enabled: Boolean,
     val status: String? = null,
     val error: String? = null,

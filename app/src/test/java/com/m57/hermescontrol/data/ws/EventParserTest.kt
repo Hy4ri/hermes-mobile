@@ -3,11 +3,30 @@ package com.m57.hermescontrol.data.ws
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import kotlinx.serialization.json.JsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+
+@Suppress("FunctionName")
+private fun createJsonRpcResponse(
+    jsonrpc: String,
+    id: String?,
+    result: Any? = null,
+    error: JsonRpcError? = null,
+    method: String? = null,
+    params: Any? = null,
+): JsonRpcResponse =
+    JsonRpcResponse(
+        jsonrpc = jsonrpc,
+        id = id,
+        result = result?.toJsonElement(),
+        error = error,
+        method = method,
+        params = params?.toJsonElement() as? JsonObject,
+    )
 
 class EventParserTest {
     @Before
@@ -24,7 +43,7 @@ class EventParserTest {
     @Test
     fun testParseRpcResult_returnsRpcResultEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = "123",
                 result = mapOf("status" to "success"),
@@ -43,7 +62,7 @@ class EventParserTest {
     fun testParseRpcError_returnsRpcErrorEvent() {
         val error = JsonRpcError(code = -32600, message = "Invalid Request")
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = "456",
                 result = null,
@@ -62,7 +81,7 @@ class EventParserTest {
     @Test
     fun testParseGatewayReady_returnsGatewayReadyEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -83,7 +102,7 @@ class EventParserTest {
     @Test
     fun testParseMessageToken_returnsMessageTokenEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -105,7 +124,7 @@ class EventParserTest {
     @Test
     fun testParseMessageToken_withSessionIdInParams_returnsMessageTokenEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -128,7 +147,7 @@ class EventParserTest {
     @Test
     fun testParseThinkingDelta_returnsThinkingDeltaEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -150,7 +169,7 @@ class EventParserTest {
     @Test
     fun testParseClarifyRequest_returnsClarifyRequestEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -176,7 +195,7 @@ class EventParserTest {
     @Test
     fun testParseClarifyRequest_withQuestionFields_parsesSuccessfully() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -204,7 +223,7 @@ class EventParserTest {
     @Test
     fun testParseSessionInfo_returnsSessionInfoEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -220,7 +239,7 @@ class EventParserTest {
     @Test
     fun testParseMessageStart_returnsMessageStartEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -241,7 +260,7 @@ class EventParserTest {
     @Test
     fun testParseMessageDelta_returnsMessageTokenEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -258,7 +277,7 @@ class EventParserTest {
     @Test
     fun testParseMessageComplete_returnsMessageCompleteEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -274,7 +293,7 @@ class EventParserTest {
     @Test
     fun testParseMessageDone_returnsMessageDoneEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -289,7 +308,7 @@ class EventParserTest {
     @Test
     fun testParseToolStart_returnsToolStartEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -311,7 +330,7 @@ class EventParserTest {
     @Test
     fun testParseToolComplete_returnsToolCompleteEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -333,7 +352,7 @@ class EventParserTest {
     @Test
     fun testParseStatusUpdate_returnsStatusUpdateEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -349,7 +368,7 @@ class EventParserTest {
     @Test
     fun testParseSessionUpdated_returnsSessionUpdatedEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -365,7 +384,7 @@ class EventParserTest {
     @Test
     fun testParseUnknownType_returnsUnknownEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -380,7 +399,7 @@ class EventParserTest {
     @Test
     fun testParseNullParams_returnsUnknownEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,
@@ -395,7 +414,7 @@ class EventParserTest {
     @Test
     fun testParseNullTypeInParams_returnsUnknownEvent() {
         val response =
-            JsonRpcResponse(
+            createJsonRpcResponse(
                 jsonrpc = "2.0",
                 id = null,
                 result = null,

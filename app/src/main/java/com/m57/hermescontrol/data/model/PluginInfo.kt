@@ -5,10 +5,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PluginInfo(
     val name: String,
-    val description: String?,
-    val version: String?,
-    val source: String?,
-    @SerialName("runtime_status") val runtimeStatus: String?,
+    val description: String? = null,
+    val version: String? = null,
+    val source: String? = null,
+    @SerialName("runtime_status") val runtimeStatus: String? = null,
     @SerialName("has_dashboard_manifest") val hasDashboardManifest: Boolean = false,
     @SerialName("dashboard_manifest") val dashboardManifest: PluginManifestData? = null,
     @SerialName("can_remove") val canRemove: Boolean = false,

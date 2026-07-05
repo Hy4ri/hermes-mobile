@@ -5,10 +5,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class EnvVarConfig(
     @SerialName("is_set") val isSet: Boolean,
-    @SerialName("redacted_value") val redactedValue: String?,
-    val description: String?,
-    val url: String?,
-    val category: String?,
+    @SerialName("redacted_value") val redactedValue: String? = null,
+    val description: String? = null,
+    val url: String? = null,
+    val category: String? = null,
     @SerialName("is_password") val isPassword: Boolean,
 )
 

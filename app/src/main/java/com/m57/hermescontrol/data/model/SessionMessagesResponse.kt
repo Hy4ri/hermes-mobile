@@ -8,8 +8,8 @@ data class SessionMessagesResponse(
 
 @Serializable
 data class SessionMessage(
-    val role: String?,
-    val content: String?,
-    val timestamp: String?,
-    val type: String?,
+    val role: String? = null,
+    val content: String? = null,
+    val timestamp: String? = null,
+    val type: String? = null,
 )

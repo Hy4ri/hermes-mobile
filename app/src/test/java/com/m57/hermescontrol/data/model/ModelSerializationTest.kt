@@ -56,8 +56,10 @@ class ModelSerializationTest {
             CronJob(
                 id = "job-123",
                 name = "Daily Backup",
-                schedule = "0 0 * * *",
+                schedule = JsonPrimitive("0 0 * * *"),
                 state = "active",
+                last_run_status = null,
+                next_run = null,
             )
         val jsonStr = json.encodeToString(job)
         val deserialized = json.decodeFromString<CronJob>(jsonStr)
@@ -81,7 +83,7 @@ class ModelSerializationTest {
         val job = json.decodeFromString<CronJob>(jsonStr)
         assertEquals("job-123", job.id)
         assertEquals("Daily Backup", job.name)
-        assertEquals("0 0 * * *", job.schedule)
+        assertEquals("0 0 * * *", job.scheduleText)
         assertEquals("active", job.state)
     }
 
@@ -406,7 +408,7 @@ class ModelSerializationTest {
         assertEquals(1.5, response.load_avg?.get(0) ?: 0.0, 0.01)
         assertEquals(86400.0, response.uptime_seconds ?: 0.0, 0.01)
         assertEquals(50.0, response.memory?.percent ?: 0.0, 0.01)
-        assertEquals(8388608, response.memory?.total)
+        assertEquals(8388608L, response.memory?.total)
         assertEquals(50.0, response.disk?.percent ?: 0.0, 0.01)
     }
 

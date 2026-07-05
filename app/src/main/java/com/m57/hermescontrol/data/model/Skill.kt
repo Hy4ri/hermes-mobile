@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Skill(
     val name: String,
-    val description: String?,
-    val category: String?,
+    val description: String? = null,
+    val category: String? = null,
     val enabled: Boolean,
     val content: String? = null,
     val source: String? = null, // built-in, hub, optional
@@ -17,8 +17,8 @@ data class Skill(
 @Serializable
 data class HubSkill(
     val name: String,
-    val description: String?,
-    val source: String?,
+    val description: String? = null,
+    val source: String? = null,
     val category: String? = null,
     val identifier: String? = null,
     @SerialName("trust_level") val trustLevel: String? = null,

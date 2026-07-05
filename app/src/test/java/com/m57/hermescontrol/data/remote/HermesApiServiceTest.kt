@@ -152,58 +152,49 @@ class HermesApiServiceTest {
         }
 
     @Test
-    fun testGetSkills_missingFieldsInResponse() =
-        runTest {
-            mockWebServer.enqueue(
-                MockResponse()
-                    .setResponseCode(200)
-                    .setBody("""[{"description":"info"}]"""),
-            )
+    fun testGetSkills_missingFieldsInResponse() {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""[{"description":"info"}]"""),
+        )
 
-            val response = apiService.getSkills()
-            assertTrue(response.isSuccessful)
-            val skills = response.body()
-            assertEquals(1, skills?.size)
-            val skill = skills?.get(0)
-            org.junit.jupiter.api.Assertions
-                .assertNull(skill?.name)
-            assertEquals(false, skill?.enabled)
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            runTest {
+                apiService.getSkills()
+            }
         }
+    }
 
     @Test
-    fun testGetCronJobs_missingFieldsInResponse() =
-        runTest {
-            mockWebServer.enqueue(
-                MockResponse()
-                    .setResponseCode(200)
-                    .setBody("""[{"schedule":"* * * * *"}]"""),
-            )
+    fun testGetCronJobs_missingFieldsInResponse() {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""[{"schedule":"* * * * *"}]"""),
+        )
 
-            val response = apiService.getCronJobs()
-            assertTrue(response.isSuccessful)
-            val jobs = response.body()
-            assertEquals(1, jobs?.size)
-            val job = jobs?.get(0)
-            org.junit.jupiter.api.Assertions
-                .assertNull(job?.id)
-            org.junit.jupiter.api.Assertions
-                .assertNull(job?.name)
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            runTest {
+                apiService.getCronJobs()
+            }
         }
+    }
 
     @Test
-    fun testGetSessions_missingSessionsField() =
-        runTest {
-            mockWebServer.enqueue(
-                MockResponse()
-                    .setResponseCode(200)
-                    .setBody("""{}"""),
-            )
+    fun testGetSessions_missingSessionsField() {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{}"""),
+        )
 
-            val response = apiService.getSessions()
-            assertTrue(response.isSuccessful)
-            org.junit.jupiter.api.Assertions
-                .assertNull(response.body()?.sessions)
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            runTest {
+                apiService.getSessions()
+            }
         }
+    }
 
     @Test
     fun testGetSessionMessages_apiReturnsMalformedJson_throwsException() {
@@ -213,7 +204,7 @@ class HermesApiServiceTest {
                 .setBody("""{"messages": ["""),
         )
 
-        assertThrows(java.io.EOFException::class.java) {
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
             runTest {
                 apiService.getSessionMessages("session_1")
             }
@@ -221,19 +212,19 @@ class HermesApiServiceTest {
     }
 
     @Test
-    fun testGetSessionMessages_missingMessagesField() =
-        runTest {
-            mockWebServer.enqueue(
-                MockResponse()
-                    .setResponseCode(200)
-                    .setBody("""{}"""),
-            )
+    fun testGetSessionMessages_missingMessagesField() {
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{}"""),
+        )
 
-            val response = apiService.getSessionMessages("session_1")
-            assertTrue(response.isSuccessful)
-            org.junit.jupiter.api.Assertions
-                .assertNull(response.body()?.messages)
+        assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            runTest {
+                apiService.getSessionMessages("session_1")
+            }
         }
+    }
 
     @Test
     fun testGetSkills_malformedJsonResponse_throwsException() =
@@ -244,7 +235,7 @@ class HermesApiServiceTest {
                     .setBody("""[{"name":"weather""""),
             )
 
-            org.junit.jupiter.api.Assertions.assertThrows(java.io.EOFException::class.java) {
+            org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
                 kotlinx.coroutines.runBlocking {
                     apiService.getSkills()
                 }

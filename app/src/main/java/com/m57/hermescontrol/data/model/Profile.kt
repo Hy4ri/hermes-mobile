@@ -23,7 +23,7 @@ data class ProfileInfo(
 @Serializable
 data class ActiveProfileResponse(
     val active: String,
-    val current: String?,
+    val current: String? = null,
 )
 
 @Serializable
@@ -60,12 +60,12 @@ data class UpdateProfileDescriptionRequest(
 @Serializable
 data class CreateProfileRequest(
     val name: String,
-    val description: String?,
-    val provider: String?,
-    val model: String?,
-    val mcp_servers: List<McpServerConfigInput>?,
-    val keep_skills: Boolean?,
-    val hub_skills: List<String>?,
+    val description: String? = null,
+    val provider: String? = null,
+    val model: String? = null,
+    val mcp_servers: List<McpServerConfigInput>? = null,
+    val keep_skills: Boolean? = null,
+    val hub_skills: List<String>? = null,
 )
 
 @Serializable

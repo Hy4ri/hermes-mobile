@@ -10,14 +10,14 @@ data class ModelOptionsResponse(
 data class ModelProvider(
     val slug: String,
     val name: String,
-    val is_current: Boolean?,
-    val is_user_defined: Boolean?,
-    val models: List<String>?,
-    val total_models: Int?,
-    val source: String?,
-    val authenticated: Boolean?,
-    val auth_type: String?,
-    val warning: String?,
+    val is_current: Boolean? = null,
+    val is_user_defined: Boolean? = null,
+    val models: List<String>? = null,
+    val total_models: Int? = null,
+    val source: String? = null,
+    val authenticated: Boolean? = null,
+    val auth_type: String? = null,
+    val warning: String? = null,
 )
 
 @Serializable

@@ -6,22 +6,22 @@ import kotlinx.serialization.Serializable
 data class KanbanBoard(
     @SerialName("slug") val id: String,
     val name: String,
-    val description: String?,
+    val description: String? = null,
 )
 
 @Serializable
 data class KanbanTask(
     val id: String,
     val title: String,
-    @SerialName("body") val description: String?,
+    @SerialName("body") val description: String? = null,
     val status: String,
-    @SerialName("assignee") val assignedTo: String?,
+    @SerialName("assignee") val assignedTo: String? = null,
 )
 
 @Serializable
 data class CreateTaskBody(
     val title: String,
-    val body: String?,
+    val body: String? = null,
 )
 
 @Serializable
@@ -33,8 +33,8 @@ data class KanbanColumn(
 @Serializable
 data class KanbanBoardResponse(
     val columns: List<KanbanColumn>,
-    val assignees: List<String>?,
-    val tenants: List<String>?,
+    val assignees: List<String>? = null,
+    val tenants: List<String>? = null,
 )
 
 @Serializable

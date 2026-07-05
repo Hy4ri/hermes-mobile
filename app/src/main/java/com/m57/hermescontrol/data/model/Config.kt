@@ -4,8 +4,8 @@ import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class RawConfigResponse(
-    val path: String?,
-    val yaml: String?,
+    val path: String? = null,
+    val yaml: String? = null,
 )
 
 @Serializable

@@ -61,6 +61,7 @@ import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.*
@@ -332,7 +333,10 @@ class E2eIntegrationTest {
 
             advanceUntilIdle()
             assertFalse(viewModel.uiState.value.isHubSearching)
-            assertTrue(viewModel.uiState.value.hubResults.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.hubResults
+                    .isEmpty(),
+            )
             assertNull(viewModel.uiState.value.hubSearchError)
         }
 
@@ -349,7 +353,8 @@ class E2eIntegrationTest {
             assertFalse(viewModel.uiState.value.isHubSearching)
             assertNotNull(viewModel.uiState.value.hubSearchError)
             assertTrue(
-                viewModel.uiState.value.hubSearchError!!.contains("HTTP 500"),
+                viewModel.uiState.value.hubSearchError!!
+                    .contains("HTTP 500"),
             )
         }
 
@@ -360,7 +365,10 @@ class E2eIntegrationTest {
             viewModel.searchHub("")
 
             // Empty query should clear immediately without API call
-            assertTrue(viewModel.uiState.value.hubResults.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.hubResults
+                    .isEmpty(),
+            )
             assertFalse(viewModel.uiState.value.isHubSearching)
             assertNull(viewModel.uiState.value.hubSearchError)
         }
@@ -384,7 +392,8 @@ class E2eIntegrationTest {
             assertNull(viewModel.uiState.value.installingSkillName)
             assertNotNull(viewModel.uiState.value.toastMessage)
             assertTrue(
-                viewModel.uiState.value.toastMessage!!.contains("Installed"),
+                viewModel.uiState.value.toastMessage!!
+                    .contains("Installed"),
             )
             // Refresh was called
             assertFalse(viewModel.uiState.value.isLoading)
@@ -405,7 +414,8 @@ class E2eIntegrationTest {
             assertNull(viewModel.uiState.value.installingSkillName)
             assertNotNull(viewModel.uiState.value.toastMessage)
             assertTrue(
-                viewModel.uiState.value.toastMessage!!.contains("HTTP 500"),
+                viewModel.uiState.value.toastMessage!!
+                    .contains("HTTP 500"),
             )
         }
 
@@ -425,7 +435,8 @@ class E2eIntegrationTest {
             assertNull(viewModel.uiState.value.uninstallingSkillName)
             assertNotNull(viewModel.uiState.value.toastMessage)
             assertTrue(
-                viewModel.uiState.value.toastMessage!!.contains("Uninstalled"),
+                viewModel.uiState.value.toastMessage!!
+                    .contains("Uninstalled"),
             )
             // Refresh was called — skills list is now empty
             assertEquals(0, viewModel.uiState.value.skills.size)
@@ -445,7 +456,8 @@ class E2eIntegrationTest {
             assertNull(viewModel.uiState.value.uninstallingSkillName)
             assertNotNull(viewModel.uiState.value.toastMessage)
             assertTrue(
-                viewModel.uiState.value.toastMessage!!.contains("HTTP 500"),
+                viewModel.uiState.value.toastMessage!!
+                    .contains("HTTP 500"),
             )
         }
 
@@ -487,7 +499,8 @@ class E2eIntegrationTest {
             assertNull(viewModel.uiState.value.previewSkillContent)
             assertNotNull(viewModel.uiState.value.toastMessage)
             assertTrue(
-                viewModel.uiState.value.toastMessage!!.contains("HTTP 500"),
+                viewModel.uiState.value.toastMessage!!
+                    .contains("HTTP 500"),
             )
         }
 
@@ -495,7 +508,7 @@ class E2eIntegrationTest {
     @Test
     fun testCronJobsListing_success() =
         runTest {
-            val job = CronJob("id1", "Job 1", "*/5 * * * *", "active", "success", "2026-06-15T15:10:00Z")
+            val job = CronJob("id1", "Job 1", JsonPrimitive("*/5 * * * *"), "active", "success", "2026-06-15T15:10:00Z")
             coEvery { mockApiService.getCronJobs() } returns Response.success(listOf(job))
 
             val viewModel = CronJobsViewModel()
@@ -536,7 +549,7 @@ class E2eIntegrationTest {
     @Test
     fun testCronJobPause_success() =
         runTest {
-            val job = CronJob("id1", "Job 1", "*/5 * * * *", "active", null, null)
+            val job = CronJob("id1", "Job 1", JsonPrimitive("*/5 * * * *"), "active", null, null)
             coEvery { mockApiService.getCronJobs() } returns Response.success(listOf(job))
             coEvery { mockApiService.pauseCronJob("id1") } returns Response.success(Unit)
 
@@ -563,7 +576,7 @@ class E2eIntegrationTest {
     @Test
     fun testCronJobResume_success() =
         runTest {
-            val job = CronJob("id1", "Job 1", "*/5 * * * *", "paused", null, null)
+            val job = CronJob("id1", "Job 1", JsonPrimitive("*/5 * * * *"), "paused", null, null)
             coEvery { mockApiService.getCronJobs() } returns Response.success(listOf(job))
             coEvery { mockApiService.resumeCronJob("id1") } returns Response.success(Unit)
 

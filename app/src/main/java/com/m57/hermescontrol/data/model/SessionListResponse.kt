@@ -12,10 +12,10 @@ data class SessionListResponse(
 @Serializable
 data class SessionInfo(
     val id: String,
-    val title: String?,
-    val created_at: String?,
-    val message_count: Int?,
-    val status: String?,
+    val title: String? = null,
+    val created_at: String? = null,
+    val message_count: Int? = null,
+    val status: String? = null,
     val preview: String? = null,
     val started_at: Double? = null,
     val source: String? = null,

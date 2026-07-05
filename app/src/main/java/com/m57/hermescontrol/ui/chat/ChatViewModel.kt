@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.decodeFromJsonElement
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
@@ -846,7 +847,9 @@ class ChatViewModel(
                     val body = result.data
                     val platformsStr =
                         body.gateway_platforms?.entries?.joinToString("\n") { (k, v) ->
-                            "  • **$k**: ${v.state ?: "Unknown"}${if (v.error_code != null) " (Error: ${v.error_code})" else ""}"
+                            val status = v?.state ?: "Unknown"
+                            val err = v?.error_code?.let { " (Error: $it)" } ?: ""
+                            "  • **$k**: $status$err"
                         } ?: "No active platforms"
                     addAssistantMessage(
                         """

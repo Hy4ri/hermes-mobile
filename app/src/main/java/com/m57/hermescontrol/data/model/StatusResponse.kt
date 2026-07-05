@@ -3,15 +3,15 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class StatusResponse(
-    val version: String?,
-    val gateway_running: Boolean?,
-    val active_sessions: Int?,
-    val auth_required: Boolean?,
-    val gateway_platforms: Map<String, PlatformStatus>?,
+    val version: String? = null,
+    val gateway_running: Boolean? = null,
+    val active_sessions: Int? = null,
+    val auth_required: Boolean? = null,
+    val gateway_platforms: Map<String, PlatformStatus?>? = null,
 )
 
 @Serializable
 data class PlatformStatus(
-    val state: String?,
+    val state: String? = null,
     val error_code: String? = null,
 )

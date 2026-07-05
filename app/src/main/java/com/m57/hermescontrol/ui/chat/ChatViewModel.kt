@@ -94,6 +94,10 @@ data class ClarifyUi(
 class ChatViewModel(
     application: Application,
     private val startCleanup: Boolean,
+    private val repo: ChatPersistenceRepository =
+        ChatPersistenceRepository(
+            HermesDatabase.get(application).chatMessageDao(),
+        ),
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -105,10 +109,7 @@ class ChatViewModel(
 
     private val wsClient = HermesWsClient
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
-    private val repo =
-        ChatPersistenceRepository(
-            HermesDatabase.get(application).chatMessageDao(),
-        )
+
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchController = ChatSearchController()
 

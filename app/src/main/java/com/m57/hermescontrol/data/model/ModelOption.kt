@@ -1,9 +1,12 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class ModelOptionsResponse(
     val providers: List<ModelProvider>,
 )
 
+@Serializable
 data class ModelProvider(
     val slug: String,
     val name: String,
@@ -17,6 +20,7 @@ data class ModelProvider(
     val warning: String?,
 )
 
+@Serializable
 data class PinnedModel(
     val providerSlug: String,
     val modelName: String,

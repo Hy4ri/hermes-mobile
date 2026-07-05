@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class StatusResponse(
     val version: String?,
     val gateway_running: Boolean?,
@@ -8,6 +10,7 @@ data class StatusResponse(
     val gateway_platforms: Map<String, PlatformStatus>?,
 )
 
+@Serializable
 data class PlatformStatus(
     val state: String?,
     val error_code: String? = null,

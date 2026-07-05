@@ -18,6 +18,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.toJsonElement
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1004,8 +1005,8 @@ class ChatViewModel(
     @Suppress("UNCHECKED_CAST")
     private fun parseCommandCatalog(map: Map<*, *>): CommandCatalog? =
         try {
-            val json = OkHttpProvider.gson.toJson(map)
-            OkHttpProvider.gson.fromJson(json, CommandCatalog::class.java)
+            val jsonElement = map.toJsonElement()
+            OkHttpProvider.json.decodeFromJsonElement<CommandCatalog>(jsonElement)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse command catalog", e)
             null

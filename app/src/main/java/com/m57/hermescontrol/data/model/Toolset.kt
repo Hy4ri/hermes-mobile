@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class Toolset(
     val name: String,
     val label: String?,
@@ -10,6 +12,7 @@ data class Toolset(
     val tools: List<String>?,
 )
 
+@Serializable
 data class ToolsetToggleRequest(
     val enabled: Boolean,
     val profile: String? = null,

@@ -53,8 +53,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.gson.JsonElement
-import com.google.gson.JsonPrimitive
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SchemaField
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -63,6 +61,10 @@ import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -580,7 +582,7 @@ private fun ConfigField(
                             modifier = Modifier.weight(1f),
                         )
                         Switch(
-                            checked = currentValue?.asBoolean ?: false,
+                            checked = (currentValue as? JsonPrimitive)?.booleanOrNull ?: false,
                             onCheckedChange = { onChange(JsonPrimitive(it)) },
                         )
                     }
@@ -590,7 +592,7 @@ private fun ConfigField(
                     DropdownField(
                         label = label,
                         options = field.options ?: emptyList(),
-                        selectedValue = currentValue?.asString ?: "",
+                        selectedValue = (currentValue as? JsonPrimitive)?.content ?: "",
                         onOptionSelected = { onChange(JsonPrimitive(it)) },
                     )
                     if (description != label) {
@@ -607,7 +609,7 @@ private fun ConfigField(
                     OutlinedTextField(
                         value =
                             currentValue?.let {
-                                if (it.isJsonPrimitive) it.asString else ""
+                                if (it is JsonPrimitive) it.content else ""
                             } ?: "",
                         onValueChange = { text ->
                             text.toDoubleOrNull()?.let { doubleVal ->
@@ -630,10 +632,10 @@ private fun ConfigField(
                     // String or other type
                     val textValue =
                         currentValue?.let {
-                            when {
-                                it.isJsonPrimitive -> it.asString
-                                it.isJsonObject -> it.toString()
-                                it.isJsonArray -> it.toString()
+                            when (it) {
+                                is JsonPrimitive -> it.content
+                                is JsonObject -> it.toString()
+                                is JsonArray -> it.toString()
                                 else -> ""
                             }
                         } ?: ""
@@ -708,20 +710,17 @@ private fun collectUncoveredPaths(
         val dotPath = if (prefix.isEmpty()) key else "$prefix.$key"
         // If this exact path is in the schema, it's covered — skip entirely
         if (dotPath in schemaPaths) continue
-        if (value is com.google.gson.JsonObject) {
-            // Recurse into nested objects to find uncovered leaves
-            val subKeys = value.keySet()
+        if (value is JsonObject) {
             // Before recursing deeper, check if this whole sub-tree has any schema coverage
             val hasSchemaCoverage = schemaPaths.any { it == dotPath || it.startsWith("$dotPath.") }
             if (hasSchemaCoverage) {
                 // Schema covers some sub-paths — recurse to find what's NOT covered
-                val subMap = subKeys.associateWith { value.get(it) }
-                result.addAll(collectUncoveredPaths(subMap, schemaPaths, dotPath))
+                result.addAll(collectUncoveredPaths(value, schemaPaths, dotPath))
             } else {
                 // No schema coverage at all for this subtree — add the whole thing
                 result.add(dotPath)
             }
-        } else if (value is com.google.gson.JsonArray) {
+        } else if (value is JsonArray) {
             // Arrays: check if the path is in schema; if not, add it
             if (dotPath !in schemaPaths) {
                 result.add(dotPath)
@@ -746,7 +745,7 @@ private fun getJsonValue(
         if (i == 0) {
             current = config[key]
         } else {
-            current = current?.asJsonObject?.get(key)
+            current = (current as? JsonObject)?.get(key)
         }
         if (current == null) return null
     }

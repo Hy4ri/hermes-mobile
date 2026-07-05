@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import kotlinx.coroutines.test.runTest
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
 class HermesApiServiceTest {
     private lateinit var mockWebServer: MockWebServer
@@ -28,7 +29,7 @@ class HermesApiServiceTest {
             Retrofit
                 .Builder()
                 .baseUrl(mockWebServer.url("/"))
-                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
                 .build()
 
         apiService = retrofit.create(HermesApiService::class.java)
@@ -259,7 +260,7 @@ class HermesApiServiceTest {
                     .setBody("""[{"name":"weather","enabled":{}}]"""),
             )
 
-            org.junit.jupiter.api.Assertions.assertThrows(com.google.gson.JsonSyntaxException::class.java) {
+            org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
                 kotlinx.coroutines.runBlocking {
                     apiService.getSkills()
                 }

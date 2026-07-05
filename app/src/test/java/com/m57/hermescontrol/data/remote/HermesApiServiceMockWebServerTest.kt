@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.remote
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.StatusResponse
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -13,7 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
 /**
  * MockWebServer-based tests for [HermesApiService].
@@ -35,7 +36,7 @@ class HermesApiServiceMockWebServerTest {
             Retrofit
                 .Builder()
                 .baseUrl(mockServer.url("/"))
-                .addConverterFactory(GsonConverterFactory.create(OkHttpProvider.gson))
+                .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
                 .build()
                 .create(HermesApiService::class.java)
     }

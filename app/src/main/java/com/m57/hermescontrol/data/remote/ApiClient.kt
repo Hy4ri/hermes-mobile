@@ -4,9 +4,10 @@ import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
 import okhttp3.CertificatePinner
 import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
 /**
  * Provides a Retrofit-backed [HermesApiService].
@@ -71,7 +72,7 @@ object ApiClient {
                 .Builder()
                 .baseUrl("http://$host:$port/")
                 .client(tempOkHttp)
-                .addConverterFactory(GsonConverterFactory.create(OkHttpProvider.gson))
+                .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
                 .build()
 
         return tempRetrofit.create(HermesApiService::class.java)
@@ -135,7 +136,7 @@ object ApiClient {
                 .Builder()
                 .baseUrl(AuthManager.baseUrl())
                 .client(okHttp)
-                .addConverterFactory(GsonConverterFactory.create(OkHttpProvider.gson))
+                .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
                 .build()
                 .also { retrofit = it }
 

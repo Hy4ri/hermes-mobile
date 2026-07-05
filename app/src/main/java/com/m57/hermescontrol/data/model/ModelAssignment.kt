@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class AuxiliaryTaskAssignment(
     val task: String,
     val provider: String,
@@ -7,21 +9,25 @@ data class AuxiliaryTaskAssignment(
     val base_url: String? = null,
 )
 
+@Serializable
 data class AuxiliaryModelsResponse(
     val tasks: List<AuxiliaryTaskAssignment>,
     val main: MainModelAssignment,
 )
 
+@Serializable
 data class MainModelAssignment(
     val provider: String,
     val model: String,
 )
 
+@Serializable
 data class MoaModelSlot(
     val provider: String,
     val model: String,
 )
 
+@Serializable
 data class MoaConfigPreset(
     val reference_models: List<MoaModelSlot>,
     val aggregator: MoaModelSlot,
@@ -31,6 +37,7 @@ data class MoaConfigPreset(
     val enabled: Boolean = true,
 )
 
+@Serializable
 data class MoaConfigResponse(
     val default_preset: String = "",
     val active_preset: String = "",
@@ -43,6 +50,7 @@ data class MoaConfigResponse(
     val enabled: Boolean = true,
 )
 
+@Serializable
 data class ModelAssignmentRequest(
     val confirm_expensive_model: Boolean = false,
     val scope: String,
@@ -52,6 +60,7 @@ data class ModelAssignmentRequest(
     val task: String? = null,
 )
 
+@Serializable
 data class ModelAssignmentResponse(
     val confirm_message: String? = null,
     val confirm_required: Boolean? = null,

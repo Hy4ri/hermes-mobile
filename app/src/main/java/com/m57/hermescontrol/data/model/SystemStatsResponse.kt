@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class SystemStatsResponse(
     val os: String? = null,
     val os_release: String? = null,
@@ -20,6 +22,7 @@ data class SystemStatsResponse(
     val process: ProcessStats? = null,
 )
 
+@Serializable
 data class MemoryStats(
     val total: Long? = null,
     val available: Long? = null,
@@ -27,6 +30,7 @@ data class MemoryStats(
     val percent: Double? = null,
 )
 
+@Serializable
 data class DiskStats(
     val total: Long? = null,
     val used: Long? = null,
@@ -34,6 +38,7 @@ data class DiskStats(
     val percent: Double? = null,
 )
 
+@Serializable
 data class ProcessStats(
     val pid: Int? = null,
     val rss: Long? = null,

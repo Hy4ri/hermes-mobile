@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class PortalResponse(
     val logged_in: Boolean? = null,
     val portal_url: String? = null,
@@ -9,6 +11,7 @@ data class PortalResponse(
     val features: List<PortalFeature>? = null,
 )
 
+@Serializable
 data class PortalFeature(
     val label: String? = null,
     val state: String? = null,

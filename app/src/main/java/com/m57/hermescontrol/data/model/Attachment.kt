@@ -1,4 +1,5 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
 /**
  * Represents a file attached to a chat message.
@@ -9,6 +10,7 @@ package com.m57.hermescontrol.data.model
  * @param size File size in bytes
  * @param localPath Optional local file system path for direct access
  */
+@Serializable
 data class Attachment(
     val uri: String,
     val name: String,

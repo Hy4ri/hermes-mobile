@@ -6,12 +6,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.google.gson.JsonParser
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * UI state for the pairing code entry screen.
@@ -88,12 +90,10 @@ class PairingCodeEntryViewModel(
                 val decodedBytes = Base64.decode(trimmed, Base64.DEFAULT)
                 val decodedString = String(decodedBytes, Charsets.UTF_8)
                 if (decodedString.startsWith("{") && decodedString.endsWith("}")) {
-                    val json = JsonParser.parseString(decodedString).asJsonObject
-                    val host = json.get("host")?.asString
-                    val port =
-                        json.get("port")?.asInt?.toString()
-                            ?: json.get("port")?.asString
-                    val token = json.get("token")?.asString
+                    val json = OkHttpProvider.json.parseToJsonElement(decodedString).jsonObject
+                    val host = json["host"]?.jsonPrimitive?.content
+                    val port = json["port"]?.jsonPrimitive?.content
+                    val token = json["token"]?.jsonPrimitive?.content
                     // Accept raw "host" + "port" + "token", or a composite "pairing" payload
                     if (host != null && port != null && token != null) {
                         connectToDashboard(host, port.toIntOrNull() ?: 9119, token)

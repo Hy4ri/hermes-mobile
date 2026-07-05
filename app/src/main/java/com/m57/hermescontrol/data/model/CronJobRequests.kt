@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class CreateCronJobRequest(
     val name: String = "",
     val schedule: String,
@@ -17,6 +19,7 @@ data class CreateCronJobRequest(
     val repeat: Int? = null,
 )
 
+@Serializable
 data class UpdateCronJobRequest(
     val updates: Map<String, Any?>,
 )

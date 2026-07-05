@@ -1,11 +1,14 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class WebhooksResponse(
     val enabled: Boolean,
     val base_url: String?,
     val subscriptions: List<WebhookSubscription>?,
 )
 
+@Serializable
 data class WebhookSubscription(
     val name: String,
     val description: String?,
@@ -20,6 +23,7 @@ data class WebhookSubscription(
     val enabled: Boolean?,
 )
 
+@Serializable
 data class CreateWebhookRequest(
     val name: String,
     val description: String? = null,
@@ -32,14 +36,17 @@ data class CreateWebhookRequest(
     val secret: String? = null,
 )
 
+@Serializable
 data class WebhooksToggleRequest(
     val enabled: Boolean,
 )
 
+@Serializable
 data class WebhookToggleSubscriptionRequest(
     val enabled: Boolean,
 )
 
+@Serializable
 data class DeleteWebhookResponse(
     val ok: Boolean,
 )

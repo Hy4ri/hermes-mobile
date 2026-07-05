@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.m57.hermescontrol.data.model.ConnectionProfile
+import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -15,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 
 /**
  * Singleton that manages encrypted storage of the Hermes dashboard token
@@ -68,8 +73,6 @@ object AuthManager {
 
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
-
-    private val gson = com.m57.hermescontrol.data.remote.OkHttpProvider.gson
 
     /**
      * Initialise the encrypted preferences.
@@ -160,14 +163,10 @@ object AuthManager {
 
     // ── Connection Profiles ──────────────────────────────────────────────
 
-    fun getConnectionProfiles(): List<com.m57.hermescontrol.data.model.ConnectionProfile> {
+    fun getConnectionProfiles(): List<ConnectionProfile> {
         val json = requirePrefs().getString(KEY_CONNECTION_PROFILES, null) ?: return emptyList()
         return try {
-            val type =
-                object : com.google.gson.reflect.TypeToken<
-                    List<com.m57.hermescontrol.data.model.ConnectionProfile>,
-                >() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            OkHttpProvider.json.decodeFromString<List<ConnectionProfile>>(json)
         } catch (e: Exception) {
             if (com.m57.hermescontrol.BuildConfig.DEBUG) {
                 android.util.Log.w("AuthManager", "Failed to parse connection profiles", e)
@@ -176,21 +175,17 @@ object AuthManager {
         }
     }
 
-    fun saveConnectionProfiles(profiles: List<com.m57.hermescontrol.data.model.ConnectionProfile>) {
-        val json = gson.toJson(profiles)
+    fun saveConnectionProfiles(profiles: List<ConnectionProfile>) {
+        val json = OkHttpProvider.json.encodeToString(profiles)
         requirePrefs().edit().putString(KEY_CONNECTION_PROFILES, json).apply()
     }
 
     // ── Pinned Models ────────────────────────────────────────────────────
 
-    fun getPinnedModels(): List<com.m57.hermescontrol.data.model.PinnedModel> {
+    fun getPinnedModels(): List<PinnedModel> {
         val json = requirePrefs().getString(KEY_PINNED_MODELS, null) ?: return emptyList()
         return try {
-            val type =
-                object : com.google.gson.reflect.TypeToken<
-                    List<com.m57.hermescontrol.data.model.PinnedModel>,
-                >() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            OkHttpProvider.json.decodeFromString<List<PinnedModel>>(json)
         } catch (e: Exception) {
             if (com.m57.hermescontrol.BuildConfig.DEBUG) {
                 android.util.Log.w("AuthManager", "Failed to parse pinned models", e)
@@ -200,7 +195,9 @@ object AuthManager {
     }
 
     fun savePinnedModels(pinned: List<com.m57.hermescontrol.data.model.PinnedModel>) {
-        val json = gson.toJson(pinned)
+        val json =
+            com.m57.hermescontrol.data.remote.OkHttpProvider.json
+                .encodeToString(pinned)
         requirePrefs().edit().putString(KEY_PINNED_MODELS, json).apply()
     }
 

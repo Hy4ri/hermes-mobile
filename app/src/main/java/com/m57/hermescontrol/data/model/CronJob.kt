@@ -1,10 +1,13 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class CronJobRepeat(
     val times: Int? = null,
     val completed: Int = 0,
 )
 
+@Serializable
 data class CronJob(
     val id: String,
     val name: String,

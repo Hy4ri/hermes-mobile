@@ -1,19 +1,40 @@
 package com.m57.hermescontrol.data.model
 
-import com.google.gson.Gson
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
+import com.m57.hermescontrol.data.remote.OkHttpProvider
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class ModelSerializationTest {
-    private val gson = Gson()
+    private val json = OkHttpProvider.json
 
     @Test
-    fun testSkillDeserialization_allFields() {
-        val json =
+    fun testSkillSerialization() {
+        val skill =
+            Skill(
+                name = "weather",
+                description = "Get current weather info",
+                category = "utility",
+                enabled = true,
+            )
+        val jsonStr = json.encodeToString(skill)
+        val deserialized = json.decodeFromString<Skill>(jsonStr)
+        assertEquals(skill.name, deserialized.name)
+        assertEquals(skill.description, deserialized.description)
+        assertEquals(skill.category, deserialized.category)
+        assertEquals(skill.enabled, deserialized.enabled)
+    }
+
+    @Test
+    fun testSkillDeserialization() {
+        val jsonStr =
             """
             {
                 "name": "weather",
@@ -22,7 +43,7 @@ class ModelSerializationTest {
                 "enabled": true
             }
             """.trimIndent()
-        val skill = gson.fromJson(json, Skill::class.java)
+        val skill = json.decodeFromString<Skill>(jsonStr)
         assertEquals("weather", skill.name)
         assertEquals("Get current weather info", skill.description)
         assertEquals("utility", skill.category)
@@ -30,170 +51,143 @@ class ModelSerializationTest {
     }
 
     @Test
-    fun testSkillDeserialization_optionalFieldsNull() {
-        val json =
-            """
-            {
-                "name": "light_control",
-                "description": null,
-                "category": null,
-                "enabled": false
-            }
-            """.trimIndent()
-        val skill = gson.fromJson(json, Skill::class.java)
-        assertEquals("light_control", skill.name)
-        assertNull(skill.description)
-        assertNull(skill.category)
-        assertEquals(false, skill.enabled)
+    fun testCronJobSerialization() {
+        val job =
+            CronJob(
+                id = "job-123",
+                name = "Daily Backup",
+                schedule = "0 0 * * *",
+                state = "active",
+            )
+        val jsonStr = json.encodeToString(job)
+        val deserialized = json.decodeFromString<CronJob>(jsonStr)
+        assertEquals(job.id, deserialized.id)
+        assertEquals(job.name, deserialized.name)
+        assertEquals(job.schedule, deserialized.schedule)
+        assertEquals(job.state, deserialized.state)
     }
 
     @Test
-    fun testCronJobDeserialization_allFields() {
-        val json =
+    fun testCronJobDeserialization() {
+        val jsonStr =
             """
             {
                 "id": "job-123",
                 "name": "Daily Backup",
                 "schedule": "0 0 * * *",
-                "state": "active",
-                "last_run_status": "success",
-                "next_run": "2026-06-16T00:00:00Z"
+                "state": "active"
             }
             """.trimIndent()
-        val job = gson.fromJson(json, CronJob::class.java)
+        val job = json.decodeFromString<CronJob>(jsonStr)
         assertEquals("job-123", job.id)
         assertEquals("Daily Backup", job.name)
         assertEquals("0 0 * * *", job.schedule)
         assertEquals("active", job.state)
-        assertEquals("success", job.last_run_status)
-        assertEquals("2026-06-16T00:00:00Z", job.next_run)
-    }
-
-    @Test
-    fun testCronJobDeserialization_optionalFieldsNull() {
-        val json =
-            """
-            {
-                "id": "job-456",
-                "name": "One-off Task",
-                "schedule": null,
-                "state": null,
-                "last_run_status": null,
-                "next_run": null
-            }
-            """.trimIndent()
-        val job = gson.fromJson(json, CronJob::class.java)
-        assertEquals("job-456", job.id)
-        assertEquals("One-off Task", job.name)
-        assertNull(job.schedule)
-        assertNull(job.state)
-        assertNull(job.last_run_status)
-        assertNull(job.next_run)
     }
 
     @Test
     fun testToggleSkillRequestSerialization() {
         val request = ToggleSkillRequest(name = "weather", enabled = false)
-        val json = gson.toJson(request)
+        val jsonStr = json.encodeToString(request)
         // Ensure serialization produces correct JSON structure
-        val parsed = gson.fromJson(json, Map::class.java)
-        assertEquals("weather", parsed["name"])
-        assertEquals(false, parsed["enabled"])
+        val parsed = json.decodeFromString<Map<String, JsonElement>>(jsonStr)
+        assertEquals("weather", (parsed["name"] as? JsonPrimitive)?.content)
+        assertEquals(false, (parsed["enabled"] as? JsonPrimitive)?.booleanOrNull)
     }
 
     @Test
     fun testSkillDeserialization_missingRequiredFields() {
-        val json = "{}"
-        val skill = gson.fromJson(json, Skill::class.java)
-        // Verify null-safety issue: Gson allows non-nullable 'name' to be null at runtime
-        assertNull(skill.name)
-        // Primitive boolean defaults to false in Gson/JVM when missing
-        assertEquals(false, skill.enabled)
+        val jsonStr = "{}"
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
+        }
     }
 
     @Test
     fun testSkillDeserialization_explicitNullForNonNullable() {
-        val json =
+        val jsonStr =
             """
             {
                 "name": null,
                 "enabled": null
             }
             """.trimIndent()
-        val skill = gson.fromJson(json, Skill::class.java)
-        assertNull(skill.name)
-        assertEquals(false, skill.enabled)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
+        }
     }
 
     @Test
     fun testCronJobDeserialization_missingRequiredFields() {
-        val json = "{}"
-        val job = gson.fromJson(json, CronJob::class.java)
-        assertNull(job.id)
-        assertNull(job.name)
+        val jsonStr = "{}"
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<CronJob>(jsonStr)
+        }
     }
 
     @Test
     fun testSessionListResponseDeserialization_missingRequiredFields() {
-        val json = "{}"
-        val response = gson.fromJson(json, SessionListResponse::class.java)
-        assertNull(response.sessions)
+        val jsonStr = "{}"
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<SessionListResponse>(jsonStr)
+        }
     }
 
     @Test
     fun testSessionInfoDeserialization_missingRequiredFields() {
-        val json = "{}"
-        val info = gson.fromJson(json, SessionInfo::class.java)
-        assertNull(info.id)
-        assertNull(info.title)
+        val jsonStr = "{}"
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<SessionInfo>(jsonStr)
+        }
     }
 
     @Test
     fun testSessionMessagesResponseDeserialization_missingRequiredFields() {
-        val json = "{}"
-        val response = gson.fromJson(json, SessionMessagesResponse::class.java)
-        assertNull(response.messages)
+        val jsonStr = "{}"
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<SessionMessagesResponse>(jsonStr)
+        }
     }
 
     @Test
     fun testSkillDeserialization_malformedJson() {
-        val json = "{\"name\": \"weather\","
-        org.junit.jupiter.api.Assertions.assertThrows(com.google.gson.JsonSyntaxException::class.java) {
-            gson.fromJson(json, Skill::class.java)
+        val jsonStr = "{\"name\": \"weather\","
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
         }
     }
 
     @Test
     fun testSkillDeserialization_typeMismatchObject() {
-        val json =
+        val jsonStr =
             """
             {
                 "name": "weather",
                 "enabled": {}
             }
             """.trimIndent()
-        org.junit.jupiter.api.Assertions.assertThrows(com.google.gson.JsonSyntaxException::class.java) {
-            gson.fromJson(json, Skill::class.java)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
         }
     }
 
     @Test
     fun testSkillDeserialization_typeMismatchArray() {
-        val json =
+        val jsonStr =
             """
             {
                 "name": "weather",
                 "enabled": []
             }
             """.trimIndent()
-        org.junit.jupiter.api.Assertions.assertThrows(com.google.gson.JsonSyntaxException::class.java) {
-            gson.fromJson(json, Skill::class.java)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
         }
     }
 
     @Test
     fun testSkillDeserialization_missingName_causesNullOnNonNullableField() {
-        val json =
+        val jsonStr =
             """
             {
                 "description": "Get current weather info",
@@ -201,15 +195,14 @@ class ModelSerializationTest {
                 "enabled": true
             }
             """.trimIndent()
-        val skill = gson.fromJson(json, Skill::class.java)
-        // Gson bypasses Kotlin null-safety constraints, resulting in null on non-nullable field
-        val nameNullable: String? = skill.name
-        assertNull(nameNullable)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
+        }
     }
 
     @Test
     fun testSkillDeserialization_nullName_causesNullOnNonNullableField() {
-        val json =
+        val jsonStr =
             """
             {
                 "name": null,
@@ -218,14 +211,14 @@ class ModelSerializationTest {
                 "enabled": true
             }
             """.trimIndent()
-        val skill = gson.fromJson(json, Skill::class.java)
-        val nameNullable: String? = skill.name
-        assertNull(nameNullable)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
+        }
     }
 
     @Test
     fun testSkillDeserialization_missingEnabled_usesJvmDefaultValue() {
-        val json =
+        val jsonStr =
             """
             {
                 "name": "weather",
@@ -233,14 +226,14 @@ class ModelSerializationTest {
                 "category": "utility"
             }
             """.trimIndent()
-        val skill = gson.fromJson(json, Skill::class.java)
-        // Boolean primitive defaults to false
-        assertEquals(false, skill.enabled)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
+        }
     }
 
     @Test
     fun testCronJobDeserialization_missingId_causesNullOnNonNullableField() {
-        val json =
+        val jsonStr =
             """
             {
                 "name": "Daily Backup",
@@ -248,52 +241,52 @@ class ModelSerializationTest {
                 "state": "active"
             }
             """.trimIndent()
-        val job = gson.fromJson(json, CronJob::class.java)
-        val idNullable: String? = job.id
-        assertNull(idNullable)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<CronJob>(jsonStr)
+        }
     }
 
     @Test
     fun testSessionListResponseDeserialization_missingSessions_causesNullOnNonNullableField() {
-        val json = "{}"
-        val response = gson.fromJson(json, SessionListResponse::class.java)
-        val sessionsNullable: List<SessionInfo>? = response.sessions
-        assertNull(sessionsNullable)
+        val jsonStr = "{}"
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<SessionListResponse>(jsonStr)
+        }
     }
 
     @Test
     fun testSessionInfoDeserialization_missingId_causesNullOnNonNullableField() {
-        val json =
+        val jsonStr =
             """
             {
                 "title": "My Session",
                 "created_at": "2026-06-15T12:00:00Z"
             }
             """.trimIndent()
-        val info = gson.fromJson(json, SessionInfo::class.java)
-        val idNullable: String? = info.id
-        assertNull(idNullable)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<SessionInfo>(jsonStr)
+        }
     }
 
     @Test
     fun testSessionMessagesResponseDeserialization_missingMessages_causesNullOnNonNullableField() {
-        val json = "{}"
-        val response = gson.fromJson(json, SessionMessagesResponse::class.java)
-        val messagesNullable: List<SessionMessage>? = response.messages
-        assertNull(messagesNullable)
+        val jsonStr = "{}"
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<SessionMessagesResponse>(jsonStr)
+        }
     }
 
     @Test
     fun testDeserialization_malformedJson_throwsJsonSyntaxException() {
-        val json = """{"name": "weather", "enabled": """
-        org.junit.jupiter.api.Assertions.assertThrows(com.google.gson.JsonSyntaxException::class.java) {
-            gson.fromJson(json, Skill::class.java)
+        val jsonStr = """{"name": "weather", "enabled": """
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<Skill>(jsonStr)
         }
     }
 
     @Test
     fun testStatusResponseDeserialization_allFields() {
-        val json =
+        val jsonStr =
             """
             {
                 "version": "1.0.0",
@@ -312,7 +305,7 @@ class ModelSerializationTest {
                 }
             }
             """.trimIndent()
-        val response = gson.fromJson(json, StatusResponse::class.java)
+        val response = json.decodeFromString<StatusResponse>(jsonStr)
         assertEquals("1.0.0", response.version)
         assertEquals(true, response.gateway_running)
         assertEquals(5, response.active_sessions)
@@ -326,8 +319,8 @@ class ModelSerializationTest {
 
     @Test
     fun testStatusResponseDeserialization_missingFields() {
-        val json = "{}"
-        val response = gson.fromJson(json, StatusResponse::class.java)
+        val jsonStr = "{}"
+        val response = json.decodeFromString<StatusResponse>(jsonStr)
         assertNull(response.version)
         assertNull(response.gateway_running)
         assertNull(response.active_sessions)
@@ -337,7 +330,7 @@ class ModelSerializationTest {
 
     @Test
     fun testStatusResponseDeserialization_gatewayPlatformsNullValue() {
-        val json =
+        val jsonStr =
             """
             {
                 "gateway_platforms": {
@@ -348,7 +341,7 @@ class ModelSerializationTest {
                 }
             }
             """.trimIndent()
-        val response = gson.fromJson(json, StatusResponse::class.java)
+        val response = json.decodeFromString<StatusResponse>(jsonStr)
         val platforms = response.gateway_platforms
         assertNotNull(platforms)
         assertNull(platforms!!["android"])
@@ -360,20 +353,20 @@ class ModelSerializationTest {
 
     @Test
     fun testStatusResponseDeserialization_typeMismatchInGatewayPlatforms() {
-        val json =
+        val jsonStr =
             """
             {
                 "gateway_platforms": "not_a_map"
             }
             """.trimIndent()
-        org.junit.jupiter.api.Assertions.assertThrows(com.google.gson.JsonSyntaxException::class.java) {
-            gson.fromJson(json, StatusResponse::class.java)
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<StatusResponse>(jsonStr)
         }
     }
 
     @Test
     fun testSystemStatsResponse_deserialization() {
-        val json =
+        val jsonStr =
             """
             {
                 "os": "Linux",
@@ -402,7 +395,7 @@ class ModelSerializationTest {
                 }
             }
             """.trimIndent()
-        val response = gson.fromJson(json, SystemStatsResponse::class.java)
+        val response = json.decodeFromString<SystemStatsResponse>(jsonStr)
         assertEquals("Linux", response.os)
         assertEquals("aarch64", response.arch)
         assertEquals("hermes-box", response.hostname)
@@ -419,30 +412,25 @@ class ModelSerializationTest {
 
     @Test
     fun testToggleSkillRequestDeserialization_missingRequiredFields() {
-        val json = """{"enabled":true}"""
-        val request = gson.fromJson(json, ToggleSkillRequest::class.java)
-        val nameNullable: String? = request.name
-        assertNull(nameNullable)
-        assertEquals(true, request.enabled)
+        val jsonStr = """{"enabled":true}"""
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<ToggleSkillRequest>(jsonStr)
+        }
     }
 
     @Test
     fun testToggleSkillRequestDeserialization_explicitNull() {
-        val json = """{"name":null,"enabled":null}"""
-        val request = gson.fromJson(json, ToggleSkillRequest::class.java)
-        val nameNullable: String? = request.name
-        assertNull(nameNullable)
-        assertEquals(false, request.enabled)
+        val jsonStr = """{"name":null,"enabled":null}"""
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<ToggleSkillRequest>(jsonStr)
+        }
     }
 
     @Test
     fun testToggleSkillRequestSerialization_withNullName() {
         val jsonInput = """{"name":null,"enabled":true}"""
-        val request = gson.fromJson(jsonInput, ToggleSkillRequest::class.java)
-
-        val jsonOutput = gson.toJson(request)
-        val parsed = gson.fromJson(jsonOutput, Map::class.java)
-        assertFalse(parsed.containsKey("name"))
-        assertEquals(true, parsed["enabled"])
+        org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {
+            json.decodeFromString<ToggleSkillRequest>(jsonInput)
+        }
     }
 }

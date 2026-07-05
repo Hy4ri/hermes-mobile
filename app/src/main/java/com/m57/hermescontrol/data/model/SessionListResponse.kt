@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class SessionListResponse(
     val sessions: List<SessionInfo>,
     val total: Int = 0,
@@ -7,6 +9,7 @@ data class SessionListResponse(
     val offset: Int = 0,
 )
 
+@Serializable
 data class SessionInfo(
     val id: String,
     val title: String?,
@@ -18,24 +21,29 @@ data class SessionInfo(
     val source: String? = null,
 )
 
+@Serializable
 data class SessionStatsResponse(
     val total: Int = 0,
     val active: Int = 0,
 )
 
+@Serializable
 data class SessionRenameRequest(
     val title: String,
 )
 
+@Serializable
 data class BulkDeleteRequest(
     val ids: List<String>,
     val delete_all: Boolean = false,
 )
 
+@Serializable
 data class PruneRequest(
     val days: Int,
 )
 
+@Serializable
 data class SessionPromptResponse(
     val prompt: String? = null,
     val id: String? = null,

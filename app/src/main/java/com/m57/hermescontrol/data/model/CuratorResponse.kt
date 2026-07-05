@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class CuratorResponse(
     val enabled: Boolean? = null,
     val paused: Boolean? = null,

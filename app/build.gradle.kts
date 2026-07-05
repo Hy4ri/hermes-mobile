@@ -83,6 +83,7 @@ android {
         aidl = false
         buildConfig = true
         shaders = false
+        versionControlInfoEnabled = false
     }
 
     dependenciesInfo {

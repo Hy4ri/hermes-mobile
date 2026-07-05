@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.model
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class CreateCronJobRequest(
@@ -21,5 +22,5 @@ data class CreateCronJobRequest(
 
 @Serializable
 data class UpdateCronJobRequest(
-    val updates: Map<String, Any?>,
+    val updates: Map<String, JsonElement>,
 )

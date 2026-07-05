@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 data class CronJobsUiState(
     val isLoading: Boolean = false,
@@ -292,7 +295,7 @@ class CronJobsViewModel :
                         safeApiCall {
                             ApiClient.hermesApi.updateCronJob(
                                 editor.jobId ?: "",
-                                UpdateCronJobRequest(updates = updates),
+                                UpdateCronJobRequest(updates = updates.mapValues { it.value.toJsonElement() }),
                             )
                         }
                     }
@@ -336,8 +339,8 @@ class CronJobsViewModel :
     private fun extractScheduleString(job: CronJob): String {
         val s = job.schedule
         return when (s) {
-            is String -> s
-            is Map<*, *> -> (s["value"] as? String) ?: job.scheduleText
+            is JsonPrimitive -> s.content
+            is JsonObject -> (s["value"] as? JsonPrimitive)?.content ?: job.scheduleText
             else -> job.scheduleText
         }
     }

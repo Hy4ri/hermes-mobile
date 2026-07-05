@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -123,7 +125,7 @@ object HermesWsClient {
             .buffer(Channel.BUFFERED)
             .map { text ->
                 try {
-                    val rpc = OkHttpProvider.gson.fromJson(text, JsonRpcResponse::class.java)
+                    val rpc = OkHttpProvider.json.decodeFromString<JsonRpcResponse>(text)
                     EventParser.parse(rpc, text)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to parse message", e)
@@ -231,8 +233,8 @@ object HermesWsClient {
     ): String {
         val id = requestId.incrementAndGet().toString()
         onSent?.invoke(id)
-        val request = JsonRpcRequest(id = id, method = method, params = params)
-        val json = OkHttpProvider.gson.toJson(request)
+        val request = JsonRpcRequest(id = id, method = method, params = params.mapValues { it.value.toJsonElement() })
+        val json = OkHttpProvider.json.encodeToString(request)
         if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
         val ws = webSocket
         if (ws != null && connected.get()) {

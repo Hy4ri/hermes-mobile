@@ -1,17 +1,23 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
+@Serializable
 data class CronJobRepeat(
     val times: Int? = null,
     val completed: Int = 0,
 )
 
+@Serializable
 data class CronJob(
     val id: String,
     val name: String,
-    val schedule: Any?,
-    val state: String?,
-    val last_run_status: String?,
-    val next_run: String?,
+    val schedule: JsonElement? = null,
+    val state: String? = null,
+    val last_run_status: String? = null,
+    val next_run: String? = null,
     val schedule_display: String? = null,
     val last_status: String? = null,
     val next_run_at: String? = null,
@@ -36,8 +42,8 @@ data class CronJob(
     val scheduleText: String
         get() =
             when (schedule) {
-                is String -> schedule
-                is Map<*, *> -> (schedule["display"] as? String) ?: schedule_display ?: ""
+                is JsonPrimitive -> schedule.content
+                is JsonObject -> (schedule["display"] as? JsonPrimitive)?.content ?: schedule_display ?: ""
                 else -> schedule_display ?: ""
             }
 

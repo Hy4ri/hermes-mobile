@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.data.remote
 
-import com.google.gson.JsonElement
 import com.m57.hermescontrol.data.model.AchievementsResponse
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActionStatusResponse
@@ -91,6 +90,7 @@ import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
 import com.m57.hermescontrol.data.model.WebhooksResponse
 import com.m57.hermescontrol.data.model.WebhooksToggleRequest
+import kotlinx.serialization.json.JsonElement
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body

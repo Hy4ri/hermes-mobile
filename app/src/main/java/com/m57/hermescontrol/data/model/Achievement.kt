@@ -1,68 +1,73 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
-import com.google.gson.annotations.SerializedName
-
+@Serializable
 data class AchievementsResponse(
     val achievements: List<Achievement>? = emptyList(),
-    @SerializedName("unlocked_count") val unlockedCount: Int = 0,
-    @SerializedName("discovered_count") val discoveredCount: Int = 0,
-    @SerializedName("secret_count") val secretCount: Int = 0,
-    @SerializedName("total_count") val totalCount: Int = 0,
-    @SerializedName("is_stale") val isStale: Boolean = false,
-    @SerializedName("generated_at") val generatedAt: Long? = null,
-    @SerializedName("scan_meta") val scanMeta: ScanMeta? = null,
+    @SerialName("unlocked_count") val unlockedCount: Int = 0,
+    @SerialName("discovered_count") val discoveredCount: Int = 0,
+    @SerialName("secret_count") val secretCount: Int = 0,
+    @SerialName("total_count") val totalCount: Int = 0,
+    @SerialName("is_stale") val isStale: Boolean = false,
+    @SerialName("generated_at") val generatedAt: Long? = null,
+    @SerialName("scan_meta") val scanMeta: ScanMeta? = null,
     val error: String? = null,
 )
 
+@Serializable
 data class ScanMeta(
     val status: ScanStatus? = null,
 )
 
+@Serializable
 data class ScanStatus(
     val state: String = "idle",
-    @SerializedName("started_at") val startedAt: Long? = null,
-    @SerializedName("finished_at") val finishedAt: Long? = null,
-    @SerializedName("last_error") val lastError: String? = null,
-    @SerializedName("last_duration_ms") val lastDurationMs: Long? = null,
-    @SerializedName("run_count") val runCount: Int = 0,
+    @SerialName("started_at") val startedAt: Long? = null,
+    @SerialName("finished_at") val finishedAt: Long? = null,
+    @SerialName("last_error") val lastError: String? = null,
+    @SerialName("last_duration_ms") val lastDurationMs: Long? = null,
+    @SerialName("run_count") val runCount: Int = 0,
 )
 
+@Serializable
 data class RecentUnlock(
     val id: String,
     val name: String,
-    val description: String?,
-    val category: String?,
-    val kind: String?,
-    val icon: String?,
+    val description: String? = null,
+    val category: String? = null,
+    val kind: String? = null,
+    val icon: String? = null,
     val unlocked: Boolean,
     val discovered: Boolean,
-    val state: String?,
-    val tier: String?,
-    val progress: Double?,
-    @SerializedName("next_tier") val nextTier: String?,
-    @SerializedName("next_threshold") val nextThreshold: Double?,
-    @SerializedName("progress_pct") val progressPct: Double?,
-    @SerializedName("unlocked_at") val unlockedAt: Long?,
-    val secret: Boolean?,
-    val criteria: String?,
+    val state: String? = null,
+    val tier: String? = null,
+    val progress: Double? = null,
+    @SerialName("next_tier") val nextTier: String? = null,
+    @SerialName("next_threshold") val nextThreshold: Double? = null,
+    @SerialName("progress_pct") val progressPct: Double? = null,
+    @SerialName("unlocked_at") val unlockedAt: Long? = null,
+    val secret: Boolean? = null,
+    val criteria: String? = null,
 )
 
+@Serializable
 data class Achievement(
     val id: String,
     val name: String,
-    val description: String?,
-    val category: String?,
-    val kind: String?,
-    val icon: String?,
+    val description: String? = null,
+    val category: String? = null,
+    val kind: String? = null,
+    val icon: String? = null,
     val unlocked: Boolean,
     val discovered: Boolean,
-    val state: String?,
-    val tier: String?,
-    val progress: Double?,
-    @SerializedName("next_tier") val nextTier: String?,
-    @SerializedName("next_threshold") val nextThreshold: Double?,
-    @SerializedName("progress_pct") val progressPct: Double?,
-    @SerializedName("unlocked_at") val unlockedAt: Long?,
-    val secret: Boolean?,
-    val criteria: String?,
+    val state: String? = null,
+    val tier: String? = null,
+    val progress: Double? = null,
+    @SerialName("next_tier") val nextTier: String? = null,
+    @SerialName("next_threshold") val nextThreshold: Double? = null,
+    @SerialName("progress_pct") val progressPct: Double? = null,
+    @SerialName("unlocked_at") val unlockedAt: Long? = null,
+    val secret: Boolean? = null,
+    val criteria: String? = null,
 )

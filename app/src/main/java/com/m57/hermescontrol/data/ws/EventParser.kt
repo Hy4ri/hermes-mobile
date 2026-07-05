@@ -24,12 +24,13 @@ object EventParser {
             return if (response.error != null) {
                 WsEvent.RpcError(id, response.error)
             } else {
-                WsEvent.RpcResult(id, response.result)
+                WsEvent.RpcResult(id, response.result?.toAny())
             }
         }
 
         // ── Notification / event (no id, has method) ─────────────────────
-        val params = response.params ?: return WsEvent.Unknown(rawJson)
+        @Suppress("UNCHECKED_CAST")
+        val params = response.params?.toAny() as? Map<String, Any?> ?: return WsEvent.Unknown(rawJson)
         val eventType = params["type"] as? String ?: return WsEvent.Unknown(rawJson)
 
         @Suppress("UNCHECKED_CAST")

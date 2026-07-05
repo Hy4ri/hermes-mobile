@@ -1,22 +1,26 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
-import com.google.gson.JsonElement
-
+@Serializable
 data class RawConfigResponse(
-    val path: String?,
-    val yaml: String?,
+    val path: String? = null,
+    val yaml: String? = null,
 )
 
+@Serializable
 data class UpdateRawConfigRequest(
     val yaml_text: String,
     val profile: String? = null,
 )
 
+@Serializable
 data class ConfigSchemaResponse(
     val fields: Map<String, SchemaField>,
     val category_order: List<String>,
 )
 
+@Serializable
 data class SchemaField(
     val type: String,
     val description: String? = null,
@@ -24,6 +28,7 @@ data class SchemaField(
     val options: List<String>? = null,
 )
 
+@Serializable
 data class ConfigUpdateRequest(
     val config: Map<String, JsonElement>,
     val profile: String? = null,

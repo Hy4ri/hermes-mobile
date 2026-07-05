@@ -1,7 +1,8 @@
 package com.m57.hermescontrol.data.remote
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -42,6 +43,10 @@ object OkHttpProvider {
             .followRedirects(false)
             .build()
 
-    // Shared Gson — thread-safe, zero-config
-    val gson: Gson = GsonBuilder().create()
+    @OptIn(ExperimentalSerializationApi::class)
+    val json: Json =
+        Json {
+            ignoreUnknownKeys = true
+            namingStrategy = JsonNamingStrategy.SnakeCase
+        }
 }

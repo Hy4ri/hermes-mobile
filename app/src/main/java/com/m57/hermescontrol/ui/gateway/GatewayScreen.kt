@@ -267,7 +267,7 @@ fun GatewayScreen(
                                                         style = MaterialTheme.typography.bodyLarge,
                                                         fontWeight = FontWeight.Medium,
                                                     )
-                                                    val stateText = pStatus.state?.uppercase() ?: "UNKNOWN"
+                                                    val stateText = pStatus?.state?.uppercase() ?: "UNKNOWN"
                                                     val badgeColor =
                                                         when (stateText) {
                                                             "RUNNING" -> Color(0xFF4CAF50)

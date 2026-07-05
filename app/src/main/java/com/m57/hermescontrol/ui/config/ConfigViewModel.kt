@@ -2,8 +2,6 @@ package com.m57.hermescontrol.ui.config
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
@@ -19,6 +17,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 data class ConfigUiState(
     val isLoading: Boolean = false,
@@ -296,15 +296,14 @@ class ConfigViewModel :
         val topKey = parts.first()
         val rest = parts.drop(1).joinToString(".")
         val topValue = config[topKey]
-        val nestedJson = topValue?.asJsonObject ?: JsonObject()
+        val nestedJson = (topValue as? JsonObject) ?: JsonObject(emptyMap())
         val updatedNested =
             applyNestedValue(
-                nestedJson.entrySet().associate { it.key to it.value },
+                nestedJson,
                 rest,
                 value,
             )
-        val nestedObj = JsonObject()
-        updatedNested.forEach { (k, v) -> nestedObj.add(k, v) }
+        val nestedObj = JsonObject(updatedNested)
         val mutable = config.toMutableMap()
         mutable[topKey] = nestedObj
         return mutable
@@ -312,23 +311,38 @@ class ConfigViewModel :
 
     /** Build a nested JSON changeset from dot-path pending changes. */
     private fun buildChangeset(changes: Map<String, JsonElement>): Map<String, JsonElement> {
-        val root = JsonObject()
+        val root = mutableMapOf<String, Any>()
         for ((dotPath, value) in changes) {
             val parts = dotPath.split(".")
             var current = root
             for (i in 0 until parts.size - 1) {
                 val key = parts[i]
-                val existing = current.get(key)
-                if (existing == null || !existing.isJsonObject) {
-                    val newObj = JsonObject()
-                    current.add(key, newObj)
-                    current = newObj
+                val existing = current[key]
+                if (existing !is MutableMap<*, *>) {
+                    val newMap = mutableMapOf<String, Any>()
+                    current[key] = newMap
+                    current = newMap
                 } else {
-                    current = existing.asJsonObject
+                    @Suppress("UNCHECKED_CAST")
+                    current = existing as MutableMap<String, Any>
                 }
             }
-            current.add(parts.last(), value)
+            current[parts.last()] = value
         }
-        return root.entrySet().associate { it.key to it.value as JsonElement }
+
+        fun toJsonObject(map: Map<String, Any>): JsonObject {
+            val content =
+                map.mapValues { (_, v) ->
+                    if (v is Map<*, *>) {
+                        @Suppress("UNCHECKED_CAST")
+                        toJsonObject(v as Map<String, Any>)
+                    } else {
+                        v as JsonElement
+                    }
+                }
+            return JsonObject(content)
+        }
+
+        return toJsonObject(root)
     }
 }

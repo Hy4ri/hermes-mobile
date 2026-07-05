@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.theme.AssistantBubble
 import com.m57.hermescontrol.theme.AssistantBubbleLight
 import com.m57.hermescontrol.theme.StatusGreen
@@ -92,6 +93,14 @@ import com.m57.hermescontrol.theme.ToolChipColorLight
 import com.m57.hermescontrol.theme.UserBubble
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.int
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -537,9 +546,7 @@ fun parseToolOutput(
     val trimmed = content.trim()
     if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
     return try {
-        val element =
-            com.google.gson.JsonParser
-                .parseString(trimmed)
+        val element = OkHttpProvider.json.parseToJsonElement(trimmed)
         if (!element.isJsonObject) return null
         val obj = element.asJsonObject
 
@@ -2301,3 +2308,23 @@ private fun InlineAttachment(
         }
     }
 }
+
+// Extensions for backward compatibility with Gson API under kotlinx.serialization
+private val JsonElement.isJsonObject: Boolean get() = this is JsonObject
+private val JsonElement.asJsonObject: JsonObject get() = this as JsonObject
+private val JsonElement.isJsonArray: Boolean get() = this is JsonArray
+private val JsonElement.asJsonArray: JsonArray get() = this as JsonArray
+private val JsonElement.isJsonNull: Boolean get() = this is JsonNull
+private val JsonElement.isJsonPrimitive: Boolean get() = this is JsonPrimitive
+private val JsonElement.asString: String get() = (this as JsonPrimitive).content
+private val JsonElement.asDouble: Double get() = (this as JsonPrimitive).double
+private val JsonElement.asInt: Int get() = (this as JsonPrimitive).int
+private val JsonElement.asBoolean: Boolean get() = (this as JsonPrimitive).boolean
+
+private fun JsonElement.has(key: String): Boolean = (this as? JsonObject)?.containsKey(key) == true
+
+private fun JsonObject.entrySet(): Set<Map.Entry<String, JsonElement>> = entries
+
+private fun JsonObject.keySet(): Set<String> = keys
+
+private fun JsonArray.size(): Int = size

@@ -18,11 +18,7 @@
 -keep class com.m57.hermescontrol.ui.chat.MessageRole { *; }
 -keep class com.m57.hermescontrol.ui.chat.ToolStatus { *; }
 
-# Gson itself
--dontwarn com.google.gson.**
--keep class com.google.gson.** { *; }
-
-# Generic type signatures used by Gson
+# Generic type signatures used by serialization
 -keepattributes Signature
 -keepattributes *Annotation*
 -keepattributes EnclosingMethod

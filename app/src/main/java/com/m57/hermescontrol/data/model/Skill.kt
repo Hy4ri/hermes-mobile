@@ -1,11 +1,12 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
-import com.google.gson.annotations.SerializedName
-
+@Serializable
 data class Skill(
     val name: String,
-    val description: String?,
-    val category: String?,
+    val description: String? = null,
+    val category: String? = null,
     val enabled: Boolean,
     val content: String? = null,
     val source: String? = null, // built-in, hub, optional
@@ -13,40 +14,46 @@ data class Skill(
     val linked_files: List<String>? = null,
 )
 
+@Serializable
 data class HubSkill(
     val name: String,
-    val description: String?,
-    val source: String?,
+    val description: String? = null,
+    val source: String? = null,
     val category: String? = null,
     val identifier: String? = null,
-    @SerializedName("trust_level") val trustLevel: String? = null,
+    @SerialName("trust_level") val trustLevel: String? = null,
     val repo: String? = null,
     val tags: List<String>? = null,
 )
 
+@Serializable
 data class SkillHubSearchResponse(
     val results: List<HubSkill>,
-    @SerializedName("source_counts") val sourceCounts: Map<String, Int>? = null,
-    @SerializedName("timed_out") val timedOut: List<String>? = null,
+    @SerialName("source_counts") val sourceCounts: Map<String, Int>? = null,
+    @SerialName("timed_out") val timedOut: List<String>? = null,
     val installed: Map<String, SkillHubInstalledEntry>? = null,
 )
 
+@Serializable
 data class SkillHubInstalledEntry(
     val name: String? = null,
-    @SerializedName("trust_level") val trustLevel: String? = null,
-    @SerializedName("scan_verdict") val scanVerdict: String? = null,
+    @SerialName("trust_level") val trustLevel: String? = null,
+    @SerialName("scan_verdict") val scanVerdict: String? = null,
 )
 
+@Serializable
 data class SkillHubInstallRequest(
     val identifier: String,
     val profile: String? = null,
 )
 
+@Serializable
 data class SkillHubUninstallRequest(
     val name: String,
     val profile: String? = null,
 )
 
+@Serializable
 data class SkillScanResponse(
     val identifier: String,
     val passed: Boolean? = null,

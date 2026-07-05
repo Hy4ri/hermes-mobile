@@ -786,7 +786,7 @@ private fun LazyListScope.gatewaySection(
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.weight(1f),
                                     )
-                                    platform.state?.let { platformState ->
+                                    platform?.state?.let { platformState ->
                                         StatusBadge(
                                             text = platformState,
                                             status =

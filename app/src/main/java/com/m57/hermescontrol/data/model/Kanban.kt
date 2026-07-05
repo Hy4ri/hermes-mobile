@@ -1,37 +1,43 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
-import com.google.gson.annotations.SerializedName
-
+@Serializable
 data class KanbanBoard(
-    @SerializedName("slug") val id: String,
+    @SerialName("slug") val id: String,
     val name: String,
-    val description: String?,
+    val description: String? = null,
 )
 
+@Serializable
 data class KanbanTask(
     val id: String,
     val title: String,
-    @SerializedName("body") val description: String?,
+    @SerialName("body") val description: String? = null,
     val status: String,
-    @SerializedName("assignee") val assignedTo: String?,
+    @SerialName("assignee") val assignedTo: String? = null,
 )
 
+@Serializable
 data class CreateTaskBody(
     val title: String,
-    val body: String?,
+    val body: String? = null,
 )
 
+@Serializable
 data class KanbanColumn(
     val name: String,
     val tasks: List<KanbanTask>,
 )
 
+@Serializable
 data class KanbanBoardResponse(
     val columns: List<KanbanColumn>,
-    val assignees: List<String>?,
-    val tenants: List<String>?,
+    val assignees: List<String>? = null,
+    val tenants: List<String>? = null,
 )
 
+@Serializable
 data class KanbanBoardsResponse(
     val boards: List<KanbanBoard>,
     val current: String? = null,

@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class ActionResponse(
     val archive: String? = null,
     val name: String? = null,

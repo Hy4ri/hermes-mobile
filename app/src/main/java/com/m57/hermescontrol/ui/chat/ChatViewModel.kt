@@ -18,6 +18,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.toJsonElement
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.decodeFromJsonElement
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
@@ -845,7 +847,9 @@ class ChatViewModel(
                     val body = result.data
                     val platformsStr =
                         body.gateway_platforms?.entries?.joinToString("\n") { (k, v) ->
-                            "  • **$k**: ${v.state ?: "Unknown"}${if (v.error_code != null) " (Error: ${v.error_code})" else ""}"
+                            val status = v?.state ?: "Unknown"
+                            val err = v?.error_code?.let { " (Error: $it)" } ?: ""
+                            "  • **$k**: $status$err"
                         } ?: "No active platforms"
                     addAssistantMessage(
                         """
@@ -983,13 +987,15 @@ class ChatViewModel(
 
     fun refreshCurrentSession() {
         val sessionId = _uiState.value.currentSessionId ?: return
-        loadCachedMessages(sessionId)
-        // Skip the REST call if we already have messages — the WebSocket keeps
-        // the UI current. The REST endpoint can 404 on tab switch-back when the
-        // WS session ID doesn't round-trip through the resolver (issue #366),
-        // showing a misleading error banner while the connection is fine.
-        if (_uiState.value.messages.isNotEmpty()) return
-        loadSessionMessages(sessionId)
+        viewModelScope.launch {
+            loadCachedMessages(sessionId).join()
+            // Skip the REST call if we already have messages — the WebSocket keeps
+            // the UI current. The REST endpoint can 404 on tab switch-back when the
+            // WS session ID doesn't round-trip through the resolver (issue #366),
+            // showing a misleading error banner while the connection is fine.
+            if (_uiState.value.messages.isNotEmpty()) return@launch
+            loadSessionMessages(sessionId)
+        }
     }
 
     fun refreshSettings() {
@@ -1004,8 +1010,8 @@ class ChatViewModel(
     @Suppress("UNCHECKED_CAST")
     private fun parseCommandCatalog(map: Map<*, *>): CommandCatalog? =
         try {
-            val json = OkHttpProvider.gson.toJson(map)
-            OkHttpProvider.gson.fromJson(json, CommandCatalog::class.java)
+            val jsonElement = map.toJsonElement()
+            OkHttpProvider.json.decodeFromJsonElement<CommandCatalog>(jsonElement)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse command catalog", e)
             null
@@ -1030,23 +1036,25 @@ class ChatViewModel(
             )
         }
         _streamingState.update { StreamingState() }
-        // Step 1: Load cached messages first — instant display
-        loadCachedMessages(sessionId)
-        // Step 2: Resume session on server
-        viewModelScope.launch(Dispatchers.IO) {
-            wsClient.send(
-                WsMethods.SESSION_RESUME,
-                mapOf("session_id" to sessionId),
-                onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
-            )
+        viewModelScope.launch {
+            // Step 1: Load cached messages first — instant display
+            loadCachedMessages(sessionId).join()
+            // Step 2: Resume session on server
+            launch(Dispatchers.IO) {
+                wsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to sessionId),
+                    onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                )
+            }
+            // Step 3: Load fresh messages from REST and merge
+            loadSessionMessages(sessionId)
+            // Step 4: Refresh session list to get latest titles
+            loadSessions()
         }
-        // Step 3: Load fresh messages from REST and merge
-        loadSessionMessages(sessionId)
-        // Step 4: Refresh session list to get latest titles
-        loadSessions()
     }
 
-    private fun loadCachedMessages(sessionId: String) {
+    private fun loadCachedMessages(sessionId: String): Job =
         viewModelScope.launch(Dispatchers.IO) {
             val cachedMessages = repo.loadMessages(sessionId)
             _uiState.update { state ->
@@ -1058,7 +1066,6 @@ class ChatViewModel(
                 }
             }
         }
-    }
 
     private fun loadSessionMessages(sessionId: String) {
         viewModelScope.launch {
@@ -1082,7 +1089,7 @@ class ChatViewModel(
                             // Room duplicates when re-loading the same session.
                             val stableId = "rest-$sessionId-$index"
                             // Preserve original timestamp from the API when available
-                            val ts = msg.timestamp?.toLongOrNull() ?: System.currentTimeMillis()
+                            val ts = msg.timestampText?.toLongOrNull() ?: System.currentTimeMillis()
                             ChatMessage(
                                 id = stableId,
                                 role = role,

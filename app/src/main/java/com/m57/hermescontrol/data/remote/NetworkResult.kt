@@ -1,7 +1,8 @@
 package com.m57.hermescontrol.data.remote
 
-import com.google.gson.JsonParser
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.Response
 import java.io.IOException
 
@@ -49,11 +50,8 @@ fun mapHttpError(
     val detail =
         if (errorBody != null) {
             try {
-                val parsed =
-                    com.google.gson.JsonParser
-                        .parseString(errorBody)
-                        .asJsonObject
-                parsed.get("detail")?.asString
+                val parsed = OkHttpProvider.json.parseToJsonElement(errorBody).jsonObject
+                parsed["detail"]?.jsonPrimitive?.content
             } catch (_: Exception) {
                 null
             }

@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
+import com.m57.hermescontrol.data.ws.toJsonElement
+import kotlinx.serialization.encodeToString
 
 /**
  * Pure state reducer for WebSocket events.
@@ -225,7 +227,7 @@ object ChatWsEventReducer {
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                OkHttpProvider.gson.toJson(it)
+                OkHttpProvider.json.encodeToString(it.toJsonElement())
             } ?: ""
         val toolMessage =
             ChatMessage(
@@ -271,7 +273,7 @@ object ChatWsEventReducer {
     ): ReducerResult {
         val contentJson =
             event.data?.let {
-                OkHttpProvider.gson.toJson(it)
+                OkHttpProvider.json.encodeToString(it.toJsonElement())
             } ?: ""
         val messages = state.messages.toMutableList()
         val toolIdx =

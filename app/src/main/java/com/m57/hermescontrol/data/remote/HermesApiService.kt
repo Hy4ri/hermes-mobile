@@ -126,7 +126,7 @@ interface HermesApiService {
 
     @GET("api/sessions/{id}/messages")
     suspend fun getSessionMessages(
-        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
     ): Response<SessionMessagesResponse>
@@ -136,7 +136,7 @@ interface HermesApiService {
 
     @PUT("api/sessions/{id}/rename")
     suspend fun renameSession(
-        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
         @Body body: SessionRenameRequest,
@@ -149,7 +149,7 @@ interface HermesApiService {
 
     @DELETE("api/sessions/{id}")
     suspend fun deleteSession(
-        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
     ): Response<Unit>
@@ -161,7 +161,7 @@ interface HermesApiService {
 
     @GET("api/sessions/{id}/prompt")
     suspend fun getSessionPrompt(
-        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
     ): Response<SessionPromptResponse>

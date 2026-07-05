@@ -91,7 +91,6 @@ android {
 
     packaging {
         resources {
-            excludes += "META-INF/version-control-info.textproto"
             pickFirsts += "META-INF/AL2.0"
             pickFirsts += "META-INF/LGPL2.1"
             pickFirsts += "META-INF/LICENSE"
@@ -103,11 +102,14 @@ android {
     }
 }
 
-// Make version control info empty for byte-for-byte reproducible builds
-// (F-Droid CI uses detached HEAD, GitHub CI uses main branch — causes diff)
+// Overwrite version-control-info with empty content for reproducible builds
+// F-Droid CI uses detached HEAD (branches: []) while GitHub CI uses main
+// (branches: ["main"]) — this field in the generated textproto causes a
+// byte-level APK difference. Emptying the file makes both CI environments
+// produce identical artifacts.
 tasks.matching { it.name.endsWith("VersionControlInfo") }.configureEach {
     doLast {
-        outputs.files.singleFile.writeText("")
+        outputs.files.filter { it.exists() }.forEach { it.writeText("") }
     }
 }
 

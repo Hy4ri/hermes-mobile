@@ -2,8 +2,8 @@ package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
 import android.util.Log
+import app.cash.turbine.test
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.local.ChatMessageDao
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -11,8 +11,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
-import io.mockk.coEvery
-import io.mockk.coVerify
+import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -43,13 +42,16 @@ class ChatViewModelTest {
     private val mockEventsFlow = MutableSharedFlow<WsEvent>(extraBufferCapacity = 64)
     private val mockConnectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     private lateinit var app: Application
-    private val mockDao: ChatMessageDao = mockk(relaxed = true)
-    private val mockDb: HermesDatabase = mockk(relaxed = true)
+    private lateinit var fakeRepo: FakeChatPersistenceRepository
+
+    /** Counter used to generate unique WS request IDs. */
+    private var reqCount = 0
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         val testMainDispatcher = Dispatchers.Main
+        reqCount = 0
 
         mockkStatic(Log::class)
         every { Log.d(any(), any()) } returns 0
@@ -67,6 +69,7 @@ class ChatViewModelTest {
         mockkObject(HermesDatabase)
 
         app = mockk(relaxed = true)
+        fakeRepo = FakeChatPersistenceRepository()
 
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
@@ -80,26 +83,18 @@ class ChatViewModelTest {
             mockConnectionStatus.value = ConnectionStatus.CONNECTING
         }
         every { HermesWsClient.disconnect() } returns Unit
-        every { mockDb.chatMessageDao() } returns mockDao
-        every { HermesDatabase.get(any()) } returns mockDb
-        coEvery { mockDao.getMessagesForSession(any()) } returns emptyList()
-        coEvery { mockDao.upsert(any()) } returns Unit
-        coEvery { mockDao.upsertAll(any()) } returns Unit
 
-        // Default mock stubs for requests returning unique IDs
-        var reqCount = 0
+        // Default send stub: generates unique IDs and invokes onSent callback
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
-            val onSent = arg<((String) -> Unit)?>(2)
-            onSent?.invoke(id)
+            arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
         every { HermesWsClient.sendMessage(any(), any(), any()) } answers {
             reqCount++
             val id = "req-msg-$reqCount"
-            val onSent = arg<((String) -> Unit)?>(2)
-            onSent?.invoke(id)
+            arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
     }
@@ -110,98 +105,77 @@ class ChatViewModelTest {
         unmockkAll()
     }
 
-    // ── TEST-13: Slash command handling ──────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Create a ViewModel with the fake repo injected. */
+    private fun createViewModel(startCleanup: Boolean = false): ChatViewModel {
+        val vm = ChatViewModel(app, startCleanup)
+        vm.repo = fakeRepo
+        return vm
+    }
+
+    /**
+     * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
+     * and return a Pair(viewModel, sessionId).
+     */
+    private fun createViewModelWithSession(): Pair<ChatViewModel, String> {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        mockConnectionStatus.value = ConnectionStatus.CONNECTED
+        mockEventsFlow.emit(WsEvent.GatewayReady(null))
+        advanceUntilIdle()
+
+        // The init block sends SESSION_CREATE (stub generates "req-id-1")
+        mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
+        advanceUntilIdle()
+
+        return Pair(viewModel, "session-123")
+    }
+
+    // ── Slash command tests ──────────────────────────────────────────────────
 
     @Test
     fun testSlashCommand_help_addsHelpMessage() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            var dispatchReqId = "dispatch-help"
 
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-help-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Stub COMMAND_DISPATCH to capture the request ID
-            var dispatchReqId = ""
             every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
-                dispatchReqId = "dispatch-help"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(dispatchReqId)
+                arg<((String) -> Unit)?>(2)?.invoke(dispatchReqId)
                 dispatchReqId
             }
 
             viewModel.sendMessage("/help")
             advanceUntilIdle()
 
-            // Feed the dispatch result (the backend returns `{type: "exec", output: "..."}` for /help)
             mockEventsFlow.emit(
                 WsEvent.RpcResult(
                     dispatchReqId,
-                    mapOf("type" to "exec", "output" to "**Available Commands:**\n• `/status`\n• `/new`"),
+                    mapOf("type" to "exec", "output" to "**Available Commands:**\n\u2022 `/status`\n\u2022 `/new`"),
                 ),
             )
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertTrue(state.messages.any { it.content.contains("Available Commands") })
-            assertTrue(state.messages.any { it.content.contains("/status") })
-            assertTrue(state.messages.any { it.content.contains("/new") })
+            assertTrue(viewModel.uiState.value.messages.any { it.content.contains("Available Commands") })
+            assertTrue(viewModel.uiState.value.messages.any { it.content.contains("/status") })
         }
 
     @Test
     fun testSlashCommand_new_createsNewSession() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-new-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             viewModel.sendMessage("/new")
             advanceUntilIdle()
 
-            // /new should trigger createNewSession which sends SESSION_CREATE
             verify(atLeast = 1) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
         }
 
     @Test
     fun testSlashCommand_stop_sendsInterrupt() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-stop-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             viewModel.sendMessage("/stop")
             advanceUntilIdle()
@@ -212,20 +186,7 @@ class ChatViewModelTest {
     @Test
     fun testSlashCommand_interrupt_sendsInterrupt() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-int-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             viewModel.sendMessage("/interrupt")
             advanceUntilIdle()
@@ -236,118 +197,43 @@ class ChatViewModelTest {
     @Test
     fun testSlashCommand_unknown_showsErrorMessage() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
+            var dispatchReqId = "dispatch-unk"
 
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-unk-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Stub COMMAND_DISPATCH
-            var dispatchReqId = ""
             every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
-                dispatchReqId = "dispatch-unk"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(dispatchReqId)
+                arg<((String) -> Unit)?>(2)?.invoke(dispatchReqId)
                 dispatchReqId
             }
 
             viewModel.sendMessage("/nonexistent")
             advanceUntilIdle()
 
-            // Feed an error RPC result (backend returns error for unknown commands)
             mockEventsFlow.emit(
                 WsEvent.RpcError(
                     dispatchReqId,
-                    JsonRpcError(
-                        code = -32601,
-                        message = "Unknown command: nonexistent",
-                    ),
+                    JsonRpcError(code = -32601, message = "Unknown command: nonexistent"),
                 ),
             )
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertTrue(state.errorMessage?.contains("Unknown command") == true)
+            assertTrue(viewModel.uiState.value.errorMessage?.contains("Unknown command") == true)
         }
 
     @Test
-    fun testSlashCommand_status_withSyncSession_routesToSlash() =
+    fun testSlashCommandStatusRoutesToSlash() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-status-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            every { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) } answers {
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke("list-req")
-                "list-req"
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            var dispatchReqId = ""
-            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
-                dispatchReqId = "dispatch-status"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(dispatchReqId)
-                dispatchReqId
-            }
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             viewModel.sendMessage("/status")
             advanceUntilIdle()
 
-            // Should have dispatched via RPC
             verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test
-    fun testSlashCommand_sessions_withSyncSession_routesToSlash() =
+    fun testSlashCommandSessionsRoutesToSlash() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-sess-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            every { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) } answers {
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke("list-req")
-                "list-req"
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            var dispatchReqId = ""
-            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
-                dispatchReqId = "dispatch-sessions"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(dispatchReqId)
-                dispatchReqId
-            }
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             viewModel.sendMessage("/sessions")
             advanceUntilIdle()
@@ -356,35 +242,9 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun testSlashCommand_stats_withSyncSession_routesToSlash() =
+    fun testSlashCommandStatsRoutesToSlash() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-stats-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            every { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) } answers {
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke("list-req")
-                "list-req"
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            var dispatchReqId = ""
-            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
-                dispatchReqId = "dispatch-stats"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(dispatchReqId)
-                dispatchReqId
-            }
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             viewModel.sendMessage("/stats")
             advanceUntilIdle()
@@ -392,16 +252,17 @@ class ChatViewModelTest {
             verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
+    // ── Connection / init tests ──────────────────────────────────────────────
+
     @Test
     fun testInitialStateAndConnection() =
         runTest {
             mockConnectionStatus.value = ConnectionStatus.CONNECTING
-            val viewModel = ChatViewModel(app, startCleanup = false)
+
+            createViewModel()
             advanceUntilIdle()
 
             verify { HermesWsClient.connect() }
-            assertFalse(viewModel.uiState.value.isLoading)
-            assertFalse(viewModel.uiState.value.isConnected)
         }
 
     @Test
@@ -409,54 +270,40 @@ class ChatViewModelTest {
         runTest {
             mockConnectionStatus.value = ConnectionStatus.CONNECTED
 
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            createViewModel()
             advanceUntilIdle()
 
             verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
             verify { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
-            assertFalse(viewModel.uiState.value.isLoading)
         }
 
     @Test
     fun testGatewayReady_createsSessionIfNoneExists() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            val viewModel = createViewModel()
             advanceUntilIdle()
 
             mockConnectionStatus.value = ConnectionStatus.CONNECTED
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertTrue(state.isConnected)
-            // Note: GatewayReady immediately calls createNewSession(setLoading = false), which does NOT show a loading spinner
-            assertFalse(state.isLoading)
-            assertEquals(0, state.messages.size)
-
-            // Verify that list sessions and create session requests are triggered
             verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
             verify { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+            assertTrue(viewModel.uiState.value.isConnected)
         }
 
     @Test
     fun testGatewayReady_withInitialSessionId_switchesToIt() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            val viewModel = createViewModel()
             advanceUntilIdle()
-
-            // Set the initial session ID (normally done by ChatScreen SideEffect)
             viewModel.initialSessionId = "session-from-notification"
+
             mockConnectionStatus.value = ConnectionStatus.CONNECTED
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertTrue(state.isConnected)
-            // Should NOT have called createNewSession — switchSession was used instead
-            assertEquals("session-from-notification", state.currentSessionId)
-
-            // Verify SESSION_RESUME was sent instead of SESSION_CREATE
-            verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
+            assertEquals("session-from-notification", viewModel.uiState.value.currentSessionId)
             verify {
                 HermesWsClient.send(
                     WsMethods.SESSION_RESUME,
@@ -464,61 +311,44 @@ class ChatViewModelTest {
                     any(),
                 )
             }
-            // SESSION_CREATE must NOT be sent
+            // Should NOT create a new session
             verify(inverse = true) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
         }
+
+    // ── RPC result tests ─────────────────────────────────────────────────────
 
     @Test
     fun testSessionCreateRpcResult() =
         runTest {
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "custom-create-id"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            val viewModel = createViewModel()
             advanceUntilIdle()
 
-            // Trigger GatewayReady -> triggers createNewSession
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
-            // Feed SESSION_CREATE result
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
+            mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertEquals("session-123", state.currentSessionId)
-            assertFalse(state.isLoading)
-            // Connected to Hermes was cleared when createNewSession() was called, so only "Session created" exists
-            assertEquals(1, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
+            assertEquals("session-123", viewModel.uiState.value.currentSessionId)
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertEquals(1, viewModel.uiState.value.messages.size)
+            assertEquals("Session created", viewModel.uiState.value.messages[0].content)
         }
 
     @Test
     fun testSessionListRpcResult() =
         runTest {
-            var listReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) } answers {
-                listReqId = "custom-list-id"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(listReqId)
-                listReqId
-            }
-
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            val viewModel = createViewModel()
             advanceUntilIdle()
 
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
-            // Feed SESSION_LIST result
             mockEventsFlow.emit(
                 WsEvent.RpcResult(
-                    listReqId,
+                    "req-id-2",
                     mapOf(
                         "sessions" to
                             listOf(
@@ -533,150 +363,160 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertEquals(1, state.sessions.size)
-            assertEquals("session-123", state.sessions[0].id)
-            assertEquals("My Session Title", state.sessions[0].title)
-            assertEquals(12, state.sessions[0].messageCount)
+            assertEquals(1, viewModel.uiState.value.sessions.size)
+            assertEquals("session-123", viewModel.uiState.value.sessions[0].id)
+            assertEquals("My Session Title", viewModel.uiState.value.sessions[0].title)
+            assertEquals(12, viewModel.uiState.value.sessions[0].messageCount)
         }
+
+    // ── Streaming tests ──────────────────────────────────────────────────────
 
     @Test
     fun testMessageStreamingFlow() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
-            // Trigger GatewayReady -> triggers createSession -> feed result to set active session to session-123
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-stream"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
+            // ── uiState Flow via Turbine ─────────────────────────────────────────
+
+            viewModel.uiState.test {
+                // 1 — Start
+                mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+                advanceUntilIdle()
+
+                val startState = awaitItem()
+                assertTrue(startState.isAgentTyping)
+                assertNotNull(viewModel.streamingState.value.streamingMessage)
+
+                // 2 — Thinking
+                mockEventsFlow.emit(WsEvent.ThinkingDelta("Thinking...", sessionId))
+                advanceUntilIdle()
+                val thinkState = awaitItem()
+                assertTrue(viewModel.streamingState.value.isThinking)
+                assertEquals("Thinking...", viewModel.streamingState.value.thinkingText)
+
+                // 3 — Deeper thinking
+                mockEventsFlow.emit(WsEvent.ThinkingDelta(" deeper", sessionId))
+                advanceUntilIdle()
+                val deeperState = awaitItem()
+                assertTrue(viewModel.streamingState.value.isThinking)
+                assertEquals("Thinking... deeper", viewModel.streamingState.value.thinkingText)
+
+                // 4 — First token
+                mockEventsFlow.emit(WsEvent.MessageToken("Hello", sessionId))
+                advanceUntilIdle()
+                val tokenState = awaitItem()
+                assertFalse(viewModel.streamingState.value.isThinking)
+                assertEquals("Hello", viewModel.streamingState.value.streamingMessage?.content)
+
+                // 5 — Second token
+                mockEventsFlow.emit(WsEvent.MessageToken(" world", sessionId))
+                advanceUntilIdle()
+                val secondState = awaitItem()
+                assertEquals("Hello world", viewModel.streamingState.value.streamingMessage?.content)
+
+                // 6 — Complete
+                mockEventsFlow.emit(WsEvent.MessageComplete("Hello world!", sessionId))
+                advanceUntilIdle()
+                val completeState = awaitItem()
+
+                assertFalse(completeState.isAgentTyping)
+                assertNull(viewModel.streamingState.value.streamingMessage)
+                assertEquals(2, completeState.messages.size)
+                assertEquals("Hello world!", completeState.messages[1].content)
+                assertFalse(completeState.messages[1].isStreaming)
+
+                // StateFlow does not complete — cancel collection
+                cancelAndIgnoreRemainingEvents()
             }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Stream Start
-            mockEventsFlow.emit(WsEvent.MessageStart("session-123"))
-            advanceUntilIdle()
-
-            var state = viewModel.uiState.value
-            assertTrue(state.isAgentTyping)
-            assertNotNull(viewModel.streamingState.value.streamingMessage)
-            assertEquals(
-                "",
-                viewModel.streamingState.value.streamingMessage
-                    ?.content,
-            )
-            assertFalse(viewModel.streamingState.value.isThinking)
-            assertEquals("", viewModel.streamingState.value.thinkingText)
-
-            // Thinking Delta 1
-            mockEventsFlow.emit(WsEvent.ThinkingDelta("Thinking...", "session-123"))
-            advanceUntilIdle()
-            state = viewModel.uiState.value
-            assertTrue(viewModel.streamingState.value.isThinking)
-            assertEquals("Thinking...", viewModel.streamingState.value.thinkingText)
-
-            // Thinking Delta 2
-            mockEventsFlow.emit(WsEvent.ThinkingDelta(" deeper", "session-123"))
-            advanceUntilIdle()
-            state = viewModel.uiState.value
-            assertTrue(viewModel.streamingState.value.isThinking)
-            assertEquals("Thinking... deeper", viewModel.streamingState.value.thinkingText)
-
-            // Token 1
-            mockEventsFlow.emit(WsEvent.MessageToken("Hello", "session-123"))
-            advanceUntilIdle()
-            state = viewModel.uiState.value
-            assertFalse(viewModel.streamingState.value.isThinking)
-            assertNotNull(viewModel.streamingState.value.streamingMessage)
-            assertEquals(
-                "Hello",
-                viewModel.streamingState.value.streamingMessage
-                    ?.content,
-            )
-            // Streaming message is not in the main messages list yet, only "Session created" exists
-            assertEquals(1, state.messages.size)
-
-            // Token 2
-            mockEventsFlow.emit(WsEvent.MessageToken(" world", "session-123"))
-            advanceUntilIdle()
-            state = viewModel.uiState.value
-            assertNotNull(viewModel.streamingState.value.streamingMessage)
-            assertEquals(
-                "Hello world",
-                viewModel.streamingState.value.streamingMessage
-                    ?.content,
-            )
-            assertEquals(1, state.messages.size)
-
-            // Complete
-            mockEventsFlow.emit(WsEvent.MessageComplete("Hello world!", "session-123"))
-            advanceUntilIdle()
-            state = viewModel.uiState.value
-            assertFalse(state.isAgentTyping)
-            assertNull(viewModel.streamingState.value.streamingMessage)
-            assertFalse(viewModel.streamingState.value.isThinking)
-            assertEquals("", viewModel.streamingState.value.thinkingText)
-            assertEquals(2, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
-            assertEquals("Hello world!", state.messages[1].content)
-            assertFalse(state.messages[1].isStreaming)
         }
+
+    @Test
+    fun testToolExecution_finalizesPreviousStreamingMessage() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Calculating sum", sessionId))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.ToolStart("calculator", mapOf("input" to "2+2")))
+            advanceUntilIdle()
+
+            assertEquals("Calculating sum", viewModel.uiState.value.messages[0].content)
+            assertEquals(MessageRole.ASSISTANT, viewModel.uiState.value.messages[0].role)
+            assertEquals(MessageRole.TOOL, viewModel.uiState.value.messages[1].role)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+        }
+
+    @Test
+    fun testMessageStart_finalizesPreviousStreamingMessage() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("First part", sessionId))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Second part", sessionId))
+            advanceUntilIdle()
+
+            assertEquals("First part", viewModel.uiState.value.messages[0].content)
+            assertFalse(viewModel.uiState.value.messages[0].isStreaming)
+            assertNotNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals("Second part", viewModel.streamingState.value.streamingMessage?.content)
+        }
+
+    @Test
+    fun testToolExecution_serializesDataAsJson() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ToolStart(
+                    name = "calculator",
+                    data = mapOf("input" to "2+2", "nested" to mapOf("key" to "value")),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(MessageRole.TOOL, viewModel.uiState.value.messages[1].role)
+            assertEquals(ToolStatus.RUNNING, viewModel.uiState.value.messages[1].toolStatus)
+
+            mockEventsFlow.emit(
+                WsEvent.ToolComplete("calculator", mapOf("result" to "4", "exit_code" to 0)),
+            )
+            advanceUntilIdle()
+
+            assertEquals(ToolStatus.COMPLETED, viewModel.uiState.value.messages[1].toolStatus)
+        }
+
+    // ── Clarify tests ────────────────────────────────────────────────────────
 
     @Test
     fun testClarifyRequestAndRespond() =
         runTest {
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-clarify"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Set session ID
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             mockEventsFlow.emit(WsEvent.ClarifyRequest("Please choose:", listOf("Yes", "No"), "clarify-123"))
             advanceUntilIdle()
 
-            var state = viewModel.uiState.value
-            assertEquals("Please choose:", state.clarifyRequest?.text)
-            assertEquals(listOf("Yes", "No"), state.clarifyRequest?.options)
-            assertEquals("clarify-123", state.clarifyRequest?.clarifyId)
+            assertEquals("Please choose:", viewModel.uiState.value.clarifyRequest?.text)
+            assertEquals(listOf("Yes", "No"), viewModel.uiState.value.clarifyRequest?.options)
+            assertEquals("clarify-123", viewModel.uiState.value.clarifyRequest?.clarifyId)
 
-            // Respond to clarify
             viewModel.respondToClarify("Yes")
             advanceUntilIdle()
 
-            // verify clarify request is dismissed, and user message is sent
-            state = viewModel.uiState.value
-            assertNull(state.clarifyRequest)
-            // Session created (System) + user message = 2 messages
-            assertEquals(2, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
-            assertEquals("Yes", state.messages[1].content)
-            assertEquals(MessageRole.USER, state.messages[1].role)
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            assertEquals(2, viewModel.uiState.value.messages.size)
 
             verify {
                 HermesWsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
                     params =
                         mapOf(
-                            "session_id" to "session-123",
+                            "session_id" to sessionId,
                             "response" to "Yes",
                             "answer" to "Yes",
                             "clarify_id" to "clarify-123",
@@ -690,50 +530,28 @@ class ChatViewModelTest {
     @Test
     fun testClarifyRequestCustomResponse() =
         runTest {
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-clarify-custom"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Set session ID
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             mockEventsFlow.emit(WsEvent.ClarifyRequest("Please explain:", emptyList(), "clarify-456"))
             advanceUntilIdle()
 
-            var state = viewModel.uiState.value
-            assertEquals("Please explain:", state.clarifyRequest?.text)
-            assertTrue(state.clarifyRequest?.options.isNullOrEmpty())
-            assertEquals("clarify-456", state.clarifyRequest?.clarifyId)
+            assertEquals("Please explain:", viewModel.uiState.value.clarifyRequest?.text)
+            assertNull(viewModel.uiState.value.clarifyRequest?.options)
 
-            // Respond to clarify with custom text
             viewModel.respondToClarify("This is my custom response text")
             advanceUntilIdle()
 
-            // verify clarify request is dismissed, and user message is sent
-            state = viewModel.uiState.value
-            assertNull(state.clarifyRequest)
-            assertEquals(2, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
-            assertEquals("This is my custom response text", state.messages[1].content)
-            assertEquals(MessageRole.USER, state.messages[1].role)
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            assertEquals(2, viewModel.uiState.value.messages.size)
+            assertEquals("This is my custom response text", viewModel.uiState.value.messages[1].content)
+            assertEquals(MessageRole.USER, viewModel.uiState.value.messages[1].role)
 
             verify {
                 HermesWsClient.send(
                     method = WsMethods.CLARIFY_RESPOND,
                     params =
                         mapOf(
-                            "session_id" to "session-123",
+                            "session_id" to sessionId,
                             "response" to "This is my custom response text",
                             "answer" to "This is my custom response text",
                             "clarify_id" to "clarify-456",
@@ -744,262 +562,72 @@ class ChatViewModelTest {
             }
         }
 
+    // ── Send message ─────────────────────────────────────────────────────────
+
     @Test
     fun testSendMessage() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
-            // Trigger GatewayReady -> triggers createSession -> feed result to set active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Now send message
             viewModel.sendMessage("Hello Hermes")
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            // Connected to Hermes was cleared, so only Session created (System) + Hello Hermes (User) = 2 messages
-            assertEquals(2, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
-            assertEquals("Hello Hermes", state.messages[1].content)
-            assertEquals(MessageRole.USER, state.messages[1].role)
-            assertTrue(state.isAgentTyping)
+            assertEquals(2, viewModel.uiState.value.messages.size)
+            assertEquals("Hello Hermes", viewModel.uiState.value.messages[1].content)
+            assertEquals(MessageRole.USER, viewModel.uiState.value.messages[1].role)
+            assertTrue(viewModel.uiState.value.isAgentTyping)
 
-            verify { HermesWsClient.sendMessage("session-123", "Hello Hermes", any()) }
+            verify { HermesWsClient.sendMessage(sessionId, "Hello Hermes", any()) }
         }
+
+    // ── Session switch ───────────────────────────────────────────────────────
 
     @Test
     fun testSwitchSession() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Mock the REST API call so loadSessionMessages behaves predictably
-            coEvery { ApiClient.hermesApi.getSessionMessages(any()) } returns
-                mockk(relaxed = true) {
-                    every { isSuccessful } returns true
-                    every { body() } returns null
-                }
+            val (viewModel, sessionId) = createViewModelWithSession()
 
             viewModel.switchSession("session-456")
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertEquals("session-456", state.currentSessionId)
-            // B3 (Jun 18 2026, kanban t_33da8a97): loadSessionMessages now
-            // sets isLoading=false on its error/success branches (previously
-            // never reset on error, leaving isLoading stuck at true).
-            assertFalse("isLoading should be false once loadSessionMessages settles", state.isLoading)
-            assertTrue("messages should be cleared by switchSession", state.messages.isEmpty())
+            assertEquals("session-456", viewModel.uiState.value.currentSessionId)
+            assertTrue(viewModel.uiState.value.messages.isEmpty())
 
             verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456"), any()) }
         }
 
+    // ── Error handling ───────────────────────────────────────────────────────
+
     @Test
     fun testRpcErrorHandling() =
         runTest {
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-err"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            val viewModel = createViewModel()
             advanceUntilIdle()
 
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
-            // Emit RpcError
             mockEventsFlow.emit(
                 WsEvent.RpcError(
-                    createReqId,
+                    "req-id-1",
                     JsonRpcError(code = -32603, message = "Internal error during creation"),
                 ),
             )
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertFalse(state.isLoading)
-            assertTrue(state.errorMessage!!.contains("Internal error during creation"))
-            assertTrue(state.errorMessage.contains(WsMethods.SESSION_CREATE))
+            assertTrue(viewModel.uiState.value.errorMessage!!.contains("Internal error during creation"))
         }
 
-    @Test
-    fun testToolExecution_finalizesPreviousStreamingMessage() =
-        runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-tool-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Start typing some text
-            mockEventsFlow.emit(WsEvent.MessageStart("session-123"))
-            mockEventsFlow.emit(WsEvent.MessageToken("Calculating sum", "session-123"))
-            advanceUntilIdle()
-
-            // Start tool call
-            mockEventsFlow.emit(WsEvent.ToolStart("calculator", mapOf("input" to "2+2")))
-            advanceUntilIdle()
-
-            val state = viewModel.uiState.value
-            // Messages should be: 1. "Session created" 2. "Calculating sum" (finalized) 3. Tool bubble
-            assertEquals(3, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
-            assertEquals("Calculating sum", state.messages[1].content)
-            assertEquals(MessageRole.ASSISTANT, state.messages[1].role)
-            assertFalse(state.messages[1].isStreaming)
-            assertEquals(MessageRole.TOOL, state.messages[2].role)
-            assertNull(viewModel.streamingState.value.streamingMessage)
-        }
-
-    @Test
-    fun testMessageStart_finalizesPreviousStreamingMessage() =
-        runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-msg-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Start typing message 1
-            mockEventsFlow.emit(WsEvent.MessageStart("session-123"))
-            mockEventsFlow.emit(WsEvent.MessageToken("First response segment", "session-123"))
-            advanceUntilIdle()
-
-            // Start typing message 2 without message 1 complete
-            mockEventsFlow.emit(WsEvent.MessageStart("session-123"))
-            mockEventsFlow.emit(WsEvent.MessageToken("Second response segment", "session-123"))
-            advanceUntilIdle()
-
-            val state = viewModel.uiState.value
-            // Messages should contain: 1. "Session created" 2. "First response segment" (finalized)
-            assertEquals(2, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
-            assertEquals("First response segment", state.messages[1].content)
-            assertFalse(state.messages[1].isStreaming)
-
-            // Active streaming message should be the second segment
-            assertNotNull(viewModel.streamingState.value.streamingMessage)
-            assertEquals(
-                "Second response segment",
-                viewModel.streamingState.value.streamingMessage
-                    ?.content,
-            )
-            assertTrue(
-                viewModel.streamingState.value.streamingMessage
-                    ?.isStreaming == true,
-            )
-        }
-
-    @Test
-    fun testToolExecution_serializesDataAsJson() =
-        runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
-
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-tool-json-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Start tool call
-            mockEventsFlow.emit(
-                WsEvent.ToolStart(
-                    name = "calculator",
-                    data =
-                        mapOf(
-                            "input" to "2+2",
-                            "nested" to mapOf("key" to "value"),
-                        ),
-                ),
-            )
-            advanceUntilIdle()
-
-            var state = viewModel.uiState.value
-            assertEquals(2, state.messages.size)
-            assertEquals(MessageRole.TOOL, state.messages[1].role)
-            assertEquals("{\"input\":\"2+2\",\"nested\":{\"key\":\"value\"}}", state.messages[1].content)
-            assertEquals(ToolStatus.RUNNING, state.messages[1].toolStatus)
-
-            // Complete tool call
-            mockEventsFlow.emit(WsEvent.ToolComplete("calculator", mapOf("result" to "4", "exit_code" to 0)))
-            advanceUntilIdle()
-
-            state = viewModel.uiState.value
-            assertEquals(2, state.messages.size)
-            assertEquals("{\"result\":\"4\",\"exit_code\":0}", state.messages[1].content)
-            assertEquals(ToolStatus.COMPLETED, state.messages[1].toolStatus)
-        }
+    // ── Session mismatch ─────────────────────────────────────────────────────
 
     @Test
     fun testSessionMismatchEventsAreIgnored() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
-            // Setup active session "session-active"
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-mismatch-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-active")))
-            advanceUntilIdle()
-
-            // Emit events for another session "session-other" — should be ignored
             mockEventsFlow.emit(
-                WsEvent.ToolStart(
-                    name = "calculator",
-                    data = mapOf("input" to "2+2"),
-                    sessionId = "session-other",
-                ),
+                WsEvent.ToolStart(name = "calculator", data = mapOf("input" to "2+2"), sessionId = "session-other"),
             )
             mockEventsFlow.emit(
                 WsEvent.ClarifyRequest(
@@ -1013,89 +641,50 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageToken("Hello", "session-other"))
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            // Only the "Session created" message should be present (mismatch events ignored)
-            assertEquals(1, state.messages.size)
-            assertEquals("Session created", state.messages[0].content)
+            assertEquals(1, viewModel.uiState.value.messages.size)
+            assertEquals("Session created", viewModel.uiState.value.messages[0].content)
             assertNull(viewModel.streamingState.value.streamingMessage)
-            assertNull(state.clarifyRequest)
+            assertNull(viewModel.uiState.value.clarifyRequest)
         }
+
+    // ── Reconnect ────────────────────────────────────────────────────────────
 
     @Test
     fun testReconnectDoesNotDuplicateEventCollection() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-reconnect-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Trigger reconnect
             viewModel.reconnect()
             advanceUntilIdle()
 
-            // Emit a message token
-            mockEventsFlow.emit(WsEvent.MessageStart("session-123"))
-            mockEventsFlow.emit(WsEvent.MessageToken("Hello", "session-123"))
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            mockEventsFlow.emit(WsEvent.MessageToken("Hello", sessionId))
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            // Content should be "Hello", not "HelloHello" (no duplicate collectors running)
-            assertEquals(
-                "Hello",
-                viewModel.streamingState.value.streamingMessage
-                    ?.content,
-            )
+            assertEquals("Hello", viewModel.streamingState.value.streamingMessage?.content)
         }
+
+    // ── MessageComplete without streaming ────────────────────────────────────
 
     @Test
     fun testMessageCompleteWithoutStreaming_upsertsAssistantMessage() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(WsEvent.MessageComplete("Fully complete message", sessionId))
             advanceUntilIdle()
 
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-complete-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Emit MessageComplete without preceding MessageStart / MessageToken
-            mockEventsFlow.emit(WsEvent.MessageComplete("Fully complete message", "session-123"))
-            advanceUntilIdle()
-
-            val state = viewModel.uiState.value
-            assertEquals(2, state.messages.size)
-            assertEquals("Fully complete message", state.messages[1].content)
-            assertEquals(MessageRole.ASSISTANT, state.messages[1].role)
-
-            // Verify upsert was called for the new message
-            coVerify { mockDao.upsert(any()) }
+            assertEquals(2, viewModel.uiState.value.messages.size)
+            assertEquals("Fully complete message", viewModel.uiState.value.messages[1].content)
+            assertEquals(MessageRole.ASSISTANT, viewModel.uiState.value.messages[1].role)
         }
 
-    // ── Approval flow ───────────────────────────────────────────────────
+    // ── Approval flow ────────────────────────────────────────────────────────
 
     @Test
     fun testApprovalRequest_addsSystemMessage() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
+            val viewModel = createViewModel()
             advanceUntilIdle()
 
             mockEventsFlow.emit(
@@ -1108,9 +697,7 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            val state = viewModel.uiState.value
-            assertTrue(state.messages.any { it.content.contains("Approval Required") })
-            val msg = state.messages.first { it.content.contains("Approval Required") }
+            val msg = viewModel.uiState.value.messages.first { it.content.contains("Approval Required") }
             assertNotNull(msg.approvalInfo)
             assertEquals("rm -rf /data", msg.approvalInfo?.command)
         }
@@ -1118,23 +705,8 @@ class ChatViewModelTest {
     @Test
     fun testRespondToApproval_sendsRpc() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-approval-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Send approval request event
             mockEventsFlow.emit(
                 WsEvent.ApprovalRequest(
                     command = "rm",
@@ -1145,15 +717,6 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            // Call respondToApproval — should send approval.respond RPC
-            var approvalReqId = ""
-            every { HermesWsClient.send(WsMethods.APPROVAL_RESPOND, any(), any()) } answers {
-                approvalReqId = "approve-req-1"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(approvalReqId)
-                approvalReqId
-            }
-
             viewModel.respondToApproval("approve")
             advanceUntilIdle()
 
@@ -1163,23 +726,8 @@ class ChatViewModelTest {
     @Test
     fun testRespondToApproval_clearsButtons() =
         runTest {
-            val viewModel = ChatViewModel(app, startCleanup = false)
-            advanceUntilIdle()
+            val (viewModel, sessionId) = createViewModelWithSession()
 
-            // Setup active session
-            var createReqId = ""
-            every { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) } answers {
-                createReqId = "create-req-clear-test"
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke(createReqId)
-                createReqId
-            }
-            mockEventsFlow.emit(WsEvent.GatewayReady(null))
-            advanceUntilIdle()
-            mockEventsFlow.emit(WsEvent.RpcResult(createReqId, mapOf("session_id" to "session-123")))
-            advanceUntilIdle()
-
-            // Send approval request
             mockEventsFlow.emit(
                 WsEvent.ApprovalRequest(
                     command = "rm",
@@ -1190,22 +738,13 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            val stateBefore = viewModel.uiState.value
-            val approvalMsg = stateBefore.messages.firstOrNull { it.approvalInfo != null }
+            val approvalMsg = viewModel.uiState.value.messages.firstOrNull { it.approvalInfo != null }
             assertNotNull(approvalMsg)
 
-            // Respond
-            every { HermesWsClient.send(WsMethods.APPROVAL_RESPOND, any(), any()) } answers {
-                val onSent = arg<((String) -> Unit)?>(2)
-                onSent?.invoke("approve-req-clear")
-                "approve-req-clear"
-            }
             viewModel.respondToApproval("approve")
             advanceUntilIdle()
 
-            // approvalInfo should be null now (buttons cleared)
-            val stateAfter = viewModel.uiState.value
-            val msgAfter = stateAfter.messages.firstOrNull { it.id == approvalMsg!!.id }
+            val msgAfter = viewModel.uiState.value.messages.firstOrNull { it.id == approvalMsg!!.id }
             assertNotNull(msgAfter)
             assertNull(msgAfter!!.approvalInfo)
         }

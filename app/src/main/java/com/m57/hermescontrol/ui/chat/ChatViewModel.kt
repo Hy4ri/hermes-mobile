@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
@@ -105,10 +106,10 @@ class ChatViewModel(
 
     private val wsClient = HermesWsClient
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
-    private val repo =
-        ChatPersistenceRepository(
-            HermesDatabase.get(application).chatMessageDao(),
-        )
+
+    @VisibleForTesting
+    internal lateinit var repo: ChatPersistenceRepository
+
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchController = ChatSearchController()
 
@@ -153,6 +154,10 @@ class ChatViewModel(
     var initialSessionId: String? = null
 
     init {
+        repo =
+            ChatPersistenceRepository(
+                HermesDatabase.get(application).chatMessageDao(),
+            )
         refreshSettings()
 
         connectWebSocket(setLoading = false)

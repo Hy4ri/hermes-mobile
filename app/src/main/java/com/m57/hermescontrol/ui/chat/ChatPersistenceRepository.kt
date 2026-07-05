@@ -10,7 +10,7 @@ import com.m57.hermescontrol.data.local.toUiModel
  * Extracted from ChatViewModel to separate persistence concerns from
  * UI state management and WebSocket event handling.
  */
-class ChatPersistenceRepository(
+open class ChatPersistenceRepository(
     private val dao: ChatMessageDao,
 ) {
     /** Persist a single message for the given session. */

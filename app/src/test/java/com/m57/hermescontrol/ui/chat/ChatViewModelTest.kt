@@ -23,6 +23,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -116,16 +117,16 @@ class ChatViewModelTest {
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
      * and return a Pair(viewModel, sessionId).
      */
-    private fun createViewModelWithSession(): Pair<ChatViewModel, String> {
+    private fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
-        mockEventsFlow.emit(WsEvent.GatewayReady(null))
+        mockEventsFlow.tryEmit(WsEvent.GatewayReady(null))
         advanceUntilIdle()
 
         // The init block sends SESSION_CREATE (stub generates "req-id-1")
-        mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
+        mockEventsFlow.tryEmit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
         advanceUntilIdle()
 
         return Pair(viewModel, "session-123")

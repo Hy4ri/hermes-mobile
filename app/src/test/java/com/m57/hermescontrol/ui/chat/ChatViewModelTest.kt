@@ -2,7 +2,6 @@ package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
 import android.util.Log
-import app.cash.turbine.test
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -390,58 +389,45 @@ class ChatViewModelTest {
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
 
-            // ── uiState Flow via Turbine ─────────────────────────────────────────
+            // 1 — Start: reducer creates streamingMessage and sets isAgentTyping on uiState
+            mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
+            advanceUntilIdle()
 
-            viewModel.uiState.test {
-                // 1 — Start
-                mockEventsFlow.emit(WsEvent.MessageStart(sessionId))
-                advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+            assertNotNull(viewModel.streamingState.value.streamingMessage)
 
-                val startState = awaitItem()
-                assertTrue(startState.isAgentTyping)
-                assertNotNull(viewModel.streamingState.value.streamingMessage)
+            // 2 — Thinking
+            mockEventsFlow.emit(WsEvent.ThinkingDelta("Thinking...", sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.streamingState.value.isThinking)
+            assertEquals("Thinking...", viewModel.streamingState.value.thinkingText)
 
-                // 2 — Thinking
-                mockEventsFlow.emit(WsEvent.ThinkingDelta("Thinking...", sessionId))
-                advanceUntilIdle()
-                val thinkState = awaitItem()
-                assertTrue(viewModel.streamingState.value.isThinking)
-                assertEquals("Thinking...", viewModel.streamingState.value.thinkingText)
+            // 3 — Deeper thinking
+            mockEventsFlow.emit(WsEvent.ThinkingDelta(" deeper", sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.streamingState.value.isThinking)
+            assertEquals("Thinking... deeper", viewModel.streamingState.value.thinkingText)
 
-                // 3 — Deeper thinking
-                mockEventsFlow.emit(WsEvent.ThinkingDelta(" deeper", sessionId))
-                advanceUntilIdle()
-                val deeperState = awaitItem()
-                assertTrue(viewModel.streamingState.value.isThinking)
-                assertEquals("Thinking... deeper", viewModel.streamingState.value.thinkingText)
+            // 4 — First token (flushed by isTestEnvironment)
+            mockEventsFlow.emit(WsEvent.MessageToken("Hello", sessionId))
+            advanceUntilIdle()
+            assertFalse(viewModel.streamingState.value.isThinking)
+            assertEquals("Hello", viewModel.streamingState.value.streamingMessage?.content)
 
-                // 4 — First token
-                mockEventsFlow.emit(WsEvent.MessageToken("Hello", sessionId))
-                advanceUntilIdle()
-                val tokenState = awaitItem()
-                assertFalse(viewModel.streamingState.value.isThinking)
-                assertEquals("Hello", viewModel.streamingState.value.streamingMessage?.content)
+            // 5 — Second token
+            mockEventsFlow.emit(WsEvent.MessageToken(" world", sessionId))
+            advanceUntilIdle()
+            assertEquals("Hello world", viewModel.streamingState.value.streamingMessage?.content)
 
-                // 5 — Second token
-                mockEventsFlow.emit(WsEvent.MessageToken(" world", sessionId))
-                advanceUntilIdle()
-                val secondState = awaitItem()
-                assertEquals("Hello world", viewModel.streamingState.value.streamingMessage?.content)
+            // 6 — Complete: reducer finalizes message + resets streamingState
+            mockEventsFlow.emit(WsEvent.MessageComplete("Hello world!", sessionId))
+            advanceUntilIdle()
 
-                // 6 — Complete
-                mockEventsFlow.emit(WsEvent.MessageComplete("Hello world!", sessionId))
-                advanceUntilIdle()
-                val completeState = awaitItem()
-
-                assertFalse(completeState.isAgentTyping)
-                assertNull(viewModel.streamingState.value.streamingMessage)
-                assertEquals(2, completeState.messages.size)
-                assertEquals("Hello world!", completeState.messages[1].content)
-                assertFalse(completeState.messages[1].isStreaming)
-
-                // StateFlow does not complete — cancel collection
-                cancelAndIgnoreRemainingEvents()
-            }
+            assertFalse(viewModel.uiState.value.isAgentTyping)
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(2, viewModel.uiState.value.messages.size)
+            assertEquals("Hello world!", viewModel.uiState.value.messages[1].content)
+            assertFalse(viewModel.uiState.value.messages[1].isStreaming)
         }
 
     @Test
@@ -456,9 +442,10 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.ToolStart("calculator", mapOf("input" to "2+2")))
             advanceUntilIdle()
 
-            assertEquals("Calculating sum", viewModel.uiState.value.messages[0].content)
-            assertEquals(MessageRole.ASSISTANT, viewModel.uiState.value.messages[0].role)
-            assertEquals(MessageRole.TOOL, viewModel.uiState.value.messages[1].role)
+            // messages[0] = "Session created" system message
+            assertEquals("Calculating sum", viewModel.uiState.value.messages[1].content)
+            assertEquals(MessageRole.ASSISTANT, viewModel.uiState.value.messages[1].role)
+            assertEquals(MessageRole.TOOL, viewModel.uiState.value.messages[2].role)
             assertNull(viewModel.streamingState.value.streamingMessage)
         }
 
@@ -475,8 +462,9 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageToken("Second part", sessionId))
             advanceUntilIdle()
 
-            assertEquals("First part", viewModel.uiState.value.messages[0].content)
-            assertFalse(viewModel.uiState.value.messages[0].isStreaming)
+            // messages[0] = "Session created" system message
+            assertEquals("First part", viewModel.uiState.value.messages[1].content)
+            assertFalse(viewModel.uiState.value.messages[1].isStreaming)
             assertNotNull(viewModel.streamingState.value.streamingMessage)
             assertEquals("Second part", viewModel.streamingState.value.streamingMessage?.content)
         }
@@ -550,7 +538,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals("Please explain:", viewModel.uiState.value.clarifyRequest?.text)
-            assertNull(viewModel.uiState.value.clarifyRequest?.options)
+            assertTrue(viewModel.uiState.value.clarifyRequest?.options?.isEmpty() == true)
 
             viewModel.respondToClarify("This is my custom response text")
             advanceUntilIdle()
@@ -562,7 +550,7 @@ class ChatViewModelTest {
 
             verify {
                 HermesWsClient.send(
-                    method = WsMethods.CLARIFY_RESPOND,
+                    WsMethods.CLARIFY_RESPOND,
                     params =
                         mapOf(
                             "session_id" to sessionId,

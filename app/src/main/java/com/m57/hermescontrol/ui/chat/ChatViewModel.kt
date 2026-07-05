@@ -1086,7 +1086,7 @@ class ChatViewModel(
                             // Room duplicates when re-loading the same session.
                             val stableId = "rest-$sessionId-$index"
                             // Preserve original timestamp from the API when available
-                            val ts = msg.timestamp?.toLongOrNull() ?: System.currentTimeMillis()
+                            val ts = msg.timestampText?.toLongOrNull() ?: System.currentTimeMillis()
                             ChatMessage(
                                 id = stableId,
                                 role = role,

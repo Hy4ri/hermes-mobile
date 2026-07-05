@@ -245,7 +245,7 @@ class HermesApiServiceMockWebServerTest {
 
             assertEquals("user", messages[0].role)
             assertEquals("Hello Hermes", messages[0].content)
-            assertEquals("1718000000", messages[0].timestamp)
+            assertEquals("1718000000", messages[0].timestampText)
 
             assertEquals("assistant", messages[1].role)
             assertEquals("Hi! How can I help?", messages[1].content)

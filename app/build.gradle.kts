@@ -102,6 +102,17 @@ android {
     }
 }
 
+// Overwrite version-control-info with empty content for reproducible builds
+// F-Droid CI uses detached HEAD (branches: []) while GitHub CI uses main
+// (branches: ["main"]) — this field in the generated textproto causes a
+// byte-level APK difference. Emptying the file makes both CI environments
+// produce identical artifacts.
+tasks.matching { it.name.endsWith("VersionControlInfo") }.configureEach {
+    doLast {
+        outputs.files.filter { it.exists() }.forEach { it.writeText("") }
+    }
+}
+
 kotlin {
     jvmToolchain(21)
 }

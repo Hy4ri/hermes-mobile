@@ -126,7 +126,9 @@ interface HermesApiService {
 
     @GET("api/sessions/{id}/messages")
     suspend fun getSessionMessages(
-        @Path("id") sessionId: String,
+        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
+        @Path("id", encoded = true) sessionId: String,
     ): Response<SessionMessagesResponse>
 
     @GET("api/sessions/stats")
@@ -134,7 +136,9 @@ interface HermesApiService {
 
     @PUT("api/sessions/{id}/rename")
     suspend fun renameSession(
-        @Path("id") sessionId: String,
+        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
+        @Path("id", encoded = true) sessionId: String,
         @Body body: SessionRenameRequest,
     ): Response<Unit>
 
@@ -145,7 +149,9 @@ interface HermesApiService {
 
     @DELETE("api/sessions/{id}")
     suspend fun deleteSession(
-        @Path("id") sessionId: String,
+        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
+        @Path("id", encoded = true) sessionId: String,
     ): Response<Unit>
 
     @POST("api/sessions/prune")
@@ -155,7 +161,9 @@ interface HermesApiService {
 
     @GET("api/sessions/{id}/prompt")
     suspend fun getSessionPrompt(
-        @Path("id") sessionId: String,
+        // B9 (Jul 05 2026, kanban t_history_chat_resumption): preserve slashes in session IDs (issue #366).
+        // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
+        @Path("id", encoded = true) sessionId: String,
     ): Response<SessionPromptResponse>
 
     @GET("api/system/stats")

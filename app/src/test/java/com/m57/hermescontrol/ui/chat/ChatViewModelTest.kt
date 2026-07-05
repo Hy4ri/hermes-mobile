@@ -116,6 +116,9 @@ class ChatViewModelTest {
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
      * and return a Pair(viewModel, sessionId).
+     *
+     * Request ID sequence: GatewayReady triggers loadSessions (req-id-1),
+     * fetchCommandCatalog (req-id-2), then createNewSession (req-id-3).
      */
     private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
         val viewModel = createViewModel()
@@ -125,9 +128,17 @@ class ChatViewModelTest {
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
         advanceUntilIdle()
 
-        // The init block sends SESSION_CREATE (stub generates "req-id-1")
-        mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
+        // Emit SESSION_CREATE result (req-id-3 — after loadSessions and fetchCommandCatalog)
+        mockEventsFlow.emit(WsEvent.RpcResult("req-id-3", mapOf("session_id" to "session-123")))
         advanceUntilIdle()
+
+        // Sanity check: confirm the session was actually set
+        val session = viewModel.uiState.value.currentSessionId
+        checkNotNull(session) {
+            "createViewModelWithSession: session was not set — " +
+                "req-id-3 did not match SESSION_CREATE. " +
+                "If the req sequence changed, update the RpcResult id here."
+        }
 
         return Pair(viewModel, "session-123")
     }
@@ -326,7 +337,9 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
-            mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("session_id" to "session-123")))
+            // GatewayReady sends SESSION_LIST (req-id-1), COMMANDS_CATALOG (req-id-2),
+            // then SESSION_CREATE (req-id-3)
+            mockEventsFlow.emit(WsEvent.RpcResult("req-id-3", mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 
             assertEquals("session-123", viewModel.uiState.value.currentSessionId)
@@ -345,9 +358,11 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
+            // GatewayReady sends SESSION_LIST (req-id-1), COMMANDS_CATALOG (req-id-2),
+            // then SESSION_CREATE (req-id-3). Emit the SESSION_LIST result.
             mockEventsFlow.emit(
                 WsEvent.RpcResult(
-                    "req-id-2",
+                    "req-id-1",
                     mapOf(
                         "sessions" to
                             listOf(

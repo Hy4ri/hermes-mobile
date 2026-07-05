@@ -1,4 +1,5 @@
-package com.m57.hermescontrol.data.model
+package com.m57.hermescontrol.data.config
+
 import kotlinx.serialization.Serializable
 import java.util.UUID
 

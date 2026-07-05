@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.connect
 
 import android.app.Application
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -388,7 +389,7 @@ class ConnectViewModelTest {
     @Test
     fun testSelectProfile_updatesState() {
         val profile =
-            com.m57.hermescontrol.data.model.ConnectionProfile(
+            ConnectionProfile(
                 id = "test-id",
                 name = "Test Profile",
                 host = "192.168.1.100",
@@ -463,7 +464,7 @@ class ConnectViewModelTest {
     @Test
     fun testLoadSavedValues_withProfiles_loadsSelected() {
         val profile =
-            com.m57.hermescontrol.data.model.ConnectionProfile(
+            ConnectionProfile(
                 id = "prof-1",
                 name = "Work",
                 host = "10.0.0.1",
@@ -488,7 +489,7 @@ class ConnectViewModelTest {
     @Test
     fun testLoadSavedValues_withStaleSelectedId_fallsBackToDefaults() {
         val profile =
-            com.m57.hermescontrol.data.model.ConnectionProfile(
+            ConnectionProfile(
                 id = "prof-1",
                 name = "Work",
                 host = "10.0.0.1",
@@ -510,7 +511,7 @@ class ConnectViewModelTest {
         every { AuthManager.getProfileToken(any()) } returns null
 
         val profile =
-            com.m57.hermescontrol.data.model.ConnectionProfile(
+            ConnectionProfile(
                 id = "prof-2",
                 name = "NoToken",
                 host = "10.0.0.2",
@@ -574,10 +575,8 @@ class ConnectViewModelTest {
     fun testMultipleProfiles_loadedOnInit() {
         val profiles =
             listOf(
-                com.m57.hermescontrol.data.model
-                    .ConnectionProfile("a", "Alpha", "10.0.0.1", 9119),
-                com.m57.hermescontrol.data.model
-                    .ConnectionProfile("b", "Beta", "10.0.0.2", 9220),
+                ConnectionProfile("a", "Alpha", "10.0.0.1", 9119),
+                ConnectionProfile("b", "Beta", "10.0.0.2", 9220),
             )
         every { AuthManager.getConnectionProfiles() } returns profiles
         every { AuthManager.getSelectedProfileId() } returns null

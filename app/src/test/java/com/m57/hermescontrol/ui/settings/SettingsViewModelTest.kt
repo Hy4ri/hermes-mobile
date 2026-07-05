@@ -1,7 +1,7 @@
 package com.m57.hermescontrol.ui.settings
 
+import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.model.ConnectionProfile
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference

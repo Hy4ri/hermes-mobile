@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -30,8 +31,8 @@ data class ConnectUiState(
     val errorMessage: String? = null,
     val profileName: String = "",
     val saveProfile: Boolean = false,
-    val profiles: List<com.m57.hermescontrol.data.model.ConnectionProfile> = emptyList(),
-    val selectedProfile: com.m57.hermescontrol.data.model.ConnectionProfile? = null,
+    val profiles: List<ConnectionProfile> = emptyList(),
+    val selectedProfile: ConnectionProfile? = null,
 )
 
 class ConnectViewModel(
@@ -76,7 +77,7 @@ class ConnectViewModel(
         _uiState.update { it.copy(saveProfile = value) }
     }
 
-    fun selectProfile(profile: com.m57.hermescontrol.data.model.ConnectionProfile?) {
+    fun selectProfile(profile: ConnectionProfile?) {
         if (profile == null) {
             AuthManager.setSelectedProfileId(null)
             _uiState.update {
@@ -160,7 +161,7 @@ class ConnectViewModel(
                             if (existingIndex >= 0) {
                                 currentProfiles[existingIndex].copy(host = state.host, port = port)
                             } else {
-                                com.m57.hermescontrol.data.model.ConnectionProfile(
+                                ConnectionProfile(
                                     name = state.profileName,
                                     host = state.host,
                                     port = port,

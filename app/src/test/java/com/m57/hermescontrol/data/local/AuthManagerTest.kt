@@ -4,12 +4,26 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
-import io.mockk.*
+import com.m57.hermescontrol.data.config.ConnectionProfile
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
+import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+
+class TestContext(
+    private val tempDir: java.io.File,
+    baseContext: Context,
+) : android.content.ContextWrapper(baseContext) {
+    override fun getFilesDir(): java.io.File = tempDir
+
+    override fun getApplicationContext(): Context = this
+}
 
 class AuthManagerTest {
     private lateinit var mockPrefs: SharedPreferences
@@ -26,6 +40,24 @@ class AuthManagerTest {
         every { mockEditor.putString(any(), any()) } returns mockEditor
         every { mockEditor.putInt(any(), any()) } returns mockEditor
         every { mockEditor.putBoolean(any(), any()) } returns mockEditor
+        every { mockPrefs.getBoolean("migrated_to_datastore", any()) } returns true
+
+        // Mock Log to prevent "Method d in android.util.Log not mocked"
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.d(any(), any()) } returns 0
+        every { android.util.Log.e(any(), any()) } returns 0
+        every { android.util.Log.e(any(), any(), any()) } returns 0
+        every { android.util.Log.w(any(), any<String>()) } returns 0
+        every { android.util.Log.i(any(), any()) } returns 0
+
+        // Mock filesDir to point to temporary directory for DataStore
+        val tempDir = java.io.File(System.getProperty("java.io.tmpdir"))
+        val testContext = TestContext(tempDir, mockContext)
+
+        val tempFile = java.io.File(tempDir, "server_store.json")
+        if (tempFile.exists()) {
+            tempFile.delete()
+        }
 
         // Mock EncryptedSharedPreferences static methods
         mockkStatic(EncryptedSharedPreferences::class)
@@ -47,8 +79,14 @@ class AuthManagerTest {
         field.isAccessible = true
         field.set(AuthManager, null)
 
+        val storeField = AuthManager::class.java.getDeclaredField("_serverStore")
+        storeField.isAccessible = true
+        storeField.set(AuthManager, null)
+
+        AuthManager.resetTokenCacheForTest()
+
         // Initialise AuthManager
-        AuthManager.init(mockContext)
+        AuthManager.init(testContext)
 
         // Wait for async initialization to complete to prevent coroutine leaks
         kotlinx.coroutines.runBlocking {
@@ -56,11 +94,17 @@ class AuthManagerTest {
             deferred?.await()
         }
 
-        AuthManager.resetTokenCacheForTest()
+        // Wait for ServerStore initialization to complete
+        AuthManager.serverStore.getLatestState()
     }
 
     @After
     fun tearDown() {
+        val tempDir = java.io.File(System.getProperty("java.io.tmpdir"))
+        val tempFile = java.io.File(tempDir, "server_store.json")
+        if (tempFile.exists()) {
+            tempFile.delete()
+        }
         unmockkAll()
     }
 
@@ -86,38 +130,26 @@ class AuthManagerTest {
 
     @Test
     fun testGetAndSetHost() {
-        every { mockPrefs.getString("host", "127.0.0.1") } returns "192.168.1.1"
-        assertEquals("192.168.1.1", AuthManager.getHost())
-
         AuthManager.setHost("10.0.0.1")
-        verify { mockEditor.putString("host", "10.0.0.1") }
-        verify { mockEditor.apply() }
+        assertEquals("10.0.0.1", AuthManager.getHost())
     }
 
     @Test
     fun testGetAndSetPort() {
-        every { mockPrefs.getInt("port", 9119) } returns 8080
-        assertEquals(8080, AuthManager.getPort())
-
         AuthManager.setPort(9090)
-        verify { mockEditor.putInt("port", 9090) }
-        verify { mockEditor.apply() }
+        assertEquals(9090, AuthManager.getPort())
     }
 
     @Test
     fun testGetAndSetAutoReconnect() {
-        every { mockPrefs.getBoolean("auto_reconnect", true) } returns false
+        AuthManager.setAutoReconnect(false)
         assertEquals(false, AuthManager.isAutoReconnect())
-
-        AuthManager.setAutoReconnect(true)
-        verify { mockEditor.putBoolean("auto_reconnect", true) }
-        verify { mockEditor.apply() }
     }
 
     @Test
     fun testBaseUrl() {
-        every { mockPrefs.getString("host", "127.0.0.1") } returns "hermes.local"
-        every { mockPrefs.getInt("port", 9119) } returns 1234
+        AuthManager.setHost("hermes.local")
+        AuthManager.setPort(1234)
         assertEquals("http://hermes.local:1234/", AuthManager.baseUrl())
     }
 
@@ -141,16 +173,16 @@ class AuthManagerTest {
 
     @Test
     fun testWsUrl() {
-        every { mockPrefs.getString("host", "127.0.0.1") } returns "hermes.local"
-        every { mockPrefs.getInt("port", 9119) } returns 1234
+        AuthManager.setHost("hermes.local")
+        AuthManager.setPort(1234)
         every { mockPrefs.getString("auth_token", null) } returns "token123"
         assertEquals("ws://hermes.local:1234/api/ws?token=token123", AuthManager.wsUrl())
     }
 
     @Test
     fun testWsUrl_nullToken() {
-        every { mockPrefs.getString("host", "127.0.0.1") } returns "hermes.local"
-        every { mockPrefs.getInt("port", 9119) } returns 1234
+        AuthManager.setHost("hermes.local")
+        AuthManager.setPort(1234)
         every { mockPrefs.getString("auth_token", null) } returns null
         assertEquals("ws://hermes.local:1234/api/ws?token=", AuthManager.wsUrl())
     }
@@ -159,29 +191,35 @@ class AuthManagerTest {
 
     @Test
     fun testGetToken_usesProfileTokenWhenSelected() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
+        val profile1 = ConnectionProfile("prof-1", "Profile 1", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profile1))
         every { mockPrefs.getString("token_prof-1", null) } returns "profile-specific-token"
+        AuthManager.setSelectedProfileId("prof-1")
         assertEquals("profile-specific-token", AuthManager.getToken())
     }
 
     @Test
     fun testGetToken_fallsBackToGlobalWhenProfileTokenMissing() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
+        val profile1 = ConnectionProfile("prof-1", "Profile 1", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profile1))
         every { mockPrefs.getString("token_prof-1", null) } returns null // no profile token
         every { mockPrefs.getString("auth_token", null) } returns "global-token"
+        AuthManager.setSelectedProfileId("prof-1")
         assertEquals("global-token", AuthManager.getToken())
     }
 
     @Test
     fun testGetToken_returnsNullWhenNoProfileAndNoGlobal() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns null
+        AuthManager.setSelectedProfileId(null)
         assertNull(AuthManager.getToken())
     }
 
     @Test
     fun testSetToken_writesToProfileTokenWhenSelected() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
+        val profile1 = ConnectionProfile("prof-1", "Profile 1", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profile1))
+        AuthManager.setSelectedProfileId("prof-1")
 
         AuthManager.setToken("new-profile-token")
 
@@ -193,7 +231,7 @@ class AuthManagerTest {
 
     @Test
     fun testSetToken_writesToGlobalWhenNoSelectedProfile() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns null
+        AuthManager.setSelectedProfileId(null)
 
         AuthManager.setToken("global-token")
 
@@ -203,59 +241,58 @@ class AuthManagerTest {
 
     @Test
     fun testGetHost_usesProfileHostWhenSelected() {
-        val profileJson = """[{"id":"prof-1","name":"Work","host":"10.0.0.1","port":9220}]"""
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
-        every { mockPrefs.getString("connection_profiles", null) } returns profileJson
+        val profile = ConnectionProfile("prof-1", "Work", "10.0.0.1", 9220)
+        AuthManager.saveConnectionProfiles(listOf(profile))
+        AuthManager.setSelectedProfileId("prof-1")
 
         assertEquals("10.0.0.1", AuthManager.getHost())
     }
 
     @Test
     fun testGetPort_usesProfilePortWhenSelected() {
-        val profileJson = """[{"id":"prof-1","name":"Work","host":"10.0.0.1","port":9220}]"""
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
-        every { mockPrefs.getString("connection_profiles", null) } returns profileJson
+        val profile = ConnectionProfile("prof-1", "Work", "10.0.0.1", 9220)
+        AuthManager.saveConnectionProfiles(listOf(profile))
+        AuthManager.setSelectedProfileId("prof-1")
 
         assertEquals(9220, AuthManager.getPort())
     }
 
     @Test
     fun testGetHost_fallsBackToDefaultWhenSelectedProfileIdNotFound() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns "nonexistent"
-        every { mockPrefs.getString("connection_profiles", null) } returns null
-        every { mockPrefs.getString("host", "127.0.0.1") } returns "192.168.1.1"
+        AuthManager.setSelectedProfileId("nonexistent")
+        AuthManager.saveConnectionProfiles(emptyList())
+        AuthManager.setHost("192.168.1.1")
 
         assertEquals("192.168.1.1", AuthManager.getHost())
     }
 
     @Test
     fun testSetHost_updatesProfileWhenSelected() {
-        val profileJson = """[{"id":"prof-1","name":"Home","host":"10.0.0.1","port":9119}]"""
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
-        every { mockPrefs.getString("connection_profiles", null) } returns profileJson
+        val profile = ConnectionProfile("prof-1", "Home", "10.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profile))
+        AuthManager.setSelectedProfileId("prof-1")
 
         AuthManager.setHost("10.0.0.99")
 
-        // Should have saved the updated profile with the new host
-        verify { mockEditor.putString(eq("connection_profiles"), any()) }
-        verify(exactly = 0) { mockEditor.putString("host", any()) }
+        val updated = AuthManager.getConnectionProfiles().first()
+        assertEquals("10.0.0.99", updated.host)
     }
 
     @Test
     fun testSetPort_updatesProfileWhenSelected() {
-        val profileJson = """[{"id":"prof-1","name":"Home","host":"10.0.0.1","port":9119}]"""
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-1"
-        every { mockPrefs.getString("connection_profiles", null) } returns profileJson
+        val profile = ConnectionProfile("prof-1", "Home", "10.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profile))
+        AuthManager.setSelectedProfileId("prof-1")
 
         AuthManager.setPort(9999)
 
-        verify { mockEditor.putString(eq("connection_profiles"), any()) }
-        verify(exactly = 0) { mockEditor.putInt("port", any()) }
+        val updated = AuthManager.getConnectionProfiles().first()
+        assertEquals(9999, updated.port)
     }
 
     @Test
     fun testProfileTokenRoundTrip() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns null
+        AuthManager.setSelectedProfileId(null)
         AuthManager.setProfileToken("prof-a", "token-a")
 
         verify { mockEditor.putString("token_prof-a", "token-a") }
@@ -270,20 +307,10 @@ class AuthManagerTest {
     fun testConnectionProfiles_roundTrip() {
         val profiles =
             listOf(
-                com.m57.hermescontrol.data.model
-                    .ConnectionProfile("a", "A", "10.0.0.1", 9119),
-                com.m57.hermescontrol.data.model
-                    .ConnectionProfile("b", "B", "10.0.0.2", 9220),
+                ConnectionProfile("a", "A", "10.0.0.1", 9119),
+                ConnectionProfile("b", "B", "10.0.0.2", 9220),
             )
         AuthManager.saveConnectionProfiles(profiles)
-
-        verify { mockEditor.putString(eq("connection_profiles"), any()) }
-
-        // Mock read-back
-        val json =
-            """[{"id":"a","name":"A","host":"10.0.0.1","port":9119},""" +
-                """{"id":"b","name":"B","host":"10.0.0.2","port":9220}]"""
-        every { mockPrefs.getString("connection_profiles", null) } returns json
 
         val loaded = AuthManager.getConnectionProfiles()
         assertEquals(2, loaded.size)
@@ -291,83 +318,87 @@ class AuthManagerTest {
         assertEquals("10.0.0.2", loaded[1].host)
     }
 
-    @Test
-    fun testGetHost_fallsBackToGlobalWhenProfileNotFoundInList() {
-        val profileJson = """[{"id":"prof-1","name":"Work","host":"10.0.0.1","port":9119}]"""
-        every { mockPrefs.getString("selected_profile_id", null) } returns "other-id"
-        every { mockPrefs.getString("connection_profiles", null) } returns profileJson
-        every { mockPrefs.getString("host", "127.0.0.1") } returns "global-host"
-
-        assertEquals("global-host", AuthManager.getHost())
-    }
-
     // ── TEST-11: Multi-profile token scenarios ─────────────────────────
 
     @Test
     fun testGetToken_switchesTokenWhenProfileChanges() {
+        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
+        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
+
         // Profile A selected → returns token_a
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
         every { mockPrefs.getString("token_prof-a", null) } returns "token-for-a"
+        AuthManager.setSelectedProfileId("prof-a")
         assertEquals("token-for-a", AuthManager.getToken())
 
         // Switch to Profile B → returns token_b
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns "token-for-b"
         AuthManager.setSelectedProfileId("prof-b") // Required to clear token cache
         assertEquals("token-for-b", AuthManager.getToken())
 
         // Switch back to Profile A → still returns token_a
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
+        every { mockPrefs.getString("token_prof-a", null) } returns "token-for-a"
         AuthManager.setSelectedProfileId("prof-a") // Required to clear token cache
         assertEquals("token-for-a", AuthManager.getToken())
     }
 
     @Test
     fun testGetToken_fallsBackToGlobalWhenSelectedProfileLacksToken() {
+        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
+        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
+
         // Profile A is selected but has no token → falls back to global
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
         every { mockPrefs.getString("token_prof-a", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns "shared-global-token"
+        AuthManager.setSelectedProfileId("prof-a")
 
         assertEquals("shared-global-token", AuthManager.getToken())
 
         // Switch to Profile B, which also has no token → same global fallback
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns null
+        AuthManager.setSelectedProfileId("prof-b")
         assertEquals("shared-global-token", AuthManager.getToken())
     }
 
     @Test
     fun testGetToken_selectiveProfileTokens_someNull() {
+        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
+        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
+        val profileC = ConnectionProfile("prof-c", "Profile C", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profileA, profileB, profileC))
+
         // Profile A has a token
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
         every { mockPrefs.getString("token_prof-a", null) } returns "token-a"
+        AuthManager.setSelectedProfileId("prof-a")
         assertEquals("token-a", AuthManager.getToken())
 
         // Profile B has no token, but global exists
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
         every { mockPrefs.getString("token_prof-b", null) } returns null
         every { mockPrefs.getString("auth_token", null) } returns "fallback"
-        AuthManager.setSelectedProfileId("prof-b") // Required to clear token cache
+        AuthManager.setSelectedProfileId("prof-b")
         assertEquals("fallback", AuthManager.getToken())
 
         // Profile C has its own token too
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-c"
         every { mockPrefs.getString("token_prof-c", null) } returns "token-c"
-        AuthManager.setSelectedProfileId("prof-c") // Required to clear token cache
+        AuthManager.setSelectedProfileId("prof-c")
         assertEquals("token-c", AuthManager.getToken())
     }
 
     @Test
     fun testSetToken_switchingProfiles_maintainsSeparateTokens() {
+        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
+        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
+
         // Set a token while Profile A is selected
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
+        AuthManager.setSelectedProfileId("prof-a")
         AuthManager.setToken("set-while-on-profile-a")
         verify { mockEditor.putString("token_prof-a", "set-while-on-profile-a") }
         verify { mockEditor.apply() }
 
         // Switch to Profile B
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-b"
+        AuthManager.setSelectedProfileId("prof-b")
 
         // Set a different token for Profile B
         AuthManager.setToken("set-while-on-profile-b")
@@ -377,7 +408,10 @@ class AuthManagerTest {
 
     @Test
     fun testSetToken_toNull_clearsProfileToken() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns "prof-a"
+        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(profileA))
+
+        AuthManager.setSelectedProfileId("prof-a")
 
         AuthManager.setToken(null)
 
@@ -387,10 +421,10 @@ class AuthManagerTest {
 
     @Test
     fun testGetSelectedProfileId_returnsNullForEmptyString() {
-        every { mockPrefs.getString("selected_profile_id", null) } returns ""
+        AuthManager.setSelectedProfileId("")
         assertNull(AuthManager.getSelectedProfileId())
 
-        every { mockPrefs.getString("selected_profile_id", null) } returns "  "
+        AuthManager.setSelectedProfileId("  ")
         assertNull(AuthManager.getSelectedProfileId())
     }
 }

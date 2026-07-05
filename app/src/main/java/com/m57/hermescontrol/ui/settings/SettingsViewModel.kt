@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.ScreenRegistry
+import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -34,7 +35,7 @@ data class SettingsUiState(
     val selectedNavItems: List<String> = emptyList(),
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
-    val profiles: List<com.m57.hermescontrol.data.model.ConnectionProfile> = emptyList(),
+    val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
     val bottomNavDisplayMode: BottomNavDisplayMode = BottomNavDisplayMode.ICON_AND_TEXT,
@@ -209,7 +210,7 @@ class SettingsViewModel(
         } else {
             // Add new profile
             val newProfile =
-                com.m57.hermescontrol.data.model.ConnectionProfile(
+                ConnectionProfile(
                     name = name,
                     host = host,
                     port = port,

@@ -45,7 +45,7 @@ class ServerStore(
         } else {
             runBlocking {
                 try {
-                    withTimeout(2000) {
+                    withTimeout(500) {
                         initJob.await()
                     }
                 } catch (e: Exception) {

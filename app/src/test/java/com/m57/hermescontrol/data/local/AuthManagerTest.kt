@@ -83,7 +83,7 @@ class AuthManagerTest {
         storeField.isAccessible = true
         storeField.set(AuthManager, null)
 
-        AuthManager.resetTokenCacheForTest()
+        AuthManager.resetAuthStateForTest()
 
         // Initialise AuthManager
         AuthManager.init(testContext)

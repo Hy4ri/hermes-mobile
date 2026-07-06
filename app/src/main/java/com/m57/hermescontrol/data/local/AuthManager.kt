@@ -229,6 +229,14 @@ object AuthManager {
         synchronized(this) {
             cachedToken = null
             tokenInitialized = false
+        }
+    }
+
+    // For testing purposes
+    fun resetAuthStateForTest() {
+        synchronized(this) {
+            cachedToken = null
+            tokenInitialized = false
             _serverStore = null
             prefsDeferred = null
             appScope?.let {

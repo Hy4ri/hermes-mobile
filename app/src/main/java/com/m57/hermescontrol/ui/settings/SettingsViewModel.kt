@@ -50,6 +50,7 @@ data class SettingsUiState(
     val showDeleteConfirm: Boolean = false,
     val profileToDeleteId: String? = null,
     val profileToDeleteName: String = "",
+    val navigateToLogin: Boolean = false,
 )
 
 class SettingsViewModel(
@@ -217,12 +218,18 @@ class SettingsViewModel(
                 )
             profiles.add(newProfile)
             AuthManager.saveConnectionProfiles(profiles)
-            AuthManager.setProfileToken(newProfile.id, token)
+            AuthManager.setProfileToken(newProfile.id, "")
+            AuthManager.setSelectedProfileId(newProfile.id)
+            _uiState.update { it.copy(navigateToLogin = true) }
         }
 
         closeProfileDialog()
         viewModelScope.launch(ioDispatcher) { loadSettings() }
         ApiClient.rebuild()
+    }
+
+    fun clearNavigateToLogin() {
+        _uiState.update { it.copy(navigateToLogin = false) }
     }
 
     // ── Delete confirmation ──────────────────────────────────────────────

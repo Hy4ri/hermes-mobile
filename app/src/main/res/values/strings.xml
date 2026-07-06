@@ -781,6 +781,8 @@
     <string name="auth_login_error_password_required">Password is required</string>
     <string name="auth_login_error_unreachable">Dashboard unreachable — check IP and port</string>
     <string name="auth_login_success">Connected!</string>
+    <string name="auth_login_existing_profiles_title">Use existing logged-in profile:</string>
+    <string name="auth_login_use_profile">Enter as %1$s</string>
 
     <!-- Landing Screen -->
     <string name="landing_title">Hermes Mobile</string>

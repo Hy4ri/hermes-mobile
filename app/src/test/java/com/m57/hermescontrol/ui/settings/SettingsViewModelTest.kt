@@ -218,4 +218,25 @@ class SettingsViewModelTest {
         verify(exactly = 0) { AuthManager.setSelectedProfileId(null) }
         verify { ApiClient.rebuild() }
     }
+
+    @Test
+    fun testSaveProfileFromDialog_addsNewProfileAndTriggersLoginRedirection() {
+        every { AuthManager.getConnectionProfiles() } returns emptyList()
+        val viewModel = createViewModel()
+
+        viewModel.openAddProfile()
+        viewModel.onDialogProfileNameChange("Test Profile")
+        viewModel.onDialogProfileHostChange("192.168.1.100")
+        viewModel.onDialogProfilePortChange("9999")
+
+        viewModel.saveProfileFromDialog()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { AuthManager.saveConnectionProfiles(any()) }
+        verify { AuthManager.setSelectedProfileId(any()) }
+        assertEquals(true, viewModel.uiState.value.navigateToLogin)
+
+        viewModel.clearNavigateToLogin()
+        assertEquals(false, viewModel.uiState.value.navigateToLogin)
+    }
 }

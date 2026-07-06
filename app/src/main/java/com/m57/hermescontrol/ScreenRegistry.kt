@@ -184,9 +184,14 @@ object ScreenRegistry {
                 Icons.Filled.Settings,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer ->
-                SettingsScreenContent(onBack = {
-                    NavigationController.goBack()
-                })
+                SettingsScreenContent(
+                    onBack = {
+                        NavigationController.goBack()
+                    },
+                    onNavigateToLogin = {
+                        NavigationController.navigateTo(AuthLoginScreen)
+                    },
+                )
             },
         )
 }

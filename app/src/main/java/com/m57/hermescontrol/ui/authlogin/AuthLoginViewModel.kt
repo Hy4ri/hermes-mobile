@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -47,13 +48,41 @@ data class AuthLoginUiState(
     val authMode: DashboardAuthMode? = null,
     val connectionSuccess: Boolean = false,
     val errorMessage: String? = null,
+    val loggedInProfiles: List<ConnectionProfile> = emptyList(),
 )
 
 class AuthLoginViewModel(
     private val app: Application,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(AuthLoginUiState())
+    private val _uiState =
+        MutableStateFlow(
+            AuthLoginUiState(
+                host = AuthManager.getHost(),
+                port = AuthManager.getPort().toString(),
+            ),
+        )
     val uiState: StateFlow<AuthLoginUiState> = _uiState.asStateFlow()
+
+    init {
+        loadLoggedInProfiles()
+    }
+
+    fun loadLoggedInProfiles() {
+        val allProfiles = AuthManager.getConnectionProfiles()
+        val loggedIn =
+            allProfiles.filter { profile ->
+                val token = AuthManager.getProfileToken(profile.id)
+                !token.isNullOrBlank()
+            }
+        _uiState.update { it.copy(loggedInProfiles = loggedIn) }
+    }
+
+    fun useExistingProfile(profileId: String) {
+        AuthManager.setSelectedProfileId(profileId)
+        ApiClient.rebuild()
+        HermesWsClient.connect()
+        _uiState.update { it.copy(connectionSuccess = true) }
+    }
 
     companion object {
         private const val TAG = "AuthLoginVM"

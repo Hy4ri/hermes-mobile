@@ -51,6 +51,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,11 +85,20 @@ enum class SettingsTab {
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToLogin: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(state.navigateToLogin) {
+        if (state.navigateToLogin) {
+            onNavigateToLogin()
+            viewModel.clearNavigateToLogin()
+        }
+    }
+
     var passwordVisible by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(SettingsTab.CONNECTION) }
 
@@ -615,19 +625,21 @@ private fun ProfileEditorDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = onTokenChange,
-                    label = { Text(stringResource(R.string.settings_field_token)) },
-                    singleLine = true,
-                    visualTransformation =
-                        if (token.isNotEmpty()) {
-                            PasswordVisualTransformation()
-                        } else {
-                            VisualTransformation.None
-                        },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (isEditing) {
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = onTokenChange,
+                        label = { Text(stringResource(R.string.settings_field_token)) },
+                        singleLine = true,
+                        visualTransformation =
+                            if (token.isNotEmpty()) {
+                                PasswordVisualTransformation()
+                            } else {
+                                VisualTransformation.None
+                            },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         },
         confirmButton = {

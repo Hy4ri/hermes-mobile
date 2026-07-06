@@ -18,11 +18,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -125,6 +127,31 @@ fun AuthLoginScreen(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            if (state.loggedInProfiles.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.auth_login_existing_profiles_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                state.loggedInProfiles.forEach { profile ->
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { viewModel.useExistingProfile(profile.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AccountCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text(stringResource(R.string.auth_login_use_profile, profile.name))
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // Host field
             OutlinedTextField(

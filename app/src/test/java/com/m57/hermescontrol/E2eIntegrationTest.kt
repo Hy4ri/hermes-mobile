@@ -1358,24 +1358,26 @@ class E2eIntegrationTest {
                         default_preset = "",
                         reference_models = emptyList(),
                         aggregator = MoaModelSlot("openai", "gpt-4"),
-                        reference_temperature = 0.7,
-                        aggregator_temperature = 0.7,
                         max_tokens = 4096,
                     ),
                 )
+
+            val capturedRefresh = mutableListOf<Boolean>()
+            coEvery { mockApiService.getModelOptions(any()) } answers {
+                capturedRefresh.add(firstArg())
+                Response.success(ModelOptionsResponse(listOf(provider)))
+            }
 
             // Default loadAll() must call getModelOptions with refresh = false
             val viewModel = ModelViewModel()
             viewModel.loadAll()
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { mockApiService.getModelOptions(false) }
-
             // Pull-to-refresh path must call getModelOptions with refresh = true
             viewModel.loadAll(refresh = true)
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { mockApiService.getModelOptions(true) }
+            assertEquals(listOf(false, true), capturedRefresh)
         }
 
     @Test

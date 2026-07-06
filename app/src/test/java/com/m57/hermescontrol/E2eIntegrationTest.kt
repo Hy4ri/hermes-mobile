@@ -1334,6 +1334,51 @@ class E2eIntegrationTest {
         }
 
     @Test
+    fun testModelOptions_refreshFlagPropagation() =
+        runTest {
+            val provider = ModelProvider("ollama", "Ollama", false, true, listOf("llama3"), 1, null, true, null, null)
+            val profile = ProfileInfo("default", null, true, "llama3", "ollama", null, null, null, null)
+
+            coEvery { mockApiService.getModelOptions(any()) } returns
+                Response.success(ModelOptionsResponse(listOf(provider)))
+            coEvery { mockApiService.getActiveProfile() } returns
+                Response.success(ActiveProfileResponse("default", null))
+            coEvery { mockApiService.getProfiles() } returns Response.success(ProfilesResponse(listOf(profile)))
+            coEvery { mockApiService.getAuxiliaryModels() } returns
+                Response.success(
+                    AuxiliaryModelsResponse(
+                        tasks = emptyList(),
+                        main = MainModelAssignment("openai", "gpt-4"),
+                    ),
+                )
+            coEvery { mockApiService.getMoaModels() } returns
+                Response.success<MoaConfigResponse>(
+                    MoaConfigResponse(
+                        presets = emptyMap(),
+                        default_preset = "",
+                        reference_models = emptyList(),
+                        aggregator = MoaModelSlot("openai", "gpt-4"),
+                        reference_temperature = 0.7,
+                        aggregator_temperature = 0.7,
+                        max_tokens = 4096,
+                    ),
+                )
+
+            // Default loadAll() must call getModelOptions with refresh = false
+            val viewModel = ModelViewModel()
+            viewModel.loadAll()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { mockApiService.getModelOptions(false) }
+
+            // Pull-to-refresh path must call getModelOptions with refresh = true
+            viewModel.loadAll(refresh = true)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { mockApiService.getModelOptions(true) }
+        }
+
+    @Test
     fun testConnectViewModel_onPairingString_urlFormat() =
         runTest {
             mockkStatic(android.net.Uri::class)

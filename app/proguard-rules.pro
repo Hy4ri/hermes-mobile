@@ -37,6 +37,11 @@
 # ── AndroidX Security Crypto ─────────────────────────────────────────────
 -dontwarn androidx.security.crypto.**
 
+# ── Tink / Error Prone ───────────────────────────────────────────────────
+# Tink references com.google.errorprone.annotations.Immutable which isn't
+# shipped as a runtime dependency. Suppress the R8 missing-class error.
+-dontwarn com.google.errorprone.annotations.Immutable
+
 # ── Compose ───────────────────────────────────────────────────────────────
 -dontwarn androidx.compose.**
 

@@ -1284,7 +1284,7 @@ class E2eIntegrationTest {
             val provider = ModelProvider("ollama", "Ollama", false, true, listOf("llama3"), 1, null, true, null, null)
             val profile = ProfileInfo("default", null, true, "llama3", "ollama", null, null, null, null)
 
-            coEvery { mockApiService.getModelOptions() } returns
+            coEvery { mockApiService.getModelOptions(any()) } returns
                 Response.success(ModelOptionsResponse(listOf(provider)))
             coEvery { mockApiService.getActiveProfile() } returns
                 Response.success(ActiveProfileResponse("default", null))

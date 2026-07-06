@@ -101,7 +101,7 @@ fun ModelScreen(
         title = { Text(stringResource(R.string.screen_models)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadAll() },
+        onRefresh = { viewModel.loadAll(refresh = true) },
     ) { paddingValues ->
         when {
             state.isLoading && state.providers.isEmpty() -> {

@@ -430,7 +430,9 @@ interface HermesApiService {
     ): Response<Unit>
 
     @GET("api/model/options")
-    suspend fun getModelOptions(): Response<ModelOptionsResponse>
+    suspend fun getModelOptions(
+        @Query("refresh") refresh: Boolean = false,
+    ): Response<ModelOptionsResponse>
 
     @GET("api/model/auxiliary")
     suspend fun getAuxiliaryModels(): Response<AuxiliaryModelsResponse>

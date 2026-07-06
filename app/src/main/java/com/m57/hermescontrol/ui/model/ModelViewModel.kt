@@ -76,12 +76,12 @@ class ModelViewModel :
         _uiState.update { it.copy(pinnedModels = AuthManager.getPinnedModels()) }
     }
 
-    fun loadAll() {
+    fun loadAll(refresh: Boolean = false) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             val optionsDeferred =
                 async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getModelOptions() }
+                    safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh) }
                 }
             val activeProfileDeferred =
                 async(Dispatchers.IO) {

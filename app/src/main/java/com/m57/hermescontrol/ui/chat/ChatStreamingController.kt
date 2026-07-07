@@ -10,14 +10,15 @@ import kotlinx.coroutines.flow.update
  * to keep the god-object focused on messaging/session concerns.
  *
  * Behavior is identical to the original inline implementation: it owns the
- * streaming buffers, the currently-streaming message id, and the two
- * token/delta handlers, and mutates the shared [uiState] + [streamingState]
- * flows. The owning ViewModel keeps [streamingState] as the single source of
- * truth for the reduced [StreamingState] (applied via the WS event reducer);
- * this controller only writes into it for buffer-driven flushes.
+ * streaming buffers and the two token/delta handlers, and mutates the shared
+ * [uiState] + [streamingState] flows. The owning ViewModel keeps [streamingState]
+ * as the single source of truth for the reduced [StreamingState] (applied via the
+ * WS event reducer); this controller only writes into it for buffer-driven flushes.
  *
  * [isCurrentSession] and [isTestEnvironment] are injected so the controller
  * stays free of ViewModel-specific context while preserving exact behavior.
+ * [scope] mirrors the [com.m57.hermescontrol.ui.chat.ChatSearchDelegate] seam
+ * and is reserved for future streaming coroutine work.
  */
 class ChatStreamingController(
     private val scope: CoroutineScope,
@@ -26,9 +27,6 @@ class ChatStreamingController(
     private val isCurrentSession: (String?) -> Boolean,
     private val isTestEnvironment: () -> Boolean,
 ) {
-    /** Tracks the ID of the currently streaming assistant message. */
-    private var streamingMessageId: String? = null
-
     private val streamingBuffer = java.lang.StringBuilder()
     private var lastFlushMs = 0L
 
@@ -36,29 +34,20 @@ class ChatStreamingController(
     private var lastThinkingFlushMs = 0L
 
     /**
-     * Resets all streaming buffers and the in-flight message id. Centralizes
-     * the clear logic that was previously scattered across MessageStart,
-     * MessageComplete, MessageDone, ToolStart, ClarifyRequest, session
-     * switches, and interrupt handling.
+     * Resets all streaming buffers. Centralizes the clear logic that was
+     * previously scattered across MessageStart, MessageComplete, MessageDone,
+     * ToolStart, ClarifyRequest, session switches, and interrupt handling.
      */
     fun resetStreaming() {
-        streamingMessageId = null
         streamingBuffer.clear()
         thinkingBuffer.clear()
         lastFlushMs = 0L
         lastThinkingFlushMs = 0L
     }
 
-    /** Generates a fresh streaming message id (called on MessageStart). */
+    /** Resets buffers and starts a fresh streaming message (called on MessageStart). */
     fun beginStreamingMessage() {
-        streamingMessageId =
-            java.util.UUID
-                .randomUUID()
-                .toString()
-        streamingBuffer.clear()
-        thinkingBuffer.clear()
-        lastFlushMs = 0L
-        lastThinkingFlushMs = 0L
+        resetStreaming()
     }
 
     fun handleMessageToken(event: WsEvent.MessageToken) {
@@ -90,7 +79,6 @@ class ChatStreamingController(
                             content = currentContent,
                             isStreaming = true,
                         )
-                    streamingMessageId = msg.id
                     state.copy(
                         streamingMessage = msg,
                         isThinking = false,

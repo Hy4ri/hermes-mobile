@@ -1446,7 +1446,7 @@ private fun ChatMessageList(
 
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().weight(1f),
+            modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
             itemsIndexed(

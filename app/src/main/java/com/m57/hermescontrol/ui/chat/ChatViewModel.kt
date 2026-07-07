@@ -113,7 +113,12 @@ class ChatViewModel(
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
 
     private val slashDispatcher = SlashCommandDispatcher()
-    private val searchController = ChatSearchController()
+    private val searchDelegate =
+        ChatSearchDelegate(
+            scope = viewModelScope,
+            uiState = _uiState,
+        )
+    private val attachmentsDelegate = ChatAttachmentsDelegate(uiState = _uiState)
 
     /** Tracks the ID of the currently streaming assistant message. */
     @Volatile
@@ -742,35 +747,11 @@ class ChatViewModel(
         name: String,
         mimeType: String,
         size: Long,
-    ) {
-        _uiState.update { state ->
-            val attachment =
-                Attachment(
-                    uri = uri,
-                    name = name,
-                    mimeType = mimeType,
-                    size = size,
-                )
-            state.copy(
-                pendingAttachments = state.pendingAttachments + attachment,
-            )
-        }
-    }
+    ) = attachmentsDelegate.addAttachment(uri, name, mimeType, size)
 
-    fun removeAttachment(index: Int) {
-        _uiState.update { state ->
-            state.copy(
-                pendingAttachments =
-                    state.pendingAttachments.toMutableList().apply {
-                        if (index in indices) removeAt(index)
-                    },
-            )
-        }
-    }
+    fun removeAttachment(index: Int) = attachmentsDelegate.removeAttachment(index)
 
-    fun clearAttachments() {
-        _uiState.update { it.copy(pendingAttachments = emptyList()) }
-    }
+    fun clearAttachments() = attachmentsDelegate.clearAttachments()
 
     private fun handleSlashCommand(command: String) {
         val userMsg = ChatMessage(role = MessageRole.USER, content = command)
@@ -1230,80 +1211,18 @@ class ChatViewModel(
     }
 
     // ── Search ────────────────────────────────────────────────────────────
+    // Compatibility façade: stable public API around ChatSearchDelegate.
+    // These thin delegates keep ChatViewModel's public surface intact while
+    // the search logic now lives in the delegate. Safe to remove once all
+    // callers migrate directly to the delegate.
 
-    fun toggleSearch() {
-        val current = _uiState.value
-        if (current.isSearchActive) {
-            clearSearch()
-        } else {
-            _uiState.update { it.copy(isSearchActive = true, searchQuery = "") }
-        }
-    }
+    fun toggleSearch() = searchDelegate.toggleSearch()
 
-    private var searchJob: Job? = null
+    fun setSearchQuery(query: String) = searchDelegate.setSearchQuery(query)
 
-    fun setSearchQuery(query: String) {
-        searchJob?.cancel()
+    fun navigateSearchMatch(direction: Int) = searchDelegate.navigateSearchMatch(direction)
 
-        if (query.isBlank()) {
-            _uiState.update {
-                it.copy(
-                    searchQuery = query,
-                    searchMatchIndices = emptyList(),
-                    currentSearchMatchIndex = -1,
-                )
-            }
-            return
-        }
-
-        // Keep local state in sync immediately so UI feels responsive.
-        _uiState.update {
-            it.copy(searchQuery = query)
-        }
-
-        searchJob =
-            viewModelScope.launch(Dispatchers.Default) {
-                val messages = _uiState.value.messages
-                val indices = searchController.findMatches(messages, query)
-
-                _uiState.update {
-                    // Only update indices if the search query hasn't changed in the meantime
-                    if (it.searchQuery == query) {
-                        it.copy(
-                            searchMatchIndices = indices,
-                            currentSearchMatchIndex = if (indices.isNotEmpty()) 0 else -1,
-                        )
-                    } else {
-                        it
-                    }
-                }
-            }
-    }
-
-    fun navigateSearchMatch(direction: Int) {
-        _uiState.update { state ->
-            val indices = state.searchMatchIndices
-            if (indices.isEmpty()) return@update state
-            val newIdx =
-                searchController.navigate(
-                    currentIndex = state.currentSearchMatchIndex,
-                    matchCount = indices.size,
-                    direction = direction,
-                )
-            state.copy(currentSearchMatchIndex = newIdx)
-        }
-    }
-
-    fun clearSearch() {
-        _uiState.update {
-            it.copy(
-                isSearchActive = false,
-                searchQuery = "",
-                searchMatchIndices = emptyList(),
-                currentSearchMatchIndex = -1,
-            )
-        }
-    }
+    fun clearSearch() = searchDelegate.clearSearch()
 
     private var isTestEnv: Boolean? = null
 

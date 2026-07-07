@@ -60,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -349,7 +350,7 @@ private fun ConnectionSection(
                         Modifier
                             .fillMaxWidth()
                             .padding(vertical = 2.dp)
-                            .clickable { viewModel.selectProfile(profile.id) },
+                            .clickable(role = Role.Button) { viewModel.selectProfile(profile.id) },
                     colors =
                         CardDefaults.cardColors(
                             containerColor =

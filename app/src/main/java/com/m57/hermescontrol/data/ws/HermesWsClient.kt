@@ -165,6 +165,25 @@ object HermesWsClient {
             Log.d(TAG, "Already connected — skipping")
             return
         }
+        // Guard against re-entrant connect() while a connection is already in
+        // flight. The singleton may be CONNECTING (mid handshake) or RECONNECTING
+        // (a scheduled reconnect is pending). Opening a second socket on the same
+        // `webSocket` field races the in-flight one and can leave the status
+        // stuck on RECONNECTING (e.g. the chat tab calls connect() on every open
+        // while the app-level reconnect is already running). Only start a fresh
+        // socket from a terminal state.
+        if (_connectionStatus.value == ConnectionStatus.CONNECTING ||
+            _connectionStatus.value == ConnectionStatus.RECONNECTING
+        ) {
+            Log.d(TAG, "Connection already in flight (${_connectionStatus.value}) — skipping")
+            return
+        }
+        // AUTH_EXPIRED cannot be resolved by reconnecting alone — caller must
+        // re-authenticate. Leave the status as-is so the UI can surface sign-in.
+        if (_connectionStatus.value == ConnectionStatus.AUTH_EXPIRED) {
+            Log.d(TAG, "Connection is AUTH_EXPIRED — skipping reconnect; re-auth required")
+            return
+        }
         intentionalClose.set(false)
         currentBackoff = INITIAL_BACKOFF_MS
         _connectionStatus.value = ConnectionStatus.CONNECTING

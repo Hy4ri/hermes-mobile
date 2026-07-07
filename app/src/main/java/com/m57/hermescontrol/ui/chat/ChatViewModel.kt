@@ -195,6 +195,20 @@ class ChatViewModel(
     private fun connectWebSocket(setLoading: Boolean = false) {
         val token = AuthManager.getToken() ?: return
 
+        // Don't disturb an already-working (or already-recovering) connection.
+        // HermesWsClient is a global singleton shared by every tab; the chat tab
+        // is recreated on every open, so calling connect() here must be a no-op
+        // unless the singleton is in a terminal state. Re-entering connect() while
+        // it is CONNECTING/RECONNECTING races the in-flight socket and can leave
+        // the status stuck on RECONNECTING (see HermesWsClient.connect).
+        val status = wsClient.connectionStatus.value
+        if (status == ConnectionStatus.CONNECTING ||
+            status == ConnectionStatus.RECONNECTING ||
+            status == ConnectionStatus.AUTH_EXPIRED
+        ) {
+            return
+        }
+
         if (setLoading) {
             _uiState.update { it.copy(isLoading = true) }
         }

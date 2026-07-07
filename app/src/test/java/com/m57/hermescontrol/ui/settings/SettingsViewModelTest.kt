@@ -18,7 +18,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -133,18 +132,18 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun testSelectProfile_nullClearsSelection() {
+    fun testSelectProfile_nullFallsBackToDefault() {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         storedSelectedProfileId = "prof-1"
 
         val viewModel = createViewModel()
 
-        viewModel.selectProfile(null)
+        viewModel.selectProfile(AuthManager.DEFAULT_PROFILE_ID)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        verify { AuthManager.setSelectedProfileId(null) }
+        verify { AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID) }
         verify { ApiClient.rebuild() }
-        assertNull(viewModel.uiState.value.selectedProfileId)
+        assertEquals(AuthManager.DEFAULT_PROFILE_ID, viewModel.uiState.value.selectedProfileId)
     }
 
     @Test
@@ -199,12 +198,12 @@ class SettingsViewModelTest {
 
         verify { AuthManager.saveConnectionProfiles(any()) }
         verify { AuthManager.setProfileToken("prof-1", null) }
-        verify { AuthManager.setSelectedProfileId(null) }
+        verify { AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID) }
         verify { ApiClient.rebuild() }
     }
 
     @Test
-    fun testDeleteProfile_nonSelected_doesNotClearSelectedId() {
+    fun testDeleteProfile_nonSelected_doesNotChangeSelectedId() {
         every { AuthManager.getConnectionProfiles() } returns testProfiles
         every { AuthManager.getSelectedProfileId() } returns "prof-1"
 
@@ -214,8 +213,8 @@ class SettingsViewModelTest {
 
         verify { AuthManager.saveConnectionProfiles(any()) }
         verify { AuthManager.setProfileToken("prof-2", null) }
-        // Selected profile (prof-1) was NOT deleted — should NOT clear selection
-        verify(exactly = 0) { AuthManager.setSelectedProfileId(null) }
+        // Selected profile (prof-1) was NOT deleted — should NOT change selection
+        verify(exactly = 0) { AuthManager.setSelectedProfileId(any()) }
         verify { ApiClient.rebuild() }
     }
 

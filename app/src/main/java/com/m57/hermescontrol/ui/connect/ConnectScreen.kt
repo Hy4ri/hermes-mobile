@@ -154,13 +154,6 @@ fun ConnectScreen(
                         onDismissRequest = { profilesExpanded = false },
                         modifier = Modifier.fillMaxWidth(0.85f),
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.connect_profile_none)) },
-                            onClick = {
-                                viewModel.selectProfile(null)
-                                profilesExpanded = false
-                            },
-                        )
                         state.profiles.forEach { profile ->
                             DropdownMenuItem(
                                 text = { Text(profile.name) },

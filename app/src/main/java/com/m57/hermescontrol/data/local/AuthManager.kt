@@ -34,9 +34,12 @@ import kotlinx.coroutines.runBlocking
 object AuthManager {
     private const val PREFS_FILE = "hermes_secure_prefs"
 
-    private const val KEY_TOKEN = "auth_token"
+    const val DEFAULT_PROFILE_ID = "default"
+    const val DEFAULT_PROFILE_NAME = "Default"
     private const val KEY_SELECTED_PROFILE_ID = "selected_profile_id"
     private const val KEY_SESSION_COOKIE = "session_cookie"
+    private const val KEY_LEGACY_TOKEN = "auth_token"
+    private const val KEY_LEGACY_DEFAULT_MIGRATED = "legacy_default_migrated"
 
     @Volatile
     private var prefsDeferred: Deferred<SharedPreferences>? = null
@@ -115,6 +118,7 @@ object AuthManager {
                                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
                             )
+                        migrateLegacyDefaultIfNeeded(p)
                         _tokenFlow.value = getTokenInternal(p)
                         p
                     }
@@ -181,6 +185,75 @@ object AuthManager {
 
     fun saveConnectionProfiles(profiles: List<ConnectionProfile>) {
         serverStore.update { it.copy(connectionProfiles = profiles) }
+    }
+
+    /**
+     * Guarantees the selected profile is never null (issue #478).
+     *
+     * - If a profile is already selected (default or otherwise), nothing is changed.
+     * - If nothing is selected but other profiles exist, the first one is selected.
+     * - If there are no profiles at all (fresh install / legacy standalone), a [DEFAULT_PROFILE_ID]
+     *   profile is created from the current top-level host/port and selected.
+     *
+     * This never injects a Default profile into an existing user's profile list, and never
+     * clobbers a user's explicit selection.
+     */
+    fun ensureDefaultProfile() {
+        val state = serverStore.getLatestState()
+        val hasDefault = state.connectionProfiles.any { it.id == DEFAULT_PROFILE_ID }
+        val needsSelection = state.selectedProfileId.isNullOrBlank()
+
+        if (!needsSelection && (hasDefault || state.connectionProfiles.isNotEmpty())) return
+
+        if (state.connectionProfiles.isEmpty()) {
+            // Fresh install / legacy standalone: create the Default profile and select it.
+            serverStore.update { s ->
+                s.copy(
+                    connectionProfiles =
+                        listOf(
+                            ConnectionProfile(
+                                id = DEFAULT_PROFILE_ID,
+                                name = DEFAULT_PROFILE_NAME,
+                                host = s.host,
+                                port = s.port,
+                            ),
+                        ),
+                    selectedProfileId = DEFAULT_PROFILE_ID,
+                )
+            }
+            return
+        }
+
+        // Profiles exist but nothing is selected: pick the first one so selection is non-null.
+        if (needsSelection) {
+            serverStore.update { s -> s.copy(selectedProfileId = s.connectionProfiles.first().id) }
+        }
+    }
+
+    /** Ensure a profile is selected (the default one if nothing else), so callers never see null. */
+    fun ensureDefaultSelected() {
+        ensureDefaultProfile()
+        if (getSelectedProfileId().isNullOrBlank()) {
+            setSelectedProfileId(DEFAULT_PROFILE_ID)
+        }
+    }
+
+    /**
+     * One-time migration: fold the legacy standalone ([KEY_LEGACY_TOKEN]) credentials into the
+     * new default [ConnectionProfile]. Runs once per install, guarded by
+     * [KEY_LEGACY_DEFAULT_MIGRATED].
+     */
+    private fun migrateLegacyDefaultIfNeeded(p: SharedPreferences) {
+        if (p.getBoolean(KEY_LEGACY_DEFAULT_MIGRATED, false)) return
+        val legacyToken = p.getString(KEY_LEGACY_TOKEN, null)
+        ensureDefaultProfile()
+        p.edit().apply {
+            if (!legacyToken.isNullOrBlank()) {
+                putString("token_$DEFAULT_PROFILE_ID", legacyToken)
+            }
+            remove(KEY_LEGACY_TOKEN)
+            putBoolean(KEY_LEGACY_DEFAULT_MIGRATED, true)
+        }.apply()
     }
 
     // ── Pinned Models ────────────────────────────────────────────────────
@@ -254,12 +327,7 @@ object AuthManager {
         synchronized(this) {
             if (tokenInitialized) return cachedToken
             val selectedId = getSelectedProfileId()
-            val token =
-                if (selectedId != null) {
-                    getProfileToken(selectedId) ?: requirePrefs().getString(KEY_TOKEN, null)
-                } else {
-                    requirePrefs().getString(KEY_TOKEN, null)
-                }
+            val token = if (selectedId != null) getProfileToken(selectedId) else null
             cachedToken = token
             tokenInitialized = true
             return token
@@ -269,20 +337,19 @@ object AuthManager {
     private fun getTokenInternal(p: SharedPreferences): String? {
         val selectedId = serverStore.getLatestState().selectedProfileId?.takeIf { it.isNotBlank() }
         return if (selectedId != null) {
-            p.getString("token_$selectedId", null) ?: p.getString(KEY_TOKEN, null)
+            p.getString("token_$selectedId", null)
         } else {
-            p.getString(KEY_TOKEN, null)
+            null
         }
     }
 
     fun setToken(token: String?) {
-        val selectedId = getSelectedProfileId()
-        if (selectedId != null) {
-            setProfileToken(selectedId, token)
-        } else {
-            requirePrefs().edit().putString(KEY_TOKEN, token).apply()
-            _tokenFlow.value = token
-        }
+        val selectedId =
+            getSelectedProfileId() ?: run {
+                ensureDefaultSelected()
+                DEFAULT_PROFILE_ID
+            }
+        setProfileToken(selectedId, token)
         synchronized(this) {
             cachedToken = token
             tokenInitialized = true
@@ -294,17 +361,17 @@ object AuthManager {
     fun getHost(): String = serverStore.getLatestState().resolvedHost
 
     fun setHost(host: String) {
-        val selectedId = getSelectedProfileId()
-        if (selectedId != null) {
-            serverStore.update { state ->
-                val profiles =
-                    state.connectionProfiles.map {
-                        if (it.id == selectedId) it.copy(host = host) else it
-                    }
-                state.copy(connectionProfiles = profiles)
+        val selectedId =
+            getSelectedProfileId() ?: run {
+                ensureDefaultSelected()
+                DEFAULT_PROFILE_ID
             }
-        } else {
-            serverStore.update { it.copy(host = host) }
+        serverStore.update { state ->
+            val profiles =
+                state.connectionProfiles.map {
+                    if (it.id == selectedId) it.copy(host = host) else it
+                }
+            state.copy(connectionProfiles = profiles)
         }
     }
 
@@ -313,17 +380,17 @@ object AuthManager {
     fun getPort(): Int = serverStore.getLatestState().resolvedPort
 
     fun setPort(port: Int) {
-        val selectedId = getSelectedProfileId()
-        if (selectedId != null) {
-            serverStore.update { state ->
-                val profiles =
-                    state.connectionProfiles.map {
-                        if (it.id == selectedId) it.copy(port = port) else it
-                    }
-                state.copy(connectionProfiles = profiles)
+        val selectedId =
+            getSelectedProfileId() ?: run {
+                ensureDefaultSelected()
+                DEFAULT_PROFILE_ID
             }
-        } else {
-            serverStore.update { it.copy(port = port) }
+        serverStore.update { state ->
+            val profiles =
+                state.connectionProfiles.map {
+                    if (it.id == selectedId) it.copy(port = port) else it
+                }
+            state.copy(connectionProfiles = profiles)
         }
     }
 

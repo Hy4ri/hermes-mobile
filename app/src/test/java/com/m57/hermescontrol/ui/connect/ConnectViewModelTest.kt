@@ -411,21 +411,6 @@ class ConnectViewModelTest {
     }
 
     @Test
-    fun testSelectProfile_null_clearsState() {
-        val viewModel = ConnectViewModel(mockApp)
-        viewModel.selectProfile(null)
-
-        val state = viewModel.uiState.value
-        assertEquals("", state.profileName)
-        assertEquals("127.0.0.1", state.host)
-        assertEquals("9119", state.port)
-        assertEquals("", state.token)
-        assertNull(state.selectedProfile)
-
-        verify { AuthManager.setSelectedProfileId(null) }
-    }
-
-    @Test
     fun testConnect_saveProfile_savesAndSelects() =
         runTest {
             val viewModel = ConnectViewModel(mockApp)
@@ -525,7 +510,7 @@ class ConnectViewModelTest {
     }
 
     @Test
-    fun testConnect_withoutSaveProfile_clearsSelectedProfile() =
+    fun testConnect_withoutSaveProfile_persistsToDefaultProfile() =
         runTest {
             val viewModel = ConnectViewModel(mockApp)
             viewModel.onTokenChange("standalone-token")
@@ -548,9 +533,9 @@ class ConnectViewModelTest {
             viewModel.connect()
             advanceUntilIdle()
 
-            verify { AuthManager.setSelectedProfileId(null) }
             verify { AuthManager.setToken("standalone-token") }
             verify { AuthManager.setHost("10.0.0.1") }
+            verify { AuthManager.setPort(9119) }
             verify(exactly = 0) { AuthManager.saveConnectionProfiles(any()) }
         }
 

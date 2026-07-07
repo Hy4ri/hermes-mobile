@@ -1402,107 +1402,113 @@ private fun ChatMessageList(
     onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
 ) {
-    // Search bar
-    androidx.compose.animation.AnimatedVisibility(
-        visible = isSearchActive,
-        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-    ) {
-        androidx.compose.material3.Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = 2.dp,
-            border =
-                BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
-                ),
+    // Lay children out vertically so the search bar occupies real layout space
+    // ABOVE the message list. Without this container the call site is a Box,
+    // which overlays the LazyColumn on top of the search AnimatedVisibility and
+    // swallows every tap on the bar (bar visible but not clickable).
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Search bar
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isSearchActive,
+            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
         ) {
-            Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                SearchBarRow(
-                    searchQuery = searchQuery,
-                    onQueryChange = { viewModel.setSearchQuery(it) },
-                    searchMatchCount = searchMatchIndices.size,
-                    currentMatchIndex = currentSearchMatchIndex,
-                    onNavigateUp = { viewModel.navigateSearchMatch(-1) },
-                    onNavigateDown = { viewModel.navigateSearchMatch(1) },
-                    onClose = { viewModel.clearSearch() },
-                )
-            }
-        }
-    }
-
-    if (messages.isEmpty() && !isLoading) {
-        EmptyState(
-            title = stringResource(R.string.chat_empty_title),
-            subtitle = stringResource(R.string.chat_empty_subtitle),
-        )
-    }
-
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp),
-    ) {
-        itemsIndexed(
-            items = messages,
-            key = { _, message -> message.id },
-        ) { index, message ->
-            val isCurrentMatch =
-                isSearchActive &&
-                    currentSearchMatchIndex >= 0 &&
-                    currentSearchMatchIndex < searchMatchIndices.size &&
-                    searchMatchIndices[currentSearchMatchIndex] == index
-
-            val isLastMessage = index == messages.lastIndex
-            val isAssistant = message.role == MessageRole.ASSISTANT
-
-            if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
-                lastAnimatedMessageId != message.id
+            androidx.compose.material3.Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 2.dp,
+                border =
+                    BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                    ),
             ) {
-                StreamingBubbleWithTypingEffect(
-                    streaming = message,
-                    typingDelayMs = typingEffectDelayMs,
-                    isDark = isDark,
-                    onAnimationComplete = {
-                        onLastAnimatedMessageIdChange(message.id)
-                    },
-                )
-            } else {
-                ChatBubble(
-                    message = message,
-                    isDarkTheme = isDark,
-                    searchQuery = if (isSearchActive) searchQuery else "",
-                    isCurrentMatch = isCurrentMatch,
-                    onRespondApproval = viewModel::respondToApproval,
-                )
-            }
-        }
-
-        // Streaming message
-        streamingMessage?.let { streaming ->
-            item(key = "streaming-${streaming.id}") {
-                if (typingEffectEnabled && streaming.isStreaming) {
-                    StreamingBubbleWithTypingEffect(
-                        streaming = streaming,
-                        typingDelayMs = typingEffectDelayMs,
-                        isDark = isDark,
-                    )
-                } else {
-                    ChatBubble(
-                        message = streaming,
-                        isDarkTheme = isDark,
-                        searchQuery = "",
-                        isCurrentMatch = false,
+                Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    SearchBarRow(
+                        searchQuery = searchQuery,
+                        onQueryChange = { viewModel.setSearchQuery(it) },
+                        searchMatchCount = searchMatchIndices.size,
+                        currentMatchIndex = currentSearchMatchIndex,
+                        onNavigateUp = { viewModel.navigateSearchMatch(-1) },
+                        onNavigateDown = { viewModel.navigateSearchMatch(1) },
+                        onClose = { viewModel.clearSearch() },
                     )
                 }
             }
         }
 
-        // Thinking indicator
-        if (isThinking) {
-            item(key = "thinking") {
-                ThinkingIndicator(thinkingText)
+        if (messages.isEmpty() && !isLoading) {
+            EmptyState(
+                title = stringResource(R.string.chat_empty_title),
+                subtitle = stringResource(R.string.chat_empty_subtitle),
+            )
+        }
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().weight(1f),
+            contentPadding = PaddingValues(vertical = 8.dp),
+        ) {
+            itemsIndexed(
+                items = messages,
+                key = { _, message -> message.id },
+            ) { index, message ->
+                val isCurrentMatch =
+                    isSearchActive &&
+                        currentSearchMatchIndex >= 0 &&
+                        currentSearchMatchIndex < searchMatchIndices.size &&
+                        searchMatchIndices[currentSearchMatchIndex] == index
+
+                val isLastMessage = index == messages.lastIndex
+                val isAssistant = message.role == MessageRole.ASSISTANT
+
+                if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
+                    lastAnimatedMessageId != message.id
+                ) {
+                    StreamingBubbleWithTypingEffect(
+                        streaming = message,
+                        typingDelayMs = typingEffectDelayMs,
+                        isDark = isDark,
+                        onAnimationComplete = {
+                            onLastAnimatedMessageIdChange(message.id)
+                        },
+                    )
+                } else {
+                    ChatBubble(
+                        message = message,
+                        isDarkTheme = isDark,
+                        searchQuery = if (isSearchActive) searchQuery else "",
+                        isCurrentMatch = isCurrentMatch,
+                        onRespondApproval = viewModel::respondToApproval,
+                    )
+                }
+            }
+
+            // Streaming message
+            streamingMessage?.let { streaming ->
+                item(key = "streaming-${streaming.id}") {
+                    if (typingEffectEnabled && streaming.isStreaming) {
+                        StreamingBubbleWithTypingEffect(
+                            streaming = streaming,
+                            typingDelayMs = typingEffectDelayMs,
+                            isDark = isDark,
+                        )
+                    } else {
+                        ChatBubble(
+                            message = streaming,
+                            isDarkTheme = isDark,
+                            searchQuery = "",
+                            isCurrentMatch = false,
+                        )
+                    }
+                }
+            }
+
+            // Thinking indicator
+            if (isThinking) {
+                item(key = "thinking") {
+                    ThinkingIndicator(thinkingText)
+                }
             }
         }
     }

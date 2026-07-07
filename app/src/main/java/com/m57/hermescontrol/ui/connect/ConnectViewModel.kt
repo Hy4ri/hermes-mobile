@@ -54,12 +54,7 @@ class ConnectViewModel(
         val selectedProfile = profiles.firstOrNull { it.id == selectedId }
         _uiState.update {
             it.copy(
-                token =
-                    if (selectedProfile != null) {
-                        AuthManager.getProfileToken(selectedProfile.id) ?: ""
-                    } else {
-                        savedToken
-                    },
+                token = savedToken,
                 host = selectedProfile?.host ?: savedHost,
                 port = (selectedProfile?.port ?: savedPort).toString(),
                 profiles = profiles,
@@ -77,30 +72,17 @@ class ConnectViewModel(
         _uiState.update { it.copy(saveProfile = value) }
     }
 
-    fun selectProfile(profile: ConnectionProfile?) {
-        if (profile == null) {
-            AuthManager.setSelectedProfileId(null)
-            _uiState.update {
-                it.copy(
-                    selectedProfile = null,
-                    profileName = "",
-                    token = "",
-                    host = "127.0.0.1",
-                    port = "9119",
-                )
-            }
-        } else {
-            AuthManager.setSelectedProfileId(profile.id)
-            val token = AuthManager.getProfileToken(profile.id) ?: ""
-            _uiState.update {
-                it.copy(
-                    selectedProfile = profile,
-                    profileName = profile.name,
-                    host = profile.host,
-                    port = profile.port.toString(),
-                    token = token,
-                )
-            }
+    fun selectProfile(profile: ConnectionProfile) {
+        AuthManager.setSelectedProfileId(profile.id)
+        val token = AuthManager.getProfileToken(profile.id) ?: ""
+        _uiState.update {
+            it.copy(
+                selectedProfile = profile,
+                profileName = profile.name,
+                host = profile.host,
+                port = profile.port.toString(),
+                token = token,
+            )
         }
     }
 
@@ -142,7 +124,9 @@ class ConnectViewModel(
                 }
             when (result) {
                 is NetworkResult.Success -> {
-                    // Only persist credentials to global state upon successful verification
+                    // Persist credentials to the selected (Default) profile upon successful verification.
+                    // setToken/setHost/setPort delegate to the currently-selected profile, which is
+                    // always non-null after issue #478 (never the legacy standalone path).
                     AuthManager.setToken(state.token)
                     AuthManager.setHost(state.host)
                     AuthManager.setPort(port)
@@ -177,11 +161,10 @@ class ConnectViewModel(
                         AuthManager.setSelectedProfileId(targetProfile.id)
                         AuthManager.setProfileToken(targetProfile.id, state.token)
                     } else {
-                        // Clear selected profile if we connected standalone and didn't check "save profile"
-                        AuthManager.setSelectedProfileId(null)
-                        AuthManager.setToken(state.token)
-                        AuthManager.setHost(state.host)
-                        AuthManager.setPort(port)
+                        // No explicit profile name — store the connection on the default profile.
+                        AuthManager.ensureDefaultSelected()
+                        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
+                        AuthManager.setProfileToken(AuthManager.DEFAULT_PROFILE_ID, state.token)
                     }
                     ApiClient.rebuild()
                     _uiState.update {

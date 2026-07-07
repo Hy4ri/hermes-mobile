@@ -124,7 +124,6 @@
     <string name="settings_sec_connection">Connection</string>
     <string name="settings_item_profile">Connection Profile</string>
     <string name="settings_profile_default">Standalone / Default</string>
-    <string name="settings_profile_none">None (Standalone / Default)</string>
     <string name="settings_action_rename_profile">Rename Profile</string>
     <string name="settings_field_host">Host</string>
     <string name="settings_field_port">Port</string>
@@ -189,7 +188,6 @@
     <!-- Connect Screen -->
     <string name="connect_selected_profile">Profile: %1$s</string>
     <string name="connect_action_select_profile">Select Saved Profile</string>
-    <string name="connect_profile_none">None (Standalone)</string>
 
     <!-- Connect Error Messages -->
     <string name="connect_error_token_required">Token is required</string>

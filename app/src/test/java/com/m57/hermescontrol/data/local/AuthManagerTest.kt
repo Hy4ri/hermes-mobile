@@ -29,6 +29,7 @@ class AuthManagerTest {
     private lateinit var mockPrefs: SharedPreferences
     private lateinit var mockEditor: SharedPreferences.Editor
     private lateinit var mockContext: Context
+    private lateinit var testContext: Context
 
     @Before
     fun setUp() {
@@ -52,7 +53,7 @@ class AuthManagerTest {
 
         // Mock filesDir to point to temporary directory for DataStore
         val tempDir = java.io.File(System.getProperty("java.io.tmpdir"))
-        val testContext = TestContext(tempDir, mockContext)
+        testContext = TestContext(tempDir, mockContext)
 
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) {
@@ -110,21 +111,21 @@ class AuthManagerTest {
 
     @Test
     fun testGetAndSetToken() {
-        every { mockPrefs.getString("auth_token", null) } returns "dummy_token_123"
+        AuthManager.ensureDefaultProfile()
+        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
+        AuthManager.setToken("dummy_token_123")
         assertEquals("dummy_token_123", AuthManager.getToken())
-
-        AuthManager.setToken("new_token")
-        verify { mockEditor.putString("auth_token", "new_token") }
+        verify { mockEditor.putString("token_${AuthManager.DEFAULT_PROFILE_ID}", "dummy_token_123") }
         verify { mockEditor.apply() }
     }
 
     @Test
     fun testGetAndSetToken_null() {
-        every { mockPrefs.getString("auth_token", null) } returns null
-        assertNull(AuthManager.getToken())
-
+        AuthManager.ensureDefaultProfile()
+        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         AuthManager.setToken(null)
-        verify { mockEditor.putString("auth_token", null) }
+        assertNull(AuthManager.getToken())
+        verify { mockEditor.putString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) }
         verify { mockEditor.apply() }
     }
 
@@ -155,15 +156,17 @@ class AuthManagerTest {
 
     @Test
     fun testTokenCaching() {
-        every { mockPrefs.getString("auth_token", null) } returns "first-token"
+        AuthManager.ensureDefaultProfile()
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "first-token"
+        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         assertEquals("first-token", AuthManager.getToken())
 
         // Update the mockPrefs directly, but since getToken uses the cache, it should still return the first token
-        every { mockPrefs.getString("auth_token", null) } returns "second-token"
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "second-token"
         assertEquals("first-token", AuthManager.getToken())
 
         // Clear token initialized manually since this happens upon selecting profile id
-        AuthManager.setSelectedProfileId(null)
+        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         assertEquals("second-token", AuthManager.getToken())
 
         // Test setToken
@@ -173,17 +176,21 @@ class AuthManagerTest {
 
     @Test
     fun testWsUrl() {
+        AuthManager.ensureDefaultProfile()
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "token123"
+        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         AuthManager.setHost("hermes.local")
         AuthManager.setPort(1234)
-        every { mockPrefs.getString("auth_token", null) } returns "token123"
         assertEquals("ws://hermes.local:1234/api/ws?token=token123", AuthManager.wsUrl())
     }
 
     @Test
     fun testWsUrl_nullToken() {
+        AuthManager.ensureDefaultProfile()
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns null
+        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         AuthManager.setHost("hermes.local")
         AuthManager.setPort(1234)
-        every { mockPrefs.getString("auth_token", null) } returns null
         assertEquals("ws://hermes.local:1234/api/ws?token=", AuthManager.wsUrl())
     }
 
@@ -199,19 +206,11 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_fallsBackToGlobalWhenProfileTokenMissing() {
+    fun testGetToken_returnsNullWhenProfileHasNoToken() {
         val profile1 = ConnectionProfile("prof-1", "Profile 1", "127.0.0.1", 9119)
         AuthManager.saveConnectionProfiles(listOf(profile1))
-        every { mockPrefs.getString("token_prof-1", null) } returns null // no profile token
-        every { mockPrefs.getString("auth_token", null) } returns "global-token"
+        every { mockPrefs.getString("token_prof-1", null) } returns null
         AuthManager.setSelectedProfileId("prof-1")
-        assertEquals("global-token", AuthManager.getToken())
-    }
-
-    @Test
-    fun testGetToken_returnsNullWhenNoProfileAndNoGlobal() {
-        every { mockPrefs.getString("auth_token", null) } returns null
-        AuthManager.setSelectedProfileId(null)
         assertNull(AuthManager.getToken())
     }
 
@@ -225,18 +224,19 @@ class AuthManagerTest {
 
         verify { mockEditor.putString("token_prof-1", "new-profile-token") }
         verify { mockEditor.apply() }
-        // Should NOT write to global token
+        // Should NOT write to a global token key
         verify(exactly = 0) { mockEditor.putString("auth_token", any()) }
     }
 
     @Test
-    fun testSetToken_writesToGlobalWhenNoSelectedProfile() {
-        AuthManager.setSelectedProfileId(null)
+    fun testSetToken_writesToDefaultProfileWhenNoSelection() {
+        AuthManager.ensureDefaultProfile()
 
-        AuthManager.setToken("global-token")
+        AuthManager.setToken("default-token")
 
-        verify { mockEditor.putString("auth_token", "global-token") }
+        verify { mockEditor.putString("token_${AuthManager.DEFAULT_PROFILE_ID}", "default-token") }
         verify { mockEditor.apply() }
+        verify(exactly = 0) { mockEditor.putString("auth_token", any()) }
     }
 
     @Test
@@ -259,6 +259,7 @@ class AuthManagerTest {
 
     @Test
     fun testGetHost_fallsBackToDefaultWhenSelectedProfileIdNotFound() {
+        AuthManager.ensureDefaultProfile()
         AuthManager.setSelectedProfileId("nonexistent")
         AuthManager.saveConnectionProfiles(emptyList())
         AuthManager.setHost("192.168.1.1")
@@ -292,7 +293,7 @@ class AuthManagerTest {
 
     @Test
     fun testProfileTokenRoundTrip() {
-        AuthManager.setSelectedProfileId(null)
+        AuthManager.ensureDefaultProfile()
         AuthManager.setProfileToken("prof-a", "token-a")
 
         verify { mockEditor.putString("token_prof-a", "token-a") }
@@ -343,22 +344,20 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_fallsBackToGlobalWhenSelectedProfileLacksToken() {
+    fun testGetToken_profileWithNoTokenReturnsNull() {
         val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
         val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
 
-        // Profile A is selected but has no token → falls back to global
+        // Profile A is selected but has no token → null (no global fallback)
         every { mockPrefs.getString("token_prof-a", null) } returns null
-        every { mockPrefs.getString("auth_token", null) } returns "shared-global-token"
         AuthManager.setSelectedProfileId("prof-a")
+        assertNull(AuthManager.getToken())
 
-        assertEquals("shared-global-token", AuthManager.getToken())
-
-        // Switch to Profile B, which also has no token → same global fallback
+        // Switch to Profile B, which also has no token → still null
         every { mockPrefs.getString("token_prof-b", null) } returns null
         AuthManager.setSelectedProfileId("prof-b")
-        assertEquals("shared-global-token", AuthManager.getToken())
+        assertNull(AuthManager.getToken())
     }
 
     @Test
@@ -373,11 +372,10 @@ class AuthManagerTest {
         AuthManager.setSelectedProfileId("prof-a")
         assertEquals("token-a", AuthManager.getToken())
 
-        // Profile B has no token, but global exists
+        // Profile B has no token → null
         every { mockPrefs.getString("token_prof-b", null) } returns null
-        every { mockPrefs.getString("auth_token", null) } returns "fallback"
         AuthManager.setSelectedProfileId("prof-b")
-        assertEquals("fallback", AuthManager.getToken())
+        assertNull(AuthManager.getToken())
 
         // Profile C has its own token too
         every { mockPrefs.getString("token_prof-c", null) } returns "token-c"
@@ -426,5 +424,53 @@ class AuthManagerTest {
 
         AuthManager.setSelectedProfileId("  ")
         assertNull(AuthManager.getSelectedProfileId())
+    }
+
+    @Test
+    fun testEnsureDefaultProfile_createsDefaultWhenMissing() {
+        AuthManager.saveConnectionProfiles(emptyList())
+        AuthManager.setSelectedProfileId(null)
+
+        AuthManager.ensureDefaultProfile()
+
+        val profiles = AuthManager.getConnectionProfiles()
+        assertEquals(1, profiles.size)
+        assertEquals(AuthManager.DEFAULT_PROFILE_ID, profiles[0].id)
+        assertEquals(AuthManager.DEFAULT_PROFILE_NAME, profiles[0].name)
+        assertEquals(AuthManager.DEFAULT_PROFILE_ID, AuthManager.getSelectedProfileId())
+    }
+
+    @Test
+    fun testEnsureDefaultProfile_doesNotDuplicateExisting() {
+        val existing = ConnectionProfile("prof-1", "Work", "10.0.0.1", 9119)
+        AuthManager.saveConnectionProfiles(listOf(existing))
+        AuthManager.setSelectedProfileId("prof-1")
+
+        AuthManager.ensureDefaultProfile()
+
+        val profiles = AuthManager.getConnectionProfiles()
+        assertEquals(1, profiles.size)
+        assertEquals("prof-1", AuthManager.getSelectedProfileId())
+    }
+
+    @Test
+    fun testMigrateLegacyToken_foldsIntoDefaultProfile() {
+        // Simulate a legacy install: no profiles, a global auth_token, and a selected id of null.
+        every { mockPrefs.getString("auth_token", null) } returns "legacy-standalone-token"
+        every { mockPrefs.getBoolean("legacy_default_migrated", false) } returns false
+
+        // Re-initialize so init() runs the one-time migration
+        AuthManager.resetAuthStateForTest()
+        AuthManager.init(testContext)
+        kotlinx.coroutines.runBlocking {
+            val field = AuthManager::class.java.getDeclaredField("prefsDeferred")
+            field.isAccessible = true
+            (field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>)?.await()
+        }
+
+        // token should now be persisted under the default profile key, and the legacy key removed
+        verify { mockEditor.putString("token_${AuthManager.DEFAULT_PROFILE_ID}", "legacy-standalone-token") }
+        verify { mockEditor.remove("auth_token") }
+        verify { mockEditor.putBoolean("legacy_default_migrated", true) }
     }
 }

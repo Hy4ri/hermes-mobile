@@ -127,8 +127,13 @@ class SettingsViewModel(
         val updatedProfiles = AuthManager.getConnectionProfiles().filter { it.id != profileId }
         AuthManager.saveConnectionProfiles(updatedProfiles)
         AuthManager.setProfileToken(profileId, null)
+        // Never leave selection null (issue #478): if the deleted profile was selected,
+        // fall back to the default profile instead of clearing selection.
         if (AuthManager.getSelectedProfileId() == profileId) {
-            AuthManager.setSelectedProfileId(null)
+            if (updatedProfiles.none { it.id == AuthManager.DEFAULT_PROFILE_ID }) {
+                AuthManager.ensureDefaultProfile()
+            }
+            AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         }
         viewModelScope.launch(ioDispatcher) { loadSettings() }
         ApiClient.rebuild()

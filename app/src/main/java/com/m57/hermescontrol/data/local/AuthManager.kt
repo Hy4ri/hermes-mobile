@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.config.ServerStoreSerializer
 import com.m57.hermescontrol.data.config.resolvedHost
 import com.m57.hermescontrol.data.config.resolvedPort
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -96,16 +97,6 @@ object AuthManager {
             val store = ServerStore(dataStore, scope)
             _serverStore = store
 
-            scope.launch {
-                store.stateFlow.collect { state ->
-                    _bottomNavItemsFlow.value = state.bottomNavItems
-                    _themePreferenceFlow.value = state.themePreference
-                    _useDynamicColorsFlow.value = state.useDynamicColors
-                    _themePresetFlow.value = state.themePreset
-                    _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
-                }
-            }
-
             if (prefsDeferred == null) {
                 prefsDeferred =
                     CoroutineScope(Dispatchers.IO).async {
@@ -122,6 +113,22 @@ object AuthManager {
                         _tokenFlow.value = getTokenInternal(p)
                         p
                     }
+            }
+
+            // Initialize the encrypted cookie store (issue #470). The legacy
+            // session-cookie prefs are passed as a Deferred so existing gated
+            // sessions can be migrated on first load WITHOUT blocking startup.
+            // The Deferred is created above, before this call.
+            CookieManager.initialize(context, prefsDeferred)
+
+            scope.launch {
+                store.stateFlow.collect { state ->
+                    _bottomNavItemsFlow.value = state.bottomNavItems
+                    _themePreferenceFlow.value = state.themePreference
+                    _useDynamicColorsFlow.value = state.useDynamicColors
+                    _themePresetFlow.value = state.themePreset
+                    _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
+                }
             }
         }
     }
@@ -155,13 +162,25 @@ object AuthManager {
     /**
      * In gated mode (basic auth), the dashboard authenticates REST API
      * requests via the `hermes_session_at` cookie, not via
-     * `Authorization: *** We store it here so [ApiClient]'s
-     * authInterceptor can add it as a `Cookie` header.
+     * `Authorization: Bearer`. The cookie is now owned by the shared
+     * [CookieManager]/[PersistentCookieJar] (issue #470) which attaches it
+     * automatically on every REST call, follows redirects, and persists it
+     * encrypted. This accessor is a thin read-through to that store.
      */
-    fun getSessionCookie(): String? = requirePrefs().getString(KEY_SESSION_COOKIE, null)
+    fun getSessionCookie(): String? = CookieManager.getSessionCookie()
 
     fun setSessionCookie(cookie: String?) {
-        requirePrefs().edit().putString(KEY_SESSION_COOKIE, cookie).apply()
+        // The session cookie is host-scoped to the current dashboard host so
+        // the CookieJar only attaches it to matching requests.
+        CookieManager.setSessionCookie(cookie, AuthManager.getHost())
+    }
+
+    /**
+     * Evict expired (non-session) cookies for the active server scope to
+     * bound cookie growth (issue #470 step 7).
+     */
+    fun pruneServerCache() {
+        CookieManager.pruneServerCache()
     }
 
     // ── Database Master Password ─────────────────────────────────────────

@@ -14,26 +14,20 @@ object TokenRefreshAuthenticator : Authenticator {
         if (response.priorResponse != null) {
             return null // Only retry once
         }
-        val sessionCookie = AuthManager.getSessionCookie()
-        if (!sessionCookie.isNullOrBlank()) {
-            val requestCookie = response.request.header("Cookie")
-            val currentCookieHeader = "hermes_session_at=$sessionCookie"
-            if (requestCookie == null || !requestCookie.contains(currentCookieHeader)) {
-                return response.request
-                    .newBuilder()
-                    .header("Cookie", currentCookieHeader)
-                    .build()
-            }
-        } else {
-            val token = AuthManager.getToken()
-            val requestAuth = response.request.header("Authorization")
-            val currentAuthHeader = "Bearer $token"
-            if (!token.isNullOrBlank() && (requestAuth == null || !requestAuth.contains(currentAuthHeader))) {
-                return response.request
-                    .newBuilder()
-                    .header("Authorization", currentAuthHeader)
-                    .build()
-            }
+        // Gated mode: the session cookie is now managed automatically by the
+        // shared CookieJar (issue #470), so OkHttp re-attaches it on retry
+        // without any manual header manipulation here.
+
+        // Loopback mode: re-assert the Bearer token if the request lacked it
+        // (or it drifted from the current stored token).
+        val token = AuthManager.getToken()
+        val requestAuth = response.request.header("Authorization")
+        val currentAuthHeader = "Bearer $token"
+        if (!token.isNullOrBlank() && (requestAuth == null || !requestAuth.contains(currentAuthHeader))) {
+            return response.request
+                .newBuilder()
+                .header("Authorization", currentAuthHeader)
+                .build()
         }
         return null
     }

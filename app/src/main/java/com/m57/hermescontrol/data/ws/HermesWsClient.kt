@@ -176,6 +176,9 @@ object HermesWsClient {
      * If a session cookie is present (gated mode), mint a fresh WS ticket
      * from the dashboard. The ticket is single-use and has a 30-second TTL,
      * so we must mint a new one on every connect (first launch and reconnect).
+     *
+     * The session cookie is attached automatically by the shared CookieJar on
+     * OkHttpProvider.probe (issue #470), so we no longer inject it manually.
      */
     private fun refreshWsTicketIfNeeded() {
         val sessionCookie = AuthManager.getSessionCookie()
@@ -188,13 +191,12 @@ object HermesWsClient {
                 Request
                     .Builder()
                     .url("http://${AuthManager.getHost()}:${AuthManager.getPort()}/api/auth/ws-ticket")
-                    .header("Cookie", "hermes_session_at=$sessionCookie")
                     .post("{}".toRequestBody())
                     .build()
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
-                val ticketMatch = Regex(""""ticket":"([^"]+)"""").find(body)
+                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\""").find(body)
                 val ticket = ticketMatch?.groupValues?.getOrNull(1)
                 if (!ticket.isNullOrBlank()) {
                     AuthManager.setToken(ticket)

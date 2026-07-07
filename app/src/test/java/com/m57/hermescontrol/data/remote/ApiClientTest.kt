@@ -34,6 +34,11 @@ class ApiClientTest {
 
         mockkObject(AuthManager)
 
+        // Issue #470: ApiClient builds through OkHttpProvider, which resolves
+        // the shared CookieManager.cookieJar. Inject a fake jar so the test
+        // can build clients without app context.
+        CookieManager.setJarForTest(buildFakePersistentCookieJar())
+
         // Point AuthManager at our MockWebServer
         every { AuthManager.baseUrl() } returns mockWebServer.url("/").toString()
         every { AuthManager.getHost() } returns "127.0.0.1"

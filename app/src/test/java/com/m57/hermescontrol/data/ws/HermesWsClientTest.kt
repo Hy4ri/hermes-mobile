@@ -2,6 +2,8 @@ package com.m57.hermescontrol.data.ws
 
 import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.CookieManager
+import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
@@ -43,6 +45,11 @@ class HermesWsClientTest {
         every { AuthManager.wsUrl() } returns mockWebServer.url("/").toString().replace("http://", "ws://")
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.getSessionCookie() } returns null
+
+        // Issue #470: clients are built through OkHttpProvider, which now
+        // resolves the shared CookieManager.cookieJar. Inject a fake jar so
+        // the WS stack can build its OkHttp clients without app context.
+        CookieManager.setJarForTest(buildFakePersistentCookieJar())
 
         // Reset state
         val connectedField = HermesWsClient::class.java.getDeclaredField("connected")

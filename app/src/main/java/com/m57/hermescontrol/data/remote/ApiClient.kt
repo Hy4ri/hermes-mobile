@@ -91,31 +91,22 @@ object ApiClient {
                     }
             }
 
+        // Loopback mode: authenticate via Bearer token (the session cookie used
+        // in gated mode is now handled automatically by the shared CookieJar —
+        // see issue #470).
         val authInterceptor =
             Interceptor { chain ->
                 val request = chain.request()
-                val sessionCookie = AuthManager.getSessionCookie()
-                if (!sessionCookie.isNullOrBlank()) {
-                    // Gated mode: authenticate via session cookie
+                val token = AuthManager.getToken()
+                if (!token.isNullOrBlank()) {
                     chain.proceed(
                         request
                             .newBuilder()
-                            .addHeader("Cookie", "hermes_session_at=$sessionCookie")
+                            .addHeader("Authorization", "Bearer $token")
                             .build(),
                     )
                 } else {
-                    // Loopback mode: authenticate via Bearer token
-                    val token = AuthManager.getToken()
-                    if (!token.isNullOrBlank()) {
-                        chain.proceed(
-                            request
-                                .newBuilder()
-                                .addHeader("Authorization", "Bearer $token")
-                                .build(),
-                        )
-                    } else {
-                        chain.proceed(request)
-                    }
+                    chain.proceed(request)
                 }
             }
 

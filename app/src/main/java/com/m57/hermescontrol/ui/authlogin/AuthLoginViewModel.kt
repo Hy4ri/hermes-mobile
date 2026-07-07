@@ -258,8 +258,6 @@ class AuthLoginViewModel(
     private data class ConnectResult(
         /** WS credential: session token (loopback) or WS ticket (gated). */
         val wsCredential: String,
-        /** Session cookie for REST API auth in gated mode (null in loopback). */
-        val sessionCookie: String? = null,
     )
 
     /**
@@ -298,12 +296,17 @@ class AuthLoginViewModel(
                 AuthManager.setHost(state.host)
                 AuthManager.setPort(port)
                 AuthManager.setToken(result.wsCredential)
-                if (result.sessionCookie != null) {
-                    AuthManager.setSessionCookie(result.sessionCookie)
-                    AuthManager.setWsAuthParam("ticket")
-                } else {
+                if (state.authMode == DashboardAuthMode.TOKEN_ONLY) {
+                    // Loopback mode — no session cookie; ensure any stale one
+                    // is cleared so the jar only sends the Bearer token.
                     AuthManager.setSessionCookie(null)
                     AuthManager.setWsAuthParam("token")
+                } else {
+                    // Gated (BASIC_AUTH / ALL): the session cookie was captured
+                    // automatically by the shared CookieJar during the login
+                    // call (issue #470), so we keep it and switch the WS auth
+                    // param to the ticket minted above.
+                    AuthManager.setWsAuthParam("ticket")
                 }
                 ApiClient.rebuild()
                 HermesWsClient.connect()
@@ -419,27 +422,10 @@ class AuthLoginViewModel(
                 return null
             }
 
-            // Step 2: Extract hermes_session_at cookie from Set-Cookie headers
-            val setCookieHeaders = loginResp.headers("Set-Cookie")
-            var sessionAccessToken: String? = null
-            for (header in setCookieHeaders) {
-                if (header.startsWith("hermes_session_at=")) {
-                    sessionAccessToken = header.split(";")[0].removePrefix("hermes_session_at=").trim()
-                    break
-                }
-            }
-
-            if (sessionAccessToken.isNullOrBlank()) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Login succeeded but no session cookie received",
-                    )
-                }
-                return null
-            }
-
-            val cookieHeader = "hermes_session_at=$sessionAccessToken"
+            // The session cookie is captured automatically by the shared
+            // CookieJar (issue #470) attached to OkHttpProvider.probe — no
+            // manual Set-Cookie parsing needed. We still mint a WS ticket below
+            // using whatever cookie the jar carries into that request.
 
             // Step 3: Mint a WebSocket ticket using the session cookie
             val ticketClient =
@@ -453,7 +439,6 @@ class AuthLoginViewModel(
                 Request
                     .Builder()
                     .url("$baseUrl/api/auth/ws-ticket")
-                    .header("Cookie", cookieHeader)
                     .post("{}".toRequestBody())
                     .build()
             val ticketResp = ticketClient.newCall(ticketReq).execute()
@@ -482,7 +467,7 @@ class AuthLoginViewModel(
                 return null
             }
 
-            return ConnectResult(wsCredential = ticket, sessionCookie = sessionAccessToken)
+            return ConnectResult(wsCredential = ticket)
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(

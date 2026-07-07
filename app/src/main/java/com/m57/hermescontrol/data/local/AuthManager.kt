@@ -128,6 +128,12 @@ object AuthManager {
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
                     _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
+
+                    // B7 (Jul 08 2026, kanban t_470): sync CookieManager active store scope with the selected profile ID
+                    val profileId = state.selectedProfileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+                    if (CookieManager.isInitialized() && CookieManager.cookieJar.currentServer() != profileId) {
+                        CookieManager.useStore(profileId)
+                    }
                 }
             }
         }
@@ -266,13 +272,15 @@ object AuthManager {
         if (p.getBoolean(KEY_LEGACY_DEFAULT_MIGRATED, false)) return
         val legacyToken = p.getString(KEY_LEGACY_TOKEN, null)
         ensureDefaultProfile()
-        p.edit().apply {
-            if (!legacyToken.isNullOrBlank()) {
-                putString("token_$DEFAULT_PROFILE_ID", legacyToken)
-            }
-            remove(KEY_LEGACY_TOKEN)
-            putBoolean(KEY_LEGACY_DEFAULT_MIGRATED, true)
-        }.apply()
+        p
+            .edit()
+            .apply {
+                if (!legacyToken.isNullOrBlank()) {
+                    putString("token_$DEFAULT_PROFILE_ID", legacyToken)
+                }
+                remove(KEY_LEGACY_TOKEN)
+                putBoolean(KEY_LEGACY_DEFAULT_MIGRATED, true)
+            }.apply()
     }
 
     // ── Pinned Models ────────────────────────────────────────────────────
@@ -306,6 +314,12 @@ object AuthManager {
             tokenInitialized = false
         }
         _tokenFlow.value = getToken()
+
+        // B7 (Jul 08 2026, kanban t_470): sync CookieManager active store scope with the selected profile ID
+        val profileId = id?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        if (CookieManager.isInitialized()) {
+            CookieManager.useStore(profileId)
+        }
     }
 
     // ── Token ────────────────────────────────────────────────────────────

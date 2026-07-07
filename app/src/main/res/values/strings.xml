@@ -94,6 +94,8 @@
     <string name="chat_status_connecting">Connecting to Hermes\u2026</string>
     <string name="chat_status_reconnecting">Reconnecting to Hermes\u2026</string>
     <string name="chat_status_disconnected">Disconnected from Hermes</string>
+    <string name="chat_status_no_network">No network connection</string>
+    <string name="chat_status_auth_expired">Session expired \u2014 please sign in again</string>
     <string name="chat_thinking">Thinking\u2026</string>
     <string name="chat_thinking_param">Thinking: %1$s\u2026</string>
     <string name="chat_input_placeholder_not_connected">Not connected\u2026</string>

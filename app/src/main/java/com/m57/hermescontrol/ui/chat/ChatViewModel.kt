@@ -118,6 +118,7 @@ class ChatViewModel(
             scope = viewModelScope,
             uiState = _uiState,
         )
+    private val attachmentsDelegate = ChatAttachmentsDelegate(uiState = _uiState)
 
     /** Tracks the ID of the currently streaming assistant message. */
     @Volatile
@@ -746,35 +747,11 @@ class ChatViewModel(
         name: String,
         mimeType: String,
         size: Long,
-    ) {
-        _uiState.update { state ->
-            val attachment =
-                Attachment(
-                    uri = uri,
-                    name = name,
-                    mimeType = mimeType,
-                    size = size,
-                )
-            state.copy(
-                pendingAttachments = state.pendingAttachments + attachment,
-            )
-        }
-    }
+    ) = attachmentsDelegate.addAttachment(uri, name, mimeType, size)
 
-    fun removeAttachment(index: Int) {
-        _uiState.update { state ->
-            state.copy(
-                pendingAttachments =
-                    state.pendingAttachments.toMutableList().apply {
-                        if (index in indices) removeAt(index)
-                    },
-            )
-        }
-    }
+    fun removeAttachment(index: Int) = attachmentsDelegate.removeAttachment(index)
 
-    fun clearAttachments() {
-        _uiState.update { it.copy(pendingAttachments = emptyList()) }
-    }
+    fun clearAttachments() = attachmentsDelegate.clearAttachments()
 
     private fun handleSlashCommand(command: String) {
         val userMsg = ChatMessage(role = MessageRole.USER, content = command)

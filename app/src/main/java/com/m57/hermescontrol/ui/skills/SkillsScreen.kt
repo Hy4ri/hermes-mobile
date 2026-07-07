@@ -75,7 +75,7 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 
-private const val CATEGORY_ALL = "All"
+internal const val CATEGORY_ALL = "All"
 
 @Composable
 fun SkillsScreen(

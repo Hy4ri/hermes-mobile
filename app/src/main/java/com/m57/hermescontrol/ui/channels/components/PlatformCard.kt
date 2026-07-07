@@ -44,7 +44,10 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.channels.ConfigureForm
+
+private enum class StatusRole { SUCCESS, WARNING, ERROR, NEUTRAL }
 
 private data class StateStyle(
     val label: String,
@@ -53,18 +56,29 @@ private data class StateStyle(
 )
 
 @Composable
-private fun platformStateStyle(state: String): StateStyle =
-    when (state) {
-        "connected" -> StateStyle("Connected", Color(0xFF4CAF50), Icons.Filled.CheckCircle)
-        "pending_restart" -> StateStyle("Restart to apply", Color(0xFFFFC107), Icons.Filled.Refresh)
-        "gateway_stopped" -> StateStyle("Gateway stopped", Color(0xFFFF9800), Icons.Filled.RadioButtonChecked)
-        "startup_failed" -> StateStyle("Start failed", Color(0xFFF44336), Icons.Filled.Warning)
-        "disconnected" -> StateStyle("Disconnected", Color(0xFFFF9800), Icons.Filled.RadioButtonChecked)
-        "not_configured" -> StateStyle("Not configured", Color(0xFF9E9E9E), Icons.Filled.RadioButtonChecked)
-        "disabled" -> StateStyle("Disabled", Color(0xFF9E9E9E), Icons.Filled.RadioButtonChecked)
-        "fatal" -> StateStyle("Error", Color(0xFFF44336), Icons.Filled.Warning)
-        else -> StateStyle(state, MaterialTheme.colorScheme.onSurfaceVariant, Icons.Filled.RadioButtonChecked)
-    }
+private fun platformStateStyle(state: String): StateStyle {
+    val statusColors = LocalHermesStatusColors.current
+    val (label, role, icon) =
+        when (state) {
+            "connected" -> Triple("Connected", StatusRole.SUCCESS, Icons.Filled.CheckCircle)
+            "pending_restart" -> Triple("Restart to apply", StatusRole.WARNING, Icons.Filled.Refresh)
+            "gateway_stopped" -> Triple("Gateway stopped", StatusRole.WARNING, Icons.Filled.RadioButtonChecked)
+            "startup_failed" -> Triple("Start failed", StatusRole.ERROR, Icons.Filled.Warning)
+            "disconnected" -> Triple("Disconnected", StatusRole.WARNING, Icons.Filled.RadioButtonChecked)
+            "not_configured" -> Triple("Not configured", StatusRole.NEUTRAL, Icons.Filled.RadioButtonChecked)
+            "disabled" -> Triple("Disabled", StatusRole.NEUTRAL, Icons.Filled.RadioButtonChecked)
+            "fatal" -> Triple("Error", StatusRole.ERROR, Icons.Filled.Warning)
+            else -> Triple(state, StatusRole.NEUTRAL, Icons.Filled.RadioButtonChecked)
+        }
+    val color =
+        when (role) {
+            StatusRole.SUCCESS -> statusColors.success
+            StatusRole.WARNING -> statusColors.warning
+            StatusRole.ERROR -> statusColors.error
+            StatusRole.NEUTRAL -> statusColors.neutral
+        }
+    return StateStyle(label, color, icon)
+}
 
 @Composable
 private fun StateBadge(state: String) {

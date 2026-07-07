@@ -67,6 +67,7 @@ val StatusYellow = Color(0xFFFFB627)
 val StatusYellowContainer = Color(0xFF3D2F0F)
 val StatusBlue = Color(0xFF4DA8FF)
 val StatusBlueContainer = Color(0xFF0F2A3D)
+val StatusGrey = Color(0xFF9E9E9E)
 
 // ── Chat-specific colours (always brand-defined for consistency) ───────
 

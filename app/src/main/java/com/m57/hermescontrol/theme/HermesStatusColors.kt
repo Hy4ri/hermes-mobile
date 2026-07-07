@@ -22,6 +22,7 @@ data class HermesStatusColors(
     val errorContainer: Color,
     val info: Color,
     val infoContainer: Color,
+    val neutral: Color = StatusGrey,
 )
 
 val LocalHermesStatusColors =

@@ -44,7 +44,6 @@ import com.m57.hermescontrol.ui.settings.components.BehaviorSection
 import com.m57.hermescontrol.ui.settings.components.ChatSection
 import com.m57.hermescontrol.ui.settings.components.ConnectionSection
 import com.m57.hermescontrol.ui.settings.components.NavBarSection
-import com.m57.hermescontrol.ui.settings.components.SaveIndicator
 import com.m57.hermescontrol.ui.settings.components.TestConnectionButton
 import com.m57.hermescontrol.ui.settings.components.TestResultCard
 
@@ -81,11 +80,6 @@ fun SettingsScreen(
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
         navigationIcon = NavIcon.Back(onBack),
-        actions = {
-            TextButton(onClick = viewModel::save) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
     ) {
         Column(
             modifier =
@@ -133,7 +127,6 @@ fun SettingsScreen(
                         )
 
                         TestResultCard(testResult = state.testResult)
-                        SaveIndicator(isSaved = state.isSaved)
                         TestConnectionButton(
                             isTesting = state.isTesting,
                             onTest = viewModel::testConnection,

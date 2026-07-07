@@ -200,23 +200,6 @@ internal fun TestResultCard(testResult: String?) {
 }
 
 @Composable
-internal fun SaveIndicator(isSaved: Boolean) {
-    AnimatedVisibility(
-        visible = isSaved,
-        enter = fadeIn(),
-        exit = fadeOut(),
-    ) {
-        Text(
-            text = stringResource(R.string.settings_save_success),
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.primary,
-                ),
-        )
-    }
-}
-
-@Composable
 internal fun TestConnectionButton(
     isTesting: Boolean,
     onTest: () -> Unit,

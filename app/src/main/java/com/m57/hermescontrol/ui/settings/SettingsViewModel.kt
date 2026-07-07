@@ -278,6 +278,7 @@ class SettingsViewModel(
 
     fun onAutoReconnectChange(enabled: Boolean) {
         _uiState.update { it.copy(autoReconnect = enabled, isSaved = false) }
+        AuthManager.setAutoReconnect(enabled)
     }
 
     fun onThemeChange(theme: ThemePreference) {
@@ -302,10 +303,12 @@ class SettingsViewModel(
 
     fun onTypingEffectEnabledChange(enabled: Boolean) {
         _uiState.update { it.copy(typingEffectEnabled = enabled, isSaved = false) }
+        AuthManager.setTypingEffectEnabled(enabled)
     }
 
     fun onTypingEffectDelayMsChange(delayMs: Int) {
         _uiState.update { it.copy(typingEffectDelayMs = delayMs, isSaved = false) }
+        AuthManager.setTypingEffectDelayMs(delayMs)
     }
 
     /** Clear all auth credentials — logs out and returns to landing screen. */

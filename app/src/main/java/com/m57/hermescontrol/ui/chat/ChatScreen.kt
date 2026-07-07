@@ -116,6 +116,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.notification.NotificationHelper
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -1351,8 +1352,8 @@ private fun ChatTopBanner(
     ) {
         androidx.compose.material3.Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            color = LocalHermesStatusColors.current.errorContainer,
+            contentColor = LocalHermesStatusColors.current.error,
         ) {
             Row(
                 modifier =
@@ -1367,7 +1368,7 @@ private fun ChatTopBanner(
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp).padding(end = 8.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            color = LocalHermesStatusColors.current.error,
                         )
                     }
                     Text(
@@ -1390,7 +1391,7 @@ private fun ChatTopBanner(
                             onClick = onReconnect,
                             colors =
                                 androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                    contentColor = LocalHermesStatusColors.current.error,
                                 ),
                         ) {
                             Text(stringResource(R.string.chat_action_reconnect))
@@ -1401,7 +1402,7 @@ private fun ChatTopBanner(
                             onClick = onAuthExpired,
                             colors =
                                 androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                    contentColor = LocalHermesStatusColors.current.error,
                                 ),
                         ) {
                             Text(stringResource(R.string.chat_action_sign_in))

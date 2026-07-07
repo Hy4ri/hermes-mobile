@@ -34,6 +34,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.decodeFromJsonElement
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
@@ -194,6 +198,20 @@ class ChatViewModel(
 
     private fun connectWebSocket(setLoading: Boolean = false) {
         val token = AuthManager.getToken() ?: return
+
+        // Don't disturb an already-working (or already-recovering) connection.
+        // HermesWsClient is a global singleton shared by every tab; the chat tab
+        // is recreated on every open, so calling connect() here must be a no-op
+        // unless the singleton is in a terminal state. Re-entering connect() while
+        // it is CONNECTING/RECONNECTING races the in-flight socket and can leave
+        // the status stuck on RECONNECTING (see HermesWsClient.connect).
+        val status = wsClient.connectionStatus.value
+        if (status == ConnectionStatus.CONNECTING ||
+            status == ConnectionStatus.RECONNECTING ||
+            status == ConnectionStatus.AUTH_EXPIRED
+        ) {
+            return
+        }
 
         if (setLoading) {
             _uiState.update { it.copy(isLoading = true) }
@@ -1076,6 +1094,105 @@ class ChatViewModel(
         viewModelScope.launch {
             delay(500)
             connectWebSocket(setLoading = true)
+        }
+    }
+
+    fun relogin(
+        username: String,
+        password: String,
+        onResult: (Boolean, String?) -> Unit,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val host = AuthManager.getHost()
+            val port = AuthManager.getPort()
+            val baseUrl = "http://$host:$port"
+            val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+            val jsonBody =
+                JSONObject()
+                    .put("provider", "basic")
+                    .put("username", username)
+                    .put("password", password)
+                    .put("next", "")
+                    .toString()
+
+            try {
+                val loginClient =
+                    com.m57.hermescontrol.data.remote.OkHttpProvider.probe
+                        .newBuilder()
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+
+                val loginReq =
+                    Request
+                        .Builder()
+                        .url("$baseUrl/auth/password-login")
+                        .header("Content-Type", "application/json")
+                        .post(jsonBody.toRequestBody(jsonMediaType))
+                        .build()
+                loginClient.newCall(loginReq).execute().use { loginResp ->
+                    if (!loginResp.isSuccessful) {
+                        val msg =
+                            when (loginResp.code) {
+                                401 -> "Invalid username or password (401)"
+                                403 -> "Forbidden (403)"
+                                else -> "HTTP error code: ${loginResp.code}"
+                            }
+                        withContext(Dispatchers.Main) {
+                            onResult(false, msg)
+                        }
+                        return@launch
+                    }
+                }
+
+                val ticketClient =
+                    com.m57.hermescontrol.data.remote.OkHttpProvider.base
+                        .newBuilder()
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+
+                val ticketReq =
+                    Request
+                        .Builder()
+                        .url("$baseUrl/api/auth/ws-ticket")
+                        .post("{}".toRequestBody(jsonMediaType))
+                        .build()
+                ticketClient.newCall(ticketReq).execute().use { ticketResp ->
+                    if (!ticketResp.isSuccessful) {
+                        withContext(Dispatchers.Main) {
+                            onResult(false, "Failed to mint WS ticket: HTTP ${ticketResp.code}")
+                        }
+                        return@launch
+                    }
+
+                    val body = ticketResp.body?.string().orEmpty()
+                    val ticket = JSONObject(body).optString("ticket").takeIf { it.isNotBlank() }
+
+                    if (ticket.isNullOrBlank()) {
+                        withContext(Dispatchers.Main) {
+                            onResult(false, "Invalid ticket returned from server")
+                        }
+                        return@launch
+                    }
+
+                    AuthManager.setWsAuthParam("ticket")
+                    AuthManager.setToken(ticket)
+
+                    withContext(Dispatchers.Main) {
+                        onResult(true, null)
+                        reconnect()
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                withContext(Dispatchers.Main) {
+                    onResult(false, "Connection failed: ${e.message}")
+                }
+            } catch (e: org.json.JSONException) {
+                withContext(Dispatchers.Main) {
+                    onResult(false, "Connection failed: ${e.message}")
+                }
+            }
         }
     }
 

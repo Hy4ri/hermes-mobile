@@ -109,7 +109,6 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.m57.hermescontrol.AuthLoginScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
@@ -148,6 +147,7 @@ fun ChatScreen(
     var inputText by rememberSaveable { mutableStateOf("") }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showReloginDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
@@ -362,7 +362,7 @@ fun ChatScreen(
             ChatTopBanner(
                 connectionStatus = state.connectionStatus,
                 onReconnect = viewModel::reconnect,
-                onAuthExpired = { NavigationController.navigateTo(AuthLoginScreen) },
+                onReloginClick = { showReloginDialog = true },
             )
 
             Box(
@@ -478,6 +478,15 @@ fun ChatScreen(
                 onImageTap = { filePickerLauncher.launch("image/*") },
                 onFileTap = { filePickerLauncher.launch("*/*") },
                 onRemoveAttachment = viewModel::removeAttachment,
+            )
+        }
+
+        if (showReloginDialog) {
+            ReloginDialog(
+                onDismiss = { showReloginDialog = false },
+                onRelogin = { username, password, onResult ->
+                    viewModel.relogin(username, password, onResult)
+                },
             )
         }
     }
@@ -1340,7 +1349,7 @@ private fun ChatLifecycleEffects(
 private fun ChatTopBanner(
     connectionStatus: ConnectionStatus,
     onReconnect: () -> Unit,
-    onAuthExpired: () -> Unit,
+    onReloginClick: () -> Unit,
 ) {
     val isShown =
         connectionStatus != ConnectionStatus.CONNECTED &&
@@ -1384,9 +1393,30 @@ private fun ChatTopBanner(
                     )
                 }
                 when (connectionStatus) {
-                    ConnectionStatus.DISCONNECTED,
-                    ConnectionStatus.NO_NETWORK,
-                    -> {
+                    ConnectionStatus.DISCONNECTED -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(
+                                onClick = onReloginClick,
+                                colors =
+                                    androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                        contentColor = LocalHermesStatusColors.current.error,
+                                    ),
+                            ) {
+                                Text(stringResource(R.string.chat_action_relogin))
+                            }
+                            TextButton(
+                                onClick = onReconnect,
+                                colors =
+                                    androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                        contentColor = LocalHermesStatusColors.current.error,
+                                    ),
+                            ) {
+                                Text(stringResource(R.string.chat_action_reconnect))
+                            }
+                        }
+                    }
+
+                    ConnectionStatus.NO_NETWORK -> {
                         TextButton(
                             onClick = onReconnect,
                             colors =
@@ -1397,18 +1427,22 @@ private fun ChatTopBanner(
                             Text(stringResource(R.string.chat_action_reconnect))
                         }
                     }
-                    ConnectionStatus.AUTH_EXPIRED -> {
+
+                    ConnectionStatus.RECONNECTING,
+                    ConnectionStatus.AUTH_EXPIRED,
+                    -> {
                         TextButton(
-                            onClick = onAuthExpired,
+                            onClick = onReloginClick,
                             colors =
                                 androidx.compose.material3.ButtonDefaults.textButtonColors(
                                     contentColor = LocalHermesStatusColors.current.error,
                                 ),
                         ) {
-                            Text(stringResource(R.string.chat_action_sign_in))
+                            Text(stringResource(R.string.chat_action_relogin))
                         }
                     }
-                    else -> { /* RECONNECTING: auto, no button */ }
+
+                    else -> {}
                 }
             }
         }
@@ -1626,4 +1660,100 @@ private fun BoxScope.ChatScrollToBottomFab(
             )
         }
     }
+}
+
+@Composable
+private fun ReloginDialog(
+    onDismiss: () -> Unit,
+    onRelogin: (String, String, (Boolean, String?) -> Unit) -> Unit,
+) {
+    val context = LocalContext.current
+    val statusColors = LocalHermesStatusColors.current
+    var username by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = { Text(stringResource(R.string.chat_relogin_title)) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = {
+                        username = it
+                        errorMessage = null
+                    },
+                    label = { Text(stringResource(R.string.chat_relogin_username)) },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        errorMessage = null
+                    },
+                    label = { Text(stringResource(R.string.chat_relogin_password)) },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    visualTransformation =
+                        androidx.compose.ui.text.input
+                            .PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = statusColors.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isLoading,
+                onClick = {
+                    if (username.isBlank() || password.isBlank()) {
+                        errorMessage = context.getString(R.string.chat_relogin_error_empty)
+                        return@TextButton
+                    }
+                    isLoading = true
+                    errorMessage = null
+                    onRelogin(username, password) { success, error ->
+                        isLoading = false
+                        if (success) {
+                            onDismiss()
+                        } else {
+                            errorMessage = error ?: "Unknown error"
+                        }
+                    }
+                },
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = statusColors.info,
+                    )
+                } else {
+                    Text(stringResource(R.string.chat_relogin_submit))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                enabled = !isLoading,
+                onClick = onDismiss,
+            ) {
+                Text(stringResource(R.string.chat_relogin_cancel))
+            }
+        },
+    )
 }

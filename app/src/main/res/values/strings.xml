@@ -82,7 +82,13 @@
     <string name="chat_action_search">Search</string>
     <string name="chat_action_close_search">Close search</string>
     <string name="chat_action_reconnect">Reconnect</string>
-    <string name="chat_action_sign_in">Sign in again</string>
+    <string name="chat_action_relogin">Re-login</string>
+    <string name="chat_relogin_title">Re-login to Hermes</string>
+    <string name="chat_relogin_username">Username</string>
+    <string name="chat_relogin_password">Password</string>
+    <string name="chat_relogin_submit">Login</string>
+    <string name="chat_relogin_cancel">Cancel</string>
+    <string name="chat_relogin_error_empty">Username and password cannot be empty</string>
     <string name="chat_empty_title">Ready to chat</string>
     <string name="chat_empty_subtitle">Send a message to start a conversation</string>
     <string name="chat_status_connecting">Connecting to Hermes\u2026</string>

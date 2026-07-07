@@ -119,7 +119,9 @@ object AuthManager {
             // session-cookie prefs are passed as a Deferred so existing gated
             // sessions can be migrated on first load WITHOUT blocking startup.
             // The Deferred is created above, before this call.
-            CookieManager.initialize(context, prefsDeferred)
+            val initialProfileId =
+                store.getLatestState().selectedProfileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+            CookieManager.initialize(context, prefsDeferred, initialProfileId)
 
             scope.launch {
                 store.stateFlow.collect { state ->
@@ -128,6 +130,8 @@ object AuthManager {
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
                     _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
+                    // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
+                    syncCookieStoreForProfile(state.selectedProfileId)
                 }
             }
         }
@@ -266,13 +270,15 @@ object AuthManager {
         if (p.getBoolean(KEY_LEGACY_DEFAULT_MIGRATED, false)) return
         val legacyToken = p.getString(KEY_LEGACY_TOKEN, null)
         ensureDefaultProfile()
-        p.edit().apply {
-            if (!legacyToken.isNullOrBlank()) {
-                putString("token_$DEFAULT_PROFILE_ID", legacyToken)
-            }
-            remove(KEY_LEGACY_TOKEN)
-            putBoolean(KEY_LEGACY_DEFAULT_MIGRATED, true)
-        }.apply()
+        p
+            .edit()
+            .apply {
+                if (!legacyToken.isNullOrBlank()) {
+                    putString("token_$DEFAULT_PROFILE_ID", legacyToken)
+                }
+                remove(KEY_LEGACY_TOKEN)
+                putBoolean(KEY_LEGACY_DEFAULT_MIGRATED, true)
+            }.apply()
     }
 
     // ── Pinned Models ────────────────────────────────────────────────────
@@ -291,6 +297,12 @@ object AuthManager {
     ) {
         requirePrefs().edit().putString("token_$profileId", token).apply()
         if (getSelectedProfileId() == profileId) {
+            // B7 (Jul 08 2026, kanban t_470): sync in-memory cachedToken
+            // to prevent stale tokens during ticket refresh
+            synchronized(this) {
+                cachedToken = token
+                tokenInitialized = true
+            }
             _tokenFlow.value = token
         }
     }
@@ -306,6 +318,19 @@ object AuthManager {
             tokenInitialized = false
         }
         _tokenFlow.value = getToken()
+        // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
+        syncCookieStoreForProfile(id)
+    }
+
+    private fun normalizedProfileId(profileId: String?): String =
+        profileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+
+    private fun syncCookieStoreForProfile(profileId: String?) {
+        if (!CookieManager.isInitialized()) return
+        val normalizedId = normalizedProfileId(profileId)
+        if (CookieManager.cookieJar.currentServer() != normalizedId) {
+            CookieManager.useStore(normalizedId)
+        }
     }
 
     // ── Token ────────────────────────────────────────────────────────────

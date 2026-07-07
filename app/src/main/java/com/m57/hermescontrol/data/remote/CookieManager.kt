@@ -39,15 +39,16 @@ object CookieManager {
     fun initialize(
         context: Context,
         legacyPrefsDeferred: Deferred<SharedPreferences>? = null,
+        initialServerId: String = PersistentCookieJar.DEFAULT_SERVER_ID,
     ) {
         if (jar != null) return
         synchronized(this) {
             if (jar != null) return
             val store = EncryptedCookieStore(context.applicationContext, legacyPrefsDeferred)
             jar = PersistentCookieJar(store, scope)
-            // Eagerly load the default scope off the caller thread so the
+            // Eagerly load the initial scope off the caller thread so the
             // first REST call is instant without blocking app startup.
-            scope.launch { jar!!.useStore(PersistentCookieJar.DEFAULT_SERVER_ID) }
+            scope.launch { jar!!.useStore(initialServerId) }
         }
     }
 

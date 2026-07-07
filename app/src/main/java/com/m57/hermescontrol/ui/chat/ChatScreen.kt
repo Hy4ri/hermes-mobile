@@ -109,6 +109,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.m57.hermescontrol.AuthLoginScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
@@ -360,6 +361,7 @@ fun ChatScreen(
             ChatTopBanner(
                 connectionStatus = state.connectionStatus,
                 onReconnect = viewModel::reconnect,
+                onAuthExpired = { NavigationController.navigateTo(AuthLoginScreen) },
             )
 
             Box(
@@ -1337,11 +1339,13 @@ private fun ChatLifecycleEffects(
 private fun ChatTopBanner(
     connectionStatus: ConnectionStatus,
     onReconnect: () -> Unit,
+    onAuthExpired: () -> Unit,
 ) {
+    val isShown =
+        connectionStatus != ConnectionStatus.CONNECTED &&
+            connectionStatus != ConnectionStatus.CONNECTING
     androidx.compose.animation.AnimatedVisibility(
-        visible =
-            connectionStatus == ConnectionStatus.RECONNECTING ||
-                connectionStatus == ConnectionStatus.DISCONNECTED,
+        visible = isShown,
         enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
         exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
     ) {
@@ -1358,25 +1362,52 @@ private fun ChatTopBanner(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    text =
-                        if (connectionStatus == ConnectionStatus.RECONNECTING) {
-                            stringResource(R.string.chat_status_reconnecting)
-                        } else {
-                            stringResource(R.string.chat_status_disconnected)
-                        },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (connectionStatus == ConnectionStatus.DISCONNECTED) {
-                    TextButton(
-                        onClick = onReconnect,
-                        colors =
-                            androidx.compose.material3.ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                            ),
-                    ) {
-                        Text(stringResource(R.string.chat_action_reconnect))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (connectionStatus == ConnectionStatus.RECONNECTING) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp).padding(end = 8.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
                     }
+                    Text(
+                        text =
+                            when (connectionStatus) {
+                                ConnectionStatus.RECONNECTING -> stringResource(R.string.chat_status_reconnecting)
+                                ConnectionStatus.DISCONNECTED -> stringResource(R.string.chat_status_disconnected)
+                                ConnectionStatus.NO_NETWORK -> stringResource(R.string.chat_status_no_network)
+                                ConnectionStatus.AUTH_EXPIRED -> stringResource(R.string.chat_status_auth_expired)
+                                else -> ""
+                            },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                when (connectionStatus) {
+                    ConnectionStatus.DISCONNECTED,
+                    ConnectionStatus.NO_NETWORK,
+                    -> {
+                        TextButton(
+                            onClick = onReconnect,
+                            colors =
+                                androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                ),
+                        ) {
+                            Text(stringResource(R.string.chat_action_reconnect))
+                        }
+                    }
+                    ConnectionStatus.AUTH_EXPIRED -> {
+                        TextButton(
+                            onClick = onAuthExpired,
+                            colors =
+                                androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                ),
+                        ) {
+                            Text(stringResource(R.string.chat_action_sign_in))
+                        }
+                    }
+                    else -> { /* RECONNECTING: auto, no button */ }
                 }
             }
         }

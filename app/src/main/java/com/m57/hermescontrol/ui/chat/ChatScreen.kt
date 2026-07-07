@@ -146,6 +146,7 @@ fun ChatScreen(
     var inputText by rememberSaveable { mutableStateOf("") }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showReloginDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
@@ -360,6 +361,7 @@ fun ChatScreen(
             ChatTopBanner(
                 connectionStatus = state.connectionStatus,
                 onReconnect = viewModel::reconnect,
+                onReloginClick = { showReloginDialog = true },
             )
 
             Box(
@@ -475,6 +477,15 @@ fun ChatScreen(
                 onImageTap = { filePickerLauncher.launch("image/*") },
                 onFileTap = { filePickerLauncher.launch("*/*") },
                 onRemoveAttachment = viewModel::removeAttachment,
+            )
+        }
+
+        if (showReloginDialog) {
+            ReloginDialog(
+                onDismiss = { showReloginDialog = false },
+                onRelogin = { username, password, onResult ->
+                    viewModel.relogin(username, password, onResult)
+                },
             )
         }
     }
@@ -1337,6 +1348,7 @@ private fun ChatLifecycleEffects(
 private fun ChatTopBanner(
     connectionStatus: ConnectionStatus,
     onReconnect: () -> Unit,
+    onReloginClick: () -> Unit,
 ) {
     androidx.compose.animation.AnimatedVisibility(
         visible =
@@ -1366,16 +1378,31 @@ private fun ChatTopBanner(
                             stringResource(R.string.chat_status_disconnected)
                         },
                     style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
                 )
-                if (connectionStatus == ConnectionStatus.DISCONNECTED) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     TextButton(
-                        onClick = onReconnect,
+                        onClick = onReloginClick,
                         colors =
                             androidx.compose.material3.ButtonDefaults.textButtonColors(
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer,
                             ),
                     ) {
-                        Text(stringResource(R.string.chat_action_reconnect))
+                        Text(stringResource(R.string.chat_action_relogin))
+                    }
+                    if (connectionStatus == ConnectionStatus.DISCONNECTED) {
+                        TextButton(
+                            onClick = onReconnect,
+                            colors =
+                                androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                ),
+                        ) {
+                            Text(stringResource(R.string.chat_action_reconnect))
+                        }
                     }
                 }
             }
@@ -1594,4 +1621,98 @@ private fun BoxScope.ChatScrollToBottomFab(
             )
         }
     }
+}
+
+@Composable
+private fun ReloginDialog(
+    onDismiss: () -> Unit,
+    onRelogin: (String, String, (Boolean, String?) -> Unit) -> Unit,
+) {
+    var username by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = { Text(stringResource(R.string.chat_relogin_title)) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = {
+                        username = it
+                        errorMessage = null
+                    },
+                    label = { Text(stringResource(R.string.chat_relogin_username)) },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        errorMessage = null
+                    },
+                    label = { Text(stringResource(R.string.chat_relogin_password)) },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    visualTransformation =
+                        androidx.compose.ui.text.input
+                            .PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isLoading,
+                onClick = {
+                    if (username.isBlank() || password.isBlank()) {
+                        errorMessage = "Username and password cannot be empty"
+                        return@TextButton
+                    }
+                    isLoading = true
+                    errorMessage = null
+                    onRelogin(username, password) { success, error ->
+                        isLoading = false
+                        if (success) {
+                            onDismiss()
+                        } else {
+                            errorMessage = error ?: "Unknown error"
+                        }
+                    }
+                },
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Text(stringResource(R.string.chat_relogin_submit))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                enabled = !isLoading,
+                onClick = onDismiss,
+            ) {
+                Text(stringResource(R.string.chat_relogin_cancel))
+            }
+        },
+    )
 }

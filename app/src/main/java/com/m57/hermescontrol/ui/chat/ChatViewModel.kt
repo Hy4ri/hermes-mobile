@@ -34,6 +34,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.decodeFromJsonElement
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
@@ -1090,6 +1092,95 @@ class ChatViewModel(
         viewModelScope.launch {
             delay(500)
             connectWebSocket(setLoading = true)
+        }
+    }
+
+    fun relogin(
+        username: String,
+        password: String,
+        onResult: (Boolean, String?) -> Unit,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val host = AuthManager.getHost()
+            val port = AuthManager.getPort()
+            val baseUrl = "http://$host:$port"
+            val jsonBody = """{"provider":"basic","username":"$username","password":"$password","next":""}"""
+
+            try {
+                val loginClient =
+                    com.m57.hermescontrol.data.remote.OkHttpProvider.probe
+                        .newBuilder()
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+
+                val loginReq =
+                    Request
+                        .Builder()
+                        .url("$baseUrl/auth/password-login")
+                        .header("Content-Type", "application/json")
+                        .post(jsonBody.toRequestBody())
+                        .build()
+                val loginResp = loginClient.newCall(loginReq).execute()
+
+                if (!loginResp.isSuccessful) {
+                    val msg =
+                        when (loginResp.code) {
+                            401 -> "Invalid username or password (401)"
+                            403 -> "Forbidden (403)"
+                            else -> "HTTP error code: ${loginResp.code}"
+                        }
+                    withContext(Dispatchers.Main) {
+                        onResult(false, msg)
+                    }
+                    return@launch
+                }
+
+                val ticketClient =
+                    com.m57.hermescontrol.data.remote.OkHttpProvider.base
+                        .newBuilder()
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+
+                val ticketReq =
+                    Request
+                        .Builder()
+                        .url("$baseUrl/api/auth/ws-ticket")
+                        .post("{}".toRequestBody())
+                        .build()
+                val ticketResp = ticketClient.newCall(ticketReq).execute()
+
+                if (!ticketResp.isSuccessful) {
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "Failed to mint WS ticket: HTTP ${ticketResp.code}")
+                    }
+                    return@launch
+                }
+
+                val body = ticketResp.body?.string() ?: ""
+                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
+                val ticket = ticketMatch?.groupValues?.getOrNull(1)
+
+                if (ticket.isNullOrBlank()) {
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "Invalid ticket returned from server")
+                    }
+                    return@launch
+                }
+
+                AuthManager.setWsAuthParam("ticket")
+                AuthManager.setToken(ticket)
+
+                withContext(Dispatchers.Main) {
+                    onResult(true, null)
+                    reconnect()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onResult(false, "Connection failed: ${e.message}")
+                }
+            }
         }
     }
 

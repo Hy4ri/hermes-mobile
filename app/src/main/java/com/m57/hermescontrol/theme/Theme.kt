@@ -26,11 +26,6 @@ enum class BottomNavDisplayMode { ICON_AND_TEXT, ICON_ONLY, TEXT_ONLY }
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
 
-/**
- * Set to true to opt into Material You dynamic color (Android 12+).
- */
-private const val ENABLE_DYNAMIC_COLOR = true
-
 private val HermesDarkColorScheme =
     darkColorScheme(
         primary = HermesPurple,

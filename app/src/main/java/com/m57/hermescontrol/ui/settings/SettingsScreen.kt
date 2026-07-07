@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -332,54 +333,7 @@ private fun ConnectionSection(
     onPasswordVisibilityToggle: () -> Unit,
 ) {
     SectionCard(title = stringResource(R.string.settings_sec_connection)) {
-        // ── Profile selector ─────────────────────────────────────────
         if (state.profiles.isNotEmpty()) {
-            var profilesExpanded by remember { mutableStateOf(false) }
-            Text(
-                text = stringResource(R.string.settings_item_profile),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                OutlinedButton(
-                    onClick = { profilesExpanded = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    val activeProfile =
-                        state.profiles.firstOrNull { it.id == state.selectedProfileId }
-                    Text(
-                        text =
-                            activeProfile?.name ?: stringResource(
-                                R.string.settings_profile_default,
-                            ),
-                    )
-                }
-                DropdownMenu(
-                    expanded = profilesExpanded,
-                    onDismissRequest = { profilesExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.85f),
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.settings_profile_none)) },
-                        onClick = {
-                            viewModel.selectProfile(null)
-                            profilesExpanded = false
-                        },
-                    )
-                    state.profiles.forEach { profile ->
-                        DropdownMenuItem(
-                            text = { Text(profile.name) },
-                            onClick = {
-                                viewModel.selectProfile(profile.id)
-                                profilesExpanded = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
             // ── Saved profiles list ──────────────────────────────────
             Text(
                 text = stringResource(R.string.settings_saved_profiles, state.profiles.size),
@@ -391,7 +345,11 @@ private fun ConnectionSection(
             state.profiles.forEach { profile ->
                 val isActive = profile.id == state.selectedProfileId
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clickable { viewModel.selectProfile(profile.id) },
                     colors =
                         CardDefaults.cardColors(
                             containerColor =

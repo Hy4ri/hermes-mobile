@@ -1393,9 +1393,30 @@ private fun ChatTopBanner(
                     )
                 }
                 when (connectionStatus) {
-                    ConnectionStatus.DISCONNECTED,
-                    ConnectionStatus.NO_NETWORK,
-                    -> {
+                    ConnectionStatus.DISCONNECTED -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(
+                                onClick = onReloginClick,
+                                colors =
+                                    androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                        contentColor = LocalHermesStatusColors.current.error,
+                                    ),
+                            ) {
+                                Text(stringResource(R.string.chat_action_relogin))
+                            }
+                            TextButton(
+                                onClick = onReconnect,
+                                colors =
+                                    androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                        contentColor = LocalHermesStatusColors.current.error,
+                                    ),
+                            ) {
+                                Text(stringResource(R.string.chat_action_reconnect))
+                            }
+                        }
+                    }
+
+                    ConnectionStatus.NO_NETWORK -> {
                         TextButton(
                             onClick = onReconnect,
                             colors =

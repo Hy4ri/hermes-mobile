@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -14,11 +15,16 @@ import kotlinx.coroutines.launch
  * Behavior is identical to the original inline implementation: it mutates the
  * shared [uiState] flow for the four search-related fields and reads `messages`
  * from it when computing matches.
+ *
+ * @param dispatcher The [CoroutineDispatcher] used for the (CPU-bound) search
+ *   work. Defaults to [Dispatchers.Default] — the original behavior — but can
+ *   be injected to reuse a caller's context or customize per environment.
  */
 class ChatSearchDelegate(
     private val scope: CoroutineScope,
     private val uiState: MutableStateFlow<ChatUiState>,
     private val searchController: ChatSearchController = ChatSearchController(),
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private var searchJob: Job? = null
 
@@ -50,7 +56,7 @@ class ChatSearchDelegate(
             it.copy(searchQuery = query)
         }
 
-        searchJob = scope.launch(Dispatchers.Default) { runSearch(query) }
+        searchJob = scope.launch(dispatcher) { runSearch(query) }
     }
 
     private fun runSearch(query: String) {

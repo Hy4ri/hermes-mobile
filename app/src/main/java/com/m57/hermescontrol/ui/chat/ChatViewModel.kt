@@ -1211,6 +1211,10 @@ class ChatViewModel(
     }
 
     // ── Search ────────────────────────────────────────────────────────────
+    // Compatibility façade: stable public API around ChatSearchDelegate.
+    // These thin delegates keep ChatViewModel's public surface intact while
+    // the search logic now lives in the delegate. Safe to remove once all
+    // callers migrate directly to the delegate.
 
     fun toggleSearch() = searchDelegate.toggleSearch()
 

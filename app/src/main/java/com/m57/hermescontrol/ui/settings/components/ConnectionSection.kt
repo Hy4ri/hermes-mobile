@@ -12,23 +12,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,9 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -140,95 +131,6 @@ internal fun ConnectionSection(
             Spacer(modifier = Modifier.size(4.dp))
             Text(stringResource(R.string.settings_action_add_profile))
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = state.host,
-            onValueChange = viewModel::onHostChange,
-            label = { Text(stringResource(R.string.settings_field_host)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                ),
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = state.port,
-            onValueChange = viewModel::onPortChange,
-            label = { Text(stringResource(R.string.settings_field_port)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                ),
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = state.token,
-            onValueChange = viewModel::onTokenChange,
-            label = { Text(stringResource(R.string.settings_field_token)) },
-            singleLine = true,
-            visualTransformation =
-                if (passwordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-            trailingIcon = {
-                IconButton(onClick = onPasswordVisibilityToggle) {
-                    Icon(
-                        imageVector =
-                            if (passwordVisible) {
-                                Icons.Filled.Visibility
-                            } else {
-                                Icons.Filled.VisibilityOff
-                            },
-                        contentDescription =
-                            if (passwordVisible) {
-                                stringResource(R.string.content_desc_hide_token)
-                            } else {
-                                stringResource(R.string.content_desc_show_token)
-                            },
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                ),
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // B7 (Jun 18 2026): one-tap escape hatch for when the stored
-        // token is corrupted / rejected. Clears the token field and
-        // persists the empty value immediately so a stress-free
-        // re-pair is possible without manually selecting-and-deleting
-        // the masked password field character by character.
-        OutlinedButton(
-            onClick = {
-                viewModel.onTokenChange("")
-                viewModel.save()
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.settings_action_clear_token))
-        }
     }
 
     // ── Dialogs ──────────────────────────────────────────────────────────
@@ -285,23 +187,6 @@ internal fun TestResultCard(testResult: String?) {
                 )
             }
         }
-    }
-}
-
-@Composable
-internal fun SaveIndicator(isSaved: Boolean) {
-    AnimatedVisibility(
-        visible = isSaved,
-        enter = fadeIn(),
-        exit = fadeOut(),
-    ) {
-        Text(
-            text = stringResource(R.string.settings_save_success),
-            style =
-                MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.primary,
-                ),
-        )
     }
 }
 

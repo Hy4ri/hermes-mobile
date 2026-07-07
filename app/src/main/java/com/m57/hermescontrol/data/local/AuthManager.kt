@@ -130,12 +130,8 @@ object AuthManager {
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
                     _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
-
-                    // B7 (Jul 08 2026, kanban t_470): sync CookieManager active store scope with the selected profile ID
-                    val profileId = state.selectedProfileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
-                    if (CookieManager.isInitialized() && CookieManager.cookieJar.currentServer() != profileId) {
-                        CookieManager.useStore(profileId)
-                    }
+                    // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
+                    syncCookieStoreForProfile(state.selectedProfileId)
                 }
             }
         }
@@ -322,11 +318,18 @@ object AuthManager {
             tokenInitialized = false
         }
         _tokenFlow.value = getToken()
+        // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
+        syncCookieStoreForProfile(id)
+    }
 
-        // B7 (Jul 08 2026, kanban t_470): sync CookieManager active store scope with the selected profile ID
-        val profileId = id?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
-        if (CookieManager.isInitialized()) {
-            CookieManager.useStore(profileId)
+    private fun normalizedProfileId(profileId: String?): String =
+        profileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+
+    private fun syncCookieStoreForProfile(profileId: String?) {
+        if (!CookieManager.isInitialized()) return
+        val normalizedId = normalizedProfileId(profileId)
+        if (CookieManager.cookieJar.currentServer() != normalizedId) {
+            CookieManager.useStore(normalizedId)
         }
     }
 

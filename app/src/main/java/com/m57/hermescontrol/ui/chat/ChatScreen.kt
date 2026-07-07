@@ -1644,6 +1644,7 @@ private fun ReloginDialog(
     onDismiss: () -> Unit,
     onRelogin: (String, String, (Boolean, String?) -> Unit) -> Unit,
 ) {
+    val statusColors = LocalHermesStatusColors.current
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -1685,7 +1686,7 @@ private fun ReloginDialog(
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
+                        color = statusColors.error,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -1696,7 +1697,7 @@ private fun ReloginDialog(
                 enabled = !isLoading,
                 onClick = {
                     if (username.isBlank() || password.isBlank()) {
-                        errorMessage = "Username and password cannot be empty"
+                        errorMessage = stringResource(R.string.chat_relogin_error_empty)
                         return@TextButton
                     }
                     isLoading = true
@@ -1715,7 +1716,7 @@ private fun ReloginDialog(
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = statusColors.info,
                     )
                 } else {
                     Text(stringResource(R.string.chat_relogin_submit))

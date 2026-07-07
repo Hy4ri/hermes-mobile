@@ -34,8 +34,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.decodeFromJsonElement
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
@@ -1104,7 +1106,14 @@ class ChatViewModel(
             val host = AuthManager.getHost()
             val port = AuthManager.getPort()
             val baseUrl = "http://$host:$port"
-            val jsonBody = """{"provider":"basic","username":"$username","password":"$password","next":""}"""
+            val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+            val jsonBody =
+                JSONObject()
+                    .put("provider", "basic")
+                    .put("username", username)
+                    .put("password", password)
+                    .put("next", "")
+                    .toString()
 
             try {
                 val loginClient =
@@ -1119,21 +1128,21 @@ class ChatViewModel(
                         .Builder()
                         .url("$baseUrl/auth/password-login")
                         .header("Content-Type", "application/json")
-                        .post(jsonBody.toRequestBody())
+                        .post(jsonBody.toRequestBody(jsonMediaType))
                         .build()
-                val loginResp = loginClient.newCall(loginReq).execute()
-
-                if (!loginResp.isSuccessful) {
-                    val msg =
-                        when (loginResp.code) {
-                            401 -> "Invalid username or password (401)"
-                            403 -> "Forbidden (403)"
-                            else -> "HTTP error code: ${loginResp.code}"
+                loginClient.newCall(loginReq).execute().use { loginResp ->
+                    if (!loginResp.isSuccessful) {
+                        val msg =
+                            when (loginResp.code) {
+                                401 -> "Invalid username or password (401)"
+                                403 -> "Forbidden (403)"
+                                else -> "HTTP error code: ${loginResp.code}"
+                            }
+                        withContext(Dispatchers.Main) {
+                            onResult(false, msg)
                         }
-                    withContext(Dispatchers.Main) {
-                        onResult(false, msg)
+                        return@launch
                     }
-                    return@launch
                 }
 
                 val ticketClient =
@@ -1147,36 +1156,39 @@ class ChatViewModel(
                     Request
                         .Builder()
                         .url("$baseUrl/api/auth/ws-ticket")
-                        .post("{}".toRequestBody())
+                        .post("{}".toRequestBody(jsonMediaType))
                         .build()
-                val ticketResp = ticketClient.newCall(ticketReq).execute()
-
-                if (!ticketResp.isSuccessful) {
-                    withContext(Dispatchers.Main) {
-                        onResult(false, "Failed to mint WS ticket: HTTP ${ticketResp.code}")
+                ticketClient.newCall(ticketReq).execute().use { ticketResp ->
+                    if (!ticketResp.isSuccessful) {
+                        withContext(Dispatchers.Main) {
+                            onResult(false, "Failed to mint WS ticket: HTTP ${ticketResp.code}")
+                        }
+                        return@launch
                     }
-                    return@launch
-                }
 
-                val body = ticketResp.body?.string() ?: ""
-                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
-                val ticket = ticketMatch?.groupValues?.getOrNull(1)
+                    val body = ticketResp.body?.string().orEmpty()
+                    val ticket = JSONObject(body).optString("ticket").takeIf { it.isNotBlank() }
 
-                if (ticket.isNullOrBlank()) {
-                    withContext(Dispatchers.Main) {
-                        onResult(false, "Invalid ticket returned from server")
+                    if (ticket.isNullOrBlank()) {
+                        withContext(Dispatchers.Main) {
+                            onResult(false, "Invalid ticket returned from server")
+                        }
+                        return@launch
                     }
-                    return@launch
+
+                    AuthManager.setWsAuthParam("ticket")
+                    AuthManager.setToken(ticket)
+
+                    withContext(Dispatchers.Main) {
+                        onResult(true, null)
+                        reconnect()
+                    }
                 }
-
-                AuthManager.setWsAuthParam("ticket")
-                AuthManager.setToken(ticket)
-
+            } catch (e: java.io.IOException) {
                 withContext(Dispatchers.Main) {
-                    onResult(true, null)
-                    reconnect()
+                    onResult(false, "Connection failed: ${e.message}")
                 }
-            } catch (e: Exception) {
+            } catch (e: org.json.JSONException) {
                 withContext(Dispatchers.Main) {
                     onResult(false, "Connection failed: ${e.message}")
                 }

@@ -107,6 +107,7 @@ class E2eIntegrationTest {
         // so only resources used by ConnectViewModel + enum labels need stubs.
         every { mockApp.getString(any<Int>()) } returns ""
         every { AuthManager.setSelectedProfileId(any()) } returns Unit
+        every { AuthManager.ensureDefaultSelected() } returns Unit
         every { AuthManager.getProfileToken(any()) } returns null
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
         every { AuthManager.saveConnectionProfiles(any()) } returns Unit

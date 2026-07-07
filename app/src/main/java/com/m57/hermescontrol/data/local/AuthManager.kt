@@ -35,7 +35,6 @@ object AuthManager {
     private const val PREFS_FILE = "hermes_secure_prefs"
 
     private const val KEY_TOKEN = "auth_token"
-    private const val KEY_SELECTED_PROFILE_ID = "selected_profile_id"
     private const val KEY_SESSION_COOKIE = "session_cookie"
 
     @Volatile

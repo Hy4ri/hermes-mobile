@@ -120,17 +120,16 @@ class ChatViewModel(
         )
     private val attachmentsDelegate = ChatAttachmentsDelegate(uiState = _uiState)
 
-    /** Tracks the ID of the currently streaming assistant message. */
-    @Volatile
-    private var streamingMessageId: String? = null
+    private val streamingController =
+        ChatStreamingController(
+            scope = viewModelScope,
+            uiState = _uiState,
+            streamingState = _streamingState,
+            isCurrentSession = { sessionId -> isCurrentSession(sessionId) },
+            isTestEnvironment = { isTestEnvironment() },
+        )
 
     private var pendingCleanupJob: Job? = null
-
-    private val streamingBuffer = java.lang.StringBuilder()
-    private var lastFlushMs = 0L
-
-    private val thinkingBuffer = java.lang.StringBuilder()
-    private var lastThinkingFlushMs = 0L
 
     // ── Public state ─────────────────────────────────────────────────────
 
@@ -287,41 +286,29 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageToken -> {
-                handleMessageToken(event)
+                streamingController.handleMessageToken(event)
             }
 
             is WsEvent.ThinkingDelta -> {
-                handleThinkingDelta(event)
+                streamingController.handleThinkingDelta(event)
             }
 
             is WsEvent.MessageStart -> {
-                streamingMessageId =
-                    java.util.UUID
-                        .randomUUID()
-                        .toString()
-                streamingBuffer.clear()
-                thinkingBuffer.clear()
-                lastFlushMs = 0L
-                lastThinkingFlushMs = 0L
+                streamingController.beginStreamingMessage()
             }
 
             is WsEvent.MessageComplete -> {
                 // Buffers cleared before reduce; ViewModel resets them after
-                streamingMessageId = null
-                streamingBuffer.clear()
-                thinkingBuffer.clear()
+                streamingController.resetStreaming()
             }
 
             is WsEvent.MessageDone -> {
-                streamingMessageId = null
-                streamingBuffer.clear()
-                thinkingBuffer.clear()
+                streamingController.resetStreaming()
             }
 
             is WsEvent.ToolStart -> {
                 // Reset streaming state when a tool starts
-                streamingBuffer.clear()
-                thinkingBuffer.clear()
+                streamingController.resetStreaming()
             }
 
             is WsEvent.RpcResult -> {
@@ -343,6 +330,7 @@ class ChatViewModel(
                     )
                 }
                 _streamingState.update { StreamingState() }
+                streamingController.resetStreaming()
             }
 
             is WsEvent.ApprovalRequest -> {
@@ -363,66 +351,6 @@ class ChatViewModel(
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
         return eventSessionId == _uiState.value.currentSessionId
-    }
-
-    private fun handleMessageToken(event: WsEvent.MessageToken) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        streamingBuffer.append(event.token)
-        val now = System.currentTimeMillis()
-
-        // Always flush in tests, or if enough time has passed
-        val shouldFlush = (now - lastFlushMs >= 33L) || lastFlushMs == 0L || isTestEnvironment()
-        if (shouldFlush) {
-            val currentContent = streamingBuffer.toString()
-            lastFlushMs = now
-            _streamingState.update { state ->
-                val current = state.streamingMessage
-                if (current != null) {
-                    state.copy(
-                        streamingMessage =
-                            current.copy(
-                                content = currentContent,
-                            ),
-                        isThinking = false,
-                    )
-                } else {
-                    // Fallback: no MessageStart was received — create one now
-                    val msg =
-                        ChatMessage(
-                            role = MessageRole.ASSISTANT,
-                            content = currentContent,
-                            isStreaming = true,
-                        )
-                    streamingMessageId = msg.id
-                    state.copy(
-                        streamingMessage = msg,
-                        isThinking = false,
-                    )
-                }
-            }
-            _uiState.update { it.copy(isAgentTyping = true) }
-        }
-    }
-
-    private fun handleThinkingDelta(event: WsEvent.ThinkingDelta) {
-        if (!isCurrentSession(event.sessionId)) return
-
-        thinkingBuffer.append(event.token)
-        val now = System.currentTimeMillis()
-
-        // Always flush in tests, or if enough time has passed
-        val shouldFlush = (now - lastThinkingFlushMs >= 33L) || lastThinkingFlushMs == 0L || isTestEnvironment()
-        if (shouldFlush) {
-            val currentContent = thinkingBuffer.toString()
-            lastThinkingFlushMs = now
-            _streamingState.update { state ->
-                state.copy(
-                    isThinking = true,
-                    thinkingText = currentContent,
-                )
-            }
-        }
     }
 
     // ── RPC response handling ────────────────────────────────────────────
@@ -496,15 +424,13 @@ class ChatViewModel(
             }
 
             WsMethods.SESSION_INTERRUPT -> {
-                streamingBuffer.clear()
-                thinkingBuffer.clear()
                 _uiState.update {
                     it.copy(
                         isAgentTyping = false,
                     )
                 }
                 _streamingState.update { StreamingState() }
-                streamingMessageId = null
+                streamingController.resetStreaming()
                 addSystemMessage("Session interrupted")
             }
 
@@ -852,7 +778,7 @@ class ChatViewModel(
             )
         }
         _streamingState.update { StreamingState() }
-        streamingMessageId = null
+        streamingController.resetStreaming()
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.SESSION_CREATE,
@@ -915,9 +841,7 @@ class ChatViewModel(
         if (sessionId == _uiState.value.currentSessionId) return
 
         // Reset streaming state
-        streamingMessageId = null
-        streamingBuffer.clear()
-        thinkingBuffer.clear()
+        streamingController.resetStreaming()
         _uiState.update {
             val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
             it.copy(

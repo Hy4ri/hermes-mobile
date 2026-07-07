@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
@@ -70,8 +69,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.model.CredentialPoolEntry
-import com.m57.hermescontrol.data.model.HookEntry
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -85,6 +82,8 @@ import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.system.components.CredentialEntryRow
+import com.m57.hermescontrol.ui.system.components.HookCard
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -1069,55 +1068,6 @@ private fun LazyListScope.credentialsSection(
     }
 }
 
-@Composable
-private fun CredentialEntryRow(
-    entry: CredentialPoolEntry,
-    providerName: String,
-    onRemove: () -> Unit,
-    spacing: com.m57.hermescontrol.theme.Spacing,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = entry.label ?: "(${stringResource(R.string.system_credentials_api_key)} ${entry.index ?: 0})",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                entry.token_preview?.let { preview ->
-                    Text(
-                        text = preview,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                entry.last_status?.let { status ->
-                    StatusBadge(
-                        text = status,
-                        status =
-                            when (status.lowercase()) {
-                                "ok", "valid", "active" -> StatusBadgeType.SUCCESS
-                                "error", "invalid", "expired" -> StatusBadgeType.ERROR
-                                else -> StatusBadgeType.NEUTRAL
-                            },
-                    )
-                }
-            }
-        }
-        IconButton(onClick = onRemove) {
-            Icon(
-                Icons.Filled.Delete,
-                contentDescription = stringResource(R.string.action_delete),
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-    }
-}
-
 private fun LazyListScope.operationsSection(
     state: SystemUiState,
     spacing: com.m57.hermescontrol.theme.Spacing,
@@ -1556,97 +1506,6 @@ private fun LazyListScope.shellHooksSection(
                     }
                 },
             )
-        }
-    }
-}
-
-@Composable
-private fun HookCard(
-    hook: HookEntry,
-    spacing: com.m57.hermescontrol.theme.Spacing,
-    onDelete: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(spacing.xs),
-                ) {
-                    Icon(
-                        Icons.Filled.Terminal,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        text = hook.command ?: "?",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-                Spacer(modifier = Modifier.height(spacing.xs))
-                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    Text(
-                        text = hook.event ?: "",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    hook.matcher?.let { matcher ->
-                        Text(
-                            text = stringResource(R.string.system_hooks_matcher, matcher),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(spacing.xs))
-                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    StatusBadge(
-                        text =
-                            if (hook.executable != false) {
-                                stringResource(R.string.system_hooks_allowed)
-                            } else {
-                                stringResource(R.string.system_hooks_not_executable)
-                            },
-                        status =
-                            if (hook.executable != false) StatusBadgeType.SUCCESS else StatusBadgeType.ERROR,
-                    )
-                    StatusBadge(
-                        text =
-                            if (hook.allowed == true) {
-                                stringResource(R.string.system_hooks_allowed)
-                            } else {
-                                stringResource(R.string.system_hooks_not_approved)
-                            },
-                        status =
-                            if (hook.allowed == true) StatusBadgeType.SUCCESS else StatusBadgeType.WARNING,
-                    )
-                    hook.timeout?.let { t ->
-                        StatusBadge(
-                            text = "${t}s",
-                            status = StatusBadgeType.NEUTRAL,
-                        )
-                    }
-                }
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = stringResource(R.string.action_delete),
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
         }
     }
 }

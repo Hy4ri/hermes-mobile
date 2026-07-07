@@ -1428,7 +1428,9 @@ private fun ChatTopBanner(
                         }
                     }
 
-                    ConnectionStatus.AUTH_EXPIRED -> {
+                    ConnectionStatus.RECONNECTING,
+                    ConnectionStatus.AUTH_EXPIRED,
+                    -> {
                         TextButton(
                             onClick = onReloginClick,
                             colors =
@@ -1440,7 +1442,7 @@ private fun ChatTopBanner(
                         }
                     }
 
-                    else -> { /* RECONNECTING: auto, no button */ }
+                    else -> {}
                 }
             }
         }

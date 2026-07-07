@@ -1667,7 +1667,7 @@ private fun ReloginDialog(
     onDismiss: () -> Unit,
     onRelogin: (String, String, (Boolean, String?) -> Unit) -> Unit,
 ) {
-    val context = LocalContext.current
+    val emptyCredentialsError = stringResource(R.string.chat_relogin_error_empty)
     val statusColors = LocalHermesStatusColors.current
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -1721,7 +1721,7 @@ private fun ReloginDialog(
                 enabled = !isLoading,
                 onClick = {
                     if (username.isBlank() || password.isBlank()) {
-                        errorMessage = context.getString(R.string.chat_relogin_error_empty)
+                        errorMessage = emptyCredentialsError
                         return@TextButton
                     }
                     isLoading = true

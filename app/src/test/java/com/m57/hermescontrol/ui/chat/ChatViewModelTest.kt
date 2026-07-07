@@ -108,9 +108,8 @@ class ChatViewModelTest {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /** Create a ViewModel with the fake repo injected directly. */
-    private fun createViewModel(startCleanup: Boolean = false): ChatViewModel {
-        return ChatViewModel(app, startCleanup, fakeRepo)
-    }
+    private fun createViewModel(startCleanup: Boolean = false): ChatViewModel =
+        ChatViewModel(app, startCleanup, fakeRepo)
 
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
@@ -166,8 +165,14 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            assertTrue(viewModel.uiState.value.messages.any { it.content.contains("Available Commands") })
-            assertTrue(viewModel.uiState.value.messages.any { it.content.contains("/status") })
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content.contains("Available Commands") },
+            )
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content.contains("/status") },
+            )
         }
 
     @Test
@@ -225,7 +230,10 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            assertTrue(viewModel.uiState.value.errorMessage?.contains("Unknown command") == true)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("Unknown command") == true,
+            )
         }
 
     @Test
@@ -266,7 +274,7 @@ class ChatViewModelTest {
     @Test
     fun testInitialStateAndConnection() =
         runTest {
-            mockConnectionStatus.value = ConnectionStatus.CONNECTING
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
             createViewModel()
             advanceUntilIdle()
@@ -344,7 +352,11 @@ class ChatViewModelTest {
             assertEquals("session-123", viewModel.uiState.value.currentSessionId)
             assertFalse(viewModel.uiState.value.isLoading)
             assertEquals(1, viewModel.uiState.value.messages.size)
-            assertEquals("Session created", viewModel.uiState.value.messages[0].content)
+            assertEquals(
+                "Session created",
+                viewModel.uiState.value.messages[0]
+                    .content,
+            )
         }
 
     @Test
@@ -377,9 +389,21 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(1, viewModel.uiState.value.sessions.size)
-            assertEquals("session-123", viewModel.uiState.value.sessions[0].id)
-            assertEquals("My Session Title", viewModel.uiState.value.sessions[0].title)
-            assertEquals(12, viewModel.uiState.value.sessions[0].messageCount)
+            assertEquals(
+                "session-123",
+                viewModel.uiState.value.sessions[0]
+                    .id,
+            )
+            assertEquals(
+                "My Session Title",
+                viewModel.uiState.value.sessions[0]
+                    .title,
+            )
+            assertEquals(
+                12,
+                viewModel.uiState.value.sessions[0]
+                    .messageCount,
+            )
         }
 
     // ── Streaming tests ──────────────────────────────────────────────────────
@@ -412,12 +436,20 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageToken("Hello", sessionId))
             advanceUntilIdle()
             assertFalse(viewModel.streamingState.value.isThinking)
-            assertEquals("Hello", viewModel.streamingState.value.streamingMessage?.content)
+            assertEquals(
+                "Hello",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
 
             // 5 — Second token
             mockEventsFlow.emit(WsEvent.MessageToken(" world", sessionId))
             advanceUntilIdle()
-            assertEquals("Hello world", viewModel.streamingState.value.streamingMessage?.content)
+            assertEquals(
+                "Hello world",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
 
             // 6 — Complete: reducer finalizes message + resets streamingState
             mockEventsFlow.emit(WsEvent.MessageComplete("Hello world!", sessionId))
@@ -426,8 +458,15 @@ class ChatViewModelTest {
             assertFalse(viewModel.uiState.value.isAgentTyping)
             assertNull(viewModel.streamingState.value.streamingMessage)
             assertEquals(2, viewModel.uiState.value.messages.size)
-            assertEquals("Hello world!", viewModel.uiState.value.messages[1].content)
-            assertFalse(viewModel.uiState.value.messages[1].isStreaming)
+            assertEquals(
+                "Hello world!",
+                viewModel.uiState.value.messages[1]
+                    .content,
+            )
+            assertFalse(
+                viewModel.uiState.value.messages[1]
+                    .isStreaming,
+            )
         }
 
     @Test
@@ -443,9 +482,21 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // messages[0] = "Session created" system message
-            assertEquals("Calculating sum", viewModel.uiState.value.messages[1].content)
-            assertEquals(MessageRole.ASSISTANT, viewModel.uiState.value.messages[1].role)
-            assertEquals(MessageRole.TOOL, viewModel.uiState.value.messages[2].role)
+            assertEquals(
+                "Calculating sum",
+                viewModel.uiState.value.messages[1]
+                    .content,
+            )
+            assertEquals(
+                MessageRole.ASSISTANT,
+                viewModel.uiState.value.messages[1]
+                    .role,
+            )
+            assertEquals(
+                MessageRole.TOOL,
+                viewModel.uiState.value.messages[2]
+                    .role,
+            )
             assertNull(viewModel.streamingState.value.streamingMessage)
         }
 
@@ -463,10 +514,21 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // messages[0] = "Session created" system message
-            assertEquals("First part", viewModel.uiState.value.messages[1].content)
-            assertFalse(viewModel.uiState.value.messages[1].isStreaming)
+            assertEquals(
+                "First part",
+                viewModel.uiState.value.messages[1]
+                    .content,
+            )
+            assertFalse(
+                viewModel.uiState.value.messages[1]
+                    .isStreaming,
+            )
             assertNotNull(viewModel.streamingState.value.streamingMessage)
-            assertEquals("Second part", viewModel.streamingState.value.streamingMessage?.content)
+            assertEquals(
+                "Second part",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
         }
 
     @Test
@@ -482,15 +544,27 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            assertEquals(MessageRole.TOOL, viewModel.uiState.value.messages[1].role)
-            assertEquals(ToolStatus.RUNNING, viewModel.uiState.value.messages[1].toolStatus)
+            assertEquals(
+                MessageRole.TOOL,
+                viewModel.uiState.value.messages[1]
+                    .role,
+            )
+            assertEquals(
+                ToolStatus.RUNNING,
+                viewModel.uiState.value.messages[1]
+                    .toolStatus,
+            )
 
             mockEventsFlow.emit(
                 WsEvent.ToolComplete("calculator", mapOf("result" to "4", "exit_code" to 0)),
             )
             advanceUntilIdle()
 
-            assertEquals(ToolStatus.COMPLETED, viewModel.uiState.value.messages[1].toolStatus)
+            assertEquals(
+                ToolStatus.COMPLETED,
+                viewModel.uiState.value.messages[1]
+                    .toolStatus,
+            )
         }
 
     // ── Clarify tests ────────────────────────────────────────────────────────
@@ -503,9 +577,21 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.ClarifyRequest("Please choose:", listOf("Yes", "No"), "clarify-123"))
             advanceUntilIdle()
 
-            assertEquals("Please choose:", viewModel.uiState.value.clarifyRequest?.text)
-            assertEquals(listOf("Yes", "No"), viewModel.uiState.value.clarifyRequest?.options)
-            assertEquals("clarify-123", viewModel.uiState.value.clarifyRequest?.clarifyId)
+            assertEquals(
+                "Please choose:",
+                viewModel.uiState.value.clarifyRequest
+                    ?.text,
+            )
+            assertEquals(
+                listOf("Yes", "No"),
+                viewModel.uiState.value.clarifyRequest
+                    ?.options,
+            )
+            assertEquals(
+                "clarify-123",
+                viewModel.uiState.value.clarifyRequest
+                    ?.clarifyId,
+            )
 
             viewModel.respondToClarify("Yes")
             advanceUntilIdle()
@@ -537,16 +623,32 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.ClarifyRequest("Please explain:", emptyList(), "clarify-456"))
             advanceUntilIdle()
 
-            assertEquals("Please explain:", viewModel.uiState.value.clarifyRequest?.text)
-            assertTrue(viewModel.uiState.value.clarifyRequest?.options?.isEmpty() == true)
+            assertEquals(
+                "Please explain:",
+                viewModel.uiState.value.clarifyRequest
+                    ?.text,
+            )
+            assertTrue(
+                viewModel.uiState.value.clarifyRequest
+                    ?.options
+                    ?.isEmpty() == true,
+            )
 
             viewModel.respondToClarify("This is my custom response text")
             advanceUntilIdle()
 
             assertNull(viewModel.uiState.value.clarifyRequest)
             assertEquals(2, viewModel.uiState.value.messages.size)
-            assertEquals("This is my custom response text", viewModel.uiState.value.messages[1].content)
-            assertEquals(MessageRole.USER, viewModel.uiState.value.messages[1].role)
+            assertEquals(
+                "This is my custom response text",
+                viewModel.uiState.value.messages[1]
+                    .content,
+            )
+            assertEquals(
+                MessageRole.USER,
+                viewModel.uiState.value.messages[1]
+                    .role,
+            )
 
             verify {
                 HermesWsClient.send(
@@ -575,8 +677,16 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(2, viewModel.uiState.value.messages.size)
-            assertEquals("Hello Hermes", viewModel.uiState.value.messages[1].content)
-            assertEquals(MessageRole.USER, viewModel.uiState.value.messages[1].role)
+            assertEquals(
+                "Hello Hermes",
+                viewModel.uiState.value.messages[1]
+                    .content,
+            )
+            assertEquals(
+                MessageRole.USER,
+                viewModel.uiState.value.messages[1]
+                    .role,
+            )
             assertTrue(viewModel.uiState.value.isAgentTyping)
 
             verify { HermesWsClient.sendMessage(sessionId, "Hello Hermes", any()) }
@@ -593,7 +703,10 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals("session-456", viewModel.uiState.value.currentSessionId)
-            assertTrue(viewModel.uiState.value.messages.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .isEmpty(),
+            )
 
             verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456"), any()) }
         }
@@ -618,7 +731,10 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            assertTrue(viewModel.uiState.value.errorMessage!!.contains("Internal error during creation"))
+            assertTrue(
+                viewModel.uiState.value.errorMessage!!
+                    .contains("Internal error during creation"),
+            )
         }
 
     // ── Session mismatch ─────────────────────────────────────────────────────
@@ -644,7 +760,11 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(1, viewModel.uiState.value.messages.size)
-            assertEquals("Session created", viewModel.uiState.value.messages[0].content)
+            assertEquals(
+                "Session created",
+                viewModel.uiState.value.messages[0]
+                    .content,
+            )
             assertNull(viewModel.streamingState.value.streamingMessage)
             assertNull(viewModel.uiState.value.clarifyRequest)
         }
@@ -663,7 +783,11 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageToken("Hello", sessionId))
             advanceUntilIdle()
 
-            assertEquals("Hello", viewModel.streamingState.value.streamingMessage?.content)
+            assertEquals(
+                "Hello",
+                viewModel.streamingState.value.streamingMessage
+                    ?.content,
+            )
         }
 
     // ── MessageComplete without streaming ────────────────────────────────────
@@ -677,8 +801,16 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(2, viewModel.uiState.value.messages.size)
-            assertEquals("Fully complete message", viewModel.uiState.value.messages[1].content)
-            assertEquals(MessageRole.ASSISTANT, viewModel.uiState.value.messages[1].role)
+            assertEquals(
+                "Fully complete message",
+                viewModel.uiState.value.messages[1]
+                    .content,
+            )
+            assertEquals(
+                MessageRole.ASSISTANT,
+                viewModel.uiState.value.messages[1]
+                    .role,
+            )
         }
 
     // ── Approval flow ────────────────────────────────────────────────────────
@@ -699,7 +831,9 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            val msg = viewModel.uiState.value.messages.first { it.content.contains("Approval Required") }
+            val msg =
+                viewModel.uiState.value.messages
+                    .first { it.content.contains("Approval Required") }
             assertNotNull(msg.approvalInfo)
             assertEquals("rm -rf /data", msg.approvalInfo?.command)
         }
@@ -740,13 +874,17 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            val approvalMsg = viewModel.uiState.value.messages.firstOrNull { it.approvalInfo != null }
+            val approvalMsg =
+                viewModel.uiState.value.messages
+                    .firstOrNull { it.approvalInfo != null }
             assertNotNull(approvalMsg)
 
             viewModel.respondToApproval("approve")
             advanceUntilIdle()
 
-            val msgAfter = viewModel.uiState.value.messages.firstOrNull { it.id == approvalMsg!!.id }
+            val msgAfter =
+                viewModel.uiState.value.messages
+                    .firstOrNull { it.id == approvalMsg!!.id }
             assertNotNull(msgAfter)
             assertNull(msgAfter!!.approvalInfo)
         }

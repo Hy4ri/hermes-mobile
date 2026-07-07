@@ -166,7 +166,7 @@ fun SettingsScreen(
                             onTest = viewModel::testConnection,
                         )
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
 
                         Button(
                             onClick = {

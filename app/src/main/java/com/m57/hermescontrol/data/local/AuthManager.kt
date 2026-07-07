@@ -119,7 +119,9 @@ object AuthManager {
             // session-cookie prefs are passed as a Deferred so existing gated
             // sessions can be migrated on first load WITHOUT blocking startup.
             // The Deferred is created above, before this call.
-            CookieManager.initialize(context, prefsDeferred)
+            val initialProfileId =
+                store.getLatestState().selectedProfileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+            CookieManager.initialize(context, prefsDeferred, initialProfileId)
 
             scope.launch {
                 store.stateFlow.collect { state ->
@@ -299,6 +301,12 @@ object AuthManager {
     ) {
         requirePrefs().edit().putString("token_$profileId", token).apply()
         if (getSelectedProfileId() == profileId) {
+            // B7 (Jul 08 2026, kanban t_470): sync in-memory cachedToken
+            // to prevent stale tokens during ticket refresh
+            synchronized(this) {
+                cachedToken = token
+                tokenInitialized = true
+            }
             _tokenFlow.value = token
         }
     }

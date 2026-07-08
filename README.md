@@ -138,5 +138,7 @@ For developer-specific details, code conventions, and project architecture notes
 
 ## License
 
+Copyright © 2026 M57 (Hy4ri).
+
 This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
 renamed '/tmp/hermes-snap-800bd6e0cc89.sh.tmp.17855' -> '/tmp/hermes-snap-800bd6e0cc89.sh'

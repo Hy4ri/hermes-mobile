@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.webhooks
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -48,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.WebhookSubscription
+import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -70,6 +72,7 @@ fun WebhooksScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    var showDetail by remember { mutableStateOf<WebhookSubscription?>(null) }
 
     val filteredSubscriptions =
         remember(query, state.subscriptions) {
@@ -356,12 +359,40 @@ fun WebhooksScreen(
                                 isToggling = state.togglingName == sub.name,
                                 onToggle = { enabled -> viewModel.toggleSubscription(sub.name, enabled) },
                                 onDelete = { viewModel.promptDeleteSubscription(sub) },
+                                onClick = { showDetail = sub },
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    showDetail?.let { sub ->
+        DetailDialog(
+            title = sub.name,
+            rows =
+                listOf(
+                    stringResource(R.string.detail_dialog_status) to
+                        (
+                            if (sub.enabled == true) {
+                                stringResource(
+                                    R.string.detail_dialog_status_enabled,
+                                )
+                            } else {
+                                stringResource(R.string.detail_dialog_status_disabled)
+                            }
+                        ),
+                    stringResource(R.string.detail_dialog_deliver) to (sub.deliver ?: ""),
+                    stringResource(R.string.detail_dialog_description) to (sub.description ?: ""),
+                    stringResource(R.string.detail_dialog_events) to (sub.events.orEmpty().joinToString(", ")),
+                    stringResource(R.string.detail_dialog_prompt) to (sub.prompt ?: ""),
+                    stringResource(R.string.detail_dialog_skills) to (sub.skills.orEmpty().joinToString(", ")),
+                    stringResource(R.string.detail_dialog_url) to (sub.url),
+                    stringResource(R.string.detail_dialog_created_at) to (sub.created_at ?: ""),
+                ),
+            onDismiss = { showDetail = null },
+        )
     }
 }
 
@@ -371,11 +402,12 @@ private fun SubscriptionCard(
     isToggling: Boolean,
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit,
+    onClick: () -> Unit,
 ) {
     val isEnabled = sub.enabled ?: true
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
                 containerColor =

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.plugins
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,6 +52,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -71,6 +73,7 @@ fun PluginsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    var showDetail by remember { mutableStateOf<PluginInfo?>(null) }
 
     val filteredPlugins =
         remember(query, state.plugins) {
@@ -176,7 +179,12 @@ fun PluginsScreen(
 
                         // Plugin list
                         items(filteredPlugins, key = { it.name }) { plugin ->
-                            PluginCard(plugin = plugin, state = state, viewModel = viewModel)
+                            PluginCard(
+                                plugin = plugin,
+                                state = state,
+                                viewModel = viewModel,
+                                onClick = { showDetail = plugin },
+                            )
                         }
 
                         // Orphan dashboard plugins section
@@ -191,7 +199,7 @@ fun PluginsScreen(
                                 )
                             }
                             items(state.orphanPlugins, key = { "orphan-${it.name}" }) { plugin ->
-                                OrphanPluginCard(plugin = plugin)
+                                OrphanPluginCard(plugin = plugin, onClick = { showDetail = plugin })
                             }
                         }
                     }
@@ -422,11 +430,12 @@ private fun PluginCard(
     plugin: PluginInfo,
     state: PluginsUiState,
     viewModel: PluginsViewModel,
+    onClick: () -> Unit,
 ) {
     val busy = state.rowBusy == plugin.name
     val statusColors = LocalHermesStatusColors.current
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header row: name + toggle
             Row(
@@ -588,8 +597,11 @@ private fun PluginCard(
 }
 
 @Composable
-private fun OrphanPluginCard(plugin: PluginInfo) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun OrphanPluginCard(
+    plugin: PluginInfo,
+    onClick: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -608,5 +620,19 @@ private fun OrphanPluginCard(plugin: PluginInfo) {
                 }
             }
         }
+    }
+
+    showDetail?.let { plugin ->
+        DetailDialog(
+            title = plugin.name,
+            rows =
+                listOf(
+                    stringResource(R.string.detail_dialog_version) to (plugin.version ?: ""),
+                    stringResource(R.string.detail_dialog_source) to (plugin.source ?: ""),
+                    stringResource(R.string.detail_dialog_status) to (plugin.runtimeStatus ?: ""),
+                    stringResource(R.string.detail_dialog_description) to (plugin.description ?: ""),
+                ),
+            onDismiss = { showDetail = null },
+        )
     }
 }

@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.mcp
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.McpCatalogEntry
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.theme.LocalSpacing
+import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -79,6 +81,7 @@ fun McpServersScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     var query by remember { mutableStateOf("") }
+    var showDetail by remember { mutableStateOf<McpServer?>(null) }
 
     val filteredServers =
         remember(query, state.servers) {
@@ -162,7 +165,13 @@ fun McpServersScreen(
                     }
 
                     items(filteredServers, key = { "server:${it.name}" }) { server ->
-                        ServerCard(server = server, state = state, viewModel = viewModel, spacing = spacing)
+                        ServerCard(
+                            server = server,
+                            state = state,
+                            viewModel = viewModel,
+                            spacing = spacing,
+                            onClick = { showDetail = server },
+                        )
                     }
 
                     // ── 4. Catalog ──────────────────────────────────────
@@ -177,6 +186,30 @@ fun McpServersScreen(
                 }
             }
         }
+    }
+
+    showDetail?.let { server ->
+        DetailDialog(
+            title = server.name,
+            rows =
+                listOf(
+                    stringResource(R.string.detail_dialog_transport) to (server.transport ?: ""),
+                    stringResource(R.string.detail_dialog_status) to (server.status ?: ""),
+                    stringResource(R.string.detail_dialog_url) to (server.url ?: ""),
+                    stringResource(R.string.detail_dialog_command) to
+                        (
+                            if (server.command != null) {
+                                "${server.command} ${server.args.orEmpty().joinToString(" ")}"
+                            } else {
+                                ""
+                            }
+                        ),
+                    stringResource(R.string.detail_dialog_env_vars) to
+                        (server.env?.entries?.joinToString("\n") { "${it.key}=${it.value}" } ?: ""),
+                    stringResource(R.string.detail_dialog_error) to (server.error ?: ""),
+                ),
+            onDismiss = { showDetail = null },
+        )
     }
 }
 
@@ -279,11 +312,12 @@ private fun ServerCard(
     state: McpServersUiState,
     viewModel: McpServersViewModel,
     spacing: com.m57.hermescontrol.theme.Spacing,
+    onClick: () -> Unit,
 ) {
     var showEnv by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
                 containerColor =

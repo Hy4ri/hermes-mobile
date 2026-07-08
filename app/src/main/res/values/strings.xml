@@ -630,6 +630,30 @@
     <string name="plugins_show_in_sidebar">Show in sidebar</string>
     <string name="plugins_hide_from_sidebar">Hide from sidebar</string>
 
+    <!-- Shared detail dialog (issue #500) -->
+    <string name="detail_dialog_no_info">No additional details available.</string>
+    <string name="detail_dialog_category">Category</string>
+    <string name="detail_dialog_source">Source</string>
+    <string name="detail_dialog_version">Version</string>
+    <string name="detail_dialog_status">Status</string>
+    <string name="detail_dialog_description">Description</string>
+    <string name="detail_dialog_tags">Tags</string>
+    <string name="detail_dialog_transport">Transport</string>
+    <string name="detail_dialog_label">Label</string>
+    <string name="detail_dialog_url">URL</string>
+    <string name="detail_dialog_command">Command</string>
+    <string name="detail_dialog_args">Arguments</string>
+    <string name="detail_dialog_env_vars">Environment Variables</string>
+    <string name="detail_dialog_tools">Tools</string>
+    <string name="detail_dialog_events">Events</string>
+    <string name="detail_dialog_deliver">Deliver to</string>
+    <string name="detail_dialog_prompt">Prompt</string>
+    <string name="detail_dialog_skills">Skills</string>
+    <string name="detail_dialog_created_at">Created</string>
+    <string name="detail_dialog_error">Error</string>
+    <string name="detail_dialog_status_enabled">Enabled</string>
+    <string name="detail_dialog_status_disabled">Disabled</string>
+
     <!-- McpServers Screen -->
     <string name="mcp_servers_label_transport">Transport: %1$s</string>
     <string name="mcp_servers_label_command">Command:</string>

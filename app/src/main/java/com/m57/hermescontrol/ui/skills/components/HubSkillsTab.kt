@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.skills.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.HubSkill
+import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -59,6 +61,8 @@ internal fun HubBrowseView(
     isInstalling: Boolean,
     installingSkillName: String?,
 ) {
+    var showDetail by remember { mutableStateOf<HubSkill?>(null) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = hubQuery,
@@ -139,6 +143,7 @@ internal fun HubBrowseView(
                             hubSkill = hubSkill,
                             onInstall = { onInstall(hubSkill.name) },
                             isInstalling = isInstalling && installingSkillName == hubSkill.name,
+                            onClick = { showDetail = hubSkill },
                         )
                     }
                 }
@@ -152,6 +157,20 @@ internal fun HubBrowseView(
             }
         }
     }
+
+    showDetail?.let { hubSkill ->
+        DetailDialog(
+            title = hubSkill.name,
+            rows =
+                listOf(
+                    stringResource(R.string.detail_dialog_category) to (hubSkill.category ?: ""),
+                    stringResource(R.string.detail_dialog_source) to (hubSkill.source ?: ""),
+                    stringResource(R.string.detail_dialog_description) to (hubSkill.description ?: ""),
+                    stringResource(R.string.detail_dialog_tags) to (hubSkill.tags.orEmpty().joinToString(", ")),
+                ),
+            onDismiss = { showDetail = null },
+        )
+    }
 }
 
 @Composable
@@ -159,9 +178,10 @@ private fun HubSkillCard(
     hubSkill: HubSkill,
     onInstall: () -> Unit,
     isInstalling: Boolean,
+    onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,

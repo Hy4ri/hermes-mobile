@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.skills
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.FilterChipRow
@@ -214,6 +216,8 @@ private fun InstalledSkillsView(
     uninstallingSkillName: String?,
     onRefresh: () -> Unit,
 ) {
+    var showDetail by remember { mutableStateOf<Skill?>(null) }
+
     val categories =
         remember(state.skills) {
             state.skills
@@ -347,11 +351,25 @@ private fun InstalledSkillsView(
                                     null
                                 },
                             isUninstalling = isUninstalling && uninstallingSkillName == skill.name,
+                            onClick = { showDetail = skill },
                         )
                     }
                 }
             }
         }
+    }
+
+    showDetail?.let { skill ->
+        DetailDialog(
+            title = skill.name,
+            rows =
+                listOf(
+                    stringResource(R.string.detail_dialog_category) to (skill.category ?: ""),
+                    stringResource(R.string.detail_dialog_source) to (skill.source ?: ""),
+                    stringResource(R.string.detail_dialog_description) to (skill.description ?: ""),
+                ),
+            onDismiss = { showDetail = null },
+        )
     }
 }
 
@@ -364,9 +382,10 @@ private fun SkillCard(
     onAction: () -> Unit,
     onUninstall: (() -> Unit)?,
     isUninstalling: Boolean,
+    onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,

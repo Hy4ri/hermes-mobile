@@ -17,22 +17,26 @@ dashboard's REST API and WebSocket TUI Gateway (JSON-RPC 2.0) over a trusted LAN
 
 ## Build & Test Commands
 
-### ⚠ No local Android SDK — CI is the only compilation truth engine
+### ✅ Local Android SDK — if available
 
-`./gradlew assembleDebug`, `./gradlew test`, `./gradlew ktlintCheck` all fail locally
-(no Android SDK installed). **CI verifies compilation, lint, and tests.** Push small
-and watch CI.
-
-### What you CAN run locally
+If you have a local Android SDK (`ANDROID_HOME` set), these work:
 
 ```bash
-# Standalone ktlint binary (no SDK needed) — the PRIMARY local check
+./gradlew assembleDebug                     # full APK build
+./gradlew testDebugUnitTest                 # unit tests (MockK)
+./gradlew ktlintCheck                       # style check
+```
+
+**ktlint standalone** (no SDK needed):
+```bash
+# Download the matching binary
 curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.2.1/ktlint
 chmod +x ktlint
-./ktlint <file>              # check one file
-./ktlint --format <file>     # auto-fix import ordering, indent, trailing commas
-find app/src -name '*.kt' | xargs ./ktlint --format   # fix all
+./ktlint <file>                             # check one file
+./ktlint --format <file>                    # auto-fix
 ```
+
+**No SDK? CI handles everything** — push small and watch the checks below.
 
 ### CI pipeline (`.github/workflows/android.yml`)
 
@@ -203,12 +207,10 @@ gh pr create --title "fix(#N): description" --body "Closes #N"
 
 ### Commit Conventions — STRICT
 
-**🚫 NEVER add yourself as author or co-author.** The agent must never appear in any commit metadata field — not as author, not as `Co-Authored-By`, not in `Generated with`, not anywhere.
-
-- **No `--author` override.** Use the default git config. Always.
+**⚠ Agent-authored commits:** Do NOT override git authorship (`--author`) with the agent's identity. Use the default git config. No `Co-Authored-By` or `Generated with` trailers.
 - **Short commits:** subject line + max 2 lines of body. Split into atomic commits rather than writing long bodies.
 - **Conventional Commits** types: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`.
-- Bug fixes annotated inline: `// B7 (Jun 18 2026, kanban t_xxx): description`.
+- Bug fixes annotated inline with the tracking issue/regression ID.
 
 ## Security Considerations
 
@@ -225,7 +227,7 @@ gh pr create --title "fix(#N): description" --body "Closes #N"
 
 ## Things to Avoid
 
-- Don't run `./gradlew` tasks locally expecting them to work — no Android SDK.
+- Don't run `./gradlew` tasks without an Android SDK — CI handles compilation, lint, and tests.
 - Don't remove `@OptIn(ExperimentalMaterial3Api::class)` from screens that use
   `SegmentedButton`, `PullToRefreshBox`, or other experimental M3 APIs.
 - Don't use `remember { AuthManager.getBottomNavItems() }` without a key —

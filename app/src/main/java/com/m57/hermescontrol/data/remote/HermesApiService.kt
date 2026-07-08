@@ -432,6 +432,7 @@ interface HermesApiService {
     @GET("api/model/options")
     suspend fun getModelOptions(
         @Query("refresh") refresh: Boolean = false,
+        @Query("include_unconfigured") includeUnconfigured: Boolean = true,
     ): Response<ModelOptionsResponse>
 
     @GET("api/model/auxiliary")

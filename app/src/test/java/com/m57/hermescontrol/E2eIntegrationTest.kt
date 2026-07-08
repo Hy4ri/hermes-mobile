@@ -1285,7 +1285,7 @@ class E2eIntegrationTest {
             val provider = ModelProvider("ollama", "Ollama", false, true, listOf("llama3"), 1, null, true, null, null)
             val profile = ProfileInfo("default", null, true, "llama3", "ollama", null, null, null, null)
 
-            coEvery { mockApiService.getModelOptions(any()) } returns
+            coEvery { mockApiService.getModelOptions(any(), any()) } returns
                 Response.success(ModelOptionsResponse(listOf(provider)))
             coEvery { mockApiService.getActiveProfile() } returns
                 Response.success(ActiveProfileResponse("default", null))
@@ -1340,7 +1340,7 @@ class E2eIntegrationTest {
             val provider = ModelProvider("ollama", "Ollama", false, true, listOf("llama3"), 1, null, true, null, null)
             val profile = ProfileInfo("default", null, true, "llama3", "ollama", null, null, null, null)
 
-            coEvery { mockApiService.getModelOptions(any()) } returns
+            coEvery { mockApiService.getModelOptions(any(), any()) } returns
                 Response.success(ModelOptionsResponse(listOf(provider)))
             coEvery { mockApiService.getActiveProfile() } returns
                 Response.success(ActiveProfileResponse("default", null))
@@ -1364,7 +1364,7 @@ class E2eIntegrationTest {
                 )
 
             val capturedRefresh = mutableListOf<Boolean>()
-            coEvery { mockApiService.getModelOptions(any()) } answers {
+            coEvery { mockApiService.getModelOptions(any(), any()) } answers {
                 capturedRefresh.add(firstArg())
                 Response.success(ModelOptionsResponse(listOf(provider)))
             }

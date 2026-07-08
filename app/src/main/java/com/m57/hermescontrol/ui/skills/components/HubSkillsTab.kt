@@ -50,6 +50,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.toDetailRows
 import com.m57.hermescontrol.ui.skills.SkillsUiState
 
 @Composable
@@ -163,13 +164,7 @@ internal fun HubBrowseView(
     showDetail?.let { hubSkill ->
         DetailDialog(
             title = hubSkill.name,
-            rows =
-                listOf(
-                    stringResource(R.string.detail_dialog_category) to (hubSkill.category ?: ""),
-                    stringResource(R.string.detail_dialog_source) to (hubSkill.source ?: ""),
-                    stringResource(R.string.detail_dialog_description) to (hubSkill.description ?: ""),
-                    stringResource(R.string.detail_dialog_tags) to (hubSkill.tags.orEmpty().joinToString(", ")),
-                ),
+            rows = hubSkill.toDetailRows(),
             onDismiss = { showDetail = null },
         )
     }

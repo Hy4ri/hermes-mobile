@@ -653,6 +653,7 @@
     <string name="detail_dialog_error">Error</string>
     <string name="detail_dialog_status_enabled">Enabled</string>
     <string name="detail_dialog_status_disabled">Disabled</string>
+    <string name="detail_dialog_trust_level">Trust Level</string>
 
     <!-- McpServers Screen -->
     <string name="mcp_servers_label_transport">Transport: %1$s</string>

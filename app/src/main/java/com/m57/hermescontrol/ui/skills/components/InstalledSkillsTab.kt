@@ -56,6 +56,7 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.toDetailRows
 import com.m57.hermescontrol.ui.skills.CATEGORY_ALL
 import com.m57.hermescontrol.ui.skills.SkillFilter
 import com.m57.hermescontrol.ui.skills.SkillsUiState
@@ -226,12 +227,7 @@ internal fun InstalledSkillsView(
     showDetail?.let { skill ->
         DetailDialog(
             title = skill.name,
-            rows =
-                listOf(
-                    stringResource(R.string.detail_dialog_category) to (skill.category ?: ""),
-                    stringResource(R.string.detail_dialog_source) to (skill.source ?: ""),
-                    stringResource(R.string.detail_dialog_description) to (skill.description ?: ""),
-                ),
+            rows = skill.toDetailRows(),
             onDismiss = { showDetail = null },
         )
     }

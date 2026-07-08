@@ -76,6 +76,7 @@ import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.toDetailRows
 
 internal const val CATEGORY_ALL = "All"
 
@@ -362,12 +363,7 @@ private fun InstalledSkillsView(
     showDetail?.let { skill ->
         DetailDialog(
             title = skill.name,
-            rows =
-                listOf(
-                    stringResource(R.string.detail_dialog_category) to (skill.category ?: ""),
-                    stringResource(R.string.detail_dialog_source) to (skill.source ?: ""),
-                    stringResource(R.string.detail_dialog_description) to (skill.description ?: ""),
-                ),
+            rows = skill.toDetailRows(),
             onDismiss = { showDetail = null },
         )
     }
@@ -536,6 +532,8 @@ private fun HubBrowseView(
     isInstalling: Boolean,
     installingSkillName: String?,
 ) {
+    var hubShowDetail by remember { mutableStateOf<HubSkill?>(null) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = hubQuery,
@@ -616,6 +614,7 @@ private fun HubBrowseView(
                             hubSkill = hubSkill,
                             onInstall = { onInstall(hubSkill.name) },
                             isInstalling = isInstalling && installingSkillName == hubSkill.name,
+                            onClick = { hubShowDetail = hubSkill },
                         )
                     }
                 }
@@ -629,6 +628,14 @@ private fun HubBrowseView(
             }
         }
     }
+
+    hubShowDetail?.let { hubSkill ->
+        DetailDialog(
+            title = hubSkill.name,
+            rows = hubSkill.toDetailRows(),
+            onDismiss = { hubShowDetail = null },
+        )
+    }
 }
 
 // ── Hub Skill Card ─────────────────────────────────────────────────────
@@ -638,9 +645,10 @@ private fun HubSkillCard(
     hubSkill: HubSkill,
     onInstall: () -> Unit,
     isInstalling: Boolean,
+    onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,

@@ -50,6 +50,7 @@ import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.toDetailRows
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -216,20 +217,7 @@ fun ToolsetsScreen(
         showDetail?.let { toolset ->
             DetailDialog(
                 title = toolset.label ?: toolset.name,
-                rows =
-                    listOf(
-                        stringResource(R.string.detail_dialog_label) to (toolset.label ?: ""),
-                        stringResource(R.string.detail_dialog_description) to (toolset.description ?: ""),
-                        stringResource(R.string.detail_dialog_tools) to (toolset.tools.orEmpty().joinToString(", ")),
-                        stringResource(R.string.detail_dialog_status) to
-                            (
-                                if (toolset.enabled) {
-                                    stringResource(R.string.detail_dialog_status_enabled)
-                                } else {
-                                    stringResource(R.string.detail_dialog_status_disabled)
-                                }
-                            ),
-                    ),
+                rows = toolset.toDetailRows(),
                 onDismiss = { showDetail = null },
             )
         }

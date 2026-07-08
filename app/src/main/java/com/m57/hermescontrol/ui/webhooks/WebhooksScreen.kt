@@ -61,6 +61,7 @@ import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.toDetailRows
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -371,26 +372,7 @@ fun WebhooksScreen(
     showDetail?.let { sub ->
         DetailDialog(
             title = sub.name,
-            rows =
-                listOf(
-                    stringResource(R.string.detail_dialog_status) to
-                        (
-                            if (sub.enabled == true) {
-                                stringResource(
-                                    R.string.detail_dialog_status_enabled,
-                                )
-                            } else {
-                                stringResource(R.string.detail_dialog_status_disabled)
-                            }
-                        ),
-                    stringResource(R.string.detail_dialog_deliver) to (sub.deliver ?: ""),
-                    stringResource(R.string.detail_dialog_description) to (sub.description ?: ""),
-                    stringResource(R.string.detail_dialog_events) to (sub.events.orEmpty().joinToString(", ")),
-                    stringResource(R.string.detail_dialog_prompt) to (sub.prompt ?: ""),
-                    stringResource(R.string.detail_dialog_skills) to (sub.skills.orEmpty().joinToString(", ")),
-                    stringResource(R.string.detail_dialog_url) to (sub.url),
-                    stringResource(R.string.detail_dialog_created_at) to (sub.created_at ?: ""),
-                ),
+            rows = sub.toDetailRows(),
             onDismiss = { showDetail = null },
         )
     }

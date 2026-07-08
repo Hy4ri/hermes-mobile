@@ -71,6 +71,7 @@ import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.toDetailRows
 
 @Composable
 fun McpServersScreen(
@@ -191,23 +192,7 @@ fun McpServersScreen(
     showDetail?.let { server ->
         DetailDialog(
             title = server.name,
-            rows =
-                listOf(
-                    stringResource(R.string.detail_dialog_transport) to (server.transport ?: ""),
-                    stringResource(R.string.detail_dialog_status) to (server.status ?: ""),
-                    stringResource(R.string.detail_dialog_url) to (server.url ?: ""),
-                    stringResource(R.string.detail_dialog_command) to
-                        (
-                            if (server.command != null) {
-                                "${server.command} ${server.args.orEmpty().joinToString(" ")}"
-                            } else {
-                                ""
-                            }
-                        ),
-                    stringResource(R.string.detail_dialog_env_vars) to
-                        (server.env?.entries?.joinToString("\n") { "${it.key}=${it.value}" } ?: ""),
-                    stringResource(R.string.detail_dialog_error) to (server.error ?: ""),
-                ),
+            rows = server.toDetailRows(),
             onDismiss = { showDetail = null },
         )
     }

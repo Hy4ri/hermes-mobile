@@ -62,6 +62,7 @@ import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.common.toDetailRows
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -211,13 +212,7 @@ fun PluginsScreen(
     showDetail?.let { plugin ->
         DetailDialog(
             title = plugin.name,
-            rows =
-                listOf(
-                    stringResource(R.string.detail_dialog_version) to (plugin.version ?: ""),
-                    stringResource(R.string.detail_dialog_source) to (plugin.source ?: ""),
-                    stringResource(R.string.detail_dialog_status) to (plugin.runtimeStatus ?: ""),
-                    stringResource(R.string.detail_dialog_description) to (plugin.description ?: ""),
-                ),
+            rows = plugin.toDetailRows(),
             onDismiss = { showDetail = null },
         )
     }

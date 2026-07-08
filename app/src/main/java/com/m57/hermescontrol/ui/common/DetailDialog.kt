@@ -14,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -71,7 +70,7 @@ fun DetailDialog(
                 ),
         ) {
             HermesScaffold(
-                title = { Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                title = { Text(title, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = NavIcon.Back(onDismiss),
                 isRefreshing = false,
             ) { padding ->

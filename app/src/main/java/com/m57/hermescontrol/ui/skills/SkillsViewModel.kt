@@ -56,6 +56,11 @@ data class SkillsUiState(
     val hubResults: List<HubSkill> = emptyList(),
     val isHubSearching: Boolean = false,
     val hubSearchError: String? = null,
+    // Hub detail preview (full description/content via preview endpoint)
+    val hubPreviewIdentifier: String? = null,
+    val hubPreviewContent: String? = null,
+    val isHubPreviewing: Boolean = false,
+    val hubPreviewError: String? = null,
     // Hub install
     val isInstalling: Boolean = false,
     val installingSkillName: String? = null,
@@ -149,6 +154,60 @@ class SkillsViewModel(application: Application) :
                 hubQuery = "",
                 hubResults = emptyList(),
                 hubSearchError = null,
+            )
+        }
+    }
+
+    // ── Hub detail preview ──────────────────────────────────────────────────
+
+    /**
+     * Fetches the full skill content via the preview endpoint so the detail
+     * dialog can show the complete description (search results only carry a
+     * truncated snippet).
+     */
+    fun previewHubSkill(identifier: String) {
+        if (identifier.isBlank()) return
+        _uiState.update {
+            it.copy(
+                hubPreviewIdentifier = identifier,
+                isHubPreviewing = true,
+                hubPreviewError = null,
+                hubPreviewContent = null,
+            )
+        }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.previewHubSkill(identifier = identifier) }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isHubPreviewing = false,
+                            hubPreviewContent = result.data.content,
+                        )
+                    }
+                }
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isHubPreviewing = false,
+                            hubPreviewError = result.error.message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearHubPreview() {
+        _uiState.update {
+            it.copy(
+                hubPreviewIdentifier = null,
+                hubPreviewContent = null,
+                isHubPreviewing = false,
+                hubPreviewError = null,
             )
         }
     }

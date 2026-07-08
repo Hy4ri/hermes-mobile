@@ -66,6 +66,7 @@ import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.DetailDialog
+import com.m57.hermescontrol.ui.common.DetailRow
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.FilterChipRow
@@ -159,6 +160,7 @@ fun SkillsScreen(
                         onSearch = viewModel::searchHub,
                         onClearSearch = viewModel::clearHubSearch,
                         onInstall = viewModel::installSkill,
+                        onPreviewHubSkill = viewModel::previewHubSkill,
                         isInstalling = state.isInstalling,
                         installingSkillName = state.installingSkillName,
                     )
@@ -529,6 +531,7 @@ private fun HubBrowseView(
     onSearch: (String) -> Unit,
     onClearSearch: () -> Unit,
     onInstall: (String) -> Unit,
+    onPreviewHubSkill: (String) -> Unit,
     isInstalling: Boolean,
     installingSkillName: String?,
 ) {
@@ -614,7 +617,10 @@ private fun HubBrowseView(
                             hubSkill = hubSkill,
                             onInstall = { onInstall(hubSkill.name) },
                             isInstalling = isInstalling && installingSkillName == hubSkill.name,
-                            onClick = { hubShowDetail = hubSkill },
+                            onClick = {
+                                hubShowDetail = hubSkill
+                                hubSkill.identifier?.let { onPreviewHubSkill(it) }
+                            },
                         )
                     }
                 }
@@ -630,9 +636,29 @@ private fun HubBrowseView(
     }
 
     hubShowDetail?.let { hubSkill ->
+        val previewReady = state.hubPreviewIdentifier == hubSkill.identifier
+        val fullContent =
+            if (previewReady) {
+                state.hubPreviewContent ?: hubSkill.description
+            } else {
+                hubSkill.description
+            }
         DetailDialog(
             title = hubSkill.name,
-            rows = hubSkill.toDetailRows(),
+            rows =
+                listOf(
+                    DetailRow(stringResource(R.string.detail_dialog_category), hubSkill.category),
+                    DetailRow(stringResource(R.string.detail_dialog_source), hubSkill.source),
+                    DetailRow(stringResource(R.string.detail_dialog_description), fullContent),
+                    DetailRow(stringResource(R.string.detail_dialog_tags), hubSkill.tags.orEmpty().joinToString(", ")),
+                    DetailRow(stringResource(R.string.detail_dialog_trust_level), hubSkill.trustLevel),
+                ),
+            actions =
+                if (previewReady && state.isHubPreviewing) {
+                    { CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp)) }
+                } else {
+                    null
+                },
             onDismiss = { hubShowDetail = null },
         )
     }

@@ -683,26 +683,17 @@ private fun HubSkillCard(
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         ) {
-            // ── Top row: name + source badge ──
-            Row(
+            // ── Top row: name ──
+            Text(
+                text = hubSkill.name,
+                style =
+                    MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = hubSkill.name,
-                    style =
-                        MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                hubSkill.source?.let { source ->
-                    Spacer(modifier = Modifier.width(6.dp))
-                    SourceBadge(source = source)
-                }
-            }
+            )
 
             // ── Category ──
             hubSkill.category?.let { cat ->
@@ -726,12 +717,17 @@ private fun HubSkillCard(
                 )
             }
 
-            // ── Install button ──
+            // ── Source badge + Install button ──
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                hubSkill.source?.let { source ->
+                    SourceBadge(source = source)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Spacer(modifier = Modifier.weight(1f))
                 Button(
                     onClick = onInstall,
                     enabled = !isInstalling,

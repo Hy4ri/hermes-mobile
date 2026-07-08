@@ -207,6 +207,20 @@ fun PluginsScreen(
             }
         }
     }
+
+    showDetail?.let { plugin ->
+        DetailDialog(
+            title = plugin.name,
+            rows =
+                listOf(
+                    stringResource(R.string.detail_dialog_version) to (plugin.version ?: ""),
+                    stringResource(R.string.detail_dialog_source) to (plugin.source ?: ""),
+                    stringResource(R.string.detail_dialog_status) to (plugin.runtimeStatus ?: ""),
+                    stringResource(R.string.detail_dialog_description) to (plugin.description ?: ""),
+                ),
+            onDismiss = { showDetail = null },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -620,19 +634,5 @@ private fun OrphanPluginCard(
                 }
             }
         }
-    }
-
-    showDetail?.let { plugin ->
-        DetailDialog(
-            title = plugin.name,
-            rows =
-                listOf(
-                    stringResource(R.string.detail_dialog_version) to (plugin.version ?: ""),
-                    stringResource(R.string.detail_dialog_source) to (plugin.source ?: ""),
-                    stringResource(R.string.detail_dialog_status) to (plugin.runtimeStatus ?: ""),
-                    stringResource(R.string.detail_dialog_description) to (plugin.description ?: ""),
-                ),
-            onDismiss = { showDetail = null },
-        )
     }
 }

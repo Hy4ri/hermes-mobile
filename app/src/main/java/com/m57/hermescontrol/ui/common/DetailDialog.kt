@@ -39,7 +39,7 @@ import com.m57.hermescontrol.R
 @Composable
 fun DetailDialog(
     title: String,
-    rows: List<Pair<String?, String?>>,
+    rows: List<Pair<String, String?>>,
     onDismiss: () -> Unit,
     actions: @Composable (() -> Unit)? = null,
 ) {
@@ -82,7 +82,7 @@ fun DetailDialog(
                                 HorizontalDivider()
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                label?.let {
+                                label.let {
                                     Text(
                                         text = it,
                                         style = MaterialTheme.typography.labelSmall,

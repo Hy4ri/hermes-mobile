@@ -13,7 +13,6 @@ import org.junit.Before
 import org.junit.Test
 
 class PairingCodeEntryViewModelTest {
-
     private val mockApp: Application = mockk(relaxed = true)
 
     @Before

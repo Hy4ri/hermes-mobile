@@ -1559,13 +1559,14 @@ fun parseToolOutput(
                     } else if (appsArr != null) {
                         appsArr.forEachIndexed { idx, el ->
                             if (el.isJsonObject) {
+                                val obj = el.asJsonObject
                                 val name =
-                                    el.asJsonObject
+                                    obj
                                         .get("name")
                                         ?.takeIf { !it.isJsonNull }
                                         ?.asString ?: "?"
                                 val pid =
-                                    el.asJsonObject
+                                    obj
                                         .get("pid")
                                         ?.takeIf { !it.isJsonNull }
                                         ?.asInt
@@ -1586,18 +1587,19 @@ fun parseToolOutput(
                             for (i in 0 until previewCount) {
                                 val el = elementsArr[i]
                                 if (el.isJsonObject) {
+                                    val obj = el.asJsonObject
                                     val idx =
-                                        el.asJsonObject
+                                        obj
                                             .get("index")
                                             ?.takeIf { !it.isJsonNull }
                                             ?.asInt
                                     val role =
-                                        el.asJsonObject
+                                        obj
                                             .get("role")
                                             ?.takeIf { !it.isJsonNull }
                                             ?.asString
                                     val label =
-                                        el.asJsonObject
+                                        obj
                                             .get("label")
                                             ?.takeIf { !it.isJsonNull }
                                             ?.asString

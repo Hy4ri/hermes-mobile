@@ -666,6 +666,88 @@ class ChatViewModelTest {
             }
         }
 
+    // ── Attachments ──────────────────────────────────────────────────────────
+
+    @Test
+    fun testAddAttachment() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.addAttachment(
+                uri = "content://dummy/1",
+                name = "dummy.txt",
+                mimeType = "text/plain",
+                size = 1024L,
+            )
+            advanceUntilIdle()
+
+            val pending = viewModel.uiState.value.pendingAttachments
+            assertEquals(1, pending.size)
+            assertEquals("content://dummy/1", pending[0].uri)
+            assertEquals("dummy.txt", pending[0].name)
+        }
+
+    @Test
+    fun testRemoveAttachment_validIndex() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.addAttachment("uri1", "file1.txt", "text/plain", 100)
+            viewModel.addAttachment("uri2", "file2.txt", "text/plain", 200)
+            advanceUntilIdle()
+
+            assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
+
+            viewModel.removeAttachment(0)
+            advanceUntilIdle()
+
+            val pending = viewModel.uiState.value.pendingAttachments
+            assertEquals(1, pending.size)
+            assertEquals("uri2", pending[0].uri)
+        }
+
+    @Test
+    fun testRemoveAttachment_invalidIndex() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.addAttachment("uri1", "file1.txt", "text/plain", 100)
+            advanceUntilIdle()
+
+            assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
+
+            // Out of bounds index should not crash or change list
+            viewModel.removeAttachment(5)
+            viewModel.removeAttachment(-1)
+            advanceUntilIdle()
+
+            val pending = viewModel.uiState.value.pendingAttachments
+            assertEquals(1, pending.size)
+            assertEquals("uri1", pending[0].uri)
+        }
+
+    @Test
+    fun testClearAttachments() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.addAttachment("uri1", "file1.txt", "text/plain", 100)
+            viewModel.addAttachment("uri2", "file2.txt", "text/plain", 200)
+            advanceUntilIdle()
+
+            assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
+
+            viewModel.clearAttachments()
+            advanceUntilIdle()
+
+            val pending = viewModel.uiState.value.pendingAttachments
+            assertTrue(pending.isEmpty())
+        }
+
     // ── Send message ─────────────────────────────────────────────────────────
 
     @Test

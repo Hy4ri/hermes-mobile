@@ -711,6 +711,29 @@ class ChatViewModelTest {
             verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456"), any()) }
         }
 
+    @Test
+    fun testInterruptSession_withSessionId_sendsRpc() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            viewModel.interruptSession()
+            advanceUntilIdle()
+
+            verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, mapOf("session_id" to sessionId), any()) }
+        }
+
+    @Test
+    fun testInterruptSession_withoutSessionId_doesNotSendRpc() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.interruptSession()
+            advanceUntilIdle()
+
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+        }
+
     // ── Error handling ───────────────────────────────────────────────────────
 
     @Test

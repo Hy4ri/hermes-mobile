@@ -888,4 +888,27 @@ class ChatViewModelTest {
             assertNotNull(msgAfter)
             assertNull(msgAfter!!.approvalInfo)
         }
+
+    // ── Settings ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun testRefreshSettings_updatesUiState() =
+        runTest {
+            // Given the default setup, let's override the AuthManager properties
+            // differently than the setUp defaults to verify the refresh action.
+            every { AuthManager.isTypingEffectEnabled() } returns false
+            every { AuthManager.getTypingEffectDelayMs() } returns 50
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // When
+            viewModel.refreshSettings()
+            advanceUntilIdle()
+
+            // Then
+            val state = viewModel.uiState.value
+            assertFalse(state.typingEffectEnabled)
+            assertEquals(50, state.typingEffectDelayMs)
+        }
 }

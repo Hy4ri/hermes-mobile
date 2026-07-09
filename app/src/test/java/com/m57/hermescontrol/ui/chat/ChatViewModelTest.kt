@@ -762,7 +762,13 @@ class ChatViewModelTest {
                 advanceUntilIdle()
 
                 // Verify Log.e was called
-                verify { Log.e("ChatViewModel", match { it.contains("Failed to read attachment bytes") }, any<SecurityException>()) }
+                verify {
+                    Log.e(
+                        "ChatViewModel",
+                        match { it.contains("Failed to read attachment bytes") },
+                        any<SecurityException>(),
+                    )
+                }
 
                 // Verify that the prompt was submitted anyway (HermesWsClient.sendMessage)
                 verify { HermesWsClient.sendMessage(sessionId, "Test prompt", any()) }

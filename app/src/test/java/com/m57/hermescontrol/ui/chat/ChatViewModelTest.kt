@@ -1061,4 +1061,27 @@ class ChatViewModelTest {
             assertFalse(state.typingEffectEnabled)
             assertEquals(50, state.typingEffectDelayMs)
         }
+
+    @Test
+    fun testToggleSearch() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isSearchActive)
+
+            viewModel.toggleSearch()
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.isSearchActive)
+
+            viewModel.setSearchQuery("test")
+            advanceUntilIdle()
+
+            viewModel.toggleSearch()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isSearchActive)
+            assertEquals("", viewModel.uiState.value.searchQuery)
+        }
 }

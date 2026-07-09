@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 open class NotificationReplyReceiver : BroadcastReceiver() {
@@ -60,33 +61,38 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
             replyScope.launch {
                 try {
                     withTimeout(5000L) {
-                        val db =
-                            com.m57.hermescontrol.data.local.HermesDatabase
-                                .get(context)
-                        val dao = db.chatMessageDao()
-                        if (!dao.sessionExists(sessionId)) {
-                            android.util.Log.w("NotificationReply", "Ignoring reply for unknown session: $sessionId")
-                            return@withTimeout
+                        withContext(Dispatchers.IO) {
+                            val db =
+                                com.m57.hermescontrol.data.local.HermesDatabase
+                                    .get(context)
+                            val dao = db.chatMessageDao()
+                            if (!dao.sessionExists(sessionId)) {
+                                android.util.Log.w(
+                                    "NotificationReply",
+                                    "Ignoring reply for unknown session: $sessionId",
+                                )
+                                return@withContext
+                            }
+
+                            HermesWsClient.sendMessage(sessionId, replyText)
+
+                            val entity =
+                                com.m57.hermescontrol.data.local.ChatMessageEntity(
+                                    id =
+                                        java.util.UUID
+                                            .randomUUID()
+                                            .toString(),
+                                    sessionId = sessionId,
+                                    role = "USER",
+                                    content = replyText,
+                                    timestamp = System.currentTimeMillis(),
+                                )
+                            dao.upsert(entity)
+
+                            val repliedNotification = buildReplyNotification(context)
+                            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                            manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
                         }
-
-                        HermesWsClient.sendMessage(sessionId, replyText)
-
-                        val entity =
-                            com.m57.hermescontrol.data.local.ChatMessageEntity(
-                                id =
-                                    java.util.UUID
-                                        .randomUUID()
-                                        .toString(),
-                                sessionId = sessionId,
-                                role = "USER",
-                                content = replyText,
-                                timestamp = System.currentTimeMillis(),
-                            )
-                        dao.upsert(entity)
-
-                        val repliedNotification = buildReplyNotification(context)
-                        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                        manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("NotificationReply", "Failed to process reply", e)

@@ -115,28 +115,30 @@ object CronExpressionFormatter {
         hoursList: List<Int>,
         minutesList: List<Int>,
     ): String? {
-        if (dowPart != "*" && domPart == "*" && monthPart == "*") {
-            if (hoursList.size == 1 && minutesList.size == 1) {
-                val timeStr = formatTime(hoursList[0], minutesList[0])
-                if (dowPart.contains("-")) {
-                    val bounds = dowPart.split("-")
-                    if (bounds.size == 2) {
-                        val start = bounds[0].toIntOrNull() ?: -1
-                        val end = bounds[1].toIntOrNull() ?: -1
-                        if (start in 0..7 && end in 0..7) {
-                            val startName = dowNames[start]
-                            val endName = dowNames[end]
-                            return "At $timeStr $startName through $endName"
-                        }
-                    }
-                }
-                val dows = parseField(dowPart, 0, 7)
-                if (dows.size == 1) {
-                    val dowName = dowNames[dows[0]]
-                    return "Every $dowName at $timeStr"
+        if (dowPart == "*" || domPart != "*" || monthPart != "*") return null
+        if (hoursList.size != 1 || minutesList.size != 1) return null
+
+        val timeStr = formatTime(hoursList[0], minutesList[0])
+
+        if (dowPart.contains("-")) {
+            val bounds = dowPart.split("-")
+            if (bounds.size == 2) {
+                val start = bounds[0].toIntOrNull() ?: -1
+                val end = bounds[1].toIntOrNull() ?: -1
+                if (start in 0..7 && end in 0..7) {
+                    val startName = dowNames[start]
+                    val endName = dowNames[end]
+                    return "At $timeStr $startName through $endName"
                 }
             }
         }
+
+        val dows = parseField(dowPart, 0, 7)
+        if (dows.size == 1) {
+            val dowName = dowNames[dows[0]]
+            return "Every $dowName at $timeStr"
+        }
+
         return null
     }
 

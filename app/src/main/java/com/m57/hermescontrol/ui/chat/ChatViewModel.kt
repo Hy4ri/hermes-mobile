@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat
 import android.app.Application
 import android.net.Uri
 import android.util.Base64
+import android.util.Base64OutputStream
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -33,11 +34,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
@@ -589,12 +592,11 @@ class ChatViewModel(
             val fileRefs = mutableListOf<String>()
 
             for (attachment in attachments) {
-                val bytes = readContentUriBytes(attachment.uri)
-                if (bytes == null) {
+                val b64 = readContentUriBase64(attachment.uri)
+                if (b64 == null) {
                     Log.w(TAG, "Skipping unreadable attachment: ${attachment.name}")
                     continue
                 }
-                val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
 
                 try {
                     if (attachment.isImage) {
@@ -650,14 +652,27 @@ class ChatViewModel(
         }
     }
 
-    /** Read bytes from a `content://` or `file://` URI via ContentResolver. */
-    private fun readContentUriBytes(uriString: String): ByteArray? =
+    /** Read and encode a `content://` or `file://` URI to Base64 via ContentResolver, avoiding large allocations. */
+    private suspend fun readContentUriBase64(uriString: String): String? =
         try {
             val context = getApplication<Application>()
             val uri = Uri.parse(uriString)
-            context.contentResolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val baos = ByteArrayOutputStream()
+                val b64os = Base64OutputStream(baos, Base64.NO_WRAP)
+                val buffer = ByteArray(1024 * 128) // 128KB chunk
+                var bytesRead: Int
+
+                while (stream.read(buffer).also { bytesRead = it } != -1) {
+                    b64os.write(buffer, 0, bytesRead)
+                    yield() // Prevent blocking the thread during large reads
+                }
+                b64os.close()
+                baos.toString("UTF-8")
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to read attachment bytes: ${e.message}", e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.e(TAG, "Failed to read and encode attachment: ${e.message}", e)
             null
         }
 

@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
+import android.content.ContentResolver
+import android.net.Uri
 import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
@@ -1083,5 +1085,38 @@ class ChatViewModelTest {
 
             assertFalse(viewModel.uiState.value.isSearchActive)
             assertEquals("", viewModel.uiState.value.searchQuery)
+        }
+
+    @Test
+    fun testSendMessage_readContentUriThrowsException_handlesGracefully() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // Android framework Uri.parse throws "not mocked" in plain unit tests,
+            // so stub it (no Robolectric here). Then make the resolver throw on read.
+            mockkStatic(Uri::class)
+            val mockUri = mockk<Uri>()
+            every { Uri.parse("content://dummy") } returns mockUri
+
+            val contentResolver = mockk<ContentResolver>()
+            every { app.contentResolver } returns contentResolver
+            every { contentResolver.openInputStream(any()) } throws
+                SecurityException("Permission denied")
+
+            viewModel.addAttachment("content://dummy", "test.png", "image/png", 1000)
+            advanceUntilIdle()
+
+            viewModel.sendMessage("Here is an image")
+            advanceUntilIdle()
+
+            // Error path is logged so we can diagnose the failed read.
+            verify { Log.e(any(), match { it.contains("Permission denied") }, any()) }
+
+            // Graceful handling: the message is still sent even though the
+            // attachment bytes couldn't be read (no crash, no lost message).
+            val sent =
+                viewModel.uiState.value.messages.firstOrNull { it.id == sessionId } != null ||
+                    viewModel.uiState.value.messages.any { it.content == "Here is an image" }
+            assertTrue("Message should still be sent despite attachment read failure", sent)
         }
 }

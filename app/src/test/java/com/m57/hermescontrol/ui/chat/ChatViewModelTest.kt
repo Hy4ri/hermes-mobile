@@ -737,6 +737,40 @@ class ChatViewModelTest {
             )
         }
 
+    @Test
+    fun testReadContentUriBytes_errorReading_skipsAttachment() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            try {
+                // Setup mocks for Uri and ContentResolver
+                val uriString = "content://error-uri"
+                val mockUri = mockk<android.net.Uri>()
+                mockkStatic(android.net.Uri::class)
+                every { android.net.Uri.parse(uriString) } returns mockUri
+
+                val mockResolver = mockk<android.content.ContentResolver>()
+                every { app.contentResolver } returns mockResolver
+                every { mockResolver.openInputStream(mockUri) } throws SecurityException("Permission denied")
+
+                // Add attachment
+                viewModel.addAttachment(uriString, "error.txt", "text/plain", 100L)
+                advanceUntilIdle()
+
+                // Action
+                viewModel.sendMessage("Test prompt")
+                advanceUntilIdle()
+
+                // Verify Log.e was called
+                verify { Log.e("ChatViewModel", match { it.contains("Failed to read attachment bytes") }, any<SecurityException>()) }
+
+                // Verify that the prompt was submitted anyway (HermesWsClient.sendMessage)
+                verify { HermesWsClient.sendMessage(sessionId, "Test prompt", any()) }
+            } finally {
+                io.mockk.unmockkStatic(android.net.Uri::class)
+            }
+        }
+
     // ── Session mismatch ─────────────────────────────────────────────────────
 
     @Test

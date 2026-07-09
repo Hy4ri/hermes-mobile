@@ -668,6 +668,17 @@ class ChatViewModelTest {
 
     // ── Attachments ──────────────────────────────────────────────────────────
 
+    /** Add [count] dummy attachments so a test starts with a populated list. */
+    private fun TestScope.addDummyAttachments(
+        viewModel: ChatViewModel,
+        count: Int,
+    ) {
+        repeat(count) { i ->
+            viewModel.addAttachment("uri$i", "file$i.txt", "text/plain", (i + 1) * 100L)
+        }
+        advanceUntilIdle()
+    }
+
     @Test
     fun testAddAttachment() =
         runTest {
@@ -727,6 +738,34 @@ class ChatViewModelTest {
             val pending = viewModel.uiState.value.pendingAttachments
             assertEquals(1, pending.size)
             assertEquals("uri1", pending[0].uri)
+        }
+
+    @Test
+    fun testRemoveAttachment_mixedValidAndInvalidSequence() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            addDummyAttachments(viewModel, 3) // [uri0, uri1, uri2]
+
+            // 1. Remove a valid index (the middle item) → list shrinks correctly.
+            viewModel.removeAttachment(1)
+            advanceUntilIdle()
+            assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
+            assertEquals("uri0", viewModel.uiState.value.pendingAttachments[0].uri)
+            assertEquals("uri2", viewModel.uiState.value.pendingAttachments[1].uri)
+
+            // 2. Fire invalid removals (out of bounds + negative) — must be no-ops.
+            viewModel.removeAttachment(99)
+            viewModel.removeAttachment(-1)
+            advanceUntilIdle()
+            assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
+
+            // 3. Another valid removal on the shifted list → still consistent.
+            viewModel.removeAttachment(1)
+            advanceUntilIdle()
+            val pending = viewModel.uiState.value.pendingAttachments
+            assertEquals(1, pending.size)
+            assertEquals("uri0", pending[0].uri)
         }
 
     @Test

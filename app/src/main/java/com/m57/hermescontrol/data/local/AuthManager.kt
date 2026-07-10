@@ -146,14 +146,23 @@ object AuthManager {
 
             scope.launch {
                 store.stateFlow.collect { state ->
-                    _selectedProfileIdFlow.value = state.selectedProfileId?.takeIf { it.isNotBlank() }
-                    _bottomNavItemsFlow.value = state.bottomNavItems
-                    _themePreferenceFlow.value = state.themePreference
-                    _useDynamicColorsFlow.value = state.useDynamicColors
-                    _themePresetFlow.value = state.themePreset
-                    _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
-                    // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
-                    syncCookieStoreForProfile(state.selectedProfileId)
+                    try {
+                        _selectedProfileIdFlow.value = state.selectedProfileId?.takeIf { it.isNotBlank() }
+                        _bottomNavItemsFlow.value = state.bottomNavItems
+                        _themePreferenceFlow.value = state.themePreference
+                        _useDynamicColorsFlow.value = state.useDynamicColors
+                        _themePresetFlow.value = state.themePreset
+                        _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
+                        // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
+                        syncCookieStoreForProfile(state.selectedProfileId)
+                    } catch (e: IllegalStateException) {
+                        // In the JVM test environment Dispatchers.Main may be torn
+                        // down between test classes while background singleton
+                        // coroutines are still emitting. Swallow the benign race
+                        // so it doesn't leak as an uncaught exception into the
+                        // next test's runTest scope.
+                        if (e.message?.contains("platform dispatcher was absent") != true) throw e
+                    }
                 }
             }
         }

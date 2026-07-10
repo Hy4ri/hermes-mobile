@@ -68,6 +68,8 @@ class SettingsViewModelTest {
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.getBottomNavDisplayMode() } returns BottomNavDisplayMode.ICON_AND_TEXT
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
+        every { AuthManager.ensureDefaultProfile() } returns Unit
+        every { AuthManager.ensureDefaultSelected() } returns Unit
         every { AuthManager.setHost(any()) } returns Unit
         every { AuthManager.setPort(any()) } returns Unit
         every { AuthManager.setToken(any()) } returns Unit

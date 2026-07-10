@@ -117,6 +117,7 @@ object ApiClient {
                 .base
                 .newBuilder()
                 .addInterceptor(authInterceptor)
+                .addInterceptor(ProfileScopeInterceptor)
                 .addInterceptor(logging)
                 .authenticator(TokenRefreshAuthenticator)
                 .certificatePinner(certificatePinner)

@@ -76,7 +76,12 @@ class SkillsViewModelTest {
             viewModel.loadSkills()
             testDispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals("skill-for-default", viewModel.uiState.value.skills.firstOrNull()?.name)
+            assertEquals(
+                "skill-for-default",
+                viewModel.uiState.value.skills
+                    .firstOrNull()
+                    ?.name,
+            )
             assertEquals(1, callCount)
             // Tear down the VM scope so no Main-dispatched collector survives
             // past resetMain() (avoids cross-test "Main absent" leakage).
@@ -91,14 +96,27 @@ class SkillsViewModelTest {
             viewModel = SkillsViewModel(app)
             viewModel.loadSkills()
             testDispatcher.scheduler.advanceUntilIdle()
-            assertEquals("skill-for-default", viewModel.uiState.value.skills.firstOrNull()?.name)
+            assertEquals(
+                "skill-for-default",
+                viewModel.uiState.value.skills
+                    .firstOrNull()
+                    ?.name,
+            )
 
             profileFlow.value = "work"
             testDispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals("skill-for-work", viewModel.uiState.value.skills.firstOrNull()?.name)
+            assertEquals(
+                "skill-for-work",
+                viewModel.uiState.value.skills
+                    .firstOrNull()
+                    ?.name,
+            )
             assertEquals(2, callCount) // init + one re-fetch on switch
-            assertTrue(viewModel.uiState.value.isLoading.not())
+            assertTrue(
+                viewModel.uiState.value.isLoading
+                    .not(),
+            )
             viewModel.viewModelScope.cancel()
             testDispatcher.scheduler.advanceUntilIdle()
         }

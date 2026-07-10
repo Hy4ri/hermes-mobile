@@ -115,7 +115,10 @@ class ConfigViewModelTest {
                     ?.get("active_profile")
                     ?.let { (it as JsonPrimitive).content },
             )
-            assertTrue(viewModel.uiState.value.isLoading.not())
+            assertTrue(
+                viewModel.uiState.value.isLoading
+                    .not(),
+            )
             viewModel.viewModelScope.cancel()
             testDispatcher.scheduler.advanceUntilIdle()
         }

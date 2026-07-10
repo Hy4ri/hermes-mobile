@@ -314,6 +314,7 @@ class ChannelsViewModel :
                             onboardingExpiresIn = formatExpiry(setup?.expiresAt),
                         )
                     }
+
                     is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
                         it.copy(
                             onboardingPhase = OnboardingPhase.IDLE,
@@ -363,6 +364,7 @@ class ChannelsViewModel :
                             }
                             _uiState.update { it.copy(onboardingError = null) }
                         }
+
                         is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
                             val expired = isOnboardingExpired(_uiState.value.onboardingSetup)
                             if (expired) {
@@ -483,6 +485,7 @@ class ChannelsViewModel :
                         loadPlatforms()
                     }
                 }
+
                 is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -533,7 +536,9 @@ private fun formatExpiry(expiresAt: String?): String {
     val ms =
         try {
             isoTimestampParser
-                .parse(expiresAt)?.time?.minus(System.currentTimeMillis())
+                .parse(expiresAt)
+                ?.time
+                ?.minus(System.currentTimeMillis())
         } catch (_: Exception) {
             null
         }
@@ -550,7 +555,8 @@ private fun isOnboardingExpired(setup: com.m57.hermescontrol.data.model.Telegram
     val ms =
         try {
             isoTimestampParser
-                .parse(expiresAt)?.time
+                .parse(expiresAt)
+                ?.time
         } catch (_: Exception) {
             null
         }

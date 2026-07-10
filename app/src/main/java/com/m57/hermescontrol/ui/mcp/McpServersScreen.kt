@@ -119,6 +119,7 @@ fun McpServersScreen(
             state.isLoading && state.servers.isEmpty() -> {
                 LoadingState(modifier = Modifier.padding(paddingValues))
             }
+
             state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
@@ -126,6 +127,7 @@ fun McpServersScreen(
                     modifier = Modifier.padding(paddingValues),
                 )
             }
+
             else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -557,12 +559,14 @@ private fun CatalogSection(
                     }
                     Spacer(modifier = Modifier.height(spacing.sm))
                 }
+
                 state.catalogError != null -> {
                     ErrorState(
                         message = state.catalogError ?: "",
                         onRetry = { viewModel.loadCatalog() },
                     )
                 }
+
                 filteredCatalog.isEmpty() -> {
                     Text(
                         text = stringResource(R.string.mcp_servers_catalog_empty),
@@ -571,6 +575,7 @@ private fun CatalogSection(
                         modifier = Modifier.padding(vertical = spacing.md),
                     )
                 }
+
                 else -> {
                     filteredCatalog.forEach { entry ->
                         CatalogEntryCard(

@@ -4,7 +4,12 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -24,16 +29,20 @@ class ChatMessageDaoTest {
     private lateinit var dao: ChatMessageDao
     private lateinit var mockDb: HermesDatabase
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         dao = mockk(relaxed = true)
         mockDb = mockk(relaxed = true)
         every { mockDb.chatMessageDao() } returns dao
         HermesDatabase.setForTest(mockDb)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @After
     fun tearDown() {
+        Dispatchers.resetMain()
         HermesDatabase.setForTest(null)
         unmockkAll()
     }

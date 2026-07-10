@@ -57,23 +57,23 @@ object AuthManager {
                 "AuthManager not initialized. Call init(context) first.",
             )
 
-    private val _bottomNavItemsFlow = MutableStateFlow<List<String>>(emptyList())
-    val bottomNavItemsFlow: StateFlow<List<String>> = _bottomNavItemsFlow.asStateFlow()
+    private var _bottomNavItemsFlow = MutableStateFlow<List<String>>(emptyList())
+    val bottomNavItemsFlow: StateFlow<List<String>> get() = _bottomNavItemsFlow.asStateFlow()
 
-    private val _themePreferenceFlow = MutableStateFlow<ThemePreference>(ThemePreference.SYSTEM)
-    val themePreferenceFlow: StateFlow<ThemePreference> = _themePreferenceFlow.asStateFlow()
+    private var _themePreferenceFlow = MutableStateFlow<ThemePreference>(ThemePreference.SYSTEM)
+    val themePreferenceFlow: StateFlow<ThemePreference> get() = _themePreferenceFlow.asStateFlow()
 
-    private val _useDynamicColorsFlow = MutableStateFlow<Boolean>(true)
-    val useDynamicColorsFlow: StateFlow<Boolean> = _useDynamicColorsFlow.asStateFlow()
+    private var _useDynamicColorsFlow = MutableStateFlow<Boolean>(true)
+    val useDynamicColorsFlow: StateFlow<Boolean> get() = _useDynamicColorsFlow.asStateFlow()
 
-    private val _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)
-    val themePresetFlow: StateFlow<ThemePreset> = _themePresetFlow.asStateFlow()
+    private var _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)
+    val themePresetFlow: StateFlow<ThemePreset> get() = _themePresetFlow.asStateFlow()
 
-    private val _bottomNavDisplayModeFlow = MutableStateFlow<BottomNavDisplayMode>(BottomNavDisplayMode.ICON_AND_TEXT)
-    val bottomNavDisplayModeFlow: StateFlow<BottomNavDisplayMode> = _bottomNavDisplayModeFlow.asStateFlow()
+    private var _bottomNavDisplayModeFlow = MutableStateFlow<BottomNavDisplayMode>(BottomNavDisplayMode.ICON_AND_TEXT)
+    val bottomNavDisplayModeFlow: StateFlow<BottomNavDisplayMode> get() = _bottomNavDisplayModeFlow.asStateFlow()
 
-    private val _tokenFlow = MutableStateFlow<String?>(null)
-    val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
+    private var _tokenFlow = MutableStateFlow<String?>(null)
+    val tokenFlow: StateFlow<String?> get() = _tokenFlow.asStateFlow()
 
     /**
      * Emits the active connection profile id whenever it changes. Per-profile
@@ -82,7 +82,7 @@ object AuthManager {
      * outbound requests — together they make a profile switch complete end to
      * end). Seeded at [init] and re-emitted from the [ServerStore] state flow.
      */
-    private val _selectedProfileIdFlow = MutableStateFlow<String?>(null)
+    private var _selectedProfileIdFlow = MutableStateFlow<String?>(null)
     var selectedProfileIdFlow: StateFlow<String?> = _selectedProfileIdFlow.asStateFlow()
         internal set
 
@@ -387,13 +387,27 @@ object AuthManager {
             tokenInitialized = false
             _serverStore = null
             prefsDeferred = null
-            appScope?.let {
+            appScope?.let { scope ->
                 try {
-                    it.cancel()
+                    scope.cancel()
+                    val job = scope.coroutineContext[kotlinx.coroutines.Job]
+                    if (job != null) {
+                        runBlocking {
+                            job.join()
+                        }
+                    }
                 } catch (e: Exception) {
                 }
             }
             appScope = null
+            _bottomNavItemsFlow = MutableStateFlow(emptyList())
+            _themePreferenceFlow = MutableStateFlow(ThemePreference.SYSTEM)
+            _useDynamicColorsFlow = MutableStateFlow(true)
+            _themePresetFlow = MutableStateFlow(ThemePreset.DEFAULT)
+            _bottomNavDisplayModeFlow = MutableStateFlow(BottomNavDisplayMode.ICON_AND_TEXT)
+            _tokenFlow = MutableStateFlow(null)
+            _selectedProfileIdFlow = MutableStateFlow(null)
+            selectedProfileIdFlow = _selectedProfileIdFlow.asStateFlow()
         }
     }
 

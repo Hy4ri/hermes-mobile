@@ -21,14 +21,14 @@
           };
         };
 
-        buildToolsVersion = "35.0.0";
+        buildToolsVersion = "36.0.0";
         androidSdk = (pkgs.androidenv.composeAndroidPackages {
           # Command-line & platform tools
           cmdLineToolsVersion = "11.0";
           platformToolsVersion = "35.0.2";
 
           # Build tools
-          buildToolsVersions = [buildToolsVersion "34.0.0"];
+          buildToolsVersions = [buildToolsVersion "35.0.0" "34.0.0"];
 
           # Target platforms (36 required by AGP 9.0.1 / compileSdk 36)
           platformVersions = ["36" "35" "34"];

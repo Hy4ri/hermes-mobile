@@ -5,11 +5,17 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.data.config.ConnectionProfile
+import com.m57.hermescontrol.data.remote.CookieManager
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -31,8 +37,10 @@ class AuthManagerTest {
     private lateinit var mockContext: Context
     private lateinit var testContext: Context
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         mockPrefs = mockk(relaxed = true)
         mockEditor = mockk(relaxed = true)
         mockContext = mockk(relaxed = true)
@@ -99,9 +107,12 @@ class AuthManagerTest {
         AuthManager.serverStore.getLatestState()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @After
     fun tearDown() {
         AuthManager.resetAuthStateForTest()
+        CookieManager.resetForTest()
+        Dispatchers.resetMain()
         val tempDir = java.io.File(System.getProperty("java.io.tmpdir"))
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) {

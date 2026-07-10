@@ -92,7 +92,10 @@ class GatewayViewModelTest {
 
             assertFalse(viewModel.uiState.value.isLoading)
             assertNull(viewModel.uiState.value.status)
-            assertTrue(viewModel.uiState.value.errorMessage?.contains("500") == true)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("500") == true,
+            )
         }
 
     @Test
@@ -108,6 +111,9 @@ class GatewayViewModelTest {
 
             assertFalse(viewModel.uiState.value.isLoading)
             assertNull(viewModel.uiState.value.status)
-            assertTrue(viewModel.uiState.value.errorMessage?.contains("Network timeout") == true)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("Network timeout") == true,
+            )
         }
 }

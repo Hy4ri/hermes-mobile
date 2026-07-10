@@ -83,6 +83,7 @@ object ChatWsEventReducer {
 
             // SudoRequest / SecretRequest are handled by the ViewModel (issue #524)
             is WsEvent.SudoRequest -> ReducerResult(state = state, streamingState = streamingState)
+
             is WsEvent.SecretRequest -> ReducerResult(state = state, streamingState = streamingState)
         }
 

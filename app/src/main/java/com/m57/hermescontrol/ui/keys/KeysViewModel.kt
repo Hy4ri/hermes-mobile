@@ -55,7 +55,10 @@ class KeysViewModel :
 
     private fun buildCategoryList(
         envVars: Map<String, EnvVarConfig>,
-        expandedCategories: Set<String> = _uiState.value.categories.map { it.name }.toSet(),
+        expandedCategories: Set<String> =
+            _uiState.value.categories
+                .map { it.name }
+                .toSet(),
     ): List<CategorySection> {
         // Group by category, uncategorized go to "Other"
         val grouped = mutableMapOf<String, MutableMap<String, EnvVarConfig>>()

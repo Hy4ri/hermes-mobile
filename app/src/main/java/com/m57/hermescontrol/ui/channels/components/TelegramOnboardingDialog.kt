@@ -186,6 +186,7 @@ internal fun TelegramOnboardingDialog(
                         Text("Save and restart")
                     }
                 }
+
                 else -> {}
             }
         },
@@ -194,9 +195,11 @@ internal fun TelegramOnboardingDialog(
                 OnboardingPhase.READY -> {
                     TextButton(onClick = onDismiss) { Text("Cancel") }
                 }
+
                 OnboardingPhase.WAITING -> {
                     TextButton(onClick = onDismiss) { Text("Cancel") }
                 }
+
                 OnboardingPhase.IDLE, OnboardingPhase.STARTING, OnboardingPhase.APPLYING -> {}
             }
         },

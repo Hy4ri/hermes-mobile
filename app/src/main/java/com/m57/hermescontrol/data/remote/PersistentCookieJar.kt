@@ -33,12 +33,13 @@ import java.util.concurrent.atomic.AtomicReference
 class PersistentCookieJar(
     private val store: CookieStore,
     private val storeScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    initialServerId: String = DEFAULT_SERVER_ID,
 ) : CookieJar {
     // serverId -> (host -> cookies)
     private val cache = ConcurrentHashMap<String, MutableMap<String, MutableList<Cookie>>>()
     private val loadedScopes = ConcurrentHashMap.newKeySet<String>()
 
-    @Volatile private var currentServerId = AtomicReference(DEFAULT_SERVER_ID)
+    @Volatile private var currentServerId = AtomicReference(initialServerId)
 
     private val scopeMutex = Mutex()
 
@@ -60,6 +61,9 @@ class PersistentCookieJar(
      */
     fun getCookie(name: String): Cookie? {
         val serverId = currentServerId.get()
+        if (!loadedScopes.contains(serverId)) {
+            kotlinx.coroutines.runBlocking { ensureLoaded(serverId) }
+        }
         val hosts = cache[serverId] ?: return null
         for (bucket in hosts.values) {
             synchronized(bucket) {

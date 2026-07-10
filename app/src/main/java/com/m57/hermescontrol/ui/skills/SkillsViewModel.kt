@@ -29,7 +29,9 @@ enum class SkillsViewMode {
     HUB,
 }
 
-enum class SkillFilter(val labelRes: Int) {
+enum class SkillFilter(
+    val labelRes: Int,
+) {
     ALL_STATUSES(R.string.skills_status_all),
     ENABLED(R.string.skills_status_enabled),
     DISABLED(R.string.skills_status_disabled),
@@ -74,8 +76,9 @@ data class SkillsUiState(
     val sourceFilter: String? = null,
 )
 
-class SkillsViewModel(application: Application) :
-    AndroidViewModel(application),
+class SkillsViewModel(
+    application: Application,
+) : AndroidViewModel(application),
     ToastHost {
     private val _uiState = MutableStateFlow(SkillsUiState())
     val uiState: StateFlow<SkillsUiState> = _uiState.asStateFlow()
@@ -189,6 +192,7 @@ class SkillsViewModel(application: Application) :
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -238,6 +242,7 @@ class SkillsViewModel(application: Application) :
                     // Refresh installed skills
                     loadSkills()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -274,6 +279,7 @@ class SkillsViewModel(application: Application) :
                     }
                     loadSkills()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -311,6 +317,7 @@ class SkillsViewModel(application: Application) :
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -469,6 +476,7 @@ class SkillsViewModel(application: Application) :
                     _uiState.update { it.copy(toastMessage = "Skills updated") }
                     loadSkills()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Update failed: ${result.error.message}") }
                 }

@@ -112,6 +112,7 @@ class McpServersViewModel :
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     revertToggle(server.name, originalEnabled, "Failed to toggle server: ${result.error.message}")
                 }
@@ -130,6 +131,7 @@ class McpServersViewModel :
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Server '$name' tested — OK") }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Server '$name' test failed: ${result.error.message}") }
                 }
@@ -148,6 +150,7 @@ class McpServersViewModel :
                     _uiState.update { it.copy(toastMessage = "Server '$name' deleted") }
                     loadServers()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to delete server: ${result.error.message}") }
                 }
@@ -167,6 +170,7 @@ class McpServersViewModel :
                     _uiState.update { it.copy(toastMessage = "Server '$name' restarted") }
                     loadServers()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to restart server: ${result.error.message}") }
                 }
@@ -220,7 +224,10 @@ class McpServersViewModel :
                         },
                     args =
                         if (state.addMode == AddServerMode.Stdio && state.addServerArgs.isNotBlank()) {
-                            state.addServerArgs.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }
+                            state.addServerArgs
+                                .trim()
+                                .split("\\s+".toRegex())
+                                .filter { it.isNotEmpty() }
                         } else {
                             null
                         },
@@ -244,6 +251,7 @@ class McpServersViewModel :
                     }
                     loadServers()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -300,6 +308,7 @@ class McpServersViewModel :
                     }
                     loadServers()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to add env var: ${result.error.message}") }
                 }
@@ -324,6 +333,7 @@ class McpServersViewModel :
                     _uiState.update { it.copy(toastMessage = "Env var '$key' removed") }
                     loadServers()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to remove env var: ${result.error.message}") }
                 }
@@ -349,6 +359,7 @@ class McpServersViewModel :
                         )
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
@@ -389,6 +400,7 @@ class McpServersViewModel :
                     }
                     loadServers()
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(

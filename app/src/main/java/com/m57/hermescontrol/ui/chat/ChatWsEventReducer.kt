@@ -54,7 +54,9 @@ object ChatWsEventReducer {
             is WsEvent.MessageToken -> onMessageToken(state, streamingState, event)
 
             is WsEvent.ThinkingDelta -> onThinkingDelta(state, streamingState, event)
+
             is WsEvent.ReasoningDelta -> onReasoningDelta(state, streamingState, event)
+
             is WsEvent.ReasoningAvailable -> onReasoningAvailable(state, streamingState, event)
 
             is WsEvent.MessageComplete -> onMessageComplete(state, streamingState, event)
@@ -86,6 +88,7 @@ object ChatWsEventReducer {
 
             // SudoRequest / SecretRequest are handled by the ViewModel (issue #524)
             is WsEvent.SudoRequest -> ReducerResult(state = state, streamingState = streamingState)
+
             is WsEvent.SecretRequest -> ReducerResult(state = state, streamingState = streamingState)
         }
 

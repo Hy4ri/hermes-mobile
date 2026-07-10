@@ -509,12 +509,14 @@ class ChatViewModelTest {
             assertEquals(2, viewModel.uiState.value.messages.size)
             assertEquals(
                 "The answer is 42",
-                viewModel.uiState.value.messages[1].content,
+                viewModel.uiState.value.messages[1]
+                    .content,
             )
             // reasoning carried onto the finalized UI message
             assertEquals(
                 "Let me think step by step",
-                viewModel.uiState.value.messages[1].reasoningText,
+                viewModel.uiState.value.messages[1]
+                    .reasoningText,
             )
             // reasoning persisted to the entity (survives reload)
             val persisted =
@@ -804,8 +806,16 @@ class ChatViewModelTest {
             viewModel.removeAttachment(1)
             advanceUntilIdle()
             assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
-            assertEquals("uri0", viewModel.uiState.value.pendingAttachments[0].uri)
-            assertEquals("uri2", viewModel.uiState.value.pendingAttachments[1].uri)
+            assertEquals(
+                "uri0",
+                viewModel.uiState.value.pendingAttachments[0]
+                    .uri,
+            )
+            assertEquals(
+                "uri2",
+                viewModel.uiState.value.pendingAttachments[1]
+                    .uri,
+            )
 
             // 2. Fire invalid removals (out of bounds + negative) — must be no-ops.
             viewModel.removeAttachment(99)
@@ -1290,8 +1300,10 @@ class ChatViewModelTest {
             // Graceful handling: the message is still sent even though the
             // attachment bytes couldn't be read (no crash, no lost message).
             val sent =
-                viewModel.uiState.value.messages.firstOrNull { it.id == sessionId } != null ||
-                    viewModel.uiState.value.messages.any { it.content == "Here is an image" }
+                viewModel.uiState.value.messages
+                    .firstOrNull { it.id == sessionId } != null ||
+                    viewModel.uiState.value.messages
+                        .any { it.content == "Here is an image" }
             assertTrue("Message should still be sent despite attachment read failure", sent)
         }
 

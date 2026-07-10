@@ -189,7 +189,6 @@ object HermesWsClient {
         intentionalClose.set(false)
         currentBackoff = INITIAL_BACKOFF_MS
         _connectionStatus.value = ConnectionStatus.CONNECTING
-        refreshWsTicketIfNeeded()
         openSocket()
     }
 
@@ -200,12 +199,24 @@ object HermesWsClient {
      *
      * The session cookie is attached automatically by the shared CookieJar on
      * OkHttpProvider.probe (issue #470), so we no longer inject it manually.
+     *
+     * Returns true if the token is ready (either because we are not in gated mode,
+     * or because ticket refresh succeeded). Returns false if we are in gated mode
+     * and ticket refresh failed or cannot be performed.
      */
-    private fun refreshWsTicketIfNeeded() {
+    private fun refreshWsTicketIfNeeded(): Boolean {
+        val isGated = AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
+        if (!isGated) {
+            return true
+        }
+
         val sessionCookie = AuthManager.getSessionCookie()
         if (sessionCookie.isNullOrBlank()) {
-            return
+            Log.w(TAG, "WS ticket refresh aborted: no session cookie found in gated mode")
+            _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
+            return false
         }
+
         try {
             val client = OkHttpProvider.probe
             val request =
@@ -214,20 +225,35 @@ object HermesWsClient {
                     .url("http://${AuthManager.getHost()}:${AuthManager.getPort()}/api/auth/ws-ticket")
                     .post("{}".toRequestBody())
                     .build()
-            val response = client.newCall(request).execute()
+
+            // Run network call on Dispatchers.IO to avoid NetworkOnMainThreadException
+            val response =
+                kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                    client.newCall(request).execute()
+                }
+
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
-                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\""").find(body)
+                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
                 val ticket = ticketMatch?.groupValues?.getOrNull(1)
                 if (!ticket.isNullOrBlank()) {
                     AuthManager.setToken(ticket)
                     if (BuildConfig.DEBUG) Log.d(TAG, "WS ticket refreshed")
+                    return true
+                } else {
+                    Log.w(TAG, "WS ticket refresh failed: response body did not contain ticket")
+                    _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
+                    return false
                 }
             } else {
                 Log.w(TAG, "WS ticket refresh failed: HTTP ${response.code}")
+                _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
+                return false
             }
         } catch (e: Exception) {
             Log.w(TAG, "WS ticket refresh failed: ${e.message}")
+            _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
+            return false
         }
     }
 
@@ -375,7 +401,10 @@ object HermesWsClient {
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun openSocket() {
-        refreshWsTicketIfNeeded()
+        if (!refreshWsTicketIfNeeded()) {
+            Log.w(TAG, "Aborting openSocket: WS ticket refresh failed")
+            return
+        }
         val url = AuthManager.wsUrl()
         val safeUrl = url.replace(Regex("token=[^&]+"), "token=REDACTED")
         if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
@@ -479,7 +508,10 @@ object HermesWsClient {
             Log.i(TAG, "WebSocket closed: $code $reason")
             connected.set(false)
             stopHealthTracking()
-            if (code == 4001 || reason.contains("unauthorized", ignoreCase = true)) {
+            if (code == 4001 || code == 4401 ||
+                reason.contains("unauthorized", ignoreCase = true) ||
+                reason.startsWith("auth:", ignoreCase = true)
+            ) {
                 _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
             } else {
                 _connectionStatus.value = ConnectionStatus.RECONNECTING

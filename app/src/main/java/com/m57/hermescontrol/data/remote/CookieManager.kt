@@ -45,7 +45,7 @@ object CookieManager {
         synchronized(this) {
             if (jar != null) return
             val store = EncryptedCookieStore(context.applicationContext, legacyPrefsDeferred)
-            jar = PersistentCookieJar(store, scope)
+            jar = PersistentCookieJar(store, scope, initialServerId)
             // Eagerly load the initial scope off the caller thread so the
             // first REST call is instant without blocking app startup.
             scope.launch { jar!!.useStore(initialServerId) }

@@ -52,11 +52,14 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -523,7 +526,7 @@ private fun ThinkingIndicator(thinkingText: String) {
         Card(
             colors =
                 CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    containerColor = LocalHermesStatusColors.current.infoContainer.copy(alpha = 0.5f),
                 ),
             shape = RoundedCornerShape(12.dp),
         ) {
@@ -547,7 +550,7 @@ private fun ThinkingIndicator(thinkingText: String) {
                         },
                     style =
                         MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = LocalHermesStatusColors.current.info,
                         ),
                     maxLines = 2,
                     modifier = Modifier.animateContentSize(),
@@ -560,39 +563,52 @@ private fun ThinkingIndicator(thinkingText: String) {
 @Composable
 private fun ReasoningIndicator(reasoningText: String) {
     var expanded by remember { mutableStateOf(false) }
+    val statusColors = LocalHermesStatusColors.current
     Card(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                .clickable { expanded = !expanded },
+                .clickable(
+                    role = Role.Button,
+                    onClick = { expanded = !expanded },
+                ),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                containerColor = statusColors.infoContainer.copy(alpha = 0.5f),
             ),
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🧠", fontSize = 14.sp)
+                Icon(
+                    imageVector = Icons.Outlined.Psychology,
+                    contentDescription = stringResource(R.string.chat_reasoning),
+                    tint = statusColors.info,
+                    modifier = Modifier.size(18.dp),
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = stringResource(R.string.chat_reasoning),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = statusColors.info,
                 )
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = if (expanded) "▲" else "▼",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription =
+                        stringResource(
+                            if (expanded) R.string.chat_reasoning_collapse else R.string.chat_reasoning_expand,
+                        ),
+                    tint = statusColors.info,
+                    modifier = Modifier.size(18.dp),
                 )
             }
             AnimatedVisibility(visible = expanded) {
                 Text(
                     text = reasoningText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = statusColors.info,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }

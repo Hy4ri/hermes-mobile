@@ -315,10 +315,6 @@ class ChatViewModel(
                 streamingController.handleReasoningDelta(event)
             }
 
-            is WsEvent.ReasoningAvailable -> {
-                streamingController.handleReasoningDelta(WsEvent.ReasoningDelta("", event.sessionId))
-            }
-
             is WsEvent.MessageStart -> {
                 streamingController.beginStreamingMessage()
             }

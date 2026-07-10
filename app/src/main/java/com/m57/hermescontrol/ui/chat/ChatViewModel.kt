@@ -73,6 +73,9 @@ data class ChatUiState(
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
+    // In-chat model controls (issue #529) — fire config.set with session_id
+    val reasoningEffort: String = "medium",
+    val fastMode: Boolean = false,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -687,6 +690,57 @@ class ChatViewModel(
         method: String,
         params: Map<String, Any>,
     ): Any? = HermesWsClient.request(method, params).await()
+
+    // ── In-chat model controls (issue #529) ───────────────────────────────
+
+    /**
+     * Fire `config.set` with the current session id. Fire-and-forget: the
+     * backend applies it to the running session; we do not block the UI on the
+     * RPC result. Mirrors desktop model-presets.ts setModelConfig().
+     *
+     * [key] is one of "reasoning" / "fast" (server also supports "model").
+     * [value] is the effort string (minimal..max) for "reasoning", or
+     * "fast"/"normal" for "fast".
+     */
+    fun setConfig(
+        key: String,
+        value: String,
+    ): Boolean {
+        val sessionId = _uiState.value.currentSessionId ?: return false
+        if (sessionId.isBlank()) return false
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                HermesWsClient.request(
+                    WsMethods.CONFIG_SET,
+                    mapOf(
+                        "key" to key,
+                        "session_id" to sessionId,
+                        "value" to value,
+                    ),
+                ).await()
+            } catch (e: Exception) {
+                Log.w(TAG, "config.set($key=$value) failed for session $sessionId", e)
+            }
+        }
+        return true
+    }
+
+    /** Set the per-session reasoning effort (minimal/low/medium/high/xhigh/max). */
+    fun setReasoningEffort(effort: String) {
+        if (effort == _uiState.value.reasoningEffort) return
+        // Only flip the chip when a session exists — otherwise config.set is a no-op.
+        if (!setConfig("reasoning", effort)) return
+        _uiState.update { it.copy(reasoningEffort = effort) }
+    }
+
+    /** Toggle per-session fast mode on/off. */
+    fun toggleFastMode() {
+        val next = !_uiState.value.fastMode
+        // Only flip the chip when a session exists — otherwise config.set is a no-op.
+        if (!setConfig("fast", if (next) "fast" else "normal")) return
+        _uiState.update { it.copy(fastMode = next) }
+    }
 
     // ── Attachment management ─────────────────────────────────────────────
 

@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -51,6 +53,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -68,6 +71,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -465,6 +469,10 @@ fun ChatScreen(
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
                 pendingAttachments = state.pendingAttachments,
+                reasoningEffort = state.reasoningEffort,
+                fastMode = state.fastMode,
+                onReasoningEffortChange = viewModel::setReasoningEffort,
+                onToggleFastMode = viewModel::toggleFastMode,
                 onCameraTap = {
                     try {
                         val timeStamp =
@@ -629,6 +637,10 @@ private fun ChatInputBar(
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
+    reasoningEffort: String = "medium",
+    fastMode: Boolean = false,
+    onReasoningEffortChange: (String) -> Unit = {},
+    onToggleFastMode: () -> Unit = {},
 ) {
     // Allow sending slash commands even while agent is typing
     val isSlashCommand = inputText.startsWith("/")
@@ -738,6 +750,64 @@ private fun ChatInputBar(
                                 onRemove = { onRemoveAttachment(index) },
                             )
                         }
+                    }
+                }
+
+                // In-chat model controls (issue #529): reasoning effort + fast toggle.
+                // Fire config.set with session_id; no dialog, mirrors desktop composer.
+                val reasoningEfforts = listOf("minimal", "low", "medium", "high", "xhigh", "max")
+                AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.chat_model_controls_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        reasoningEfforts.forEach { effort ->
+                            val selected = effort == reasoningEffort
+                            FilterChip(
+                                selected = selected,
+                                onClick = { onReasoningEffortChange(effort) },
+                                label = {
+                                    Text(
+                                        text = effort,
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                },
+                                modifier = Modifier.height(28.dp),
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        FilterChip(
+                            selected = fastMode,
+                            onClick = onToggleFastMode,
+                            label = {
+                                Text(
+                                    text = stringResource(R.string.chat_fast_mode_label),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            },
+                            modifier = Modifier.height(28.dp),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Bolt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            },
+                        )
                     }
                 }
 

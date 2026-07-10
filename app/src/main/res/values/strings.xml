@@ -130,6 +130,10 @@
     <string name="chat_attachment_file">%1$s</string>
     <string name="chat_attachment_send_error">Failed to process attachment</string>
 
+    <!-- In-chat model controls (issue #529) -->
+    <string name="chat_model_controls_label">Model</string>
+    <string name="chat_fast_mode_label">Fast</string>
+
     <!-- Camera -->
     <string name="chat_camera_desc">Camera</string>
     <string name="chat_camera_error">Failed to capture photo</string>

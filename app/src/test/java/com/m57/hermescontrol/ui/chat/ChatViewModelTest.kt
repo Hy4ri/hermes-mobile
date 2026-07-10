@@ -19,6 +19,7 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1369,5 +1370,111 @@ class ChatViewModelTest {
 
             assertNull(viewModel.uiState.value.errorMessage)
             verify { HermesWsClient.disconnect() }
+        }
+
+    // ── Issue #529: in-chat config.set controls ─────────────────────────────
+
+    /**
+     * setReasoningEffort must fire config.set with key="reasoning",
+     * session_id=<current session>, value=<effort>, AND update UI state.
+     */
+    @Test
+    fun testSetReasoningEffort_firesConfigSetWithSessionId() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // Stub config.set to return a completed deferred so await() resolves.
+            every {
+                HermesWsClient.request(WsMethods.CONFIG_SET, any())
+            } answers { CompletableDeferred<Any?>(Unit) }
+
+            assertEquals("medium", viewModel.uiState.value.reasoningEffort)
+
+            viewModel.setReasoningEffort("high")
+            advanceUntilIdle()
+
+            // UI reflects the new effort immediately.
+            assertEquals("high", viewModel.uiState.value.reasoningEffort)
+            // RPC carries the right key / session_id / value.
+            verify {
+                HermesWsClient.request(
+                    WsMethods.CONFIG_SET,
+                    mapOf(
+                        "key" to "reasoning",
+                        "session_id" to sessionId,
+                        "value" to "high",
+                    ),
+                )
+            }
+        }
+
+    /**
+     * toggleFastMode flips fastMode and fires config.set with key="fast",
+     * value="fast" on, "normal" off.
+     */
+    @Test
+    fun testToggleFastMode_firesConfigSetFast() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(WsMethods.CONFIG_SET, any())
+            } answers { CompletableDeferred<Any?>(Unit) }
+
+            assertFalse(viewModel.uiState.value.fastMode)
+
+            viewModel.toggleFastMode()
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.fastMode)
+            verify {
+                HermesWsClient.request(
+                    WsMethods.CONFIG_SET,
+                    mapOf(
+                        "key" to "fast",
+                        "session_id" to sessionId,
+                        "value" to "fast",
+                    ),
+                )
+            }
+
+            viewModel.toggleFastMode()
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.fastMode)
+            verify {
+                HermesWsClient.request(
+                    WsMethods.CONFIG_SET,
+                    mapOf(
+                        "key" to "fast",
+                        "session_id" to sessionId,
+                        "value" to "normal",
+                    ),
+                )
+            }
+        }
+
+    /**
+     * setConfig must be a no-op (no RPC) when there is no active session.
+     */
+    @Test
+    fun testSetConfig_noSession_doesNotFire() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            // No SESSION_CREATE result emitted → currentSessionId stays null.
+
+            every {
+                HermesWsClient.request(WsMethods.CONFIG_SET, any())
+            } answers { CompletableDeferred<Any?>(Unit) }
+
+            viewModel.setReasoningEffort("xhigh")
+            advanceUntilIdle()
+
+            assertEquals("medium", viewModel.uiState.value.reasoningEffort)
+            verify(inverse = true) {
+                HermesWsClient.request(WsMethods.CONFIG_SET, any())
+            }
         }
 }

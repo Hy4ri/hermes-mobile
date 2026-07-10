@@ -32,4 +32,13 @@ object WsMethods {
 
     /** Stage a non-image file (data URL) for agent access. */
     const val FILE_ATTACH = "file.attach"
+
+    // ── Config ────────────────────────────────────────────────────────────
+
+    /**
+     * Per-session config mutation (reasoning effort, fast mode, model, …).
+     * Mirrors desktop `request('config.set', { key, session_id, value })`.
+     * See apps/desktop/src/store/model-presets.ts:77-81.
+     */
+    const val CONFIG_SET = "config.set"
 }

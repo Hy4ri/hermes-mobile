@@ -65,6 +65,7 @@ class ConnectViewModelTest {
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
         every { AuthManager.getSelectedProfileId() } returns null
         every { AuthManager.setSelectedProfileId(any()) } returns Unit
+        every { AuthManager.ensureDefaultSelected() } returns Unit
 
         // Mock Application string resources
         every { mockApp.getString(R.string.connect_error_token_required) } returns "Token is required"

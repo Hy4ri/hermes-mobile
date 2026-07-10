@@ -76,6 +76,27 @@ object AuthManager {
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
 
     /**
+     * Emits the active connection profile id whenever it changes. Per-profile
+     * management ViewModels collect this to re-fetch their data on a profile
+     * switch (companion to [ProfileScopeInterceptor], which re-scopes the
+     * outbound requests — together they make a profile switch complete end to
+     * end). Seeded at [init] and re-emitted from the [ServerStore] state flow.
+     */
+    private val _selectedProfileIdFlow = MutableStateFlow<String?>(null)
+    var selectedProfileIdFlow: StateFlow<String?> = _selectedProfileIdFlow.asStateFlow()
+        internal set
+
+    /** Test-only: replace the exposed flow so a test can drive profile switches. */
+    internal fun setSelectedProfileIdFlowForTest(flow: StateFlow<String?>) {
+        selectedProfileIdFlow = flow
+    }
+
+    /** Test-only: restore the real backing flow after a test finishes. */
+    internal fun resetSelectedProfileIdFlowForTest() {
+        selectedProfileIdFlow = _selectedProfileIdFlow.asStateFlow()
+    }
+
+    /**
      * Initialise the encrypted preferences.
      * Call this once from Application.onCreate() or MainActivity.onCreate().
      */
@@ -125,6 +146,7 @@ object AuthManager {
 
             scope.launch {
                 store.stateFlow.collect { state ->
+                    _selectedProfileIdFlow.value = state.selectedProfileId?.takeIf { it.isNotBlank() }
                     _bottomNavItemsFlow.value = state.bottomNavItems
                     _themePreferenceFlow.value = state.themePreference
                     _useDynamicColorsFlow.value = state.useDynamicColors

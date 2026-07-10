@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.channels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.MessagingPlatform
 import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.data.model.TelegramOnboardingApplyRequest
@@ -16,6 +17,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -59,6 +63,15 @@ class ChannelsViewModel :
     val uiState: StateFlow<ChannelsUiState> = _uiState.asStateFlow()
 
     private var launchJob: Job? = null
+
+    init {
+        // Re-fetch on profile switch (see AuthManager.selectedProfileIdFlow).
+        // The screen's LaunchedEffect(Unit) performs the initial load.
+        AuthManager.selectedProfileIdFlow
+            .drop(1)
+            .onEach { loadPlatforms() }
+            .launchIn(viewModelScope)
+    }
 
     fun loadPlatforms() {
         safeLaunchLoad(

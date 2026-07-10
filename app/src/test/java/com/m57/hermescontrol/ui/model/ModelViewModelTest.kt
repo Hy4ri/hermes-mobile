@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.model
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.PinnedModel
 import io.mockk.every
@@ -8,6 +9,7 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -24,10 +26,12 @@ class ModelViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private var storedPinnedModels: MutableList<PinnedModel> = mutableListOf()
+    private lateinit var viewModel: ModelViewModel
 
     private fun createViewModel(): ModelViewModel {
         val vm = ModelViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
+        viewModel = vm
         return vm
     }
 
@@ -47,6 +51,7 @@ class ModelViewModelTest {
 
     @After
     fun tearDown() {
+        if (::viewModel.isInitialized) viewModel.viewModelScope.cancel()
         Dispatchers.resetMain()
         unmockkAll()
     }

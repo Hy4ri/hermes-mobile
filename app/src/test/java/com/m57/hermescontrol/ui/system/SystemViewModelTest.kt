@@ -1,7 +1,9 @@
 package com.m57.hermescontrol.ui.system
 
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -14,6 +16,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SystemViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
+    private lateinit var viewModel: SystemViewModel
 
     @Before
     fun setup() {
@@ -22,12 +25,13 @@ class SystemViewModelTest {
 
     @After
     fun teardown() {
+        if (::viewModel.isInitialized) viewModel.viewModelScope.cancel()
         Dispatchers.resetMain()
     }
 
     @Test
     fun `openUpdateConfirm sets updateConfirmOpen to true`() {
-        val viewModel = SystemViewModel()
+        viewModel = SystemViewModel()
 
         assertFalse(viewModel.uiState.value.updateConfirmOpen)
 
@@ -38,7 +42,7 @@ class SystemViewModelTest {
 
     @Test
     fun `closeUpdateConfirm sets updateConfirmOpen to false`() {
-        val viewModel = SystemViewModel()
+        viewModel = SystemViewModel()
 
         // First open it
         viewModel.openUpdateConfirm()

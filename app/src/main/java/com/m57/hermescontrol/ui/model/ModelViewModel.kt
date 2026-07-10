@@ -19,6 +19,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -74,6 +77,11 @@ class ModelViewModel :
 
     init {
         _uiState.update { it.copy(pinnedModels = AuthManager.getPinnedModels()) }
+        // Re-fetch on profile switch (see AuthManager.selectedProfileIdFlow).
+        AuthManager.selectedProfileIdFlow
+            .drop(1)
+            .onEach { loadAll() }
+            .launchIn(viewModelScope)
     }
 
     fun loadAll(refresh: Boolean = false) {

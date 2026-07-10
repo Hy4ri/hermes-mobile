@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.toolsets
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Toolset
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -13,6 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,6 +33,15 @@ class ToolsetsViewModel :
     ToastHost {
     private val _uiState = MutableStateFlow(ToolsetsUiState())
     val uiState: StateFlow<ToolsetsUiState> = _uiState.asStateFlow()
+
+    init {
+        // Re-fetch on profile switch (see AuthManager.selectedProfileIdFlow).
+        // The screen's LaunchedEffect(Unit) performs the initial load.
+        AuthManager.selectedProfileIdFlow
+            .drop(1)
+            .onEach { loadToolsets() }
+            .launchIn(viewModelScope)
+    }
 
     fun loadToolsets() {
         safeLaunchLoad(

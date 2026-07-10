@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.cron
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
@@ -16,6 +17,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +64,15 @@ class CronJobsViewModel :
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+
+    init {
+        // Re-fetch on profile switch (see AuthManager.selectedProfileIdFlow).
+        // The screen's LaunchedEffect(Unit) performs the initial load.
+        AuthManager.selectedProfileIdFlow
+            .drop(1)
+            .onEach { loadCronJobs() }
+            .launchIn(viewModelScope)
+    }
 
     fun loadCronJobs() {
         loadJob =

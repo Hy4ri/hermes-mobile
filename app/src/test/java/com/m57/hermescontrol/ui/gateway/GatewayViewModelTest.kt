@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.gateway
 
+import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
@@ -11,6 +12,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -30,6 +32,7 @@ import retrofit2.Response
 class GatewayViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApi: HermesApiService
+    private lateinit var viewModel: GatewayViewModel
 
     @Before
     fun setUp() {
@@ -44,6 +47,7 @@ class GatewayViewModelTest {
 
     @After
     fun tearDown() {
+        if (::viewModel.isInitialized) viewModel.viewModelScope.cancel()
         Dispatchers.resetMain()
         unmockkAll()
     }
@@ -54,7 +58,7 @@ class GatewayViewModelTest {
             val mockResponse = mockk<StatusResponse>()
             coEvery { mockApi.getStatus() } returns Response.success(mockResponse)
 
-            val viewModel = GatewayViewModel()
+            viewModel = GatewayViewModel()
 
             // Before calling, status should be null
             assertNull(viewModel.uiState.value.status)
@@ -79,7 +83,7 @@ class GatewayViewModelTest {
         runTest {
             coEvery { mockApi.getStatus() } returns Response.error(500, "Server Error".toResponseBody(null))
 
-            val viewModel = GatewayViewModel()
+            viewModel = GatewayViewModel()
 
             viewModel.loadStatus()
             assertTrue(viewModel.uiState.value.isLoading)
@@ -96,7 +100,7 @@ class GatewayViewModelTest {
         runTest {
             coEvery { mockApi.getStatus() } throws RuntimeException("Network timeout")
 
-            val viewModel = GatewayViewModel()
+            viewModel = GatewayViewModel()
 
             viewModel.loadStatus()
 

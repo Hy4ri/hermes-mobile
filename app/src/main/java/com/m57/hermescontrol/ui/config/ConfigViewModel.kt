@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.config
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.data.model.ConfigUpdateRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
@@ -14,6 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,7 +51,15 @@ class ConfigViewModel :
     private val pendingChanges = mutableMapOf<String, JsonElement>()
 
     init {
-        loadAll()
+        // Re-fetch on profile switch so the screen reflects the newly selected
+        // profile instead of stale data. The screen's LaunchedEffect(Unit)
+        // performs the initial load; this collector only fires on actual
+        // profile changes. StateFlow only emits on change, and drop(1) skips
+        // the initial seed.
+        AuthManager.selectedProfileIdFlow
+            .drop(1)
+            .onEach { loadAll() }
+            .launchIn(viewModelScope)
     }
 
     fun loadAll() {

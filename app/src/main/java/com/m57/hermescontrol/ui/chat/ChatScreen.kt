@@ -384,8 +384,6 @@ fun ChatScreen(
                     streamingMessage = streamingState.streamingMessage,
                     isThinking = streamingState.isThinking,
                     thinkingText = streamingState.thinkingText,
-                    isReasoning = streamingState.isReasoning,
-                    reasoningText = streamingState.reasoningText,
                     isSearchActive = state.isSearchActive,
                     searchQuery = state.searchQuery,
                     currentSearchMatchIndex = state.currentSearchMatchIndex,
@@ -1638,8 +1636,6 @@ private fun ChatMessageList(
     streamingMessage: ChatMessage?,
     isThinking: Boolean,
     thinkingText: String,
-    isReasoning: Boolean = false,
-    reasoningText: String = "",
     isSearchActive: Boolean,
     searchQuery: String,
     currentSearchMatchIndex: Int,
@@ -1713,6 +1709,10 @@ private fun ChatMessageList(
                 val isLastMessage = index == messages.lastIndex
                 val isAssistant = message.role == MessageRole.ASSISTANT
 
+                if (isAssistant && message.reasoningText.isNotBlank()) {
+                    ReasoningIndicator(message.reasoningText)
+                }
+
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
                     lastAnimatedMessageId != message.id
                 ) {
@@ -1738,6 +1738,9 @@ private fun ChatMessageList(
             // Streaming message
             streamingMessage?.let { streaming ->
                 item(key = "streaming-${streaming.id}") {
+                    if (streaming.reasoningText.isNotBlank()) {
+                        ReasoningIndicator(streaming.reasoningText)
+                    }
                     if (typingEffectEnabled && streaming.isStreaming) {
                         StreamingBubbleWithTypingEffect(
                             streaming = streaming,
@@ -1759,13 +1762,6 @@ private fun ChatMessageList(
             if (isThinking) {
                 item(key = "thinking") {
                     ThinkingIndicator(thinkingText)
-                }
-            }
-
-            // Reasoning indicator (distinct from thinking)
-            if (isReasoning) {
-                item(key = "reasoning") {
-                    ReasoningIndicator(reasoningText)
                 }
             }
         }

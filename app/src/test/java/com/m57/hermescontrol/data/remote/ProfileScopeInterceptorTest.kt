@@ -98,4 +98,32 @@ class ProfileScopeInterceptorTest {
         val url = server.takeRequest().requestUrl!!
         assertEquals("alpha", url.queryParameter("profile"))
     }
+
+    @Test
+    fun lookalikePath_notScoped() {
+        // Sourcery review (PR #540): `startsWith` must not match non-segment
+        // suffixes like /api/statusXYZ or /api/gatewayExtra.
+        every { AuthManager.getSelectedProfileId() } returns "work"
+        val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val req = Request.Builder().url(server.url("api/statusXYZ")).build()
+        client.newCall(req).execute().close()
+        val url = server.takeRequest().requestUrl!!
+        assertNull(url.queryParameter("profile"))
+        assertEquals("/api/statusXYZ", url.encodedPath)
+    }
+
+    @Test
+    fun scopedSubPath_isScoped() {
+        // A scoped prefix with a trailing segment (/api/status/health) MUST
+        // still receive the profile param.
+        every { AuthManager.getSelectedProfileId() } returns "work"
+        val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val req = Request.Builder().url(server.url("api/status/health")).build()
+        client.newCall(req).execute().close()
+        val url = server.takeRequest().requestUrl!!
+        assertEquals("work", url.queryParameter("profile"))
+        assertEquals("/api/status/health", url.encodedPath)
+    }
 }

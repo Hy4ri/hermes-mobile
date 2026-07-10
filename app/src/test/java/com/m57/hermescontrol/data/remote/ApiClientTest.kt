@@ -43,6 +43,11 @@ class ApiClientTest {
         every { AuthManager.baseUrl() } returns mockWebServer.url("/").toString()
         every { AuthManager.getHost() } returns "127.0.0.1"
         every { AuthManager.getPort() } returns 9119
+
+        // PR #540 registers ProfileScopeInterceptor in ApiClient.buildService(),
+        // which calls getSelectedProfileId(). Stub it to null so the interceptor
+        // short-circuits (no profile scope) and these auth tests stay focused.
+        every { AuthManager.getSelectedProfileId() } returns null
     }
 
     @AfterEach

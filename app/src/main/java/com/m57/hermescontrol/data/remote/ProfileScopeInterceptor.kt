@@ -43,6 +43,14 @@ object ProfileScopeInterceptor : Interceptor {
             "/api/model/options",
         )
 
+    /**
+     * True only when [path] matches a scoped prefix as a whole path segment —
+     * e.g. `/api/status` or `/api/status/health`, but NOT `/api/statusXYZ`
+     * or `/api/gatewayExtra` (Sourcery review, PR #540).
+     */
+    private fun isProfileScopedPath(path: String): Boolean =
+        PROFILE_SCOPED_PREFIXES.any { prefix -> path == prefix || path.startsWith("$prefix/") }
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val profile =
@@ -54,9 +62,7 @@ object ProfileScopeInterceptor : Interceptor {
             return chain.proceed(request) // explicit param wins
         }
 
-        val path = url.encodedPath
-        val isScoped = PROFILE_SCOPED_PREFIXES.any { prefix -> path.startsWith(prefix) }
-        if (!isScoped) {
+        if (!isProfileScopedPath(url.encodedPath)) {
             return chain.proceed(request)
         }
 

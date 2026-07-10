@@ -1377,6 +1377,12 @@ class ChatViewModel(
                         pendingRequests.entries.filter {
                             now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
                         }
+                    if (stale.isEmpty()) continue
+
+                    // Aggregate into a single UI update (Sourcery review, PR #541):
+                    // one emission instead of N per-request updates that cause
+                    // redundant recompositions / UI flicker when many time out at once.
+                    val fireAndForget = mutableListOf<String>()
                     for (entry in stale) {
                         val pending = pendingRequests.remove(entry.key) ?: continue
                         Log.w(TAG, "Request timed out: ${pending.method} (id=${entry.key})")
@@ -1384,14 +1390,20 @@ class ChatViewModel(
                         pending.deferred?.completeExceptionally(
                             RpcCallException("Request timed out: ${pending.method}"),
                         )
-                        // Surface a visible error for fire-and-forget RPCs.
+                        // Collect fire-and-forget RPCs to surface one combined error.
                         if (pending.deferred == null) {
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    errorMessage = "Request timed out: ${pending.method}",
-                                )
-                            }
+                            fireAndForget += pending.method
+                        }
+                    }
+                    if (fireAndForget.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage =
+                                    fireAndForget.joinToString("; ") { method ->
+                                        "Request timed out: $method"
+                                    },
+                            )
                         }
                     }
                 }

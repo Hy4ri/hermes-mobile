@@ -22,6 +22,7 @@ fun ChatMessageEntity.toUiModel(): ChatMessage =
                 else -> MessageRole.ASSISTANT
             },
         content = content,
+        reasoningText = reasoningText,
         timestamp = timestamp,
         isStreaming = isStreaming,
         toolName = toolName,
@@ -40,6 +41,7 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         sessionId = sessionId,
         role = role.name,
         content = content,
+        reasoningText = reasoningText,
         timestamp = timestamp,
         toolName = toolName,
         toolStatus = toolStatus?.name,

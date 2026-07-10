@@ -33,6 +33,9 @@ class ChatStreamingController(
     private val thinkingBuffer = java.lang.StringBuilder()
     private var lastThinkingFlushMs = 0L
 
+    private val reasoningBuffer = java.lang.StringBuilder()
+    private var lastReasoningFlushMs = 0L
+
     /**
      * Resets all streaming buffers. Centralizes the clear logic that was
      * previously scattered across MessageStart, MessageComplete, MessageDone,
@@ -41,8 +44,10 @@ class ChatStreamingController(
     fun resetStreaming() {
         streamingBuffer.clear()
         thinkingBuffer.clear()
+        reasoningBuffer.clear()
         lastFlushMs = 0L
         lastThinkingFlushMs = 0L
+        lastReasoningFlushMs = 0L
     }
 
     /** Resets buffers and starts a fresh streaming message (called on MessageStart). */
@@ -105,6 +110,27 @@ class ChatStreamingController(
                 state.copy(
                     isThinking = true,
                     thinkingText = currentContent,
+                )
+            }
+        }
+    }
+
+    fun handleReasoningDelta(event: WsEvent.ReasoningDelta) {
+        if (!isCurrentSession(event.sessionId)) return
+
+        reasoningBuffer.append(event.token)
+        val now = System.currentTimeMillis()
+
+        // Always flush in tests, or if enough time has passed
+        val shouldFlush =
+            (now - lastReasoningFlushMs >= 33L) || lastReasoningFlushMs == 0L || isTestEnvironment()
+        if (shouldFlush) {
+            val currentContent = reasoningBuffer.toString()
+            lastReasoningFlushMs = now
+            streamingState.update { state ->
+                state.copy(
+                    isReasoning = true,
+                    reasoningText = currentContent,
                 )
             }
         }

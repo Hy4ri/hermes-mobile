@@ -18,6 +18,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -380,6 +381,8 @@ fun ChatScreen(
                     streamingMessage = streamingState.streamingMessage,
                     isThinking = streamingState.isThinking,
                     thinkingText = streamingState.thinkingText,
+                    isReasoning = streamingState.isReasoning,
+                    reasoningText = streamingState.reasoningText,
                     isSearchActive = state.isSearchActive,
                     searchQuery = state.searchQuery,
                     currentSearchMatchIndex = state.currentSearchMatchIndex,
@@ -548,6 +551,49 @@ private fun ThinkingIndicator(thinkingText: String) {
                         ),
                     maxLines = 2,
                     modifier = Modifier.animateContentSize(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReasoningIndicator(reasoningText: String) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .clickable { expanded = !expanded },
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+            ),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🧠", fontSize = 14.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.chat_reasoning),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = if (expanded) "▲" else "▼",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Text(
+                    text = reasoningText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }
@@ -1576,6 +1622,8 @@ private fun ChatMessageList(
     streamingMessage: ChatMessage?,
     isThinking: Boolean,
     thinkingText: String,
+    isReasoning: Boolean = false,
+    reasoningText: String = "",
     isSearchActive: Boolean,
     searchQuery: String,
     currentSearchMatchIndex: Int,
@@ -1695,6 +1743,13 @@ private fun ChatMessageList(
             if (isThinking) {
                 item(key = "thinking") {
                     ThinkingIndicator(thinkingText)
+                }
+            }
+
+            // Reasoning indicator (distinct from thinking)
+            if (isReasoning) {
+                item(key = "reasoning") {
+                    ReasoningIndicator(reasoningText)
                 }
             }
         }

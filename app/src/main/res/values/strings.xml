@@ -104,6 +104,7 @@
     <string name="chat_status_auth_expired">Session expired \u2014 please sign in again</string>
     <string name="chat_thinking">Thinking\u2026</string>
     <string name="chat_thinking_param">Thinking: %1$s\u2026</string>
+    <string name="chat_reasoning">Reasoning</string>
     <string name="chat_input_placeholder_not_connected">Not connected\u2026</string>
     <string name="chat_input_placeholder_waiting">Waiting for response\u2026</string>
     <string name="chat_input_placeholder_type_message">Type a message\u2026</string>

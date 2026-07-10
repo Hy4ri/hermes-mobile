@@ -27,6 +27,7 @@ object ChatWsEventReducer {
                 is WsEvent.MessageStart -> event.sessionId
                 is WsEvent.MessageToken -> event.sessionId
                 is WsEvent.ThinkingDelta -> event.sessionId
+                is WsEvent.ReasoningDelta -> event.sessionId
                 is WsEvent.MessageComplete -> event.sessionId
                 is WsEvent.MessageDone -> event.sessionId
                 is WsEvent.ToolStart -> event.sessionId
@@ -53,6 +54,8 @@ object ChatWsEventReducer {
             is WsEvent.MessageToken -> onMessageToken(state, streamingState, event)
 
             is WsEvent.ThinkingDelta -> onThinkingDelta(state, streamingState, event)
+            is WsEvent.ReasoningDelta -> onReasoningDelta(state, streamingState, event)
+            is WsEvent.ReasoningAvailable -> onReasoningAvailable(state, streamingState, event)
 
             is WsEvent.MessageComplete -> onMessageComplete(state, streamingState, event)
 
@@ -163,6 +166,34 @@ object ChatWsEventReducer {
         )
     }
 
+    // ── ReasoningDelta ────────────────────────────────────────────────
+    private fun onReasoningDelta(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ReasoningDelta,
+    ): ReducerResult {
+        val currentContent = streamingState.reasoningText + event.token
+        return ReducerResult(
+            state = state,
+            streamingState =
+                streamingState.copy(
+                    isReasoning = true,
+                    reasoningText = currentContent,
+                ),
+        )
+    }
+
+    // ── ReasoningAvailable ────────────────────────────────────────────
+    private fun onReasoningAvailable(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ReasoningAvailable,
+    ): ReducerResult =
+        ReducerResult(
+            state = state,
+            streamingState = streamingState.copy(isReasoning = true),
+        )
+
     // ── MessageComplete ───────────────────────────────────────────────
 
     private fun onMessageComplete(
@@ -175,9 +206,11 @@ object ChatWsEventReducer {
             streaming?.copy(
                 content = event.text ?: streaming.content,
                 isStreaming = false,
+                reasoningText = streamingState.reasoningText,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = event.text ?: "",
+                reasoningText = streamingState.reasoningText,
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -206,7 +239,7 @@ object ChatWsEventReducer {
                 state = state,
                 streamingState = streamingState,
             )
-        val msg = streaming.copy(isStreaming = false)
+        val msg = streaming.copy(isStreaming = false, reasoningText = streamingState.reasoningText)
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
         if (sid != null) {

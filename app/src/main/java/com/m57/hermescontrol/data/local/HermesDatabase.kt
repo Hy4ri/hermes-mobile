@@ -11,7 +11,7 @@ import java.io.File
 
 @Database(
     entities = [ChatMessageEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class HermesDatabase : RoomDatabase() {
@@ -45,13 +45,22 @@ abstract class HermesDatabase : RoomDatabase() {
                         }
                     }
 
+                val migration3to4 =
+                    object : Migration(3, 4) {
+                        override fun migrate(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                "ALTER TABLE `chat_messages` ADD COLUMN `reasoning_text` TEXT NOT NULL DEFAULT ''",
+                            )
+                        }
+                    }
+
                 instance ?: Room
                     .databaseBuilder(
                         context.applicationContext,
                         HermesDatabase::class.java,
                         "hermes_control.db",
                     ).openHelperFactory(factory)
-                    .addMigrations(migration2to3)
+                    .addMigrations(migration2to3, migration3to4)
                     .fallbackToDestructiveMigration(false)
                     .build()
                     .also { instance = it }

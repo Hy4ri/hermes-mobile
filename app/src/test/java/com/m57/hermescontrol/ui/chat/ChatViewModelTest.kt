@@ -474,6 +474,55 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testReasoningStreamingFlow() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // 1 — Reasoning available: block becomes visible (no token yet)
+            mockEventsFlow.emit(WsEvent.ReasoningAvailable(sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.streamingState.value.isReasoning)
+
+            // 2 — Reasoning delta
+            mockEventsFlow.emit(WsEvent.ReasoningDelta("Let me think", sessionId))
+            advanceUntilIdle()
+            assertEquals("Let me think", viewModel.streamingState.value.reasoningText)
+
+            // 3 — Deeper reasoning
+            mockEventsFlow.emit(WsEvent.ReasoningDelta(" step by step", sessionId))
+            advanceUntilIdle()
+            assertEquals("Let me think step by step", viewModel.streamingState.value.reasoningText)
+
+            // 4 — Thinking still independent
+            mockEventsFlow.emit(WsEvent.ThinkingDelta("thinking", sessionId))
+            advanceUntilIdle()
+            assertTrue(viewModel.streamingState.value.isThinking)
+            assertEquals("thinking", viewModel.streamingState.value.thinkingText)
+            // reasoning untouched
+            assertEquals("Let me think step by step", viewModel.streamingState.value.reasoningText)
+
+            // 5 — Complete: reducer finalizes message, attaching reasoning
+            mockEventsFlow.emit(WsEvent.MessageComplete("The answer is 42", sessionId))
+            advanceUntilIdle()
+
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(2, viewModel.uiState.value.messages.size)
+            assertEquals(
+                "The answer is 42",
+                viewModel.uiState.value.messages[1].content,
+            )
+            // reasoning carried onto the finalized UI message
+            assertEquals(
+                "Let me think step by step",
+                viewModel.uiState.value.messages[1].reasoningText,
+            )
+            // reasoning persisted to the entity (survives reload)
+            val persisted =
+                fakeRepo.dao.getMessagesForSession(sessionId).first { it.role == "ASSISTANT" }
+            assertEquals("Let me think step by step", persisted.reasoningText)
+        }
+
+    @Test
     fun testToolExecution_finalizesPreviousStreamingMessage() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

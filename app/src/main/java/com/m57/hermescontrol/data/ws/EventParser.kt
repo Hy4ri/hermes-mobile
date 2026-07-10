@@ -62,6 +62,15 @@ object EventParser {
                 WsEvent.ThinkingDelta(token, sessionId)
             }
 
+            "reasoning.delta" -> {
+                val token = payload?.get("text") as? String ?: ""
+                WsEvent.ReasoningDelta(token, sessionId)
+            }
+
+            "reasoning.available" -> {
+                WsEvent.ReasoningAvailable(sessionId)
+            }
+
             "message.complete" -> {
                 val text = payload?.get("text") as? String ?: ""
                 WsEvent.MessageComplete(text, sessionId)

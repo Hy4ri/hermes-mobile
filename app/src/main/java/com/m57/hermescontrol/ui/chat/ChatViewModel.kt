@@ -311,6 +311,10 @@ class ChatViewModel(
                 streamingController.handleThinkingDelta(event)
             }
 
+            is WsEvent.ReasoningDelta -> {
+                streamingController.handleReasoningDelta(event)
+            }
+
             is WsEvent.MessageStart -> {
                 streamingController.beginStreamingMessage()
             }

@@ -28,6 +28,8 @@ data class ChatMessageEntity(
     val role: String,
     @ColumnInfo(name = "content")
     val content: String,
+    @ColumnInfo(name = "reasoning_text")
+    val reasoningText: String = "",
     @ColumnInfo(name = "timestamp")
     val timestamp: Long,
     @ColumnInfo(name = "tool_name")

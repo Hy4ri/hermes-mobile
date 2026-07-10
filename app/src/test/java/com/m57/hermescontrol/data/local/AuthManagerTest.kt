@@ -101,6 +101,7 @@ class AuthManagerTest {
 
     @After
     fun tearDown() {
+        AuthManager.resetAuthStateForTest()
         val tempDir = java.io.File(System.getProperty("java.io.tmpdir"))
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) {

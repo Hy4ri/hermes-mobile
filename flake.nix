@@ -26,7 +26,7 @@
           (pkgs.androidenv.composeAndroidPackages {
             # Command-line & platform tools
             cmdLineToolsVersion = "11.0";
-            platformToolsVersion = "35.0.2";
+            platformToolsVersion = "36.0.0";
 
             # Build tools
             buildToolsVersions = [buildToolsVersion];
@@ -83,7 +83,7 @@
           GRADLE_USER_HOME = "$PWD/.gradle-home";
 
           shellHook = ''
-            echo "🤖 HermesControl Android dev shell"
+            echo " HermesControl Android dev shell"
             echo "   Java:              $(java -version 2>&1 | head -1)"
             echo "   Kotlin:            $(kotlin -version 2>&1)"
             echo "   Gradle:            $(gradle --version 2>&1 | grep '^Gradle' || echo 'available')"

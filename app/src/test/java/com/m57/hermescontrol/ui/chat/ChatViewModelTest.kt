@@ -500,6 +500,26 @@ class ChatViewModelTest {
             assertEquals("thinking", viewModel.streamingState.value.thinkingText)
             // reasoning untouched
             assertEquals("Let me think step by step", viewModel.streamingState.value.reasoningText)
+
+            // 5 — Complete: reducer finalizes message, attaching reasoning
+            mockEventsFlow.emit(WsEvent.MessageComplete("The answer is 42", sessionId))
+            advanceUntilIdle()
+
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(2, viewModel.uiState.value.messages.size)
+            assertEquals(
+                "The answer is 42",
+                viewModel.uiState.value.messages[1].content,
+            )
+            // reasoning carried onto the finalized UI message
+            assertEquals(
+                "Let me think step by step",
+                viewModel.uiState.value.messages[1].reasoningText,
+            )
+            // reasoning persisted to the entity (survives reload)
+            val persisted =
+                fakeRepo.dao.getMessagesForSession(sessionId).first { it.role == "ASSISTANT" }
+            assertEquals("Let me think step by step", persisted.reasoningText)
         }
 
     @Test

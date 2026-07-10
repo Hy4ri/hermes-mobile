@@ -206,9 +206,11 @@ object ChatWsEventReducer {
             streaming?.copy(
                 content = event.text ?: streaming.content,
                 isStreaming = false,
+                reasoningText = streamingState.reasoningText,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = event.text ?: "",
+                reasoningText = streamingState.reasoningText,
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -237,7 +239,7 @@ object ChatWsEventReducer {
                 state = state,
                 streamingState = streamingState,
             )
-        val msg = streaming.copy(isStreaming = false)
+        val msg = streaming.copy(isStreaming = false, reasoningText = streamingState.reasoningText)
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
         if (sid != null) {

@@ -131,6 +131,7 @@ class ChatStreamingController(
                 state.copy(
                     isReasoning = true,
                     reasoningText = currentContent,
+                    streamingMessage = state.streamingMessage?.copy(reasoningText = currentContent),
                 )
             }
         }

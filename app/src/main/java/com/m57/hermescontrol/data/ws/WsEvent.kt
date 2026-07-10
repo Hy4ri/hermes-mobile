@@ -30,6 +30,15 @@ sealed class WsEvent {
         val sessionId: String?,
     ) : WsEvent()
 
+    data class ReasoningDelta(
+        val token: String,
+        val sessionId: String?,
+    ) : WsEvent()
+
+    data class ReasoningAvailable(
+        val sessionId: String?,
+    ) : WsEvent()
+
     data class MessageComplete(
         val text: String,
         val sessionId: String?,

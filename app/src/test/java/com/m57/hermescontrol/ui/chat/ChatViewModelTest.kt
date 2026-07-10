@@ -120,8 +120,10 @@ class ChatViewModelTest {
      * Request ID sequence: GatewayReady triggers loadSessions (req-id-1),
      * fetchCommandCatalog (req-id-2), then createNewSession (req-id-3).
      */
-    private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
-        val viewModel = createViewModel()
+    private suspend fun TestScope.createViewModelWithSession(
+        startCleanup: Boolean = false,
+    ): Pair<ChatViewModel, String> {
+        val viewModel = createViewModel(startCleanup)
         advanceUntilIdle()
 
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
@@ -1242,5 +1244,69 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages.firstOrNull { it.id == sessionId } != null ||
                     viewModel.uiState.value.messages.any { it.content == "Here is an image" }
             assertTrue("Message should still be sent despite attachment read failure", sent)
+        }
+
+    // ── Pending request timeout + rejectAllPending (issue #526) ───────────
+
+    /**
+     * On disconnect (RECONNECTING) the ViewModel must run rejectAllPending
+     * without throwing and stay usable — mirroring desktop
+     * JsonRpcGatewayClient.rejectAllPending invoked on socket close. This is
+     * what prevents callers awaiting a CompletableDeferred from hanging
+     * across a socket drop.
+     */
+    @Test
+    fun testDisconnect_rejectsPendingWithoutError() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.respondToApproval("approve")
+            advanceUntilIdle()
+
+            // Simulate socket drop → reconnecting (triggers rejectAllPending).
+            mockConnectionStatus.value = ConnectionStatus.RECONNECTING
+            advanceUntilIdle()
+
+            // No exception propagated; VM remains usable.
+            assertNull(viewModel.uiState.value.errorMessage)
+        }
+
+    /**
+     * viewModel.reconnect() calls rejectAllPending() before wsClient.disconnect(),
+     * so any in-flight awaited RPC is failed fast instead of hanging until its
+     * own timeout.
+     */
+    @Test
+    fun testReconnect_rejectsPendingWithoutError() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.respondToApproval("approve")
+            advanceUntilIdle()
+
+            // User-initiated reconnect must not throw / hang.
+            viewModel.reconnect()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.errorMessage)
+            verify { HermesWsClient.disconnect() }
         }
 }

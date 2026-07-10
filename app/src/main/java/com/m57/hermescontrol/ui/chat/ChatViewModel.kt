@@ -49,7 +49,7 @@ private const val TAG = "ChatViewModel"
  * Pending request timeout — if the server doesn't respond within this
  * window, the request is pruned and an error is surfaced.
  */
-private const val PENDING_REQUEST_TIMEOUT_MS = 30_000L
+private const val PENDING_REQUEST_TIMEOUT_MS = 120_000L // 120s — matches desktop JsonRpcGatewayClient
 
 /** Thrown when an awaited RPC returns an error response. */
 private class RpcCallException(
@@ -199,6 +199,9 @@ class ChatViewModel(
                     status == ConnectionStatus.AUTH_EXPIRED
                 ) {
                     _uiState.update { it.copy(isLoading = false) }
+                    // Fail any in-flight awaited RPCs so callers don't hang
+                    // across the disconnect (mirrors desktop rejectAllPending).
+                    rejectAllPending()
                 }
             }
         }
@@ -706,7 +709,7 @@ class ChatViewModel(
     private suspend fun sendRpcAndAwait(
         method: String,
         params: Map<String, Any>,
-        timeoutMs: Long = 30_000,
+        timeoutMs: Long = PENDING_REQUEST_TIMEOUT_MS,
     ): Any? {
         val deferred = CompletableDeferred<Any?>()
         wsClient.send(
@@ -1215,6 +1218,7 @@ class ChatViewModel(
             )
         }
         viewModelScope.launch(Dispatchers.IO) {
+            rejectAllPending()
             wsClient.disconnect()
         }
         viewModelScope.launch {
@@ -1357,7 +1361,11 @@ class ChatViewModel(
 
     /**
      * Periodically prunes stale pending requests that the server never
-     * responded to. Surfaces a timeout error for the user.
+     * responded to, mirroring the desktop `JsonRpcGatewayClient` 120s
+     * request-timeout + `rejectAllPending` behavior. Unlike the old impl,
+     * this now actually fails the [CompletableDeferred] (so
+     * `sendRpcAndAwait()` callers resume instead of hanging forever) and
+     * surfaces a timeout error for non-awaited RPCs.
      */
     private fun startPendingRequestCleanup() {
         pendingCleanupJob =
@@ -1370,11 +1378,43 @@ class ChatViewModel(
                             now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
                         }
                     for (entry in stale) {
-                        pendingRequests.remove(entry.key)
-                        Log.w(TAG, "Request timed out: ${entry.value.method} (id=${entry.key})")
+                        val pending = pendingRequests.remove(entry.key) ?: continue
+                        Log.w(TAG, "Request timed out: ${pending.method} (id=${entry.key})")
+                        // Fail the deferred so awaited callers don't hang.
+                        pending.deferred?.completeExceptionally(
+                            RpcCallException("Request timed out: ${pending.method}"),
+                        )
+                        // Surface a visible error for fire-and-forget RPCs.
+                        if (pending.deferred == null) {
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = "Request timed out: ${pending.method}",
+                                )
+                            }
+                        }
                     }
                 }
             }
+    }
+
+    /**
+     * Fail and clear every in-flight pending request. Called on disconnect /
+     * reconnect so callers awaiting a `CompletableDeferred` (e.g.
+     * `sendRpcAndAwait`) don't hang across a socket close — mirrors desktop
+     * `JsonRpcGatewayClient.rejectAllPending(error)` invoked on socket close.
+     */
+    private fun rejectAllPending(
+        error: RpcCallException =
+            RpcCallException("Connection lost — request cancelled"),
+    ) {
+        if (pendingRequests.isEmpty()) return
+        val snapshot = pendingRequests.toList()
+        pendingRequests.clear()
+        for ((id, pending) in snapshot) {
+            Log.w(TAG, "Rejecting pending request on disconnect: ${pending.method} (id=$id)")
+            pending.deferred?.completeExceptionally(error)
+        }
     }
 
     // ── Search ────────────────────────────────────────────────────────────

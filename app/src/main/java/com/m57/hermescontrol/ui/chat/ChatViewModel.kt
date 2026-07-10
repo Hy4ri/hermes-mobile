@@ -20,7 +20,6 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -33,7 +32,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.MediaType.Companion.toMediaType
@@ -44,17 +42,6 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
-
-/**
- * Pending request timeout — if the server doesn't respond within this
- * window, the request is pruned and an error is surfaced.
- */
-private const val PENDING_REQUEST_TIMEOUT_MS = 120_000L // 120s — matches desktop JsonRpcGatewayClient
-
-/** Thrown when an awaited RPC returns an error response. */
-private class RpcCallException(
-    message: String,
-) : Exception(message)
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -132,7 +119,6 @@ class ChatViewModel(
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     private val wsClient = HermesWsClient
-    private val pendingRequests = ConcurrentHashMap<String, PendingRequest>()
 
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchDelegate =
@@ -150,8 +136,6 @@ class ChatViewModel(
             isCurrentSession = { sessionId -> isCurrentSession(sessionId) },
             isTestEnvironment = { isTestEnvironment() },
         )
-
-    private var pendingCleanupJob: Job? = null
 
     // ── Public state ─────────────────────────────────────────────────────
 
@@ -200,16 +184,11 @@ class ChatViewModel(
                 ) {
                     _uiState.update { it.copy(isLoading = false) }
                     // Fail any in-flight awaited RPCs so callers don't hang
-                    // across the disconnect (mirrors desktop rejectAllPending).
-                    rejectAllPending()
+                    // across the disconnect (delegated to HermesWsClient, issue #526).
+                    wsClient.rejectAllPending()
                 }
             }
         }
-        if (startCleanup) {
-            startPendingRequestCleanup()
-        }
-
-        // B7 (Jun 30 2026, kanban t_connection_loading): if already connected on launch, trigger setup immediately
         if (wsClient.connectionStatus.value == ConnectionStatus.CONNECTED) {
             handleGatewayReady()
         }
@@ -407,12 +386,7 @@ class ChatViewModel(
         id: String,
         result: Any?,
     ) {
-        val pending = pendingRequests.remove(id) ?: return
-        val method = pending.method
-
-        // Complete the deferred so sendRpcAndAwait() callers can resume
-        pending.deferred?.complete(result)
-
+        val method = idToMethod.remove(id) ?: return
         when (method) {
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
@@ -544,25 +518,21 @@ class ChatViewModel(
         id: String,
         error: Any?,
     ) {
-        val pending = pendingRequests.remove(id)
-        val method = pending?.method
+        val method = idToMethod.remove(id) ?: return
         val errorMsg =
             when (error) {
                 is Map<*, *> -> error["message"] as? String ?: error.toString()
                 else -> error.toString()
             }
 
-        // Fail the deferred so sendRpcAndAwait() callers see the error
-        pending?.deferred?.completeExceptionally(RpcCallException(errorMsg))
-
-        // Only surface error in UI for non-awaited RPCs
-        if (pending?.deferred == null) {
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    errorMessage = "Error${if (method != null) " ($method)" else ""}: $errorMsg",
-                )
-            }
+        // Surface error in UI (these are server-pushed RpcError for
+        // fire-and-forget RPCs — awaited RPCs handle their own failure
+        // via the HermesWsClient.request() deferred).
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                errorMessage = "Error${if (method != null) " ($method)" else ""}: $errorMsg",
+            )
         }
     }
 
@@ -703,22 +673,16 @@ class ChatViewModel(
         }
 
     /**
-     * Send a JSON-RPC call and suspend until the response arrives.
-     * Throws [RpcCallException] on error, [kotlinx.coroutines.TimeoutCancellationException] on timeout.
+     * Send a JSON-RPC call and suspend until the response arrives, delegating
+     * the deferred + 120s timeout to [HermesWsClient.request] (issue #526).
+     * Throws [HermesWsClient.HermesRpcException] on RPC error, or
+     * [kotlinx.coroutines.TimeoutCancellationException] if the server never
+     * answers within the timeout.
      */
     private suspend fun sendRpcAndAwait(
         method: String,
         params: Map<String, Any>,
-        timeoutMs: Long = PENDING_REQUEST_TIMEOUT_MS,
-    ): Any? {
-        val deferred = CompletableDeferred<Any?>()
-        wsClient.send(
-            method = method,
-            params = params,
-            onSent = { id -> trackRequest(id, method, deferred) },
-        )
-        return withTimeout(timeoutMs) { deferred.await() }
-    }
+    ): Any? = HermesWsClient.request(method, params).await()
 
     // ── Attachment management ─────────────────────────────────────────────
 
@@ -1218,7 +1182,7 @@ class ChatViewModel(
             )
         }
         viewModelScope.launch(Dispatchers.IO) {
-            rejectAllPending()
+            wsClient.rejectAllPending()
             wsClient.disconnect()
         }
         viewModelScope.launch {
@@ -1345,88 +1309,14 @@ class ChatViewModel(
 
     // ── Pending request tracking ─────────────────────────────────────────
 
-    private data class PendingRequest(
-        val method: String,
-        val createdAt: Long = System.currentTimeMillis(),
-        val deferred: CompletableDeferred<Any?>? = null,
-    )
+    /** Maps an in-flight RPC id → its method, purely for UI error labeling. The deferred/timeout lives in [HermesWsClient.request] (issue #526). */
+    private val idToMethod = ConcurrentHashMap<String, String>()
 
     private fun trackRequest(
         id: String,
         method: String,
-        deferred: CompletableDeferred<Any?>? = null,
     ) {
-        pendingRequests[id] = PendingRequest(method, deferred = deferred)
-    }
-
-    /**
-     * Periodically prunes stale pending requests that the server never
-     * responded to, mirroring the desktop `JsonRpcGatewayClient` 120s
-     * request-timeout + `rejectAllPending` behavior. Unlike the old impl,
-     * this now actually fails the [CompletableDeferred] (so
-     * `sendRpcAndAwait()` callers resume instead of hanging forever) and
-     * surfaces a timeout error for non-awaited RPCs.
-     */
-    private fun startPendingRequestCleanup() {
-        pendingCleanupJob =
-            viewModelScope.launch {
-                while (true) {
-                    delay(PENDING_REQUEST_TIMEOUT_MS)
-                    val now = System.currentTimeMillis()
-                    val stale =
-                        pendingRequests.entries.filter {
-                            now - it.value.createdAt > PENDING_REQUEST_TIMEOUT_MS
-                        }
-                    if (stale.isEmpty()) continue
-
-                    // Aggregate into a single UI update (Sourcery review, PR #541):
-                    // one emission instead of N per-request updates that cause
-                    // redundant recompositions / UI flicker when many time out at once.
-                    val fireAndForget = mutableListOf<String>()
-                    for (entry in stale) {
-                        val pending = pendingRequests.remove(entry.key) ?: continue
-                        Log.w(TAG, "Request timed out: ${pending.method} (id=${entry.key})")
-                        // Fail the deferred so awaited callers don't hang.
-                        pending.deferred?.completeExceptionally(
-                            RpcCallException("Request timed out: ${pending.method}"),
-                        )
-                        // Collect fire-and-forget RPCs to surface one combined error.
-                        if (pending.deferred == null) {
-                            fireAndForget += pending.method
-                        }
-                    }
-                    if (fireAndForget.isNotEmpty()) {
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                errorMessage =
-                                    fireAndForget.joinToString("; ") { method ->
-                                        "Request timed out: $method"
-                                    },
-                            )
-                        }
-                    }
-                }
-            }
-    }
-
-    /**
-     * Fail and clear every in-flight pending request. Called on disconnect /
-     * reconnect so callers awaiting a `CompletableDeferred` (e.g.
-     * `sendRpcAndAwait`) don't hang across a socket close — mirrors desktop
-     * `JsonRpcGatewayClient.rejectAllPending(error)` invoked on socket close.
-     */
-    private fun rejectAllPending(
-        error: RpcCallException =
-            RpcCallException("Connection lost — request cancelled"),
-    ) {
-        if (pendingRequests.isEmpty()) return
-        val snapshot = pendingRequests.toList()
-        pendingRequests.clear()
-        for ((id, pending) in snapshot) {
-            Log.w(TAG, "Rejecting pending request on disconnect: ${pending.method} (id=$id)")
-            pending.deferred?.completeExceptionally(error)
-        }
+        idToMethod[id] = method
     }
 
     // ── Search ────────────────────────────────────────────────────────────
@@ -1462,7 +1352,6 @@ class ChatViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        pendingCleanupJob?.cancel()
         // PERF-16: Don't disconnect the global HermesWsClient singleton when
         // leaving the Chat screen — it's used by background notification reply.
     }

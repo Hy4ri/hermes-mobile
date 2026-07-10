@@ -6,6 +6,7 @@ import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +32,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -241,6 +243,97 @@ object HermesWsClient {
         _connectionStatus.value = ConnectionStatus.DISCONNECTED
     }
 
+    // ── Awaited RPC request layer (issue #526) ─────────────────────────
+    // Mirrors desktop apps/shared JsonRpcGatewayClient.request(): an in-flight
+    // map with a per-call timeout and rejectAllPending on socket close, so a
+    // dropped RPC response can't leave a caller awaiting forever.
+
+    /** Thrown when an awaited [request] is neither answered nor rejected within [REQUEST_TIMEOUT_MS], or is rejected by a disconnect. */
+    class HermesRpcException(
+        message: String,
+    ) : Exception(message)
+
+    /**
+     * Default per-request timeout. Matches the desktop
+     * `apps/shared` `JsonRpcGatewayClient.DEFAULT_REQUEST_TIMEOUT_MS` (120s),
+     * so legitimately long agent turns are not pruned early.
+     */
+    const val REQUEST_TIMEOUT_MS: Long = 120_000L
+
+    /** A single in-flight [request] awaiting its RPC result/error. */
+    private data class PendingCall(
+        val method: String,
+        val deferred: CompletableDeferred<Any?>,
+        var timeoutJob: Job? = null,
+    )
+
+    /** Tracks in-flight [request] calls by their JSON-RPC id. */
+    private val pendingCalls = ConcurrentHashMap<String, PendingCall>()
+
+    /**
+     * Send a JSON-RPC request that expects a result and returns a
+     * [CompletableDeferred] for it — mirroring the desktop
+     * `JsonRpcGatewayClient.request()`. Fire-and-forget notifications should
+     * keep using [send].
+     *
+     * The deferred is completed on the matching [WsEvent.RpcResult] /
+     * [WsEvent.RpcError], rejected after [timeoutMs] (no response), or
+     * rejected by [rejectAllPending] when the socket closes.
+     */
+    fun request(
+        method: String,
+        params: Map<String, Any> = emptyMap(),
+        timeoutMs: Long = REQUEST_TIMEOUT_MS,
+    ): CompletableDeferred<Any?> {
+        val deferred = CompletableDeferred<Any?>()
+        val id =
+            send(method, params) { reqId ->
+                pendingCalls[reqId] = PendingCall(method, deferred)
+            }
+        // Arm the per-request timeout (fires if the server never answers).
+        pendingCalls[id]?.timeoutJob =
+            wsScope.launch {
+                delay(timeoutMs)
+                resolvePending(id, null, JsonRpcError(-1, "Request timed out: $method"))
+            }
+        return deferred
+    }
+
+    /** Complete (or fail) a single pending call and cancel its timer. */
+    private fun resolvePending(
+        id: String,
+        result: Any?,
+        error: JsonRpcError?,
+    ) {
+        val call = pendingCalls.remove(id) ?: return
+        call.timeoutJob?.cancel()
+        if (error != null) {
+            call.deferred.completeExceptionally(HermesRpcException(error.message))
+        } else {
+            call.deferred.complete(result)
+        }
+    }
+
+    /**
+     * Fail and clear every in-flight [request]. Called on disconnect /
+     * reconnect so callers awaiting a result don't hang across a socket
+     * close — mirrors desktop `JsonRpcGatewayClient.rejectAllPending(error)`
+     * invoked on socket close.
+     */
+    fun rejectAllPending(
+        error: HermesRpcException =
+            HermesRpcException("Connection lost — request cancelled"),
+    ) {
+        if (pendingCalls.isEmpty()) return
+        val snapshot = pendingCalls.toList()
+        pendingCalls.clear()
+        for ((id, call) in snapshot) {
+            Log.w(TAG, "Rejecting pending request on disconnect: ${call.method} (id=$id)")
+            call.timeoutJob?.cancel()
+            call.deferred.completeExceptionally(error)
+        }
+    }
+
     // ── Send helpers ─────────────────────────────────────────────────────
 
     /**
@@ -348,6 +441,21 @@ object HermesWsClient {
         ) {
             if (BuildConfig.DEBUG) Log.d(TAG, "← $text")
             lastPongTimestamp = System.currentTimeMillis()
+            // Resolve any in-flight `request()` awaiting this RPC result/error
+            // (issue #526) before fanning the parsed event out to collectors.
+            val event =
+                try {
+                    val rpc = OkHttpProvider.json.decodeFromString<JsonRpcResponse>(text)
+                    EventParser.parse(rpc, text)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse message", e)
+                    WsEvent.Unknown(text)
+                }
+            when (event) {
+                is WsEvent.RpcResult -> resolvePending(event.id, event.result, null)
+                is WsEvent.RpcError -> resolvePending(event.id, null, event.error)
+                else -> Unit
+            }
             val emitted = rawMessages.tryEmit(text)
             if (!emitted && BuildConfig.DEBUG) {
                 Log.w(TAG, "WebSocket message dropped due to buffer overflow")

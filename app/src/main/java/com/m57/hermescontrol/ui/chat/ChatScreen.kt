@@ -101,6 +101,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -275,6 +277,8 @@ fun ChatScreen(
         currentSearchMatchIndex = state.currentSearchMatchIndex,
         searchMatchIndices = state.searchMatchIndices,
         clarifyRequest = state.clarifyRequest,
+        sudoPrompt = state.sudoPrompt,
+        secretPrompt = state.secretPrompt,
         listState = listState,
         snackbarHostState = snackbarHostState,
         viewModel = viewModel,
@@ -1004,6 +1008,106 @@ private fun ClarifyDialog(
     )
 }
 
+/**
+ * Secure password dialog for a pending `sudo.request` (issue #524).
+ * The backend blocked the turn waiting for the sudo password — previously
+ * mobile dropped the event and the agent hung forever.
+ */
+@Composable
+private fun SudoPromptDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_sudo_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = stringResource(R.string.chat_sudo_body))
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.chat_sudo_password)) },
+                    modifier = Modifier.fillMaxWidth().testTag("sudo_password_input"),
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Password),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (password.isNotBlank()) {
+                        onConfirm(password)
+                    }
+                },
+                enabled = password.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.chat_send))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.chat_dismiss))
+            }
+        },
+    )
+}
+
+/**
+ * Secure value dialog for a pending `secret.request` (issue #524).
+ * The backend blocked the turn waiting for a secret (token/password) —
+ * previously mobile dropped the event and the agent hung forever.
+ */
+@Composable
+private fun SecretPromptDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var secret by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_secret_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = stringResource(R.string.chat_secret_body))
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = secret,
+                    onValueChange = { secret = it },
+                    label = { Text(stringResource(R.string.chat_secret_value)) },
+                    modifier = Modifier.fillMaxWidth().testTag("secret_value_input"),
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Password),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (secret.isNotBlank()) {
+                        onConfirm(secret)
+                    }
+                },
+                enabled = secret.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.chat_send))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.chat_dismiss))
+            }
+        },
+    )
+}
+
 @Composable
 private fun CompactSearchInput(
     value: String,
@@ -1230,6 +1334,8 @@ private fun ChatLifecycleEffects(
     currentSearchMatchIndex: Int,
     searchMatchIndices: List<Int>,
     clarifyRequest: ClarifyUi?,
+    sudoPrompt: SudoPromptUi?,
+    secretPrompt: SecretPromptUi?,
     listState: LazyListState,
     snackbarHostState: SnackbarHostState,
     viewModel: ChatViewModel,
@@ -1327,6 +1433,21 @@ private fun ChatLifecycleEffects(
             clarify = clarify,
             onOptionSelected = viewModel::respondToClarify,
             onDismiss = viewModel::dismissClarify,
+        )
+    }
+
+    // Sudo / secret prompt dialogs (issue #524)
+    sudoPrompt?.let { prompt ->
+        SudoPromptDialog(
+            onConfirm = viewModel::respondToSudo,
+            onDismiss = viewModel::dismissSudo,
+        )
+    }
+
+    secretPrompt?.let { prompt ->
+        SecretPromptDialog(
+            onConfirm = viewModel::respondToSecret,
+            onDismiss = viewModel::dismissSecret,
         )
     }
 

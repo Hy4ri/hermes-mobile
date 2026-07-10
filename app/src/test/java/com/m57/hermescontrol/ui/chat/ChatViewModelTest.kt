@@ -1035,6 +1035,130 @@ class ChatViewModelTest {
             assertNull(msgAfter!!.approvalInfo)
         }
 
+    // ── Sudo / secret prompt flow (issue #524) ───────────────────────────
+
+    @Test
+    fun testSudoRequest_setsPromptState() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SudoRequest(requestId = "sudo-1", sessionId = null),
+            )
+            advanceUntilIdle()
+
+            val prompt = viewModel.uiState.value.sudoPrompt
+            assertNotNull(prompt)
+            assertEquals("sudo-1", prompt?.requestId)
+        }
+
+    @Test
+    fun testRespondToSudo_sendsRpc() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SudoRequest(requestId = "sudo-1", sessionId = null),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToSudo("hunter2")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SUDO_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("hunter2", params["password"])
+                        assertEquals("sudo-1", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToSudo_clearsPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SudoRequest(requestId = "sudo-1", sessionId = null),
+            )
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+
+            viewModel.respondToSudo("hunter2")
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.sudoPrompt)
+        }
+
+    @Test
+    fun testSecretRequest_setsPromptState() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SecretRequest(requestId = "secret-1", sessionId = null),
+            )
+            advanceUntilIdle()
+
+            val prompt = viewModel.uiState.value.secretPrompt
+            assertNotNull(prompt)
+            assertEquals("secret-1", prompt?.requestId)
+        }
+
+    @Test
+    fun testRespondToSecret_sendsRpc() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SecretRequest(requestId = "secret-1", sessionId = null),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToSecret("super-secret-token")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SECRET_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("super-secret-token", params["value"])
+                        assertEquals("secret-1", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToSecret_clearsPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SecretRequest(requestId = "secret-1", sessionId = null),
+            )
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.secretPrompt)
+
+            viewModel.respondToSecret("super-secret-token")
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.secretPrompt)
+        }
+
     // ── Settings ─────────────────────────────────────────────────────────────
 
     @Test

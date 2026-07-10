@@ -94,6 +94,28 @@ sealed class WsEvent {
         val sessionId: String?,
     ) : WsEvent()
 
+    // ── Sudo / secret requests ─────────────────────────────────────────
+
+    /**
+     * Backend needs the user's sudo password to continue a turn
+     * (desktop: `sudo.request` → `sudo.respond {request_id, password}`).
+     * Mobile previously dropped this and the agent hung forever.
+     */
+    data class SudoRequest(
+        val requestId: String?,
+        val sessionId: String?,
+    ) : WsEvent()
+
+    /**
+     * Backend needs a secret value (password / token) to continue a turn
+     * (desktop: `secret.request` → `secret.respond {request_id, value}`).
+     * Mobile previously dropped this and the agent hung forever.
+     */
+    data class SecretRequest(
+        val requestId: String?,
+        val sessionId: String?,
+    ) : WsEvent()
+
     // ── Fallback ─────────────────────────────────────────────────────────
 
     data class Unknown(

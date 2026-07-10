@@ -80,6 +80,10 @@ object ChatWsEventReducer {
 
             // ApprovalRequest is handled by the ViewModel (needs active session + WS client)
             is WsEvent.ApprovalRequest -> ReducerResult(state = state, streamingState = streamingState)
+
+            // SudoRequest / SecretRequest are handled by the ViewModel (issue #524)
+            is WsEvent.SudoRequest -> ReducerResult(state = state, streamingState = streamingState)
+            is WsEvent.SecretRequest -> ReducerResult(state = state, streamingState = streamingState)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────

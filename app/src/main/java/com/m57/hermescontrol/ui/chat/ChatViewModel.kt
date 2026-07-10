@@ -70,6 +70,9 @@ data class ChatUiState(
     val streamingMessage: ChatMessage? = null,
     val errorMessage: String? = null,
     val clarifyRequest: ClarifyUi? = null,
+    // Sudo / secret prompts — surfaced as dialogs (issue #524)
+    val sudoPrompt: SudoPromptUi? = null,
+    val secretPrompt: SecretPromptUi? = null,
     val showSessionPicker: Boolean = false,
     // Search state
     val isSearchActive: Boolean = false,
@@ -98,6 +101,18 @@ data class ClarifyUi(
     val text: String,
     val options: List<String>,
     val clarifyId: String? = null,
+)
+
+/** Transient — not persisted. Holds a pending sudo.password request. */
+data class SudoPromptUi(
+    val requestId: String?,
+    val sessionId: String?,
+)
+
+/** Transient — not persisted. Holds a pending secret (token/password) request. */
+data class SecretPromptUi(
+    val requestId: String?,
+    val sessionId: String?,
 )
 
 class ChatViewModel(
@@ -356,6 +371,14 @@ class ChatViewModel(
 
             is WsEvent.ApprovalRequest -> {
                 handleApprovalRequest(event)
+            }
+
+            is WsEvent.SudoRequest -> {
+                handleSudoRequest(event)
+            }
+
+            is WsEvent.SecretRequest -> {
+                handleSecretRequest(event)
             }
 
             else -> { /* reducer handles these */ }
@@ -1092,6 +1115,94 @@ class ChatViewModel(
                         "all" to false,
                     ),
                 onSent = { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) },
+            )
+        }
+    }
+
+    // ── Sudo / secret prompt flow (issue #524) ──────────────────────────
+
+    /**
+     * The agent needs the user's sudo password. Previously dropped → agent
+     * hung forever. Now we surface a secure dialog and reply via sudo.respond.
+     */
+    private fun handleSudoRequest(event: WsEvent.SudoRequest) {
+        _uiState.update {
+            it.copy(
+                sudoPrompt = SudoPromptUi(event.requestId, event.sessionId),
+                isAgentTyping = false,
+            )
+        }
+    }
+
+    /**
+     * The agent needs a secret value (token/password). Previously dropped →
+     * agent hung forever. Now we surface a secure dialog and reply via
+     * secret.respond.
+     */
+    private fun handleSecretRequest(event: WsEvent.SecretRequest) {
+        _uiState.update {
+            it.copy(
+                secretPrompt = SecretPromptUi(event.requestId, event.sessionId),
+                isAgentTyping = false,
+            )
+        }
+    }
+
+    fun dismissSudo() {
+        _uiState.update { it.copy(sudoPrompt = null) }
+    }
+
+    fun dismissSecret() {
+        _uiState.update { it.copy(secretPrompt = null) }
+    }
+
+    /**
+     * Send the user's sudo password back to the gateway. Mirrors
+     * respondToApproval: clear the prompt immediately, then fire the RPC.
+     */
+    fun respondToSudo(password: String) {
+        val prompt = _uiState.value.sudoPrompt ?: return
+        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
+        if (password.isBlank()) return
+
+        _uiState.update { it.copy(sudoPrompt = null) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "password" to password,
+                )
+            prompt.requestId?.let { id -> params["request_id"] = id }
+            wsClient.send(
+                method = WsMethods.SUDO_RESPOND,
+                params = params,
+                onSent = { id -> trackRequest(id, WsMethods.SUDO_RESPOND) },
+            )
+        }
+    }
+
+    /**
+     * Send the user's secret value back to the gateway. Mirrors respondToSudo.
+     */
+    fun respondToSecret(value: String) {
+        val prompt = _uiState.value.secretPrompt ?: return
+        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
+        if (value.isBlank()) return
+
+        _uiState.update { it.copy(secretPrompt = null) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "value" to value,
+                )
+            prompt.requestId?.let { id -> params["request_id"] = id }
+            wsClient.send(
+                method = WsMethods.SECRET_RESPOND,
+                params = params,
+                onSent = { id -> trackRequest(id, WsMethods.SECRET_RESPOND) },
             )
         }
     }

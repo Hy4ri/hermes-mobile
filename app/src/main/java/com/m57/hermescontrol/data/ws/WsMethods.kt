@@ -17,6 +17,8 @@ object WsMethods {
     const val PROMPT_SUBMIT = "prompt.submit"
     const val CLARIFY_RESPOND = "clarify.respond"
     const val APPROVAL_RESPOND = "approval.respond"
+    const val SUDO_RESPOND = "sudo.respond"
+    const val SECRET_RESPOND = "secret.respond"
 
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"

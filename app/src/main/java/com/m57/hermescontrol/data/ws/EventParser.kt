@@ -115,6 +115,16 @@ object EventParser {
                 WsEvent.ApprovalRequest(command, description, patternKeys, sessionId)
             }
 
+            "sudo.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.SudoRequest(requestId, sessionId)
+            }
+
+            "secret.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.SecretRequest(requestId, sessionId)
+            }
+
             else -> {
                 Log.w(TAG, "Unknown event type: $eventType")
                 WsEvent.Unknown(rawJson)

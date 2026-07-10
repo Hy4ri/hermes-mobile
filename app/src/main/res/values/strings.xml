@@ -12,6 +12,12 @@
     <string name="chat_clarify_response">Response</string>
     <string name="chat_send">Send</string>
     <string name="chat_dismiss">Dismiss</string>
+    <string name="chat_sudo_title">Sudo Password Required</string>
+    <string name="chat_sudo_body">The agent needs your sudo password to continue. It will not be shown.</string>
+    <string name="chat_sudo_password">Password</string>
+    <string name="chat_secret_title">Secret Required</string>
+    <string name="chat_secret_body">The agent needs a secret value (token or password) to continue. It will not be shown.</string>
+    <string name="chat_secret_value">Secret</string>
     <string name="chat_search_placeholder">Search messages\u2026</string>
     <string name="chat_clear_search_desc">Clear</string>
     <string name="chat_prev_match_desc">Previous match</string>

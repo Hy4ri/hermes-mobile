@@ -167,6 +167,48 @@ class EventParserTest {
     }
 
     @Test
+    fun testParseReasoningDelta_returnsReasoningDeltaEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "reasoning.delta",
+                        "payload" to mapOf("text" to "reasoning token", "session_id" to "session-r1"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ReasoningDelta)
+        val deltaEvent = event as WsEvent.ReasoningDelta
+        assertEquals("reasoning token", deltaEvent.token)
+        assertEquals("session-r1", deltaEvent.sessionId)
+    }
+
+    @Test
+    fun testParseReasoningAvailable_returnsReasoningAvailableEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "reasoning.available",
+                        "payload" to mapOf("session_id" to "session-r1"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ReasoningAvailable)
+        assertEquals("session-r1", (event as WsEvent.ReasoningAvailable).sessionId)
+    }
+
+    @Test
     fun testParseClarifyRequest_returnsClarifyRequestEvent() {
         val response =
             createJsonRpcResponse(

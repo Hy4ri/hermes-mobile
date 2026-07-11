@@ -7,9 +7,7 @@ import com.m57.hermescontrol.data.model.ModelsAnalyticsResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,28 +41,24 @@ class AnalyticsViewModel : ViewModel() {
 
     /** Reload both analytics endpoints for the current [days]/[profile]. */
     fun load() {
-        if (loadJob?.isActive == true) return
+        loadJob?.cancel() // cancel any in-flight load so a chip change isn't dropped
         val days = _uiState.value.days
         val profile = _uiState.value.profile
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         loadJob =
             viewModelScope.launch {
-                val usageDeferred =
-                    async(Dispatchers.IO) {
-                        safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) }
-                    }
-                val modelsDeferred =
-                    async(Dispatchers.IO) {
-                        safeApiCall<ModelsAnalyticsResponse> { api.getModelsAnalytics(days, profile) }
-                    }
-                val usageResult = usageDeferred.await()
-                val modelsResult = modelsDeferred.await()
-                val usage = (usageResult as? NetworkResult.Success)?.data
-                val models = (modelsResult as? NetworkResult.Success)?.data
+                // Retrofit suspends are already main-safe; no need for async(Dispatchers.IO).
+                val usageResult = safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) }
+                val modelsResult = safeApiCall<ModelsAnalyticsResponse> { api.getModelsAnalytics(days, profile) }
+                // On failure keep previously-loaded data visible instead of wiping it.
+                val usage = (usageResult as? NetworkResult.Success)?.data ?: _uiState.value.usage
+                val models = (modelsResult as? NetworkResult.Success)?.data ?: _uiState.value.models
                 val error =
                     when {
-                        usage == null -> "Failed to load usage analytics"
-                        models == null -> "Failed to load model analytics"
+                        usageResult !is NetworkResult.Success && usage == null ->
+                            "Failed to load usage analytics"
+                        modelsResult !is NetworkResult.Success && models == null ->
+                            "Failed to load model analytics"
                         else -> null
                     }
                 _uiState.update {

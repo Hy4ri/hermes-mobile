@@ -373,4 +373,33 @@ class HermesApiServiceTest {
             val recorded = mockWebServer.takeRequest()
             assertEquals("/api/analytics/models?days=30&profile=work", recorded.path)
         }
+
+    @Test
+    fun testGetAnalytics_missingTotalsUsesDefaults_notNullable() =
+        runTest {
+            // Backend omits `totals` and most daily fields in some responses;
+            // the model uses non-null defaults, so parsing must NOT fail or
+            // produce nulls (counter-check to a review claim that fields are
+            // nullable). Verifies kotlinx.serialization fills defaults.
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """{"daily":[{"day":"2026-07-01"}],"by_model":[]}""",
+                    ),
+            )
+
+            val response = apiService.getAnalytics(7, null)
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            // totals defaults (non-null), not null
+            assertNotNull(body?.totals)
+            assertEquals(0, body?.totals?.total_input)
+            assertEquals(0.0, body?.totals?.total_estimated_cost)
+            // daily entry sparse fields default (non-null)
+            assertEquals(1, body?.daily?.size)
+            assertEquals("2026-07-01", body?.daily?.first()?.day)
+            assertEquals(0L, body?.daily?.first()?.input_tokens)
+        }
 }

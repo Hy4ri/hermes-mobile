@@ -904,6 +904,10 @@ private fun SearchResultCard(
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
     val snippet = session.preview?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
+    // Backend search snippets carry FTS5 highlight markers (>>>term<<<). The mobile
+    // highlights by the raw query term, so strip those markers before display to avoid
+    // rendering literal ">>>"/"<<<" in the result text.
+    val cleanSnippet = snippet.replace(">>>", "").replace("<<<", "")
     val playedAt = formatPlayedAt(session.started_at)
 
     Card(
@@ -975,7 +979,7 @@ private fun SearchResultCard(
 
                 // The matched snippet, highlighted — shown as the body, NOT as a title.
                 Text(
-                    text = highlightText(snippet, query, highlightBackground, highlightForeground),
+                    text = highlightText(cleanSnippet, query, highlightBackground, highlightForeground),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 4,

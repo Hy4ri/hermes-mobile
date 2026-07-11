@@ -51,7 +51,7 @@ import kotlinx.coroutines.delay
  * completion trigger).
  */
 
-private val PATH_TOKEN_RE = Regex("""@[\w./:\-~]*$""")
+private val PATH_TOKEN_RE = Regex("""(?<!\S)@[\w./:\-~]*$""")
 
 /**
  * Find the `@`-tagged token at the end of [text], or `null` if the caret is
@@ -131,7 +131,7 @@ fun rememberPathCompletions(
         derivedStateOf { if (sessionId != null) findPathToken(input.text) else null }
     }
 
-    LaunchedEffect(token, sessionId) {
+    LaunchedEffect(input.text, sessionId) {
         if (token == null || sessionId == null) {
             suggestions = emptyList()
             isLoading = false
@@ -233,7 +233,7 @@ fun PathCompletionDropdown(state: PathCompletionState) {
                                         Icons.AutoMirrored.Filled.InsertDriveFile
                                     },
                                 contentDescription = null,
-                                modifier = androidx.compose.ui.Modifier.size(18.dp),
+                                modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         },

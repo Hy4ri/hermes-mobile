@@ -41,6 +41,9 @@ class PathCompletionTest {
         assertNull(findPathToken("type @ done"))
         // A space after the `@` run ends the token, so it's not active
         assertNull(findPathToken("ping @ and then text"))
+        // An `@` glued to a preceding word (email, annotation) is NOT a trigger
+        assertNull(findPathToken("email me@host.com"))
+        assertNull(findPathToken("call foo@bar now"))
     }
 
     // ── replaceActivePathToken ──────────────────────────────────────────────

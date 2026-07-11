@@ -151,7 +151,7 @@ fun ChatScreen(
         }
     }
     val scrollScope = rememberCoroutineScope()
-    var inputText by rememberSaveable { mutableStateOf(TextFieldValue("")) }
+    var inputText by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }

@@ -6,11 +6,13 @@ import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionRenameRequest
+import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,8 +43,13 @@ data class SessionsUiState(
     val toastMessage: String? = null,
     val sessionToDeleteConfirm: String? = null,
     val showBulkDeleteConfirm: Boolean = false,
+    val searchQuery: String = "",
+    val isSearching: Boolean = false,
+    val searchResults: List<SessionSearchResult> = emptyList(),
+    val searchError: String? = null,
 ) {
     val hasMore: Boolean get() = total > sessions.size
+    val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 }
 
 class SessionsViewModel : ViewModel() {
@@ -55,6 +62,7 @@ class SessionsViewModel : ViewModel() {
     /** Page size sent to the server — matches the default the gateway uses. */
     private companion object {
         const val PAGE_SIZE = 20
+        const val SEARCH_DEBOUNCE_MS = 300L
     }
 
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
@@ -132,6 +140,56 @@ class SessionsViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    // ── Search (server-backed FTS5) ──────────────────────────────────
+
+    private var searchJob: Job? = null
+
+    /**
+     * Debounced server-side session search. A non-blank query schedules a search
+     * call after [SEARCH_DEBOUNCE_MS]; a blank query returns to the normal
+     * paginated list mode.
+     */
+    fun setSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            _uiState.update {
+                it.copy(searchResults = emptyList(), searchError = null, isSearching = false)
+            }
+            return
+        }
+        searchJob =
+            viewModelScope.launch {
+                delay(SEARCH_DEBOUNCE_MS)
+                _uiState.update { it.copy(isSearching = true, searchError = null) }
+                val result =
+                    safeApiCall {
+                        ApiClient.hermesApi.searchSessions(q = query, profile = null)
+                    }
+                when (result) {
+                    is NetworkResult.Success -> {
+                        _uiState.update {
+                            it.copy(
+                                isSearching = false,
+                                searchResults = result.data?.results.orEmpty(),
+                                searchError = null,
+                            )
+                        }
+                    }
+
+                    is NetworkResult.Failure -> {
+                        _uiState.update {
+                            it.copy(
+                                isSearching = false,
+                                searchResults = emptyList(),
+                                searchError = "Search failed: ${result.error.message}",
+                            )
+                        }
+                    }
+                }
+            }
     }
 
     // ── Stats ────────────────────────────────────────────────────────────

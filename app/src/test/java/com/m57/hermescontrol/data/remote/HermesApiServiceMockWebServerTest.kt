@@ -308,6 +308,87 @@ class HermesApiServiceMockWebServerTest {
         }
 
     @Test
+    fun searchSessions_parsesResponse() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "results": [
+                                {
+                                    "session_id": "sess-abc",
+                                    "snippet": "…matched text…",
+                                    "role": "user",
+                                    "source": "telegram",
+                                    "model": "gpt-4o",
+                                    "session_started": 1718000000
+                                }
+                            ]
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.searchSessions(q = "matched", profile = null)
+            assertTrue(response.isSuccessful)
+
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(1, body!!.results.size)
+
+            val first = body.results[0]
+            assertEquals("sess-abc", first.session_id)
+            assertEquals("…matched text…", first.snippet)
+            assertEquals("telegram", first.source)
+            assertEquals("gpt-4o", first.model)
+            assertEquals(1718000000.0, first.session_started!!, 0.0)
+        }
+
+    @Test
+    fun searchSessions_encodesQueryAndProfileParams() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "results": [] }"""),
+            )
+
+            api.searchSessions(q = "hello world", profile = "work")
+
+            val request = mockServer.takeRequest()
+            assertTrue(
+                "q must be URL-encoded",
+                request.path!!.contains("q=hello%20world"),
+            )
+            assertTrue(
+                "profile param must be sent",
+                request.path!!.contains("profile=work"),
+            )
+        }
+
+    @Test
+    fun getSessionMessages_encodesSessionIdWithSlashes() =
+        runBlocking {
+            val sessionId = "session/with/slashes"
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""{ "messages": [] }"""),
+            )
+
+            api.getSessionMessages(sessionId)
+
+            val request = mockServer.takeRequest()
+            assertEquals(
+                "path should contain the session ID properly encoded",
+                "/api/sessions/desktop/session/messages/session%2Fwith%2Fslashes?limit=150&offset=0",
+                request.path,
+            )
+        }
+
+    @Test
     fun getOAuthProviders_parsesList() =
         runBlocking {
             mockServer.enqueue(

@@ -67,6 +67,7 @@ import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionListResponse
+import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionPromptResponse
 import com.m57.hermescontrol.data.model.SessionRenameRequest
@@ -131,6 +132,12 @@ interface HermesApiService {
         @Query("offset") offset: Int = 0,
         @Query("order") order: String = "recent",
     ): Response<SessionListResponse>
+
+    @GET("api/sessions/search")
+    suspend fun searchSessions(
+        @Query("q") q: String,
+        @Query("profile") profile: String? = null,
+    ): Response<SessionSearchResponse>
 
     @GET("api/sessions/{id}/messages")
     suspend fun getSessionMessages(

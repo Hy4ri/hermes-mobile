@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+private val DAY_OPTIONS = listOf(7, 30, 90)
+
 /**
  * Drives the Analytics screen (issue #537): historical usage + per-model stats
  * from `GET /api/analytics/usage` and `GET /api/analytics/models`.
@@ -40,15 +42,48 @@ class AnalyticsViewModel : ViewModel() {
 
     private var loadJob: Job? = null
 
+    /** In-memory cache keyed by days for instant tab switching. */
+    private data class CacheEntry(
+        val usage: AnalyticsResponse,
+        val models: ModelsAnalyticsResponse?,
+    )
+
+    private val cache = mutableMapOf<Int, CacheEntry>()
+
     /** Reload both analytics endpoints for the current [days]/[profile]. */
     fun load() {
-        loadJob?.cancel() // cancel any in-flight load so a chip change isn't dropped
+        loadJob?.cancel()
         val days = _uiState.value.days
         val profile = _uiState.value.profile
+
+        // Serve from cache instantly if available.
+        cache[days]?.let { cached ->
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    usage = cached.usage,
+                    models = cached.models,
+                    errorMessage = null,
+                )
+            }
+            // Refresh in background silently.
+            fetchAndCache(days, profile, showLoading = false)
+            return
+        }
+
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        fetchAndCache(days, profile, showLoading = true)
+    }
+
+    private fun fetchAndCache(
+        days: Int,
+        profile: String?,
+        showLoading: Boolean,
+    ) {
         loadJob =
             viewModelScope.launch {
-                val usageDeferred = async { safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) } }
+                val usageDeferred =
+                    async { safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) } }
                 val modelsDeferred =
                     async { safeApiCall<ModelsAnalyticsResponse> { api.getModelsAnalytics(days, profile) } }
                 val usageResult = usageDeferred.await()
@@ -56,6 +91,10 @@ class AnalyticsViewModel : ViewModel() {
                 // On failure keep previously-loaded data visible instead of wiping it.
                 val usage = (usageResult as? NetworkResult.Success)?.data ?: _uiState.value.usage
                 val models = (modelsResult as? NetworkResult.Success)?.data ?: _uiState.value.models
+                // Cache successful results.
+                if (usage != null) {
+                    cache[days] = CacheEntry(usage, models)
+                }
                 // Surface the REAL failure (HTTP code / connection / parse error)
                 // instead of a generic string so the root cause is never hidden.
                 val failure =
@@ -74,15 +113,43 @@ class AnalyticsViewModel : ViewModel() {
                             failure?.message ?: "Failed to load model analytics"
                         else -> null
                     }
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        usage = usage,
-                        models = models,
-                        errorMessage = error,
-                    )
+                // Only update UI if this is still the active day window.
+                if (_uiState.value.days == days) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            usage = usage,
+                            models = models,
+                            errorMessage = error,
+                        )
+                    }
+                }
+                // Prefetch other day windows in the background.
+                if (showLoading) {
+                    prefetchOtherWindows(days, profile)
                 }
             }
+    }
+
+    /** Prefetch the other two day windows silently so tab switching is instant. */
+    private fun prefetchOtherWindows(
+        currentDays: Int,
+        profile: String?,
+    ) {
+        DAY_OPTIONS.filter { it != currentDays }.forEach { otherDays ->
+            if (cache.containsKey(otherDays)) return@forEach
+            viewModelScope.launch {
+                val usageDeferred =
+                    async { safeApiCall<AnalyticsResponse> { api.getAnalytics(otherDays, profile) } }
+                val modelsDeferred =
+                    async { safeApiCall<ModelsAnalyticsResponse> { api.getModelsAnalytics(otherDays, profile) } }
+                val usageResult = (usageDeferred.await() as? NetworkResult.Success)?.data
+                val modelsResult = (modelsDeferred.await() as? NetworkResult.Success)?.data
+                if (usageResult != null) {
+                    cache[otherDays] = CacheEntry(usageResult, modelsResult)
+                }
+            }
+        }
     }
 
     /** Change the trailing window and reload. */

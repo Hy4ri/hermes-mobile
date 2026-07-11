@@ -11,7 +11,9 @@ data class AnalyticsResponse(
     val daily: List<AnalyticsDailyEntry> = emptyList(),
     val by_model: List<AnalyticsModelEntry> = emptyList(),
     val totals: AnalyticsTotals = AnalyticsTotals(),
+    val period_days: Int = 0,
     val skills: AnalyticsSkills = AnalyticsSkills(),
+    val tools: List<Map<String, String>> = emptyList(),
 )
 
 @Serializable

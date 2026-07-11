@@ -53,12 +53,22 @@ class AnalyticsViewModel : ViewModel() {
                 // On failure keep previously-loaded data visible instead of wiping it.
                 val usage = (usageResult as? NetworkResult.Success)?.data ?: _uiState.value.usage
                 val models = (modelsResult as? NetworkResult.Success)?.data ?: _uiState.value.models
+                // Surface the REAL failure (HTTP code / connection / parse error)
+                // instead of a generic string so the root cause is never hidden.
+                val failure =
+                    when {
+                        usageResult is NetworkResult.Failure -> usageResult.error
+                        modelsResult is NetworkResult.Failure -> modelsResult.error
+                        else -> null
+                    }
                 val error =
                     when {
-                        usageResult !is NetworkResult.Success && usage == null ->
-                            "Failed to load usage analytics"
-                        modelsResult !is NetworkResult.Success && models == null ->
-                            "Failed to load model analytics"
+                        usage == null && models == null ->
+                            failure?.message ?: "Failed to load analytics"
+                        usage == null ->
+                            failure?.message ?: "Failed to load usage analytics"
+                        models == null ->
+                            failure?.message ?: "Failed to load model analytics"
                         else -> null
                     }
                 _uiState.update {

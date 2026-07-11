@@ -402,4 +402,35 @@ class HermesApiServiceTest {
             assertEquals("2026-07-01", body?.daily?.first()?.day)
             assertEquals(0L, body?.daily?.first()?.input_tokens)
         }
+
+    @Test
+    fun testGetAnalytics_parsesExactBackendShape() =
+        runTest {
+            // Exact shape produced by hermes_cli/web_server.py get_usage_analytics,
+            // including the extra top-level `period_days` and `tools` keys (the
+            // mobile model ignores `tools` and captures `period_days`).
+            val json =
+                """{"daily":[""" +
+                    """{"day":"2026-07-01","input_tokens":100,"output_tokens":200,"api_calls":7}],""" +
+                    """"by_model":[{"model":"gpt-4o","input_tokens":100,"api_calls":7}],""" +
+                    """"totals":{"total_input":100,"total_estimated_cost":0.03,"total_api_calls":7},""" +
+                    """"period_days":7,"skills":{"summary":{"distinct_skills_used":2},""" +
+                    """"top_skills":[{"skill":"x","total_count":1,"percentage":50.0,"last_used_at":1700000000}]},""" +
+                    """"tools":[{"name":"web_search"}]}"""
+            mockWebServer.enqueue(
+                MockResponse().setResponseCode(200).setBody(json),
+            )
+
+            val response = apiService.getAnalytics(7, null)
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(7, body?.period_days)
+            assertEquals(1, body?.daily?.size)
+            assertEquals(100L, body?.daily?.first()?.input_tokens)
+            assertEquals(0.03, body?.totals?.total_estimated_cost)
+            assertEquals(2, body?.skills?.summary?.distinct_skills_used)
+            assertEquals("x", body?.skills?.top_skills?.first()?.skill)
+            assertEquals(1, body?.tools?.size) // extra key parsed, not dropped
+        }
 }

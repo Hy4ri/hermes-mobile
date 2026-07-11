@@ -36,6 +36,7 @@ import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
+import com.m57.hermescontrol.ui.process.ProcessesScreen as ProcessesScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
 import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
@@ -166,6 +167,12 @@ object ScreenRegistry {
                 Icons.Filled.HistoryEdu,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> LogsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ProcessesScreen,
+                R.string.screen_processes,
+                Icons.Filled.Memory,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> ProcessesScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 KanbanScreen,
                 R.string.screen_kanban,

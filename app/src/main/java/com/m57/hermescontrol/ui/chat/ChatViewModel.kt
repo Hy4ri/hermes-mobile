@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -414,6 +415,10 @@ class ChatViewModel(
                         chatTitle = "Hermes",
                     )
                 }
+                // Mirror the active session id app-wide so session-scoped
+                // drawer screens (e.g. Processes, issue #532) can issue
+                // session-scoped RPCs. See ActiveSessionHolder.
+                ActiveSessionHolder.set(sessionId)
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
@@ -456,6 +461,8 @@ class ChatViewModel(
                         currentSessionId = sessionId,
                     )
                 }
+                // Mirror the active session id app-wide (issue #532).
+                ActiveSessionHolder.set(sessionId)
                 addSystemMessage("Session resumed")
             }
 
@@ -891,6 +898,8 @@ class ChatViewModel(
                 isAgentTyping = false,
             )
         }
+        // Mirror the active session id app-wide (issue #532).
+        ActiveSessionHolder.set(sessionId)
         _streamingState.update { StreamingState() }
         viewModelScope.launch {
             // Step 1: Load cached messages first — instant display

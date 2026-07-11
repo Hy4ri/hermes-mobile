@@ -71,6 +71,7 @@
     <string name="screen_kanban">Kanban</string>
     <string name="screen_achievements">Achievements</string>
     <string name="screen_history">History</string>
+    <string name="screen_processes">Processes</string>
 
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>
@@ -840,4 +841,15 @@
     <string name="loading_state_subtitle_default">Loading…</string>
     <string name="loading_state_subtitle_models">Fetching model providers…</string>
     <string name="loading_state_subtitle_channels">Loading channels…</string>
+
+    <!-- Processes Screen (issue #532) -->
+    <string name="processes_empty_title">No running processes</string>
+    <string name="processes_empty_desc">Background processes for this session will appear here.</string>
+    <string name="processes_no_session_title">No active chat session</string>
+    <string name="processes_no_session_desc">Open a chat session first — the process list is scoped to a session.</string>
+    <string name="processes_running_hint">Running</string>
+    <string name="processes_kill_title">Kill process?</string>
+    <string name="processes_kill_desc">Stop \u201c%1$s\u201d? This cannot be undone.</string>
+    <string name="processes_kill_confirm">Kill</string>
+    <string name="processes_kill_cd">Kill process</string>
 </resources>

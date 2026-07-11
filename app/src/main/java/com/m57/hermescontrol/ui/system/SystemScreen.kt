@@ -16,16 +16,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,7 +65,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -374,8 +387,11 @@ private fun LazyListScope.hostSection(
                                     strokeWidth = 2.dp,
                                 )
                                 Spacer(modifier = Modifier.size(spacing.sm))
+                            } else {
+                                Icon(Icons.Filled.Update, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.size(spacing.xs))
                             }
-                            Text(stringResource(R.string.system_action_check_updates))
+                            AutoScaleButtonText(stringResource(R.string.system_action_check_updates))
                         }
                         state.updateInfo?.let { info ->
                             if (info.update_available == true && info.can_apply == true) {
@@ -383,7 +399,13 @@ private fun LazyListScope.hostSection(
                                     onClick = { viewModel.openUpdateConfirm() },
                                     modifier = Modifier.weight(1f),
                                 ) {
-                                    Text(stringResource(R.string.system_action_update_now))
+                                    Icon(
+                                        Icons.Filled.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(modifier = Modifier.size(spacing.xs))
+                                    AutoScaleButtonText(stringResource(R.string.system_action_update_now))
                                 }
                             }
                         }
@@ -654,16 +676,26 @@ private fun LazyListScope.curatorSection(
                                 modifier = Modifier.weight(1f),
                             ) {
                                 if (curator.paused == true) {
-                                    Text(stringResource(R.string.system_curator_resume))
+                                    Icon(
+                                        Icons.Filled.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(modifier = Modifier.size(spacing.xs))
+                                    AutoScaleButtonText(stringResource(R.string.system_curator_resume))
                                 } else {
-                                    Text(stringResource(R.string.system_curator_pause))
+                                    Icon(Icons.Filled.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.size(spacing.xs))
+                                    AutoScaleButtonText(stringResource(R.string.system_curator_pause))
                                 }
                             }
                             Button(
                                 onClick = { viewModel.runCuratorNow() },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(stringResource(R.string.system_curator_run_now))
+                                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.size(spacing.xs))
+                                AutoScaleButtonText(stringResource(R.string.system_curator_run_now))
                             }
                         }
                     }
@@ -787,7 +819,9 @@ private fun LazyListScope.gatewaySection(
                                 onClick = { viewModel.startGateway() },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(stringResource(R.string.system_gateway_start))
+                                Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.size(spacing.xs))
+                                AutoScaleButtonText(stringResource(R.string.system_gateway_start))
                             }
                         }
                         if (isRunning) {
@@ -795,13 +829,26 @@ private fun LazyListScope.gatewaySection(
                                 onClick = { viewModel.restartGateway() },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(stringResource(R.string.system_gateway_restart))
+                                Icon(
+                                    Icons.Filled.RestartAlt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(modifier = Modifier.size(spacing.xs))
+                                AutoScaleButtonText(stringResource(R.string.system_gateway_restart))
                             }
                             OutlinedButton(
                                 onClick = { viewModel.stopGateway() },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(
+                                Icon(
+                                    Icons.Filled.Stop,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.error,
+                                )
+                                Spacer(modifier = Modifier.size(spacing.xs))
+                                AutoScaleButtonText(
                                     stringResource(R.string.system_gateway_stop),
                                     color = MaterialTheme.colorScheme.error,
                                 )
@@ -874,19 +921,29 @@ private fun LazyListScope.memorySection(
                                 onClick = { onResetRequest("memory") },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(stringResource(R.string.system_memory_reset_memory))
+                                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.size(spacing.xs))
+                                AutoScaleButtonText(stringResource(R.string.system_memory_reset_memory))
                             }
                             FilledTonalButton(
                                 onClick = { onResetRequest("user") },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(stringResource(R.string.system_memory_reset_user))
+                                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.size(spacing.xs))
+                                AutoScaleButtonText(stringResource(R.string.system_memory_reset_user))
                             }
                             FilledTonalButton(
                                 onClick = { onResetRequest("all") },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text(stringResource(R.string.system_memory_reset_all))
+                                Icon(
+                                    Icons.Filled.DeleteForever,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(modifier = Modifier.size(spacing.xs))
+                                AutoScaleButtonText(stringResource(R.string.system_memory_reset_all))
                             }
                         }
                     }
@@ -1047,19 +1104,25 @@ private fun LazyListScope.operationsSection(
                         },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_doctor))
+                        Icon(Icons.Filled.HealthAndSafety, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_doctor))
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runSecurityAudit() },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_security_audit))
+                        Icon(Icons.Filled.VerifiedUser, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_security_audit))
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runUpdateSkills() },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_update_skills))
+                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_update_skills))
                     }
                 }
 
@@ -1074,19 +1137,25 @@ private fun LazyListScope.operationsSection(
                         onClick = { viewModel.runPromptSize() },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_prompt_size))
+                        Icon(Icons.Filled.HealthAndSafety, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_prompt_size))
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runDump() },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_dump))
+                        Icon(Icons.Filled.Build, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_dump))
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runConfigMigrate() },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_config_migrate))
+                        Icon(Icons.Filled.Build, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_config_migrate))
                     }
                 }
 
@@ -1108,14 +1177,18 @@ private fun LazyListScope.operationsSection(
                         onClick = { viewModel.triggerBackup() },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_backup_create))
+                        Icon(Icons.Filled.Backup, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_backup_create))
                     }
                     OutlinedButton(
                         onClick = { viewModel.downloadBackup() },
                         enabled = state.backupArchive != null,
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(stringResource(R.string.system_op_backup_download))
+                        Icon(Icons.Filled.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                        AutoScaleButtonText(stringResource(R.string.system_op_backup_download))
                     }
                 }
 
@@ -1545,4 +1618,34 @@ private fun LazyListScope.actionLogSection(
             }
         }
     }
+}
+
+@Composable
+private fun AutoScaleButtonText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+) {
+    val style =
+        when {
+            text.length >= 15 ->
+                MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            text.length >= 11 ->
+                MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            else -> MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+        }
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
 }

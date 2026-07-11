@@ -471,6 +471,7 @@ fun ChatScreen(
                 pendingAttachments = state.pendingAttachments,
                 reasoningEffort = state.reasoningEffort,
                 fastMode = state.fastMode,
+                fastSupported = state.fastSupported,
                 onReasoningEffortChange = viewModel::setReasoningEffort,
                 onToggleFastMode = viewModel::toggleFastMode,
                 onCameraTap = {
@@ -639,6 +640,7 @@ private fun ChatInputBar(
     onRemoveAttachment: (Int) -> Unit = {},
     reasoningEffort: String = "medium",
     fastMode: Boolean = false,
+    fastSupported: Boolean = true,
     onReasoningEffortChange: (String) -> Unit = {},
     onToggleFastMode: () -> Unit = {},
 ) {
@@ -756,59 +758,54 @@ private fun ChatInputBar(
                 // In-chat model controls (issue #529): reasoning effort + fast toggle.
                 // Fire config.set with session_id; no dialog, mirrors desktop composer.
                 val reasoningEfforts = listOf("minimal", "low", "medium", "high", "xhigh", "max")
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.chat_model_controls_label),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        reasoningEfforts.forEach { effort ->
-                            val selected = effort == reasoningEffort
-                            FilterChip(
-                                selected = selected,
-                                onClick = { onReasoningEffortChange(effort) },
-                                label = {
-                                    Text(
-                                        text = effort,
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
-                                },
-                                modifier = Modifier.height(28.dp),
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.chat_reasoning_controls_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    reasoningEfforts.forEach { effort ->
+                        val selected = effort == reasoningEffort
                         FilterChip(
-                            selected = fastMode,
-                            onClick = onToggleFastMode,
+                            selected = selected,
+                            onClick = { onReasoningEffortChange(effort) },
                             label = {
                                 Text(
-                                    text = stringResource(R.string.chat_fast_mode_label),
+                                    text = effort,
                                     style = MaterialTheme.typography.labelSmall,
                                 )
                             },
                             modifier = Modifier.height(28.dp),
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.Bolt,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            },
                         )
                     }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    FilterChip(
+                        selected = fastMode,
+                        onClick = onToggleFastMode,
+                        enabled = fastSupported,
+                        label = {
+                            Text(
+                                text = stringResource(R.string.chat_fast_mode_label),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                        modifier = Modifier.height(28.dp),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Bolt,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        },
+                    )
                 }
 
                 Row(

@@ -131,7 +131,7 @@
     <string name="chat_attachment_send_error">Failed to process attachment</string>
 
     <!-- In-chat model controls (issue #529) -->
-    <string name="chat_model_controls_label">Model</string>
+    <string name="chat_reasoning_controls_label">Reasoning</string>
     <string name="chat_fast_mode_label">Fast</string>
 
     <!-- Camera -->

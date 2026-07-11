@@ -6,6 +6,9 @@ import android.net.Uri
 import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.config.ModelPrefsSerializer
+import com.m57.hermescontrol.data.config.ModelPrefsState
+import com.m57.hermescontrol.data.config.ModelPrefsStore
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -46,6 +49,7 @@ class ChatViewModelTest {
     private val mockConnectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
     private lateinit var app: Application
     private lateinit var fakeRepo: FakeChatPersistenceRepository
+    private lateinit var modelPrefsStore: ModelPrefsStore
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
@@ -70,6 +74,18 @@ class ChatViewModelTest {
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
+
+        // In-memory ModelPrefsStore so we can assert persistence of reasoning effort.
+        val tmpFile =
+            java.io.File
+                .createTempFile("model_prefs_test", ".json")
+                .also { it.deleteOnExit() }
+        val ds =
+            androidx.datastore.core.DataStoreFactory.create(
+                serializer = ModelPrefsSerializer,
+            ) { tmpFile }
+        modelPrefsStore = ModelPrefsStore(ds, kotlinx.coroutines.CoroutineScope(testDispatcher))
+        every { AuthManager.modelPrefsStore } returns modelPrefsStore
 
         app = mockk(relaxed = true)
         fakeRepo = FakeChatPersistenceRepository()
@@ -1473,6 +1489,92 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals("medium", viewModel.uiState.value.reasoningEffort)
+            verify(inverse = true) {
+                HermesWsClient.request(WsMethods.CONFIG_SET, any())
+            }
+        }
+
+    // ── Issue #529 follow-up: persist reasoning effort across cold starts ──
+
+    @Test
+    fun testReasoningEffort_seededFromPersistedPref() =
+        runTest {
+            // Pre-seed the store with a non-default effort.
+            modelPrefsStore.update { ModelPrefsState(lastReasoningEffort = "xhigh") }
+            advanceUntilIdle()
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertEquals("xhigh", viewModel.uiState.value.reasoningEffort)
+        }
+
+    @Test
+    fun testSetReasoningEffort_persistsChoice() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(WsMethods.CONFIG_SET, any())
+            } answers { CompletableDeferred<Any?>(Unit) }
+
+            viewModel.setReasoningEffort("high")
+            advanceUntilIdle()
+
+            // UI + persisted store both reflect the new effort.
+            assertEquals("high", viewModel.uiState.value.reasoningEffort)
+            assertEquals("high", modelPrefsStore.getLatestState().lastReasoningEffort)
+        }
+
+    // ── Issue #529 follow-up: grey-out / disable Fast for unsupported models ─
+
+    @Test
+    fun testSessionInfo_consumesModelAndFastSupport() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // A model the gateway says does NOT support fast mode.
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(mapOf("model" to "claude-haiku-4-5")),
+            )
+            advanceUntilIdle()
+
+            assertEquals("claude-haiku-4-5", viewModel.uiState.value.model)
+            assertEquals(false, viewModel.uiState.value.fastSupported)
+
+            // A model that DOES support fast mode.
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(mapOf("model" to "gpt-5")),
+            )
+            advanceUntilIdle()
+
+            assertEquals("gpt-5", viewModel.uiState.value.model)
+            assertEquals(true, viewModel.uiState.value.fastSupported)
+        }
+
+    @Test
+    fun testToggleFastMode_noOpWhenUnsupported() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // Report an unsupported model via session.info.
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(mapOf("model" to "gemini-2.5-pro")),
+            )
+            advanceUntilIdle()
+            assertEquals(false, viewModel.uiState.value.fastSupported)
+
+            every {
+                HermesWsClient.request(WsMethods.CONFIG_SET, any())
+            } answers { CompletableDeferred<Any?>(Unit) }
+
+            // Tap Fast — must be a no-op (no RPC, no UI flip).
+            viewModel.toggleFastMode()
+            advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.fastMode)
             verify(inverse = true) {
                 HermesWsClient.request(WsMethods.CONFIG_SET, any())
             }

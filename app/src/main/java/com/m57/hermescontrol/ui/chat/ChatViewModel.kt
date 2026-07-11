@@ -76,6 +76,11 @@ data class ChatUiState(
     // In-chat model controls (issue #529) — fire config.set with session_id
     val reasoningEffort: String = "medium",
     val fastMode: Boolean = false,
+    // Live model reported by the gateway via `session.info`. Used to decide
+    // fast-mode eligibility on-device (the server never pushes a capability
+    // flag). Defaults to true so the Fast chip is usable until we know better.
+    val model: String = "",
+    val fastSupported: Boolean = true,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -115,13 +120,22 @@ class ChatViewModel(
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
-    // ── Internal state ───────────────────────────────────────────────────
-    private val _uiState = MutableStateFlow(ChatUiState())
-
     private val _streamingState = MutableStateFlow(StreamingState())
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     private val wsClient = HermesWsClient
+
+    private val modelPrefsStore = AuthManager.modelPrefsStore
+
+    // ── Internal state ───────────────────────────────────────────────────
+    private val _uiState =
+        MutableStateFlow(
+            ChatUiState(
+                // Persist the user's last reasoning effort across cold starts
+                // (issue #529 follow-up) instead of always defaulting to "medium".
+                reasoningEffort = modelPrefsStore.getLatestState().lastReasoningEffort,
+            ),
+        )
 
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchDelegate =
@@ -139,8 +153,6 @@ class ChatViewModel(
             isCurrentSession = { sessionId -> isCurrentSession(sessionId) },
             isTestEnvironment = { isTestEnvironment() },
         )
-
-    // ── Public state ─────────────────────────────────────────────────────
 
     /**
      * Combined UI state: merges internal state with the WS connection status
@@ -404,6 +416,14 @@ class ChatViewModel(
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = "Hermes",
+                        // Reset in-chat model controls for the new session.
+                        // `model`/`fastSupported` will be refreshed by the
+                        // upcoming `session.info` event; until then, treat Fast
+                        // as supported so the chip isn't spuriously disabled.
+                        reasoningEffort = "medium",
+                        fastMode = false,
+                        model = "",
+                        fastSupported = true,
                     )
                 }
                 _streamingState.update { StreamingState() }
@@ -732,10 +752,13 @@ class ChatViewModel(
         // Only flip the chip when a session exists — otherwise config.set is a no-op.
         if (!setConfig("reasoning", effort)) return
         _uiState.update { it.copy(reasoningEffort = effort) }
+        // Remember the pick so the composer doesn't reset to "medium" on next launch.
+        modelPrefsStore.update { it.copy(lastReasoningEffort = effort) }
     }
 
-    /** Toggle per-session fast mode on/off. */
+    /** Toggle per-session fast mode on/off. No-op when the model doesn't support it. */
     fun toggleFastMode() {
+        if (!_uiState.value.fastSupported) return
         val next = !_uiState.value.fastMode
         // Only flip the chip when a session exists — otherwise config.set is a no-op.
         if (!setConfig("fast", if (next) "fast" else "normal")) return

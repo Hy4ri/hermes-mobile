@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.ws.ModelCapabilities
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.toJsonElement
 import kotlinx.serialization.encodeToString
@@ -77,8 +78,11 @@ object ChatWsEventReducer {
 
             is WsEvent.Unknown -> onUnknown(state, streamingState)
 
-            // SessionInfo is a no-op in the original code
-            is WsEvent.SessionInfo -> ReducerResult(state = state, streamingState = streamingState)
+            // SessionInfo carries the live model + fast/reasoning state. We
+            // only consume `model` here to drive fast-mode eligibility (the
+            // backend never pushes a capability flag, so the UI mirrors the
+            // server predicate on-device — see ModelCapabilities).
+            is WsEvent.SessionInfo -> onSessionInfo(state, streamingState, event)
 
             // RpcResult is handled by the ViewModel (needs pending request context)
             is WsEvent.RpcResult -> ReducerResult(state = state, streamingState = streamingState)
@@ -378,6 +382,28 @@ object ChatWsEventReducer {
                 ),
             streamingState = streamingState,
         )
+
+    // ── SessionInfo ──────────────────────────────────────────────────
+    // The gateway emits `session.info` on session create/resume and on every
+    // fast toggle. It carries `model` — enough for us to decide fast-mode
+    // eligibility on-device and grey out the Fast chip for unsupported models.
+    private fun onSessionInfo(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.SessionInfo,
+    ): ReducerResult {
+        val data = event.data ?: return ReducerResult(state = state, streamingState = streamingState)
+        val model = (data["model"] as? String)?.takeIf { it.isNotBlank() }
+        if (model == null) return ReducerResult(state = state, streamingState = streamingState)
+        val fastSupported = ModelCapabilities.supportsFastMode(model)
+        if (state.model == model && state.fastSupported == fastSupported) {
+            return ReducerResult(state = state, streamingState = streamingState)
+        }
+        return ReducerResult(
+            state = state.copy(model = model, fastSupported = fastSupported),
+            streamingState = streamingState,
+        )
+    }
 
     // ── SessionUpdated / StatusUpdate / Unknown ───────────────────────
 

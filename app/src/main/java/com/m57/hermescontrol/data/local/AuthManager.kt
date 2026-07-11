@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.data.config.ConnectionProfile
+import com.m57.hermescontrol.data.config.ModelPrefsSerializer
+import com.m57.hermescontrol.data.config.ModelPrefsStore
 import com.m57.hermescontrol.data.config.ServerStore
 import com.m57.hermescontrol.data.config.ServerStoreMigration
 import com.m57.hermescontrol.data.config.ServerStoreSerializer
@@ -49,11 +51,20 @@ object AuthManager {
     private var _serverStore: ServerStore? = null
 
     @Volatile
+    private var _modelPrefsStore: ModelPrefsStore? = null
+
+    @Volatile
     private var appScope: CoroutineScope? = null
 
     val serverStore: ServerStore
         get() =
             _serverStore ?: throw IllegalStateException(
+                "AuthManager not initialized. Call init(context) first.",
+            )
+
+    val modelPrefsStore: ModelPrefsStore
+        get() =
+            _modelPrefsStore ?: throw IllegalStateException(
                 "AuthManager not initialized. Call init(context) first.",
             )
 
@@ -96,6 +107,15 @@ object AuthManager {
             appScope = scope
             val store = ServerStore(dataStore, scope)
             _serverStore = store
+
+            // Persisted model-control prefs (last reasoning effort, etc.).
+            val modelPrefsDataStore =
+                androidx.datastore.core.DataStoreFactory.create(
+                    serializer = ModelPrefsSerializer,
+                ) {
+                    context.filesDir.resolve("model_prefs.json")
+                }
+            _modelPrefsStore = ModelPrefsStore(modelPrefsDataStore, scope)
 
             if (prefsDeferred == null) {
                 prefsDeferred =

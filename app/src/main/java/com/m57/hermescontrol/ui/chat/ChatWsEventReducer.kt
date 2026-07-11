@@ -71,6 +71,10 @@ object ChatWsEventReducer {
 
             is WsEvent.RpcError -> onRpcError(state, streamingState, event)
 
+            is WsEvent.GatewayError -> onGatewayError(state, streamingState, event)
+
+            is WsEvent.BackgroundComplete -> onBackgroundComplete(state, streamingState, event)
+
             is WsEvent.SessionUpdated -> onSessionUpdated(state, streamingState)
 
             is WsEvent.StatusUpdate -> onStatusUpdate(state, streamingState)
@@ -378,6 +382,44 @@ object ChatWsEventReducer {
                 ),
             streamingState = streamingState,
         )
+
+    // ── GatewayError ──────────────────────────────────────────────────
+    // Backend/unhandled failure surfaced by the gateway (issue #527).
+    // Mirrors onRpcError: surfaces the message in the existing error banner.
+    private fun onGatewayError(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.GatewayError,
+    ): ReducerResult =
+        ReducerResult(
+            state =
+                state.copy(
+                    isLoading = false,
+                    errorMessage = "⚠️ Backend error: ${event.message ?: "Unknown gateway error"}",
+                ),
+            streamingState = streamingState,
+        )
+
+    // ── BackgroundComplete ────────────────────────────────────────────
+    // A scheduled/background job finished (issue #527). The ViewModel turns
+    // this into a non-blocking snackbar. No state mutation beyond passing it
+    // through; the ViewModel owns the snackbar trigger.
+    private fun onBackgroundComplete(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.BackgroundComplete,
+    ): ReducerResult {
+        val message =
+            when (val label = event.data?.get("label")) {
+                is String -> label
+                else -> event.data?.get("name") as? String
+            }?.let { "✅ Background job finished: $it" }
+                ?: "✅ Background job finished"
+        return ReducerResult(
+            state = state.copy(backgroundCompleteMessage = message),
+            streamingState = streamingState,
+        )
+    }
 
     // ── SessionUpdated / StatusUpdate / Unknown ───────────────────────
 

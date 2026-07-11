@@ -424,6 +424,61 @@ class EventParserTest {
     }
 
     @Test
+    fun testParseGatewayError_returnsGatewayErrorEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params = mapOf("type" to "error", "payload" to mapOf("message" to "boom")),
+            )
+        val event = EventParser.parse(response, "")
+        assertTrue(event is WsEvent.GatewayError)
+        assertEquals("boom", (event as WsEvent.GatewayError).message)
+    }
+
+    @Test
+    fun testParseGatewayError_missingMessage_returnsNullMessage() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params = mapOf("type" to "error", "payload" to mapOf<String, String>()),
+            )
+        val event = EventParser.parse(response, "")
+        assertTrue(event is WsEvent.GatewayError)
+        assertEquals(null, (event as WsEvent.GatewayError).message)
+    }
+
+    @Test
+    fun testParseBackgroundComplete_returnsBackgroundCompleteEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "background.complete",
+                        "payload" to mapOf("label" to "nightly backup"),
+                    ),
+            )
+        val event = EventParser.parse(response, "")
+        assertTrue(event is WsEvent.BackgroundComplete)
+        assertEquals(
+            "nightly backup",
+            (event as WsEvent.BackgroundComplete).data?.get("label"),
+        )
+    }
+
+    @Test
     fun testParseUnknownType_returnsUnknownEvent() {
         val response =
             createJsonRpcResponse(

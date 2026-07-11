@@ -111,6 +111,17 @@ object EventParser {
                 WsEvent.StatusUpdate(status, payload)
             }
 
+            "error" -> {
+                val message =
+                    payload?.get("message") as? String
+                        ?: payload?.get("error") as? String
+                WsEvent.GatewayError(message)
+            }
+
+            "background.complete" -> {
+                WsEvent.BackgroundComplete(payload)
+            }
+
             "session.updated" -> {
                 WsEvent.SessionUpdated(payload)
             }

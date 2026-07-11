@@ -277,6 +277,7 @@ fun ChatScreen(
         streamingMessage = streamingState.streamingMessage,
         isThinking = streamingState.isThinking,
         errorMessage = state.errorMessage,
+        backgroundCompleteMessage = state.backgroundCompleteMessage,
         isSearchActive = state.isSearchActive,
         currentSearchMatchIndex = state.currentSearchMatchIndex,
         searchMatchIndices = state.searchMatchIndices,
@@ -1390,6 +1391,7 @@ private fun ChatLifecycleEffects(
     streamingMessage: ChatMessage?,
     isThinking: Boolean,
     errorMessage: String?,
+    backgroundCompleteMessage: String?,
     isSearchActive: Boolean,
     currentSearchMatchIndex: Int,
     searchMatchIndices: List<Int>,
@@ -1484,6 +1486,14 @@ private fun ChatLifecycleEffects(
         errorMessage?.let { error ->
             snackbarHostState.showSnackbar(error)
             viewModel.clearError()
+        }
+    }
+
+    // Show background-complete as a non-blocking snackbar (issue #527)
+    LaunchedEffect(backgroundCompleteMessage) {
+        backgroundCompleteMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearBackgroundComplete()
         }
     }
 

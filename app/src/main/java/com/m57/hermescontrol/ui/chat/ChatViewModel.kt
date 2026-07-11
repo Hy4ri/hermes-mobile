@@ -56,6 +56,8 @@ data class ChatUiState(
     /** Standalone streaming message — rendered after the main list. */
     val streamingMessage: ChatMessage? = null,
     val errorMessage: String? = null,
+    // Background job completion toast (issue #527) — non-blocking snackbar
+    val backgroundCompleteMessage: String? = null,
     val clarifyRequest: ClarifyUi? = null,
     // Sudo / secret prompts — surfaced as dialogs (issue #524)
     val sudoPrompt: SudoPromptUi? = null,
@@ -365,6 +367,15 @@ class ChatViewModel(
 
             is WsEvent.SecretRequest -> {
                 handleSecretRequest(event)
+            }
+
+            is WsEvent.GatewayError -> {
+                // Reducer already set errorMessage; no extra VM work needed.
+            }
+
+            is WsEvent.BackgroundComplete -> {
+                // Reducer already set backgroundCompleteMessage; the UI observes
+                // it via a LaunchedEffect and triggers the snackbar.
             }
 
             else -> { /* reducer handles these */ }
@@ -1031,6 +1042,10 @@ class ChatViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    fun clearBackgroundComplete() {
+        _uiState.update { it.copy(backgroundCompleteMessage = null) }
     }
 
     // ── Approval flow ───────────────────────────────────────────────────

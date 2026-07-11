@@ -125,6 +125,33 @@ sealed class WsEvent {
         val sessionId: String?,
     ) : WsEvent()
 
+    // ── Gateway-level errors ───────────────────────────────────────────
+
+    /**
+     * Backend/unhandled failure surfaced by the gateway.
+     *
+     * Desktop shows these as red toasts (the gateway also writes
+     * `[gateway.error]` lines to the console). Mobile was previously
+     * dropping this event, so a crashing turn just silently stopped with no
+     * explanation. Issue #527 surfaces it in the existing error banner.
+     */
+    data class GatewayError(
+        val message: String?,
+    ) : WsEvent()
+
+    // ── Background job completion ──────────────────────────────────────
+
+    /**
+     * A scheduled/background job finished on the gateway.
+     *
+     * Desktop shows a "Background job finished" toast. Mobile surfaces this as
+     * a non-blocking snackbar. The payload may carry `label`/`name` describing
+     * the job. Issue #527.
+     */
+    data class BackgroundComplete(
+        val data: Map<String, Any?>?,
+    ) : WsEvent()
+
     // ── Fallback ─────────────────────────────────────────────────────────
 
     data class Unknown(

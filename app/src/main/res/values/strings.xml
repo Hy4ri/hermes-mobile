@@ -484,6 +484,13 @@
     <string name="sessions_search_placeholder">Search sessions…</string>
     <string name="sessions_search_empty_title">No results</string>
     <string name="sessions_search_empty_desc">No sessions match “%1$s”</string>
+    <string name="sessions_search_results_header">%1$d result(s) for “%2$s”</string>
+    <string name="sessions_search_played_at">Played %1$s</string>
+    <string name="sessions_search_match_label">Match</string>
+    <string name="sessions_search_model_label">Model</string>
+    <string name="sessions_search_unknown_model">Unknown model</string>
+    <string name="sessions_search_source_label">Source</string>
+    <string name="sessions_search_open_hint">Tap to open this conversation</string>
     <string name="sessions_stat_total">Total</string>
     <string name="sessions_stat_active">Active</string>
     <string name="sessions_action_prune">Prune</string>

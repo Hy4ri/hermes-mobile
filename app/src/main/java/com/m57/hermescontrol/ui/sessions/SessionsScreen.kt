@@ -72,6 +72,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.ChatScreen
@@ -93,6 +94,11 @@ import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import kotlin.math.abs
 
 /**
  * Maps a session source string to a Material icon for visual identification.
@@ -157,17 +163,50 @@ private fun highlightText(
         }
     }
 
-/** Maps a backend FTS5 search hit into the card's display model. */
+/**
+ * Converts a backend search hit into a display model WITHOUT faking a title.
+ * The backend returns no session name, only a matched `snippet` + metadata, so the
+ * card must render the snippet as a match excerpt (never as the title). `title` is
+ * deliberately left null so [SearchResultCard] shows the honest "Match" layout.
+ */
 private fun SessionSearchResult.toSessionInfo(): SessionInfo =
     SessionInfo(
         id = session_id,
-        // Backend returns the matched excerpt in `snippet`; SessionCard
-        // renders `title` (and highlights it), so map snippet → title.
-        title = snippet,
+        title = null,
         preview = snippet,
         source = source,
+        model = model,
         started_at = session_started,
+        // message_count/status aren't in the search payload; leave null so the
+        // search card hides those normal-list affordances.
     )
+
+/**
+ * Formats a backend epoch-seconds timestamp into a friendly, local relative/absolute
+ * string. Used for search results where the session name is unknown.
+ */
+private fun formatPlayedAt(epochSeconds: Double?): String? {
+    if (epochSeconds == null || epochSeconds <= 0.0) return null
+    val instant =
+        try {
+            Instant.ofEpochSecond(epochSeconds.toLong())
+        } catch (_: Exception) {
+            return null
+        }
+    val now = Instant.now()
+    val diffSec = abs(now.epochSecond - instant.epochSecond)
+    val absFormatter =
+        DateTimeFormatter
+            .ofLocalizedDateTime(FormatStyle.MEDIUM)
+            .withZone(ZoneId.systemDefault())
+    return when {
+        diffSec < 60 -> "just now"
+        diffSec < 3600 -> "${diffSec / 60}m ago"
+        diffSec < 86400 -> "${diffSec / 3600}h ago"
+        diffSec < 7 * 86400 -> "${diffSec / 86400}d ago"
+        else -> absFormatter.format(instant)
+    }
+}
 
 /**
  * Builds the list of sessions to display. In search mode the backend results are
@@ -402,37 +441,60 @@ fun SessionsScreen(
                                     )
                                 }
                                 else -> {
-                                    LazyColumn(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentPadding = listContentPadding,
-                                        verticalArrangement = listItemSpacing,
-                                    ) {
-                                        items(sessionsToDisplay, key = { it.id }) { session ->
-                                            SessionCard(
-                                                session = session,
-                                                query = state.searchQuery,
-                                                isSelecting = state.isSelecting,
-                                                isSelected = session.id in state.selectedIds,
-                                                isDeleting = session.id in state.deletingSessionIds,
-                                                highlightBackground = primaryContainer,
-                                                highlightForeground = onPrimaryContainer,
-                                                onCardClick = {
-                                                    if (state.isSelecting) {
-                                                        viewModel.toggleSessionSelection(session.id)
-                                                    } else {
-                                                        NavigationController.pendingSessionId = session.id
-                                                        NavigationController.navigateTo(ChatScreen)
-                                                    }
-                                                },
-                                                onCardLongClick = {
-                                                    if (!state.isSelecting) {
-                                                        viewModel.toggleSelecting()
-                                                        viewModel.toggleSessionSelection(session.id)
-                                                    }
-                                                },
-                                                onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
-                                                onDelete = { viewModel.requestDeleteSession(session.id) },
-                                            )
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        Text(
+                                            text =
+                                                stringResource(
+                                                    R.string.sessions_search_results_header,
+                                                    state.searchResults.size,
+                                                    state.searchQuery,
+                                                ),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        horizontal = spacing.md,
+                                                        vertical = spacing.sm,
+                                                    ),
+                                        )
+                                        LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = listContentPadding,
+                                            verticalArrangement = listItemSpacing,
+                                        ) {
+                                            items(sessionsToDisplay, key = { it.id }) { session ->
+                                                SearchResultCard(
+                                                    session = session,
+                                                    query = state.searchQuery,
+                                                    isSelecting = state.isSelecting,
+                                                    isSelected = session.id in state.selectedIds,
+                                                    isDeleting = session.id in state.deletingSessionIds,
+                                                    highlightBackground = primaryContainer,
+                                                    highlightForeground = onPrimaryContainer,
+                                                    onCardClick = {
+                                                        if (state.isSelecting) {
+                                                            viewModel.toggleSessionSelection(session.id)
+                                                        } else {
+                                                            NavigationController.pendingSessionId = session.id
+                                                            NavigationController.navigateTo(ChatScreen)
+                                                        }
+                                                    },
+                                                    onCardLongClick = {
+                                                        if (!state.isSelecting) {
+                                                            viewModel.toggleSelecting()
+                                                            viewModel.toggleSessionSelection(session.id)
+                                                        }
+                                                    },
+                                                    onToggleSelection = {
+                                                        viewModel.toggleSessionSelection(
+                                                            session.id,
+                                                        )
+                                                    },
+                                                    onDelete = { viewModel.requestDeleteSession(session.id) },
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -795,6 +857,172 @@ private fun SessionCard(
             if (!isSelecting) {
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
                     // Delete
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.action_delete),
+                                modifier = Modifier.size(16.dp),
+                                tint = statusColors.error,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Search-result card. The backend search payload has no session title, so this card is
+ * honest about it: it shows a "Match" label + the highlighted snippet as the body, plus
+ * source / model / played-at metadata chips. It never presents the snippet as a name.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SearchResultCard(
+    session: com.m57.hermescontrol.data.model.SessionInfo,
+    query: String,
+    isSelecting: Boolean,
+    isSelected: Boolean,
+    isDeleting: Boolean,
+    highlightBackground: Color,
+    highlightForeground: Color,
+    onCardClick: () -> Unit,
+    onCardLongClick: () -> Unit,
+    onToggleSelection: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    val statusColors = LocalHermesStatusColors.current
+    val snippet = session.preview?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
+    val playedAt = formatPlayedAt(session.started_at)
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("session_card_${session.id}")
+                .combinedClickable(
+                    onClick = onCardClick,
+                    onLongClick = onCardLongClick,
+                ),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+        border =
+            if (isSelected) {
+                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else {
+                null
+            },
+    ) {
+        Row(
+            modifier = Modifier.padding(spacing.md),
+            verticalAlignment = Alignment.Top,
+        ) {
+            // Checkbox in select mode
+            if (isSelecting) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelection() },
+                    modifier = Modifier.testTag("session_checkbox_${session.id}"),
+                )
+                Spacer(modifier = Modifier.width(spacing.sm))
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                // Header row: "Match" label + source icon
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                ) {
+                    val srcIcon = sourceIcon(session.source)
+                    if (srcIcon != null && !isSelecting) {
+                        Icon(
+                            imageVector = srcIcon,
+                            contentDescription = sourceLabel(session.source),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.sessions_search_match_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 0.5.sp,
+                    )
+                    if (!session.id.isNullOrBlank()) {
+                        Text(
+                            text = "· ${session.id.take(8)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(spacing.xs))
+
+                // The matched snippet, highlighted — shown as the body, NOT as a title.
+                Text(
+                    text = highlightText(snippet, query, highlightBackground, highlightForeground),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                Spacer(modifier = Modifier.height(spacing.sm))
+
+                // Metadata chips row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                ) {
+                    session.source?.let { src ->
+                        StatusBadge(
+                            text = sourceLabel(src),
+                            status = StatusBadgeType.NEUTRAL,
+                        )
+                    }
+                    session.model?.let { mdl ->
+                        StatusBadge(
+                            text = stringResource(R.string.sessions_search_model_label) + ": " + mdl,
+                            status = StatusBadgeType.INFO,
+                        )
+                    }
+                    playedAt?.let { time ->
+                        StatusBadge(
+                            text = stringResource(R.string.sessions_search_played_at, time),
+                            status = StatusBadgeType.NEUTRAL,
+                        )
+                    }
+                }
+
+                // Tap hint when not selecting
+                if (!isSelecting) {
+                    Spacer(modifier = Modifier.height(spacing.xs))
+                    Text(
+                        text = stringResource(R.string.sessions_search_open_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            // Action buttons (not in select mode)
+            if (!isSelecting) {
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
                     if (isDeleting) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),

@@ -21,6 +21,7 @@ data class SessionInfo(
     val source: String? = null,
     val parent_session_id: String? = null,
     val display_name: String? = null,
+    val model: String? = null,
 )
 
 @Serializable

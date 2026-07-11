@@ -67,10 +67,10 @@ import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionListResponse
-import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionPromptResponse
 import com.m57.hermescontrol.data.model.SessionRenameRequest
+import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionStatsResponse
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill

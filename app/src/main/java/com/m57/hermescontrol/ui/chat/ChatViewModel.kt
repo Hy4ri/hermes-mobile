@@ -121,6 +121,9 @@ class ChatViewModel(
 
     /** Maps an in-flight RPC id to its method for UI error labeling. */
     private val idToMethod = ConcurrentHashMap<String, String>()
+
+    /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
+    private var runtimeSessionId: String? = null
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     private val wsClient = HermesWsClient
@@ -272,7 +275,7 @@ class ChatViewModel(
                 _uiState.value,
                 _streamingState.value,
                 event,
-                _uiState.value.currentSessionId,
+                runtimeSessionId ?: _uiState.value.currentSessionId,
             )
 
         // Apply the new state
@@ -394,7 +397,7 @@ class ChatViewModel(
     private fun isCurrentSession(eventSessionId: String?): Boolean {
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
-        return eventSessionId == _uiState.value.currentSessionId
+        return eventSessionId == runtimeSessionId || eventSessionId == _uiState.value.currentSessionId
     }
 
     // ── RPC response handling ────────────────────────────────────────────
@@ -409,6 +412,7 @@ class ChatViewModel(
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
                 val sessionId = resultMap["session_id"] as? String ?: return
+                runtimeSessionId = sessionId
                 _uiState.update {
                     it.copy(
                         currentSessionId = sessionId,
@@ -444,6 +448,7 @@ class ChatViewModel(
 
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
+                runtimeSessionId = resultMap?.get("session_id") as? String
                 val sessionId =
                     (resultMap?.get("resumed") as? String)
                         ?: _uiState.value.currentSessionId
@@ -569,7 +574,8 @@ class ChatViewModel(
      */
     fun sendMessage(text: String) {
         if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val storageSessionId = _uiState.value.currentSessionId ?: return
+        val agentSessionId = runtimeSessionId ?: return
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
@@ -596,9 +602,9 @@ class ChatViewModel(
             )
         }
 
-        // Persist to Room
+        // Persist under the original Desktop session ID.
         viewModelScope.launch(Dispatchers.IO) {
-            repo.persistMessage(userMessage, sessionId)
+            repo.persistMessage(userMessage, storageSessionId)
         }
 
         // Upload attachments then submit prompt
@@ -659,7 +665,7 @@ class ChatViewModel(
                 }
 
             wsClient.sendMessage(
-                sessionId,
+                agentSessionId,
                 fullText,
                 onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
             )
@@ -749,7 +755,7 @@ class ChatViewModel(
     }
 
     private fun dispatchViaRpc(command: String) {
-        val sessionId = _uiState.value.currentSessionId
+        val sessionId = runtimeSessionId
         if (sessionId == null) {
             addAssistantMessage("No active session. Use `/new` to create one.")
             return
@@ -773,7 +779,7 @@ class ChatViewModel(
      */
     private fun submitPrompt(text: String) {
         if (text.isBlank()) return
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val sessionId = runtimeSessionId ?: return
         _uiState.update { it.copy(isAgentTyping = true) }
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.sendMessage(
@@ -800,7 +806,7 @@ class ChatViewModel(
     // ── Session management ───────────────────────────────────────────────
 
     fun interruptSession() {
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val sessionId = runtimeSessionId ?: return
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.SESSION_INTERRUPT,
@@ -908,7 +914,8 @@ class ChatViewModel(
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
-        // Reset streaming state
+        // Reset streaming and runtime state before resuming the Desktop session.
+        runtimeSessionId = null
         streamingController.resetStreaming()
         _uiState.update {
             val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"

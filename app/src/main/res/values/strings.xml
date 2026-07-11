@@ -72,6 +72,7 @@
     <string name="screen_achievements">Achievements</string>
     <string name="screen_history">History</string>
     <string name="screen_processes">Processes</string>
+    <string name="screen_analytics">Analytics</string>
 
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>
@@ -850,6 +851,26 @@
     <string name="processes_running_hint">Running</string>
     <string name="processes_kill_title">Kill process?</string>
     <string name="processes_kill_desc">Stop \u201c%1$s\u201d? This cannot be undone.</string>
+
+    <!-- Analytics Screen (issue #537) -->
+    <string name="analytics_empty_title">No analytics yet</string>
+    <string name="analytics_empty_desc">Usage stats will appear here once the agent has been active.</string>
+    <string name="analytics_days">%1$d days</string>
+    <string name="analytics_estimated_cost">Est. cost</string>
+    <string name="analytics_actual_cost">Actual cost</string>
+    <string name="analytics_sessions">Sessions</string>
+    <string name="analytics_api_calls">API calls</string>
+    <string name="analytics_input_tokens">Input</string>
+    <string name="analytics_output_tokens">Output</string>
+    <string name="analytics_cache_read">Cache read</string>
+    <string name="analytics_reasoning">Reasoning</string>
+    <string name="analytics_daily_cost">Daily estimated cost</string>
+    <string name="analytics_per_model">Per-model breakdown</string>
+    <string name="analytics_top_skills">Top skills</string>
+    <string name="analytics_no_cost_data">No cost recorded in this period.</string>
+    <string name="analytics_skill_uses">%1$d uses \u2022 %2$d%% of total</string>
+    <string name="analytics_top_tools">Top tools</string>
+    <string name="analytics_tool_uses">%1$d calls \u2022 %2$d%% of total</string>
     <string name="processes_kill_confirm">Kill</string>
     <string name="processes_kill_cd">Kill process</string>
 </resources>

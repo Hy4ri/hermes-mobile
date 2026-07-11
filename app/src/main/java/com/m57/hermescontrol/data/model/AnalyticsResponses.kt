@@ -13,7 +13,14 @@ data class AnalyticsResponse(
     val totals: AnalyticsTotals = AnalyticsTotals(),
     val period_days: Int = 0,
     val skills: AnalyticsSkills = AnalyticsSkills(),
-    val tools: List<Map<String, String>> = emptyList(),
+    val tools: List<AnalyticsToolUsage> = emptyList(),
+)
+
+@Serializable
+data class AnalyticsToolUsage(
+    val tool: String = "",
+    val count: Int = 0,
+    val percentage: Double = 0.0,
 )
 
 @Serializable

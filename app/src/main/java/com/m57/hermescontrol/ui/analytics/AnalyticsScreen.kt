@@ -137,6 +137,13 @@ private fun AnalyticsContent(
                 SkillRow(skill = skill)
             }
         }
+
+        if (usage.tools.isNotEmpty()) {
+            item { SectionTitle(stringResource(R.string.analytics_top_tools)) }
+            items(usage.tools, key = { it.tool }) { tool ->
+                ToolRow(tool = tool)
+            }
+        }
     }
 }
 
@@ -429,6 +436,43 @@ private fun SkillRow(skill: com.m57.hermescontrol.data.model.AnalyticsSkillEntry
                             R.string.analytics_skill_uses,
                             skill.total_count,
                             skill.percentage.toInt(),
+                        ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolRow(tool: com.m57.hermescontrol.data.model.AnalyticsToolUsage) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = tool.tool,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text =
+                        stringResource(
+                            R.string.analytics_tool_uses,
+                            tool.count,
+                            tool.percentage.toInt(),
                         ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

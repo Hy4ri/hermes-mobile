@@ -869,6 +869,8 @@
     <string name="analytics_top_skills">Top skills</string>
     <string name="analytics_no_cost_data">No cost recorded in this period.</string>
     <string name="analytics_skill_uses">%1$d uses \u2022 %2$d%% of total</string>
+    <string name="analytics_top_tools">Top tools</string>
+    <string name="analytics_tool_uses">%1$d calls \u2022 %2$d%% of total</string>
     <string name="processes_kill_confirm">Kill</string>
     <string name="processes_kill_cd">Kill process</string>
 </resources>

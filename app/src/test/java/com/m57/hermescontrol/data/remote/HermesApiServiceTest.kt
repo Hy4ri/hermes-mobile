@@ -416,7 +416,7 @@ class HermesApiServiceTest {
                     """"totals":{"total_input":100,"total_estimated_cost":0.03,"total_api_calls":7},""" +
                     """"period_days":7,"skills":{"summary":{"distinct_skills_used":2},""" +
                     """"top_skills":[{"skill":"x","total_count":1,"percentage":50.0,"last_used_at":1700000000.0}]},""" +
-                    """"tools":[{"name":"web_search"}]}"""
+                    """"tools":[{"tool":"terminal","count":21820,"percentage":44.26}]}"""
             mockWebServer.enqueue(
                 MockResponse().setResponseCode(200).setBody(json),
             )
@@ -431,6 +431,8 @@ class HermesApiServiceTest {
             assertEquals(0.03, body?.totals?.total_estimated_cost)
             assertEquals(2, body?.skills?.summary?.distinct_skills_used)
             assertEquals("x", body?.skills?.top_skills?.first()?.skill)
-            assertEquals(1, body?.tools?.size) // extra key parsed, not dropped
+            assertEquals(1, body?.tools?.size)
+            assertEquals("terminal", body?.tools?.first()?.tool)
+            assertEquals(21820, body?.tools?.first()?.count)
         }
 }

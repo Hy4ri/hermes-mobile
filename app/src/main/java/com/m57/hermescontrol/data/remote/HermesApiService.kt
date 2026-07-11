@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.model.ActionStatusResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
+import com.m57.hermescontrol.data.model.AnalyticsResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.CheckpointsResponse
@@ -45,6 +46,7 @@ import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.ModelAssignmentRequest
 import com.m57.hermescontrol.data.model.ModelAssignmentResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
+import com.m57.hermescontrol.data.model.ModelsAnalyticsResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
@@ -168,6 +170,18 @@ interface HermesApiService {
 
     @GET("api/system/stats")
     suspend fun getSystemStats(): Response<SystemStatsResponse>
+
+    @GET("api/analytics/usage")
+    suspend fun getAnalytics(
+        @Query("days") days: Int,
+        @Query("profile") profile: String? = null,
+    ): Response<AnalyticsResponse>
+
+    @GET("api/analytics/models")
+    suspend fun getModelsAnalytics(
+        @Query("days") days: Int,
+        @Query("profile") profile: String? = null,
+    ): Response<ModelsAnalyticsResponse>
 
     @GET("api/skills")
     suspend fun getSkills(): Response<List<Skill>>

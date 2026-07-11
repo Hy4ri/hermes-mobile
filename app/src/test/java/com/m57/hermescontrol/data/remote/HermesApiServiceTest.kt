@@ -312,4 +312,65 @@ class HermesApiServiceTest {
             assertNull(stats?.cpu_percent)
             assertNull(stats?.memory?.percent)
         }
+
+    @Test
+    fun testGetAnalytics_requestsCorrectPathAndQuery() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """{"daily":[],"by_model":[""" +
+                            """{"model":"gpt-4o","input_tokens":10,"output_tokens":20,""" +
+                            """"estimated_cost":0.01,"sessions":1,"api_calls":2}],""" +
+                            """"totals":{"total_input":10,"total_output":20,""" +
+                            """"total_estimated_cost":0.01,"total_sessions":1,"total_api_calls":2},""" +
+                            """"skills":{"summary":{"total_skill_loads":0,"distinct_skills_used":0},""" +
+                            """"top_skills":[]}}""",
+                    ),
+            )
+
+            val response = apiService.getAnalytics(30, null)
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(1, body?.by_model?.size)
+            assertEquals("gpt-4o", body?.by_model?.first()?.model)
+            assertEquals(0.01, body?.totals?.total_estimated_cost)
+
+            val recorded = mockWebServer.takeRequest()
+            assertEquals("/api/analytics/usage?days=30", recorded.path)
+            assertEquals("GET", recorded.method)
+        }
+
+    @Test
+    fun testGetModelsAnalytics_forwardsProfileParam() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """{"models":[""" +
+                            """{"model":"claude-opus","provider":"anthropic","input_tokens":5,"output_tokens":7,""" +
+                            """"cache_read_tokens":1,"reasoning_tokens":2,"estimated_cost":0.05,"actual_cost":0.04,""" +
+                            """"sessions":3,"api_calls":9,"tool_calls":1,""" +
+                            """"last_used_at":1700000000,"avg_tokens_per_session":4.0}],""" +
+                            """"totals":{"distinct_models":1,"total_input":5,"total_output":7,"total_cache_read":1,""" +
+                            """"total_reasoning":2,"total_estimated_cost":0.05,"total_actual_cost":0.04,""" +
+                            """"total_sessions":3,"total_api_calls":9},"period_days":30}""",
+                    ),
+            )
+
+            val response = apiService.getModelsAnalytics(30, "work")
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(1, body?.models?.size)
+            assertEquals("claude-opus", body?.models?.first()?.model)
+            assertEquals("anthropic", body?.models?.first()?.provider)
+            assertEquals(30, body?.period_days)
+
+            val recorded = mockWebServer.takeRequest()
+            assertEquals("/api/analytics/models?days=30&profile=work", recorded.path)
+        }
 }

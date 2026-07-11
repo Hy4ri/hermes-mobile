@@ -50,3 +50,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object KanbanScreen : NavKey
 
 @Serializable data object ProcessesScreen : NavKey
+
+@Serializable data object AnalyticsScreen : NavKey

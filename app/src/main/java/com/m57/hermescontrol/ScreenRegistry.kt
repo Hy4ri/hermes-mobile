@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Code
@@ -24,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
+import com.m57.hermescontrol.ui.analytics.AnalyticsScreen as AnalyticsScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
@@ -173,6 +175,12 @@ object ScreenRegistry {
                 Icons.Filled.Memory,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> ProcessesScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                AnalyticsScreen,
+                R.string.screen_analytics,
+                Icons.Filled.BarChart,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> AnalyticsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 KanbanScreen,
                 R.string.screen_kanban,

@@ -79,8 +79,6 @@ import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionSearchResult
-import com.m57.hermescontrol.data.model.SessionTreeItem
-import com.m57.hermescontrol.data.model.flattenSessionTree
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -169,22 +167,18 @@ private fun SessionSearchResult.toSessionInfo(): SessionInfo =
         started_at = session_started,
     )
 
-private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
+/**
+ * Builds the list of sessions to display. In search mode the backend results are
+ * used; otherwise the locally-paginated list is filtered by title/status as before.
+ */
+private fun displayedSessions(state: SessionsUiState): List<SessionInfo> =
     if (state.isSearchMode) {
-        state.searchResults.map { searchResult ->
-            val session = searchResult.toSessionInfo()
-            SessionTreeItem(
-                session = session,
-                depth = 0,
-                branchStem = null,
-                displayTitle = session.title?.takeIf(String::isNotBlank)
-                    ?: session.display_name?.takeIf(String::isNotBlank)
-                    ?: session.preview?.takeIf(String::isNotBlank)?.take(80)
-                    ?: "Untitled",
-            )
-        }
+        state.searchResults.map { it.toSessionInfo() }
     } else {
-        flattenSessionTree(state.sessions)
+        state.sessions.filter { session ->
+            session.title?.contains(state.searchQuery, ignoreCase = true) == true ||
+                session.status?.contains(state.searchQuery, ignoreCase = true) == true
+        }
     }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -202,14 +196,15 @@ fun SessionsScreen(
 
     var pruneDays by remember { mutableStateOf("7") }
 
-    val sessionsToDisplay = remember(
-        state.isSearchMode,
-        state.searchQuery,
-        state.sessions,
-        state.searchResults,
-    ) {
-        displayedSessions(state)
-    }
+    val sessionsToDisplay =
+        remember(
+            state.isSearchMode,
+            state.searchQuery,
+            state.sessions,
+            state.searchResults,
+        ) {
+            displayedSessions(state)
+        }
 
     val hasSelection = state.selectedIds.isNotEmpty()
 
@@ -344,61 +339,190 @@ fun SessionsScreen(
         onRefresh = { viewModel.loadSessions() },
         modifier = modifier,
     ) {
-        // ── Search + bulk toggle (always visible) ──────────────
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SearchBar(
-                query = state.searchQuery,
-                onQueryChange = { viewModel.setSearchQuery(it) },
-                placeholder = stringResource(R.string.sessions_search_placeholder),
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(modifier = Modifier.width(spacing.sm))
-            IconButton(onClick = { viewModel.toggleSelecting() }) {
-                Icon(
-                    imageVector = if (state.isSelecting) Icons.Filled.Close else Icons.Filled.SelectAll,
-                    contentDescription =
-                        if (state.isSelecting) {
-                            stringResource(R.string.content_desc_exit_selection)
-                        } else {
-                            stringResource(R.string.content_desc_enter_selection)
-                        },
+        // Single scrolling column: search bar pinned on top, list fills below.
+        // (The scaffold already applies top-bar padding via its inner Box, so we
+        //  must NOT re-apply paddingValues here.)
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ── Search + bulk toggle (always visible) ─────────────
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = spacing.md, vertical = spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SearchBar(
+                    query = state.searchQuery,
+                    onQueryChange = { viewModel.setSearchQuery(it) },
+                    placeholder = stringResource(R.string.sessions_search_placeholder),
+                    modifier = Modifier.weight(1f),
                 )
+                Spacer(modifier = Modifier.width(spacing.sm))
+                IconButton(onClick = { viewModel.toggleSelecting() }) {
+                    Icon(
+                        imageVector = if (state.isSelecting) Icons.Filled.Close else Icons.Filled.SelectAll,
+                        contentDescription =
+                            if (state.isSelecting) {
+                                stringResource(R.string.content_desc_exit_selection)
+                            } else {
+                                stringResource(R.string.content_desc_enter_selection)
+                            },
+                    )
+                }
             }
-        }
 
-        when {
-            state.isSearchMode -> {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    when {
-                        state.isSearching && state.searchResults.isEmpty() -> {
-                            LoadingState()
+            // List/state area takes all remaining height below the search bar.
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                when {
+                    state.isSearchMode -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            when {
+                                state.isSearching && state.searchResults.isEmpty() -> {
+                                    LoadingState()
+                                }
+                                state.searchError != null -> {
+                                    ErrorState(
+                                        message =
+                                            state.searchError
+                                                ?: stringResource(R.string.error_unknown),
+                                        onRetry = { viewModel.setSearchQuery(state.searchQuery) },
+                                    )
+                                }
+                                state.searchResults.isEmpty() -> {
+                                    EmptyState(
+                                        title = stringResource(R.string.sessions_search_empty_title),
+                                        subtitle =
+                                            stringResource(
+                                                R.string.sessions_search_empty_desc,
+                                                state.searchQuery,
+                                            ),
+                                        icon = Icons.Filled.Search,
+                                    )
+                                }
+                                else -> {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding = listContentPadding,
+                                        verticalArrangement = listItemSpacing,
+                                    ) {
+                                        items(sessionsToDisplay, key = { it.id }) { session ->
+                                            SessionCard(
+                                                session = session,
+                                                query = state.searchQuery,
+                                                isSelecting = state.isSelecting,
+                                                isSelected = session.id in state.selectedIds,
+                                                isDeleting = session.id in state.deletingSessionIds,
+                                                highlightBackground = primaryContainer,
+                                                highlightForeground = onPrimaryContainer,
+                                                onCardClick = {
+                                                    if (state.isSelecting) {
+                                                        viewModel.toggleSessionSelection(session.id)
+                                                    } else {
+                                                        NavigationController.pendingSessionId = session.id
+                                                        NavigationController.navigateTo(ChatScreen)
+                                                    }
+                                                },
+                                                onCardLongClick = {
+                                                    if (!state.isSelecting) {
+                                                        viewModel.toggleSelecting()
+                                                        viewModel.toggleSessionSelection(session.id)
+                                                    }
+                                                },
+                                                onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
+                                                onDelete = { viewModel.requestDeleteSession(session.id) },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        state.searchError != null -> {
-                            ErrorState(
-                                message =
-                                    state.searchError
-                                        ?: stringResource(R.string.error_unknown),
-                                onRetry = { viewModel.setSearchQuery(state.searchQuery) },
-                            )
-                        }
-                        state.searchResults.isEmpty() -> {
-                            EmptyState(
-                                title = stringResource(R.string.sessions_search_empty_title),
-                                subtitle =
-                                    stringResource(
-                                        R.string.sessions_search_empty_desc,
-                                        state.searchQuery,
-                                    ),
-                                icon = Icons.Filled.Search,
-                            )
-                        }
-                        else -> {
+                    }
+
+                    state.isLoading && state.sessions.isEmpty() -> {
+                        LoadingState()
+                    }
+
+                    state.errorMessage != null -> {
+                        val errorMsg = state.errorMessage
+                        ErrorState(
+                            message = errorMsg ?: stringResource(R.string.error_unknown),
+                            onRetry = { viewModel.loadSessions() },
+                        )
+                    }
+
+                    state.sessions.isEmpty() -> {
+                        EmptyState(
+                            title = stringResource(R.string.history_empty_title),
+                            subtitle = stringResource(R.string.history_empty_desc),
+                            icon = Icons.Filled.History,
+                        )
+                    }
+
+                    else -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // ── Stats row ───────────────────────────────────────
+                            Row(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = spacing.md, vertical = spacing.sm),
+                                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                            ) {
+                                StatCard(
+                                    label = stringResource(R.string.sessions_stat_total),
+                                    value = if (state.isLoadingStats) "…" else state.stats.total.toString(),
+                                    icon = Icons.Filled.History,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                StatCard(
+                                    label = stringResource(R.string.sessions_stat_active),
+                                    value = if (state.isLoadingStats) "…" else state.stats.active.toString(),
+                                    icon = Icons.Filled.CheckCircle,
+                                    accentColor = statusColors.success,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                // Prune button card
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors =
+                                        CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                        ),
+                                    onClick = { viewModel.showPruneDialog() },
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(spacing.md),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(
+                                                imageVector = Icons.Filled.DeleteSweep,
+                                                contentDescription = null,
+                                                tint = statusColors.warning,
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                            Spacer(modifier = Modifier.height(spacing.xs))
+                                            Text(
+                                                text = stringResource(R.string.sessions_action_prune),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = statusColors.warning,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            // Stats error snack
+                            val statsError = state.statsError
+                            if (statsError != null) {
+                                Text(
+                                    text = statsError,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = statusColors.error,
+                                    modifier = Modifier.padding(horizontal = spacing.md),
+                                )
+                            }
+
+                            // ── Session list ────────────────────────────────────
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = listContentPadding,
@@ -431,161 +555,36 @@ fun SessionsScreen(
                                         onDelete = { viewModel.requestDeleteSession(session.id) },
                                     )
                                 }
-                            }
-                        }
-                    }
-                }
-            }
 
-            state.isLoading && state.sessions.isEmpty() -> {
-                LoadingState()
-            }
-
-            state.errorMessage != null -> {
-                val errorMsg = state.errorMessage
-                ErrorState(
-                    message = errorMsg ?: stringResource(R.string.error_unknown),
-                    onRetry = { viewModel.loadSessions() },
-                )
-            }
-
-            state.sessions.isEmpty() -> {
-                EmptyState(
-                    title = stringResource(R.string.history_empty_title),
-                    subtitle = stringResource(R.string.history_empty_desc),
-                    icon = Icons.Filled.History,
-                )
-            }
-
-            else -> {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // ── Stats row ───────────────────────────────────────
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = spacing.md, vertical = spacing.sm),
-                        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                    ) {
-                        StatCard(
-                            label = stringResource(R.string.sessions_stat_total),
-                            value = if (state.isLoadingStats) "…" else state.stats.total.toString(),
-                            icon = Icons.Filled.History,
-                            modifier = Modifier.weight(1f),
-                        )
-                        StatCard(
-                            label = stringResource(R.string.sessions_stat_active),
-                            value = if (state.isLoadingStats) "…" else state.stats.active.toString(),
-                            icon = Icons.Filled.CheckCircle,
-                            accentColor = statusColors.success,
-                            modifier = Modifier.weight(1f),
-                        )
-                        // Prune button card
-                        Card(
-                            modifier = Modifier.weight(1f),
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                ),
-                            onClick = { viewModel.showPruneDialog() },
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(spacing.md),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Filled.DeleteSweep,
-                                        contentDescription = null,
-                                        tint = statusColors.warning,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                    Spacer(modifier = Modifier.height(spacing.xs))
-                                    Text(
-                                        text = stringResource(R.string.sessions_action_prune),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = statusColors.warning,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    // Stats error snack
-                    val statsError = state.statsError
-                    if (statsError != null) {
-                        Text(
-                            text = statsError,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = statusColors.error,
-                            modifier = Modifier.padding(horizontal = spacing.md),
-                        )
-                    }
-
-                    // ── Session list ────────────────────────────────────
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = listContentPadding,
-                        verticalArrangement = listItemSpacing,
-                    ) {
-                        items(sessionsToDisplay, key = { it.session.id }) { item ->
-                            val session = item.session
-                            SessionCard(
-                                session = session,
-                                displayTitle = item.displayTitle,
-                                depth = item.depth,
-                                branchStem = item.branchStem,
-                                query = state.searchQuery,
-                                isSelecting = state.isSelecting,
-                                isSelected = session.id in state.selectedIds,
-                                isDeleting = session.id in state.deletingSessionIds,
-                                highlightBackground = primaryContainer,
-                                highlightForeground = onPrimaryContainer,
-                                onCardClick = {
-                                    if (state.isSelecting) {
-                                        viewModel.toggleSessionSelection(session.id)
-                                    } else {
-                                        NavigationController.pendingSessionId = session.id
-                                        NavigationController.navigateTo(ChatScreen)
-                                    }
-                                },
-                                onCardLongClick = {
-                                    if (!state.isSelecting) {
-                                        viewModel.toggleSelecting()
-                                        viewModel.toggleSessionSelection(session.id)
-                                    }
-                                },
-                                onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
-                                onDelete = { viewModel.requestDeleteSession(session.id) },
-                            )
-                        }
-
-                        // Load more
-                        if (state.hasMore || state.isLoadingMore) {
-                            item {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = spacing.sm),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    if (state.isLoadingMore) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(24.dp),
-                                            strokeWidth = 2.dp,
-                                        )
-                                    } else {
-                                        Text(
-                                            text = stringResource(R.string.history_load_more),
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary,
+                                // Load more
+                                if (state.hasMore || state.isLoadingMore) {
+                                    item {
+                                        Box(
                                             modifier =
                                                 Modifier
-                                                    .testTag("load_more_sessions")
-                                                    .clickable(role = Role.Button) {
-                                                        viewModel.loadMore()
-                                                    },
-                                        )
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = spacing.sm),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            if (state.isLoadingMore) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(24.dp),
+                                                    strokeWidth = 2.dp,
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = stringResource(R.string.history_load_more),
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier =
+                                                        Modifier
+                                                            .testTag("load_more_sessions")
+                                                            .clickable(role = Role.Button) {
+                                                                viewModel.loadMore()
+                                                            },
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -594,92 +593,92 @@ fun SessionsScreen(
                 }
             }
         }
-    }
 
-    // ── Bulk action toolbar (animated) ──────────────────────────────────
-    AnimatedVisibility(
-        visible = state.isSelecting && hasSelection,
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        Box(
+        // ── Bulk action toolbar (animated) ──────────────────────────────────
+        AnimatedVisibility(
+            visible = state.isSelecting && hasSelection,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter,
         ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shadowElevation = 8.dp,
-                tonalElevation = 4.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter,
             ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = spacing.md, vertical = spacing.sm),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shadowElevation = 8.dp,
+                    tonalElevation = 4.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
-                    // Select all / deselect
-                    OutlinedButton(
-                        onClick = {
-                            if (state.selectedIds.size == state.sessions.size) {
-                                viewModel.clearSelection()
-                            } else {
-                                viewModel.selectAll()
-                            }
-                        },
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = spacing.md, vertical = spacing.sm),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector =
+                        // Select all / deselect
+                        OutlinedButton(
+                            onClick = {
                                 if (state.selectedIds.size == state.sessions.size) {
-                                    Icons.Filled.Close
+                                    viewModel.clearSelection()
                                 } else {
-                                    Icons.Filled.SelectAll
-                                },
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(spacing.xs))
-                        Text(
-                            if (state.selectedIds.size == state.sessions.size) {
-                                stringResource(R.string.sessions_action_deselect_all)
-                            } else {
-                                stringResource(R.string.sessions_action_select_all)
+                                    viewModel.selectAll()
+                                }
                             },
-                        )
-                    }
-
-                    // Delete selected
-                    Button(
-                        onClick = { viewModel.requestBulkDelete() },
-                        enabled = !state.isDeletingBulk,
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = statusColors.error,
-                            ),
-                    ) {
-                        if (state.isDeletingBulk) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = statusColors.onError,
-                            )
-                        } else {
+                        ) {
                             Icon(
-                                imageVector = Icons.Filled.Delete,
+                                imageVector =
+                                    if (state.selectedIds.size == state.sessions.size) {
+                                        Icons.Filled.Close
+                                    } else {
+                                        Icons.Filled.SelectAll
+                                    },
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                             )
+                            Spacer(modifier = Modifier.width(spacing.xs))
+                            Text(
+                                if (state.selectedIds.size == state.sessions.size) {
+                                    stringResource(R.string.sessions_action_deselect_all)
+                                } else {
+                                    stringResource(R.string.sessions_action_select_all)
+                                },
+                            )
                         }
-                        Spacer(modifier = Modifier.width(spacing.xs))
-                        Text(
-                            stringResource(
-                                R.string.sessions_action_delete_n,
-                                state.selectedIds.size,
-                            ),
-                        )
+
+                        // Delete selected
+                        Button(
+                            onClick = { viewModel.requestBulkDelete() },
+                            enabled = !state.isDeletingBulk,
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = statusColors.error,
+                                ),
+                        ) {
+                            if (state.isDeletingBulk) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.White,
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(spacing.xs))
+                            Text(
+                                stringResource(
+                                    R.string.sessions_action_delete_n,
+                                    state.selectedIds.size,
+                                ),
+                            )
+                        }
                     }
                 }
             }
@@ -690,10 +689,7 @@ fun SessionsScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SessionCard(
-    session: SessionInfo,
-    displayTitle: String,
-    depth: Int,
-    branchStem: String?,
+    session: com.m57.hermescontrol.data.model.SessionInfo,
     query: String,
     isSelecting: Boolean,
     isSelected: Boolean,
@@ -707,6 +703,7 @@ private fun SessionCard(
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
+    val displayTitle = session.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
     val isActive = session.status?.lowercase() == "active" || session.status?.lowercase() == "streaming"
     val srcIcon = sourceIcon(session.source)
 
@@ -714,7 +711,6 @@ private fun SessionCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(start = (depth * 16).dp)
                 .testTag("session_card_${session.id}")
                 .combinedClickable(
                     onClick = onCardClick,
@@ -743,16 +739,6 @@ private fun SessionCard(
                     checked = isSelected,
                     onCheckedChange = { onToggleSelection() },
                     modifier = Modifier.testTag("session_checkbox_${session.id}"),
-                )
-                Spacer(modifier = Modifier.width(spacing.sm))
-            }
-
-            // Branch tree stem
-            if (branchStem != null && !isSelecting) {
-                Text(
-                    text = branchStem,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.outline,
                 )
                 Spacer(modifier = Modifier.width(spacing.sm))
             }

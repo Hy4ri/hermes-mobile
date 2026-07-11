@@ -161,7 +161,9 @@ private fun highlightText(
 private fun SessionSearchResult.toSessionInfo(): SessionInfo =
     SessionInfo(
         id = session_id,
-        title = null,
+        // Backend returns the matched excerpt in `snippet`; SessionCard
+        // renders `title` (and highlights it), so map snippet → title.
+        title = snippet,
         preview = snippet,
         source = source,
         started_at = session_started,

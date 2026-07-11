@@ -107,6 +107,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -150,7 +151,7 @@ fun ChatScreen(
         }
     }
     val scrollScope = rememberCoroutineScope()
-    var inputText by rememberSaveable { mutableStateOf("") }
+    var inputText by rememberSaveable { mutableStateOf(TextFieldValue("")) }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
@@ -176,10 +177,10 @@ fun ChatScreen(
                         .orEmpty()
                 if (spokenText.isNotBlank()) {
                     inputText =
-                        if (inputText.isBlank()) {
-                            spokenText
+                        if (inputText.text.isBlank()) {
+                            TextFieldValue(spokenText)
                         } else {
-                            "$inputText $spokenText"
+                            TextFieldValue("${inputText.text} $spokenText")
                         }
                 }
             }
@@ -417,8 +418,8 @@ fun ChatScreen(
                 inputText = inputText,
                 onInputChange = { inputText = it },
                 onSend = {
-                    viewModel.sendMessage(inputText)
-                    inputText = ""
+                    viewModel.sendMessage(inputText.text)
+                    inputText = TextFieldValue("")
                     scrollScope.launch {
                         val totalItems =
                             state.messages.size +
@@ -465,6 +466,7 @@ fun ChatScreen(
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
+                currentSessionId = state.currentSessionId,
                 pendingAttachments = state.pendingAttachments,
                 onCameraTap = {
                     try {
@@ -617,24 +619,33 @@ private fun ReasoningIndicator(reasoningText: String) {
 
 @Composable
 private fun ChatInputBar(
-    inputText: String,
-    onInputChange: (String) -> Unit,
+    inputText: TextFieldValue,
+    onInputChange: (TextFieldValue) -> Unit,
     onSend: () -> Unit,
     onMicTap: () -> Unit,
     isListening: Boolean,
     isAgentTyping: Boolean,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
+    currentSessionId: String?,
     pendingAttachments: List<Attachment> = emptyList(),
     onCameraTap: () -> Unit = {},
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
 ) {
+    // Path autocomplete (`@file:`, `@folder:`, `@name`) — issue #536.
+    val pathCompletion =
+        rememberPathCompletions(
+            input = inputText,
+            sessionId = currentSessionId,
+            onTokenInserted = onInputChange,
+        )
+
     // Allow sending slash commands even while agent is typing
-    val isSlashCommand = inputText.startsWith("/")
+    val isSlashCommand = inputText.text.startsWith("/")
     val canSend =
-        (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) &&
+        (inputText.text.isNotBlank() || pendingAttachments.isNotEmpty()) &&
             isConnected && (!isAgentTyping || isSlashCommand)
 
     // Attachment menu state
@@ -670,11 +681,11 @@ private fun ChatInputBar(
                 val commandNames = allCommands.keys.filter { it !in hiddenSlashDisplay }
 
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = inputText.startsWith("/") && !inputText.contains(" "),
+                    visible = inputText.text.startsWith("/") && !inputText.text.contains(" "),
                     enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
                     exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
                 ) {
-                    val filteredCommands = commandNames.filter { it.startsWith(inputText, ignoreCase = true) }
+                    val filteredCommands = commandNames.filter { it.startsWith(inputText.text, ignoreCase = true) }
                     if (filteredCommands.isNotEmpty()) {
                         androidx.compose.material3.Surface(
                             modifier =
@@ -712,13 +723,17 @@ private fun ChatInputBar(
                                                 )
                                             }
                                         },
-                                        onClick = { onInputChange(cmd) },
+                                        onClick = { onInputChange(TextFieldValue(cmd)) },
                                     )
                                 }
                             }
                         }
                     }
                 }
+
+                // Path autocomplete dropdown (`@file:`, `@folder:`, `@diff`) — issue #536.
+                // Shown above the attachment chips when the gateway returns suggestions.
+                PathCompletionDropdown(state = pathCompletion)
 
                 // Attachment preview chips
                 AnimatedVisibility(
@@ -849,7 +864,7 @@ private fun ChatInputBar(
                         targetState =
                             when {
                                 isListening -> "listening"
-                                inputText.isBlank() && pendingAttachments.isEmpty() -> "mic"
+                                inputText.text.isBlank() && pendingAttachments.isEmpty() -> "mic"
                                 else -> "send"
                             },
                         transitionSpec = {

@@ -40,4 +40,13 @@ object WsMethods {
 
     /** Kill a single background process (scoped to the active session). */
     const val PROCESS_KILL = "process.kill"
+
+    // ── Composer path autocomplete (issue #536) ─────────────────────────
+
+    /**
+     * Resolve `@`-tagged path completions (e.g. `@file:`, `@folder:`, `@diff`)
+     * against the gateway's session working directory. Mirrors the desktop
+     * composer (`apps/desktop/.../use-context-suggestions.ts`).
+     */
+    const val COMPLETE_PATH = "complete.path"
 }

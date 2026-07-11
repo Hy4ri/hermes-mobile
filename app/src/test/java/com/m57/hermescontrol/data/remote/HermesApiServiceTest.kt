@@ -354,7 +354,7 @@ class HermesApiServiceTest {
                             """{"model":"claude-opus","provider":"anthropic","input_tokens":5,"output_tokens":7,""" +
                             """"cache_read_tokens":1,"reasoning_tokens":2,"estimated_cost":0.05,"actual_cost":0.04,""" +
                             """"sessions":3,"api_calls":9,"tool_calls":1,""" +
-                            """"last_used_at":1700000000,"avg_tokens_per_session":4.0}],""" +
+                            """"last_used_at":1700000000.0,"avg_tokens_per_session":4.0}],""" +
                             """"totals":{"distinct_models":1,"total_input":5,"total_output":7,"total_cache_read":1,""" +
                             """"total_reasoning":2,"total_estimated_cost":0.05,"total_actual_cost":0.04,""" +
                             """"total_sessions":3,"total_api_calls":9},"period_days":30}""",
@@ -415,7 +415,7 @@ class HermesApiServiceTest {
                     """"by_model":[{"model":"gpt-4o","input_tokens":100,"api_calls":7}],""" +
                     """"totals":{"total_input":100,"total_estimated_cost":0.03,"total_api_calls":7},""" +
                     """"period_days":7,"skills":{"summary":{"distinct_skills_used":2},""" +
-                    """"top_skills":[{"skill":"x","total_count":1,"percentage":50.0,"last_used_at":1700000000}]},""" +
+                    """"top_skills":[{"skill":"x","total_count":1,"percentage":50.0,"last_used_at":1700000000.0}]},""" +
                     """"tools":[{"name":"web_search"}]}"""
             mockWebServer.enqueue(
                 MockResponse().setResponseCode(200).setBody(json),

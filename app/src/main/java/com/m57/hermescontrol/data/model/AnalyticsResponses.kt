@@ -64,7 +64,7 @@ data class AnalyticsSkillEntry(
     val manage_count: Int = 0,
     val total_count: Int = 0,
     val percentage: Double = 0.0,
-    val last_used_at: Long? = null,
+    val last_used_at: Double? = null,
 )
 
 @Serializable
@@ -100,7 +100,7 @@ data class ModelsAnalyticsModelEntry(
     val sessions: Int = 0,
     val api_calls: Int = 0,
     val tool_calls: Int = 0,
-    val last_used_at: Long = 0,
+    val last_used_at: Double? = null,
     val avg_tokens_per_session: Double = 0.0,
 )
 

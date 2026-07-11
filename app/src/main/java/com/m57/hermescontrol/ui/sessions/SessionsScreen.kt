@@ -927,7 +927,7 @@ private fun SearchResultCard(
             },
     ) {
         Row(
-            modifier = Modifier.padding(spacing.md),
+            modifier = Modifier.padding(spacing.sm),
             verticalAlignment = Alignment.Top,
         ) {
             // Checkbox in select mode
@@ -982,7 +982,7 @@ private fun SearchResultCard(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                Spacer(modifier = Modifier.height(spacing.sm))
+                Spacer(modifier = Modifier.height(spacing.xs))
 
                 // Metadata chips row
                 Row(
@@ -1007,16 +1007,6 @@ private fun SearchResultCard(
                             status = StatusBadgeType.NEUTRAL,
                         )
                     }
-                }
-
-                // Tap hint when not selecting
-                if (!isSelecting) {
-                    Spacer(modifier = Modifier.height(spacing.xs))
-                    Text(
-                        text = stringResource(R.string.sessions_search_open_hint),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
                 }
             }
 

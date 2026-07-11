@@ -172,9 +172,14 @@ fun SessionsScreen(
 
     val filteredSessions =
         remember(query, state.sessions) {
-            state.sessions.filter { session ->
-                session.title?.contains(query, ignoreCase = true) == true ||
-                    session.status?.contains(query, ignoreCase = true) == true
+            if (query.isBlank()) {
+                state.sessions
+            } else {
+                state.sessions.filter { session ->
+                    session.title?.contains(query, ignoreCase = true) == true ||
+                        session.preview?.contains(query, ignoreCase = true) == true ||
+                        session.status?.contains(query, ignoreCase = true) == true
+                }
             }
         }
 

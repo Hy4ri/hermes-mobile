@@ -118,6 +118,9 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
 
     private val _streamingState = MutableStateFlow(StreamingState())
+
+    /** Maps an in-flight RPC id to its method for UI error labeling. */
+    private val idToMethod = ConcurrentHashMap<String, String>()
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     private val wsClient = HermesWsClient
@@ -1344,9 +1347,6 @@ class ChatViewModel(
     }
 
     // ── Pending request tracking ─────────────────────────────────────────
-
-    /** Maps an in-flight RPC id → its method, purely for UI error labeling. The deferred/timeout lives in [HermesWsClient.request] (issue #526). */
-    private val idToMethod = ConcurrentHashMap<String, String>()
 
     private fun trackRequest(
         id: String,

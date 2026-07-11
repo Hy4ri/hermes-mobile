@@ -239,10 +239,10 @@ class ChatViewModel(
     private fun handleGatewayReady() {
         _uiState.update { it.copy(isLoading = false) }
         addSystemMessage("Connected to Hermes")
-        loadSessions()
         fetchCommandCatalog()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
+            loadSessions()
             viewModelScope.launch(Dispatchers.IO) {
                 wsClient.send(
                     WsMethods.SESSION_RESUME,
@@ -257,7 +257,7 @@ class ChatViewModel(
                 initialSessionId = null
                 switchSession(initial)
             } else {
-                createNewSession(setLoading = false)
+                loadSessions(selectLatestIfNone = true)
             }
         }
     }
@@ -825,12 +825,47 @@ class ChatViewModel(
         }
     }
 
-    fun loadSessions() {
-        viewModelScope.launch(Dispatchers.IO) {
-            wsClient.send(
-                WsMethods.SESSION_LIST,
-                onSent = { id -> trackRequest(id, WsMethods.SESSION_LIST) },
-            )
+    fun loadSessions(selectLatestIfNone: Boolean = false) {
+        viewModelScope.launch {
+            when (
+                val result = withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.getSessions(
+                            limit = 500,
+                            offset = 0,
+                            order = "recent",
+                        )
+                    }
+                }
+            ) {
+                is NetworkResult.Success -> {
+                    val sessions =
+                        result.data.sessions.map { session ->
+                            SessionUi(
+                                id = session.id,
+                                title = session.title ?: session.preview?.take(80) ?: "Untitled",
+                                messageCount = session.message_count ?: 0,
+                            )
+                        }
+                    _uiState.update { state ->
+                        val newTitle = sessions.find { it.id == state.currentSessionId }?.title
+                        state.copy(
+                            sessions = sessions,
+                            chatTitle = newTitle ?: state.chatTitle,
+                        )
+                    }
+                    if (selectLatestIfNone && _uiState.value.currentSessionId == null) {
+                        sessions.firstOrNull()?.let { switchSession(it.id) }
+                            ?: createNewSession(setLoading = false)
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(errorMessage = "Failed to sync desktop sessions: ${result.error.message}")
+                    }
+                }
+            }
         }
     }
 
@@ -845,15 +880,7 @@ class ChatViewModel(
 
     fun refreshCurrentSession() {
         val sessionId = _uiState.value.currentSessionId ?: return
-        viewModelScope.launch {
-            loadCachedMessages(sessionId).join()
-            // Skip the REST call if we already have messages — the WebSocket keeps
-            // the UI current. The REST endpoint can 404 on tab switch-back when the
-            // WS session ID doesn't round-trip through the resolver (issue #366),
-            // showing a misleading error banner while the connection is fine.
-            if (_uiState.value.messages.isNotEmpty()) return@launch
-            loadSessionMessages(sessionId)
-        }
+        loadSessionMessages(sessionId)
     }
 
     fun refreshSettings() {
@@ -893,9 +920,7 @@ class ChatViewModel(
         }
         _streamingState.update { StreamingState() }
         viewModelScope.launch {
-            // Step 1: Load cached messages first — instant display
-            loadCachedMessages(sessionId).join()
-            // Step 2: Resume session on server
+            // Resume the selected desktop session, then load its complete transcript.
             launch(Dispatchers.IO) {
                 wsClient.send(
                     WsMethods.SESSION_RESUME,
@@ -903,9 +928,7 @@ class ChatViewModel(
                     onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
                 )
             }
-            // Step 3: Load fresh messages from REST and merge
             loadSessionMessages(sessionId)
-            // Step 4: Refresh session list to get latest titles
             loadSessions()
         }
     }
@@ -959,16 +982,10 @@ class ChatViewModel(
                         repo.persistMessages(chatMessages, sessionId)
                     }
                     _uiState.update { state ->
-                        // Only update if still on the same session
+                        // The desktop server is authoritative for synchronized sessions.
                         if (state.currentSessionId != sessionId) return@update state
-
-                        // Merge: keep any user messages sent between cache load
-                        // and REST response (they won't be in the REST response
-                        // yet), plus preserve any active streaming message.
-                        val existingIds = chatMessages.mapTo(HashSet(chatMessages.size)) { it.id }
-                        val localOnly = state.messages.filter { it.id !in existingIds }
                         state.copy(
-                            messages = chatMessages + localOnly,
+                            messages = chatMessages,
                             isLoading = false,
                         )
                     }

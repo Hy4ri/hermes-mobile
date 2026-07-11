@@ -608,7 +608,10 @@ private fun SessionCard(
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
-    val displayTitle = session.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
+    val displayTitle =
+        session.title?.takeIf { it.isNotBlank() }
+            ?: session.preview?.takeIf { it.isNotBlank() }?.take(80)
+            ?: stringResource(R.string.history_untitled)
     val isActive = session.status?.lowercase() == "active" || session.status?.lowercase() == "streaming"
     val srcIcon = sourceIcon(session.source)
 

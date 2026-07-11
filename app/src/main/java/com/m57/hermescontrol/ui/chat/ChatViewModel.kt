@@ -445,7 +445,7 @@ class ChatViewModel(
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
                 val sessionId =
-                    (resultMap?.get("session_id") as? String)
+                    (resultMap?.get("resumed") as? String)
                         ?: _uiState.value.currentSessionId
 
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
@@ -971,7 +971,12 @@ class ChatViewModel(
                             // Room duplicates when re-loading the same session.
                             val stableId = "rest-$sessionId-$index"
                             // Preserve original timestamp from the API when available
-                            val ts = msg.timestampText?.toLongOrNull() ?: System.currentTimeMillis()
+                            val ts =
+                                msg.timestampText
+                                    ?.toDoubleOrNull()
+                                    ?.times(1000)
+                                    ?.toLong()
+                                    ?: System.currentTimeMillis()
                             ChatMessage(
                                 id = stableId,
                                 role = role,

@@ -411,11 +411,12 @@ class ChatViewModel(
         when (method) {
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
-                val sessionId = resultMap["session_id"] as? String ?: return
-                runtimeSessionId = sessionId
+                val runtimeId = resultMap["session_id"] as? String ?: return
+                val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
+                runtimeSessionId = runtimeId
                 _uiState.update {
                     it.copy(
-                        currentSessionId = sessionId,
+                        currentSessionId = storageId,
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = "Hermes",
@@ -829,6 +830,7 @@ class ChatViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.SESSION_CREATE,
+                params = mapOf("source" to "desktop"),
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_CREATE) },
             )
         }

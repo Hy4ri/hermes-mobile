@@ -12,7 +12,7 @@ data class CommandCatalog(
     val sub: Map<String, List<String>> = emptyMap(),
     val canon: Map<String, String> = emptyMap(),
     val categories: List<CommandCategory> = emptyList(),
-    val skillCount: Int = 0,
+    val skillCount: Double = 0.0,
     val warning: String = "",
 )
 

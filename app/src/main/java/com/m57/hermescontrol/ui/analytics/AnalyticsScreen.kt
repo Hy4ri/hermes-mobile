@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
@@ -21,10 +21,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,6 +105,8 @@ private fun AnalyticsContent(
     val usage = state.usage ?: return
     val models = state.models
 
+    var selectedSectionTab by remember { mutableStateOf(0) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = listContentPadding,
@@ -119,29 +126,99 @@ private fun AnalyticsContent(
             item { DailyCostChart(entries = usage.daily) }
         }
 
-        if (models != null && models.models.isNotEmpty()) {
-            item { SectionTitle(stringResource(R.string.analytics_per_model)) }
-            items(models.models, key = { it.model }) { model ->
-                ModelRow(model = model)
-            }
-        } else if (usage.by_model.isNotEmpty()) {
-            item { SectionTitle(stringResource(R.string.analytics_per_model)) }
-            items(usage.by_model, key = { it.model }) { entry ->
-                ModelEntryRow(entry = entry)
+        item {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = "Most Used Components",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Overview of your most active models, skills, and tools.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
-        if (usage.skills.top_skills.isNotEmpty()) {
-            item { SectionTitle(stringResource(R.string.analytics_top_skills)) }
-            items(usage.skills.top_skills, key = { it.skill }) { skill ->
-                SkillRow(skill = skill)
+        item {
+            SecondaryTabRow(selectedTabIndex = selectedSectionTab) {
+                Tab(
+                    selected = selectedSectionTab == 0,
+                    onClick = { selectedSectionTab = 0 },
+                    text = { Text("Models") },
+                )
+                Tab(
+                    selected = selectedSectionTab == 1,
+                    onClick = { selectedSectionTab = 1 },
+                    text = { Text("Skills") },
+                )
+                Tab(
+                    selected = selectedSectionTab == 2,
+                    onClick = { selectedSectionTab = 2 },
+                    text = { Text("Tools") },
+                )
             }
         }
 
-        if (usage.tools.isNotEmpty()) {
-            item { SectionTitle(stringResource(R.string.analytics_top_tools)) }
-            items(usage.tools, key = { it.tool }) { tool ->
-                ToolRow(tool = tool)
+        if (selectedSectionTab == 0) {
+            if (models != null && models.models.isNotEmpty()) {
+                itemsIndexed(models.models, key = { index, it -> "model_${it.model}_$index" }) { _, model ->
+                    ModelRow(model = model)
+                }
+            } else if (usage.by_model.isNotEmpty()) {
+                itemsIndexed(usage.by_model, key = { index, it -> "usage_${it.model}_$index" }) { _, entry ->
+                    ModelEntryRow(entry = entry)
+                }
+            } else {
+                item {
+                    Text(
+                        text = "No model data available",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        if (selectedSectionTab == 1) {
+            if (usage.skills.top_skills.isNotEmpty()) {
+                itemsIndexed(usage.skills.top_skills, key = { index, it -> "skill_${it.skill}_$index" }) { _, skill ->
+                    SkillRow(skill = skill)
+                }
+            } else {
+                item {
+                    Text(
+                        text = "No skill data available",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        if (selectedSectionTab == 2) {
+            if (usage.tools.isNotEmpty()) {
+                itemsIndexed(usage.tools, key = { index, it -> "tool_${it.tool}_$index" }) { _, tool ->
+                    ToolRow(tool = tool)
+                }
+            } else {
+                item {
+                    Text(
+                        text = "No tool data available",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -491,7 +568,9 @@ private fun formatCost(value: Double): String =
 
 private fun formatTokens(value: Long): String =
     when {
-        value >= 1_000_000 -> "%.1fM".format(value / 1_000_000.0)
-        value >= 1_000 -> "%.1fK".format(value / 1_000.0)
+        value >= 1_000_000_000_000L -> "%.1fT".format(value / 1_000_000_000_000.0)
+        value >= 1_000_000_000L -> "%.1fB".format(value / 1_000_000_000.0)
+        value >= 1_000_000L -> "%.1fM".format(value / 1_000_000.0)
+        value >= 1_000L -> "%.1fK".format(value / 1_000.0)
         else -> value.toString()
     }

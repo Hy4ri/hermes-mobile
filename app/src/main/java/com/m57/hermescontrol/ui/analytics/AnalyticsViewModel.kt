@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,9 +48,11 @@ class AnalyticsViewModel : ViewModel() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         loadJob =
             viewModelScope.launch {
-                // Retrofit suspends are already main-safe; no need for async(Dispatchers.IO).
-                val usageResult = safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) }
-                val modelsResult = safeApiCall<ModelsAnalyticsResponse> { api.getModelsAnalytics(days, profile) }
+                val usageDeferred = async { safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) } }
+                val modelsDeferred =
+                    async { safeApiCall<ModelsAnalyticsResponse> { api.getModelsAnalytics(days, profile) } }
+                val usageResult = usageDeferred.await()
+                val modelsResult = modelsDeferred.await()
                 // On failure keep previously-loaded data visible instead of wiping it.
                 val usage = (usageResult as? NetworkResult.Success)?.data ?: _uiState.value.usage
                 val models = (modelsResult as? NetworkResult.Success)?.data ?: _uiState.value.models

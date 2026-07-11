@@ -389,7 +389,7 @@ private fun LazyListScope.hostSection(
                                 Icon(Icons.Filled.Update, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.size(spacing.xs))
                             }
-                            Text(stringResource(R.string.system_action_check_updates), maxLines = 1)
+                            Text(stringResource(R.string.system_action_check_updates), maxLines = 1, softWrap = false)
                         }
                         state.updateInfo?.let { info ->
                             if (info.update_available == true && info.can_apply == true) {
@@ -403,7 +403,11 @@ private fun LazyListScope.hostSection(
                                         modifier = Modifier.size(18.dp),
                                     )
                                     Spacer(modifier = Modifier.size(spacing.xs))
-                                    Text(stringResource(R.string.system_action_update_now), maxLines = 1)
+                                    Text(
+                                        stringResource(R.string.system_action_update_now),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                    )
                                 }
                             }
                         }
@@ -571,7 +575,11 @@ private fun LazyListScope.portalSection(
                         ) {
                             Icon(Icons.Filled.Link, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.size(spacing.xs))
-                            Text(stringResource(R.string.system_portal_manage_subscription))
+                            Text(
+                                stringResource(R.string.system_portal_manage_subscription),
+                                maxLines = 1,
+                                softWrap = false,
+                            )
                         }
                     }
 
@@ -676,11 +684,11 @@ private fun LazyListScope.curatorSection(
                                         modifier = Modifier.size(18.dp),
                                     )
                                     Spacer(modifier = Modifier.size(spacing.xs))
-                                    Text(stringResource(R.string.system_curator_resume), maxLines = 1)
+                                    Text(stringResource(R.string.system_curator_resume), maxLines = 1, softWrap = false)
                                 } else {
                                     Icon(Icons.Filled.Pause, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.size(spacing.xs))
-                                    Text(stringResource(R.string.system_curator_pause), maxLines = 1)
+                                    Text(stringResource(R.string.system_curator_pause), maxLines = 1, softWrap = false)
                                 }
                             }
                             Button(
@@ -689,7 +697,7 @@ private fun LazyListScope.curatorSection(
                             ) {
                                 Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.size(spacing.xs))
-                                Text(stringResource(R.string.system_curator_run_now), maxLines = 1)
+                                Text(stringResource(R.string.system_curator_run_now), maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -815,7 +823,7 @@ private fun LazyListScope.gatewaySection(
                             ) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.size(spacing.xs))
-                                Text(stringResource(R.string.system_gateway_start), maxLines = 1)
+                                Text(stringResource(R.string.system_gateway_start), maxLines = 1, softWrap = false)
                             }
                         }
                         if (isRunning) {
@@ -829,7 +837,7 @@ private fun LazyListScope.gatewaySection(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(modifier = Modifier.size(spacing.xs))
-                                Text(stringResource(R.string.system_gateway_restart), maxLines = 1)
+                                Text(stringResource(R.string.system_gateway_restart), maxLines = 1, softWrap = false)
                             }
                             OutlinedButton(
                                 onClick = { viewModel.stopGateway() },
@@ -918,7 +926,11 @@ private fun LazyListScope.memorySection(
                             ) {
                                 Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.size(spacing.xs))
-                                Text(stringResource(R.string.system_memory_reset_memory), maxLines = 1)
+                                Text(
+                                    stringResource(R.string.system_memory_reset_memory),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
                             }
                             FilledTonalButton(
                                 onClick = { onResetRequest("user") },
@@ -926,7 +938,7 @@ private fun LazyListScope.memorySection(
                             ) {
                                 Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.size(spacing.xs))
-                                Text(stringResource(R.string.system_memory_reset_user), maxLines = 1)
+                                Text(stringResource(R.string.system_memory_reset_user), maxLines = 1, softWrap = false)
                             }
                             FilledTonalButton(
                                 onClick = { onResetRequest("all") },
@@ -938,7 +950,7 @@ private fun LazyListScope.memorySection(
                                     modifier = Modifier.size(14.dp),
                                 )
                                 Spacer(modifier = Modifier.size(spacing.xs))
-                                Text(stringResource(R.string.system_memory_reset_all), maxLines = 1)
+                                Text(stringResource(R.string.system_memory_reset_all), maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -1032,7 +1044,7 @@ private fun LazyListScope.credentialsSection(
                         Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
                     }
-                    Text(stringResource(R.string.system_credentials_add_key))
+                    Text(stringResource(R.string.system_credentials_add_key), maxLines = 1, softWrap = false)
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = spacing.sm))
@@ -1101,7 +1113,7 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.HealthAndSafety, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_doctor), maxLines = 1)
+                        Text(stringResource(R.string.system_op_doctor), maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runSecurityAudit() },
@@ -1109,7 +1121,7 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.VerifiedUser, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_security_audit), maxLines = 1)
+                        Text(stringResource(R.string.system_op_security_audit), maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runUpdateSkills() },
@@ -1117,7 +1129,7 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_update_skills), maxLines = 1)
+                        Text(stringResource(R.string.system_op_update_skills), maxLines = 1, softWrap = false)
                     }
                 }
 
@@ -1134,7 +1146,7 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.HealthAndSafety, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_prompt_size), maxLines = 1)
+                        Text(stringResource(R.string.system_op_prompt_size), maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runDump() },
@@ -1142,7 +1154,7 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.Build, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_dump), maxLines = 1)
+                        Text(stringResource(R.string.system_op_dump), maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = { viewModel.runConfigMigrate() },
@@ -1150,7 +1162,7 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.Build, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_config_migrate), maxLines = 1)
+                        Text(stringResource(R.string.system_op_config_migrate), maxLines = 1, softWrap = false)
                     }
                 }
 
@@ -1158,7 +1170,7 @@ private fun LazyListScope.operationsSection(
 
                 // Backup section
                 Text(
-                    text = stringResource(R.string.system_op_backup_create),
+                    text = stringResource(R.string.system_sec_backup),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1174,7 +1186,7 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.Backup, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_backup_create), maxLines = 1)
+                        Text(stringResource(R.string.system_op_backup_create), maxLines = 1, softWrap = false)
                     }
                     OutlinedButton(
                         onClick = { viewModel.downloadBackup() },
@@ -1183,14 +1195,14 @@ private fun LazyListScope.operationsSection(
                     ) {
                         Icon(Icons.Filled.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_op_backup_download), maxLines = 1)
+                        Text(stringResource(R.string.system_op_backup_download), maxLines = 1, softWrap = false)
                     }
                 }
 
                 // Restore from uploaded zip
                 Spacer(modifier = Modifier.height(spacing.sm))
                 Text(
-                    text = stringResource(R.string.system_op_backup_restore_upload),
+                    text = stringResource(R.string.system_sec_restore),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1219,7 +1231,7 @@ private fun LazyListScope.operationsSection(
                 ) {
                     Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.size(spacing.xs))
-                    Text(stringResource(R.string.system_op_restore_upload))
+                    Text(stringResource(R.string.system_op_restore_upload), maxLines = 1, softWrap = false)
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = spacing.sm))
@@ -1270,6 +1282,8 @@ private fun LazyListScope.operationsSection(
                         } else {
                             stringResource(R.string.system_debug_share_generate)
                         },
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
 
@@ -1288,7 +1302,7 @@ private fun LazyListScope.operationsSection(
                                 if (share.ok == true) {
                                     stringResource(R.string.system_debug_share_uploaded)
                                 } else {
-                                    stringResource(R.string.system_status_stopped)
+                                    stringResource(R.string.system_debug_share_failed)
                                 },
                             status = if (share.ok == true) StatusBadgeType.SUCCESS else StatusBadgeType.ERROR,
                         )
@@ -1384,7 +1398,7 @@ private fun LazyListScope.checkpointsSection(
                     ) {
                         Icon(Icons.Filled.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.size(spacing.xs))
-                        Text(stringResource(R.string.system_checkpoints_prune))
+                        Text(stringResource(R.string.system_checkpoints_prune), maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -1406,7 +1420,7 @@ private fun LazyListScope.shellHooksSection(
                 FilledTonalButton(onClick = { viewModel.toggleHookModal() }) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.size(spacing.xs))
-                    Text(stringResource(R.string.system_hooks_new))
+                    Text(stringResource(R.string.system_hooks_new), maxLines = 1, softWrap = false)
                 }
             },
         )

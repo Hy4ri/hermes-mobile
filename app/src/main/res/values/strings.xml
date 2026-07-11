@@ -396,6 +396,8 @@
     <string name="system_op_backup_create">Create backup</string>
     <string name="system_op_backup_download">Download backup</string>
     <string name="system_op_backup_restore_upload">Restore from backup upload</string>
+    <string name="system_sec_backup">Backup</string>
+    <string name="system_sec_restore">Restore from upload</string>
     <string name="system_op_choose_zip">Choose restore zip</string>
     <string name="system_op_restore_upload">Restore upload</string>
     <string name="system_op_restore_path_label">Restore from backups path</string>
@@ -416,6 +418,7 @@
     <string name="system_debug_share_not_redacted">not redacted</string>
     <string name="system_debug_share_auto_delete">auto-deletes in %1$dh</string>
     <string name="system_debug_share_copy_all">Copy all</string>
+    <string name="system_debug_share_failed">upload failed</string>
 
     <!-- Checkpoints section -->
     <string name="system_sec_checkpoints">Checkpoints</string>

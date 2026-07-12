@@ -12,7 +12,7 @@ android {
     namespace = "com.m57.hermescontrol"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.m57.hermescontrol.sync"
+        applicationId = "com.m57.hermescontrol"
         minSdk = 26
         targetSdk = 36
         // Version overrides passed from CI via -PversionName / -PversionCode

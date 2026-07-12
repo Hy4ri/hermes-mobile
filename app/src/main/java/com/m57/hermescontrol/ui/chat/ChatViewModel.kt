@@ -1095,6 +1095,7 @@ class ChatViewModel(
 
     private suspend fun fetchServerMessageCount(sessionId: String): Int {
         val known = _uiState.value.sessions.find { it.id == sessionId }?.messageCount
+        if (known != null) return known
         val result =
             withContext(Dispatchers.IO) {
                 safeApiCall { ApiClient.hermesApi.getSessions(limit = 500, offset = 0, order = "recent") }

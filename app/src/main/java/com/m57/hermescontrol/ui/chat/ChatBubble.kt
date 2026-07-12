@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -337,7 +336,6 @@ private fun AssistantBubble(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var showCopyButton by remember { mutableStateOf(false) }
-    val desktopMedia = remember(message.content) { DesktopMedia.parse(message.content) }
 
     // Auto-dismiss copy button after 4 seconds
     LaunchedEffect(showCopyButton) {
@@ -383,27 +381,13 @@ private fun AssistantBubble(
                 tonalElevation = 1.dp,
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                    if (desktopMedia?.isImage == true) {
-                        AsyncImage(
-                            model = desktopMedia.url(),
-                            contentDescription = desktopMedia.fileName,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 120.dp, max = 420.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .testTag("desktop_media_image"),
-                            contentScale = ContentScale.Fit,
+                    SelectionContainer {
+                        RichText(
+                            text = message.content,
+                            textColor = textColor,
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
                         )
-                    } else {
-                        SelectionContainer {
-                            RichText(
-                                text = message.content,
-                                textColor = textColor,
-                                searchQuery = searchQuery,
-                                isCurrentMatch = isCurrentMatch,
-                            )
-                        }
                     }
                     if (!message.isStreaming) {
                         Text(

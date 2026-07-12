@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Hermes Sync</string>
+    <string name="app_name">HermesMobile</string>
 
     <!-- Chat -->
     <string name="chat_send_desc">Send</string>
@@ -71,6 +71,8 @@
     <string name="screen_kanban">Kanban</string>
     <string name="screen_achievements">Achievements</string>
     <string name="screen_history">History</string>
+    <string name="screen_processes">Processes</string>
+    <string name="screen_analytics">Analytics</string>
 
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>
@@ -169,7 +171,7 @@
     <string name="settings_save_success">✅ Settings saved</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
-    <string name="settings_about_app_name">⚡ Hermes Sync</string>
+    <string name="settings_about_app_name">⚡ Hermes Mobile</string>
     <string name="settings_about_version">Version</string>
     <string name="settings_about_build">Build</string>
     <string name="settings_about_debug">Debug</string>
@@ -394,6 +396,8 @@
     <string name="system_op_backup_create">Create backup</string>
     <string name="system_op_backup_download">Download backup</string>
     <string name="system_op_backup_restore_upload">Restore from backup upload</string>
+    <string name="system_sec_backup">Backup</string>
+    <string name="system_sec_restore">Restore from upload</string>
     <string name="system_op_choose_zip">Choose restore zip</string>
     <string name="system_op_restore_upload">Restore upload</string>
     <string name="system_op_restore_path_label">Restore from backups path</string>
@@ -414,6 +418,7 @@
     <string name="system_debug_share_not_redacted">not redacted</string>
     <string name="system_debug_share_auto_delete">auto-deletes in %1$dh</string>
     <string name="system_debug_share_copy_all">Copy all</string>
+    <string name="system_debug_share_failed">upload failed</string>
 
     <!-- Checkpoints section -->
     <string name="system_sec_checkpoints">Checkpoints</string>
@@ -826,7 +831,7 @@
     <string name="auth_login_use_profile">Enter as %1$s</string>
 
     <!-- Landing Screen -->
-    <string name="landing_title">Hermes Sync</string>
+    <string name="landing_title">Hermes Mobile</string>
     <string name="landing_subtitle">Control panel for Hermes Agent</string>
     <string name="landing_action_auth_login">Auth Login</string>
     <string name="landing_action_pairing_login">Pairing Login</string>
@@ -840,4 +845,35 @@
     <string name="loading_state_subtitle_default">Loading…</string>
     <string name="loading_state_subtitle_models">Fetching model providers…</string>
     <string name="loading_state_subtitle_channels">Loading channels…</string>
+
+    <!-- Processes Screen (issue #532) -->
+    <string name="processes_empty_title">No running processes</string>
+    <string name="processes_empty_desc">Background processes for this session will appear here.</string>
+    <string name="processes_no_session_title">No active chat session</string>
+    <string name="processes_no_session_desc">Open a chat session first — the process list is scoped to a session.</string>
+    <string name="processes_running_hint">Running</string>
+    <string name="processes_kill_title">Kill process?</string>
+    <string name="processes_kill_desc">Stop \u201c%1$s\u201d? This cannot be undone.</string>
+
+    <!-- Analytics Screen (issue #537) -->
+    <string name="analytics_empty_title">No analytics yet</string>
+    <string name="analytics_empty_desc">Usage stats will appear here once the agent has been active.</string>
+    <string name="analytics_days">%1$d days</string>
+    <string name="analytics_estimated_cost">Est. cost</string>
+    <string name="analytics_actual_cost">Actual cost</string>
+    <string name="analytics_sessions">Sessions</string>
+    <string name="analytics_api_calls">API calls</string>
+    <string name="analytics_input_tokens">Input</string>
+    <string name="analytics_output_tokens">Output</string>
+    <string name="analytics_cache_read">Cache read</string>
+    <string name="analytics_reasoning">Reasoning</string>
+    <string name="analytics_daily_cost">Daily estimated cost</string>
+    <string name="analytics_per_model">Per-model breakdown</string>
+    <string name="analytics_top_skills">Top skills</string>
+    <string name="analytics_no_cost_data">No cost recorded in this period.</string>
+    <string name="analytics_skill_uses">%1$d uses \u2022 %2$d%% of total</string>
+    <string name="analytics_top_tools">Top tools</string>
+    <string name="analytics_tool_uses">%1$d calls \u2022 %2$d%% of total</string>
+    <string name="processes_kill_confirm">Kill</string>
+    <string name="processes_kill_cd">Kill process</string>
 </resources>

@@ -136,6 +136,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private const val SESSION_SYNC_INTERVAL_MS = 5_000L
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
@@ -151,7 +153,7 @@ fun ChatScreen(
 
     LaunchedEffect(state.currentSessionId, state.connectionStatus) {
         while (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
-            delay(3_000)
+            delay(SESSION_SYNC_INTERVAL_MS)
             viewModel.syncCurrentSession()
         }
     }

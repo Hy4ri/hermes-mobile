@@ -18,8 +18,9 @@ object TokenRefreshAuthenticator : Authenticator {
         // shared CookieJar (issue #470), so OkHttp re-attaches it on retry
         // without any manual header manipulation here.
 
-        // Loopback mode: re-assert the Bearer token if the request lacked it
-        // (or it drifted from the current stored token).
+        // Loopback mode: a dashboard restart invalidates the saved ephemeral
+        // token. First reuse a token another request may already have refreshed;
+        // otherwise extract the current token from the dashboard SPA.
         val token = AuthManager.getToken()
         val requestAuth = response.request.header("Authorization")
         val currentAuthHeader = "Bearer $token"
@@ -29,6 +30,11 @@ object TokenRefreshAuthenticator : Authenticator {
                 .header("Authorization", currentAuthHeader)
                 .build()
         }
-        return null
+
+        val refreshedToken = DashboardSessionTokenRefresher.refresh() ?: return null
+        return response.request
+            .newBuilder()
+            .header("Authorization", "Bearer $refreshedToken")
+            .build()
     }
 }

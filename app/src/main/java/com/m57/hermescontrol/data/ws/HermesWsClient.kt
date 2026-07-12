@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import kotlinx.coroutines.CompletableDeferred
@@ -234,8 +235,17 @@ object HermesWsClient {
      * and ticket refresh failed or cannot be performed.
      */
     private fun refreshWsTicketIfNeeded(): Boolean {
-        val isGated = AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
+        val isGated =
+            try {
+                AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
+            } catch (_: IllegalStateException) {
+                false
+            }
         if (!isGated) {
+            // The loopback dashboard token is regenerated on every server
+            // restart. Refresh it before each WebSocket handshake so automatic
+            // reconnect does not get stuck in AUTH_EXPIRED with a stale token.
+            DashboardSessionTokenRefresher.refresh()
             return true
         }
 

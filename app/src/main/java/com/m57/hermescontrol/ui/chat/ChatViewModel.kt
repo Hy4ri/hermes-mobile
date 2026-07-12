@@ -11,7 +11,6 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.SessionMessage
-import com.m57.hermescontrol.data.model.flattenSessionTree
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -264,10 +263,10 @@ class ChatViewModel(
     private fun handleGatewayReady() {
         _uiState.update { it.copy(isLoading = false) }
         addSystemMessage("Connected to Hermes")
+        loadSessions()
         fetchCommandCatalog()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
-            loadSessions()
             viewModelScope.launch(Dispatchers.IO) {
                 wsClient.send(
                     WsMethods.SESSION_RESUME,
@@ -282,7 +281,7 @@ class ChatViewModel(
                 initialSessionId = null
                 switchSession(initial)
             } else {
-                loadSessions(selectLatestIfNone = true)
+                createNewSession(setLoading = false)
             }
         }
     }
@@ -461,7 +460,7 @@ class ChatViewModel(
                 // Mirror the active session id app-wide so session-scoped
                 // drawer screens (e.g. Processes, issue #532) can issue
                 // session-scoped RPCs. See ActiveSessionHolder.
-                ActiveSessionHolder.set(sessionId)
+                ActiveSessionHolder.set(runtimeId)
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
@@ -505,8 +504,8 @@ class ChatViewModel(
                         currentSessionId = sessionId,
                     )
                 }
-                // Mirror the active session id app-wide (issue #532).
-                ActiveSessionHolder.set(sessionId)
+                // Mirror the active runtime session id app-wide (issue #532).
+                ActiveSessionHolder.set(runtimeSessionId ?: sessionId)
                 addSystemMessage("Session resumed")
             }
 
@@ -878,51 +877,12 @@ class ChatViewModel(
         }
     }
 
-    fun loadSessions(selectLatestIfNone: Boolean = false) {
-        viewModelScope.launch {
-            when (
-                val result =
-                    withContext(Dispatchers.IO) {
-                        safeApiCall {
-                            ApiClient.hermesApi.getSessions(
-                                limit = 500,
-                                offset = 0,
-                                order = "recent",
-                            )
-                        }
-                    }
-            ) {
-                is NetworkResult.Success -> {
-                    val sessions =
-                        flattenSessionTree(result.data.sessions).map { item ->
-                            val session = item.session
-                            SessionUi(
-                                id = session.id,
-                                title = item.displayTitle,
-                                messageCount = session.message_count ?: 0,
-                                parentSessionId = session.parent_session_id,
-                                depth = item.depth,
-                            )
-                        }
-                    _uiState.update { state ->
-                        val newTitle = sessions.find { it.id == state.currentSessionId }?.title
-                        state.copy(
-                            sessions = sessions,
-                            chatTitle = newTitle ?: state.chatTitle,
-                        )
-                    }
-                    if (selectLatestIfNone && _uiState.value.currentSessionId == null) {
-                        sessions.firstOrNull()?.let { switchSession(it.id) }
-                            ?: createNewSession(setLoading = false)
-                    }
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(errorMessage = "Failed to sync desktop sessions: ${result.error.message}")
-                    }
-                }
-            }
+    fun loadSessions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.SESSION_LIST,
+                onSent = { id -> trackRequest(id, WsMethods.SESSION_LIST) },
+            )
         }
     }
 

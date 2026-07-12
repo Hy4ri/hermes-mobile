@@ -1561,6 +1561,97 @@ class ChatViewModel(
         // leaving the Chat screen — it's used by background notification reply.
     }
 
+    /**
+     * Live-syncs newly-arrived server messages into the current session without
+     * disturbing the scroll position or the loaded older pages (issue #563).
+     *
+     * In #551's pagination model the loaded block occupies absolute backend
+     * indices [currentOffset, currentOffset + messages.size). Anything at a
+     * higher index is newer than what's shown, so we fetch from
+     * `currentOffset + messages.size` to the end and merge by stable ID.
+     */
+    fun syncCurrentSession() {
+        val state = _uiState.value
+        val sessionId = state.currentSessionId ?: return
+        if (isSyncingMessages || state.isLoading || state.isLoadingOlder || state.isAgentTyping ||
+            _streamingState.value.streamingMessage != null
+        ) {
+            return
+        }
+        val loadedCount = state.messages.size
+        if (loadedCount == 0) return
+        val nextOffset = state.currentOffset + loadedCount
+        isSyncingMessages = true
+        viewModelScope.launch {
+            try {
+                val result =
+                    withContext(Dispatchers.IO) {
+                        safeApiCall {
+                            ApiClient.hermesApi.getSessionMessages(
+                                sessionId,
+                                limit = PAGE_SIZE,
+                                offset = nextOffset,
+                            )
+                        }
+                    }
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val page = result.data.messages.orEmpty()
+                        if (page.isEmpty()) return@launch
+                        val incoming =
+                            page.mapIndexed { index, msg ->
+                                val role =
+                                    when (msg.role?.lowercase()) {
+                                        "user" -> MessageRole.USER
+                                        "system" -> MessageRole.SYSTEM
+                                        "tool" -> MessageRole.TOOL
+                                        else -> MessageRole.ASSISTANT
+                                    }
+                                val absoluteIndex = nextOffset + index
+                                val stableId = "rest-$sessionId-$absoluteIndex"
+                                val ts = msg.timestampText?.toLongOrNull() ?: System.currentTimeMillis()
+                                ChatMessage(
+                                    id = stableId,
+                                    role = role,
+                                    content = msg.content.orEmpty(),
+                                    timestamp = ts,
+                                    isStreaming = false,
+                                )
+                            }
+                        withContext(Dispatchers.IO) { repo.persistMessages(incoming, sessionId) }
+                        _uiState.update { current ->
+                            if (current.currentSessionId != sessionId) return@update current
+                            // Keep locally-sent messages (no server index yet) and dedupe
+                            // by stable ID so a re-sync never double-inserts.
+                            val localOnly = current.messages.filter { serverMessageIndex(it.id, sessionId) == null }
+                            val merged = (localOnly + incoming).distinctBy { it.id }
+                            if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
+                        }
+                    }
+
+                    is NetworkResult.Failure -> Unit
+                }
+            } finally {
+                isSyncingMessages = false
+            }
+        }
+    }
+
+    private var isSyncingMessages = false
+
+    /** Extracts the absolute backend index from a `rest-<session>-<n>` message id. */
+    private fun serverMessageIndex(
+        id: String,
+        sessionId: String,
+    ): Int? = id.removePrefix("rest-$sessionId-").takeIf { it != id }?.toIntOrNull()
+
+    private fun sameMessages(
+        left: List<ChatMessage>,
+        right: List<ChatMessage>,
+    ): Boolean =
+        left.size == right.size &&
+            left.zip(right).all { (a, b) -> a.id == b.id && a.role == b.role && a.content == b.content }
+
     companion object {
     }
 }

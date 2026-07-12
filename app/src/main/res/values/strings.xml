@@ -862,6 +862,7 @@
     <string name="providers_code_label">Authorization code</string>
     <string name="providers_device_code_hint">Enter this code at the verification URL on another device, then wait — this screen polls automatically.</string>
     <string name="providers_expires_in">Expires in %1$s</string>
+    <string name="providers_flow_success">OAuth connected successfully.</string>
     <string name="providers_action_fix">Fix</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_done">Done</string>

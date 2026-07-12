@@ -284,6 +284,11 @@ private fun OAuthFlowDialog(
                         Text(stringResource(R.string.action_close))
                     }
                 }
+                OAuthFlowPhase.SHOW_CLI -> {
+                    Button(onClick = onDismissFlow) {
+                        Text(stringResource(R.string.action_close))
+                    }
+                }
                 else -> {
                     TextButton(onClick = onCancel) {
                         Text(stringResource(R.string.action_cancel))
@@ -297,7 +302,7 @@ private fun OAuthFlowDialog(
                     Text(stringResource(R.string.action_cancel))
                 }
             } else {
-                null
+                Unit
             }
         },
         title = { Text(provider.name, style = MaterialTheme.typography.titleLarge) },
@@ -324,9 +329,15 @@ private fun OAuthFlowDialog(
                             error = state.flowErrorMessage,
                         )
                     }
+                    state.flowPhase == OAuthFlowPhase.DONE -> {
+                        Text(
+                            text = stringResource(R.string.providers_flow_success),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     state.flowErrorMessage != null -> {
                         Text(
-                            text = state.flowErrorMessage ?: "",
+                            text = state.flowErrorMessage!!,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                         )

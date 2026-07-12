@@ -36,6 +36,9 @@ enum class OAuthFlowPhase {
 
     /** terminal: error — dialog stays mounted so the user can read flowErrorMessage + Close. */
     ERROR,
+
+    /** external provider: show the CLI setup command (no network call). */
+    SHOW_CLI,
 }
 
 data class ProvidersUiState(
@@ -118,6 +121,24 @@ class ProvidersViewModel :
     // ── Re-auth flow ────────────────────────────────────────────────────
 
     fun startOAuthFlow(provider: OAuthProvider) {
+        // External providers can't be started from the app (backend returns 400 from
+        // /start — they must be configured via CLI). Show the CLI command directly instead
+        // of firing a request that will just 400 and snap the dialog shut.
+        if (provider.flow == "external") {
+            _uiState.update {
+                it.copy(
+                    flowPhase = OAuthFlowPhase.SHOW_CLI,
+                    flowProvider = provider,
+                    flowProviderId = provider.id,
+                    flowStart = null,
+                    flowSessionId = "",
+                    flowCodeInput = "",
+                    flowStatus = "pending",
+                    flowErrorMessage = null,
+                )
+            }
+            return
+        }
         val phase = _uiState.value.flowPhase
         if (phase == OAuthFlowPhase.STARTING || phase == OAuthFlowPhase.WAITING_CODE ||
             phase == OAuthFlowPhase.POLLING

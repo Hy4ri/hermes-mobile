@@ -124,12 +124,15 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.StatusRed
+import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.providers.ProvidersScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -151,6 +154,7 @@ fun ChatScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
+    val credentialWarning by HermesWsClient.credentialWarning.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var isOlderPagingArmed by remember(state.currentSessionId) { mutableStateOf(false) }
 
@@ -402,6 +406,14 @@ fun ChatScreen(
                 onReconnect = viewModel::reconnect,
                 onReloginClick = { showReloginDialog = true },
             )
+
+            credentialWarning?.let { warning ->
+                CredentialWarningBanner(
+                    warning = warning,
+                    onFix = { NavigationController.navigateTo(com.m57.hermescontrol.ProvidersScreen) },
+                    onDismiss = { HermesWsClient.clearCredentialWarning() },
+                )
+            }
 
             Box(
                 modifier =

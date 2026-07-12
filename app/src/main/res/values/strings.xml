@@ -72,6 +72,7 @@
     <string name="screen_achievements">Achievements</string>
     <string name="screen_history">History</string>
     <string name="screen_processes">Processes</string>
+    <string name="screen_providers">Providers</string>
     <string name="screen_analytics">Analytics</string>
 
     <!-- Notifications -->
@@ -845,6 +846,24 @@
     <string name="loading_state_subtitle_default">Loading…</string>
     <string name="loading_state_subtitle_models">Fetching model providers…</string>
     <string name="loading_state_subtitle_channels">Loading channels…</string>
+    <string name="loading_state_subtitle_providers">Loading OAuth providers…</string>
+
+    <!-- Providers Screen (issue #534) -->
+    <string name="providers_empty_title">No OAuth providers</string>
+    <string name="providers_empty_desc">Configured OAuth providers will appear here. Connect an account to use it from the app.</string>
+    <string name="providers_action_connect">Connect</string>
+    <string name="providers_action_how_to_connect">How to connect</string>
+    <string name="providers_action_disconnect">Disconnect</string>
+    <string name="providers_action_in_progress">In progress…</string>
+    <string name="providers_action_submit_code">Submit code</string>
+    <string name="providers_action_open_browser">Open browser to authorize</string>
+    <string name="providers_external_hint">This provider is managed by an external CLI. Run the command below on the host, then refresh this list.</string>
+    <string name="providers_pkce_paste_hint">Authorize in the browser, then paste the authorization code (the part before any # separator) below.</string>
+    <string name="providers_code_label">Authorization code</string>
+    <string name="providers_device_code_hint">Enter this code at the verification URL on another device, then wait — this screen polls automatically.</string>
+    <string name="providers_expires_in">Expires in %1$s</string>
+    <string name="providers_action_fix">Fix</string>
+    <string name="action_dismiss">Dismiss</string>
 
     <!-- Processes Screen (issue #532) -->
     <string name="processes_empty_title">No running processes</string>

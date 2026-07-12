@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Devices
@@ -40,6 +41,7 @@ import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
 import com.m57.hermescontrol.ui.process.ProcessesScreen as ProcessesScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
+import com.m57.hermescontrol.ui.providers.ProvidersScreen as ProvidersScreenContent
 import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
 import com.m57.hermescontrol.ui.skills.SkillsScreen as SkillsScreenContent
@@ -157,6 +159,12 @@ object ScreenRegistry {
                 Icons.AutoMirrored.Filled.ListAlt,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> ChannelsScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                ProvidersScreen,
+                R.string.screen_providers,
+                Icons.Filled.Cloud,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> ProvidersScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 SystemScreen,
                 R.string.screen_system,

@@ -78,6 +78,8 @@ data class ChatUiState(
     val pendingAttachments: List<Attachment> = emptyList(),
     // Reaction animation — set when a reaction WS event arrives, auto-clears
     val reactionKind: String? = null,
+    /** Monotonic trigger ID so consecutive same-kind reactions re-animate. */
+    val reactionTriggerId: Long = 0L,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -110,7 +112,7 @@ data class SecretPromptUi(
 class ChatViewModel(
     application: Application,
     private val startCleanup: Boolean,
-    private val repo: ChatPersistenceRepository =
+    repo: ChatPersistenceRepository =
         ChatPersistenceRepository(
             HermesDatabase.get(application).chatMessageDao(),
         ),
@@ -123,8 +125,13 @@ class ChatViewModel(
     private val _streamingState = MutableStateFlow(StreamingState())
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
+    /** Tracks the auto-clear coroutine for reaction animations. */
+    private var reactionClearJob: Job? = null
+
     private val wsClient = HermesWsClient
 
+    // ── Session persistence ──────────────────────────────────────────────
+    private val repo: ChatPersistenceRepository = repo
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchDelegate =
         ChatSearchDelegate(
@@ -382,13 +389,20 @@ class ChatViewModel(
             }
 
             is WsEvent.ReactionEvent -> {
-                // Set reaction kind to trigger the hearts animation
-                _uiState.update { it.copy(reactionKind = event.kind) }
-                // Auto-clear after the animation duration
-                viewModelScope.launch {
-                    delay(2_000L)
-                    _uiState.update { it.copy(reactionKind = null) }
+                // Cancel any previous auto-clear to avoid race (agy finding #1)
+                reactionClearJob?.cancel()
+                _uiState.update {
+                    it.copy(
+                        reactionKind = event.kind,
+                        reactionTriggerId = it.reactionTriggerId + 1L,
+                    )
                 }
+                // Auto-clear after the animation duration
+                reactionClearJob =
+                    viewModelScope.launch {
+                        delay(2_000L)
+                        _uiState.update { it.copy(reactionKind = null) }
+                    }
             }
 
             else -> { /* reducer handles these */ }

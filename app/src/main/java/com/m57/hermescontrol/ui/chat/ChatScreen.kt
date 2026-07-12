@@ -417,9 +417,11 @@ fun ChatScreen(
 
                 // Reaction hearts animation (purely cosmetic — fades out
                 // automatically after the ViewModel clears the state)
-                ReactionHeartsOverlay(
-                    reactionKind = state.reactionKind,
-                )
+                key(state.reactionTriggerId) {
+                    ReactionHeartsOverlay(
+                        reactionKind = state.reactionKind,
+                    )
+                }
             }
 
             ChatInputBar(
@@ -2015,21 +2017,30 @@ private fun FloatingHeart(
     delayMs: Long,
     horizontalOffset: Dp,
 ) {
-    var visible by remember { mutableStateOf(false) }
-    val offsetY by animateDpAsState(
-        targetValue = if (visible) (-220).dp else 0.dp,
-        animationSpec = tween(durationMillis = 1600, easing = LinearEasing),
-        label = "heartOffset",
-    )
-    val alpha by animateFloatAsState(
-        targetValue = if (visible) 0f else 1f,
-        animationSpec = tween(durationMillis = 1600, easing = LinearEasing),
-        label = "heartAlpha",
-    )
+    val alpha = remember { Animatable(0f) }
+    val offsetY = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
         delay(delayMs)
-        visible = true
+        // Phase 1: fade in quickly at the bottom
+        launch {
+            alpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+            )
+            // Phase 2: fade out slowly while rising
+            alpha.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 1400, easing = LinearEasing),
+            )
+        }
+        // Float upward over the full animation
+        launch {
+            offsetY.animateTo(
+                targetValue = -220f,
+                animationSpec = tween(durationMillis = 1600, easing = LinearEasing),
+            )
+        }
     }
 
     Text(
@@ -2037,7 +2048,7 @@ private fun FloatingHeart(
         fontSize = 24.sp,
         modifier =
             Modifier
-                .offset(x = horizontalOffset, y = offsetY)
-                .graphicsLayer(alpha = alpha),
+                .offset(x = horizontalOffset, y = offsetY.value.dp)
+                .graphicsLayer(alpha = alpha.value),
     )
 }

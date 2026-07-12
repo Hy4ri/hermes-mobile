@@ -7,11 +7,10 @@
   <br><br>
 </div>
 
-<h1 align="center">Hermes Mobile</h1>
-<p align="center"><strong>Native Android companion app for your Hermes AI agent.</strong></p>
+<h1 align="center">Cassy Control</h1>
+<p align="center"><strong>Chat-first Android control center for a self-hosted Cassy / Hermes agent.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/Hy4ri/hermes-mobile/releases/latest"><img src="https://img.shields.io/github/v/release/Hy4ri/hermes-mobile?color=6750A4&label=Latest%20Release&logo=github" alt="Latest Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/Hy4ri/hermes-mobile/android.yml?branch=main&label=CI&logo=githubactions" alt="CI">
   <img src="https://img.shields.io/badge/minSdk-26-brightgreen" alt="minSdk 26">
   <img src="https://img.shields.io/badge/targetSdk-36-brightgreen" alt="targetSdk 36">
@@ -21,18 +20,26 @@
 
 ## Overview
 
-**Hermes Mobile** is the native Android client for [Hermes Agent](https://hermes-agent.nousresearch.com). It connects securely to your local Hermes gateway (REST API and WebSocket TUI Gateway) over LAN, giving you pocket control over your AI assistant.
+**Cassy Control** is an Android product fork of
+[Hermes Mobile](https://github.com/Hy4ri/hermes-mobile). It connects to a
+self-hosted [Hermes Agent](https://hermes-agent.nousresearch.com) through its
+authenticated REST API and WebSocket TUI Gateway. Private LAN and Tailscale
+connections are supported; public cleartext destinations are rejected.
 
 ---
 
 ## Features
 
-- **Real-Time Chat:** Message your agent with Room-backed local database history.
+- **Chat-first mobile UX:** Search, pin, resume and create sessions from a compact drawer inspired by modern agent clients.
+- **Cassy Voice:** Capture bounded 16 kHz audio, transcribe it through the authenticated NAS endpoint, delete it immediately and fall back to Android recognition when needed.
+- **Real-Time Chat:** Stream messages, reasoning, tools, approvals and completion events with encrypted Room-backed local history.
+- **Seamless private sign-in:** Probe the known NAS, retain the encrypted connection profile and reconnect automatically.
+- **Focused navigation:** Administrative screens live in a separate tools hub so the chat stays uncluttered.
 - **System Config:** Manage active profiles, installed skills, plugins, and LLM model selections.
 - **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, and test webhooks.
 - **Gateway Status:** Monitor WebSocket connection, MCP servers, and messaging channel status.
 - **Productivity:** View and manage tasks via integrated Kanban boards and track agent milestones.
-- **Modern UX:** Native Material You design supporting dynamic color theming, scroll-aware TopBar, and pull-to-refresh.
+- **Modern UX:** Cassy Signature and Material You themes, German core-flow localization, accessible 48 dp controls and adaptive phone/tablet layouts.
 
 ---
 
@@ -45,8 +52,8 @@
 ### Build & Deploy
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/Hy4ri/hermes-mobile.git
-   cd hermes-mobile
+   git clone <your-cassy-control-repository>
+   cd cassy-control
    ```
 2. **Build the debug APK:**
    ```bash
@@ -63,7 +70,10 @@
 
 ## Authentication
 
-Once the app is installed, you need to point it at your Hermes gateway. The app auto-detects which auth mode the dashboard is using — just fill in the fields it shows.
+Once installed, point Cassy Control at your private Hermes dashboard. The app
+auto-detects the active authentication mode, consumes a dashboard-provided
+session credential when available and stores the resulting profile with Android
+Keystore-backed encryption.
 
 ### 1. Start the dashboard
 
@@ -128,7 +138,17 @@ app/src/main/java/com/m57/hermescontrol/
 
 ---
 
-## Contributing
+## Release quality
+
+The reproducible toolchain and release gates are documented in
+[`docs/BUILD_BASELINE.md`](docs/BUILD_BASELINE.md). Cassy 1.0.3 acceptance and
+device checks are tracked in [`docs/RELEASE_1_0_3.md`](docs/RELEASE_1_0_3.md).
+
+## Upstream and contributing
+
+Cassy Control retains the Apache-2.0 upstream license and source history from
+Hy4ri's Hermes Mobile. Keep upstream changes attributable and submit local work
+through pull requests.
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our branch workflow, code style guidelines, and PR checklist.
 

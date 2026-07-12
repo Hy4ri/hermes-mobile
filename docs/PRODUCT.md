@@ -13,6 +13,8 @@ Cassy Control is an Android-first control center for Hermes Agent, based on the 
 - **Cassy Signature theme:** warm graphite, restrained violet, champagne and cool-blue accents; light and dark schemes; Material dynamic color remains optional.
 - **Private shell with user control:** biometric/device lock, encrypted storage, no Android backup and an optional screenshot/recents-protection switch.
 - **Seamless NAS sign-in:** the known private dashboard is probed automatically, its injected session credential is consumed locally, and the resulting connection profile is retained for future launches.
+- **Cassy Voice cascade:** phone audio is captured as bounded 16 kHz mono PCM, transcribed by the authenticated Cassy NAS endpoint, and deleted immediately afterwards. Android on-device recognition remains available as the explicit fallback.
+- **Chat-first mobile navigation:** compact phones use a searchable session drawer with previews, pinning, new-chat access and a separate tools hub; the chat composer remains the primary surface.
 
 ## Existing Hermes-native capabilities retained
 

@@ -8,6 +8,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
 
 /**
  * Provides a Retrofit-backed [HermesApiService].
@@ -83,9 +84,16 @@ object ApiClient {
     private fun buildService(): HermesApiService {
         val logging =
             HttpLoggingInterceptor().apply {
+                redactHeader("Authorization")
+                redactHeader("Cookie")
+                redactHeader("Set-Cookie")
+                redactHeader("X-Hermes-Session-Token")
                 level =
                     if (BuildConfig.DEBUG) {
-                        HttpLoggingInterceptor.Level.BODY
+                        // Voice requests contain private audio. Headers are
+                        // sufficient for connection diagnostics and avoid
+                        // logging message/audio bodies on development devices.
+                        HttpLoggingInterceptor.Level.HEADERS
                     } else {
                         HttpLoggingInterceptor.Level.NONE
                     }
@@ -116,6 +124,16 @@ object ApiClient {
             OkHttpProvider
                 .base
                 .newBuilder()
+                .addInterceptor { chain ->
+                    if (chain.request().url.encodedPath == "/api/audio/transcribe") {
+                        chain
+                            .withReadTimeout(180, TimeUnit.SECONDS)
+                            .withWriteTimeout(60, TimeUnit.SECONDS)
+                            .proceed(chain.request())
+                    } else {
+                        chain.proceed(chain.request())
+                    }
+                }
                 .addInterceptor(authInterceptor)
                 .addInterceptor(ProfileScopeInterceptor)
                 .addInterceptor(logging)

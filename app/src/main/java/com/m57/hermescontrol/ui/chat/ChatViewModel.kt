@@ -1,12 +1,13 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
-import android.net.Uri
 import android.util.Base64
 import android.util.Base64OutputStream
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.config.openSessionTab
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
@@ -48,7 +49,7 @@ data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val currentSessionId: String? = null,
     val sessions: List<SessionUi> = emptyList(),
-    val chatTitle: String = "Hermes",
+    val chatTitle: String = "Cassy",
     val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val isAgentTyping: Boolean = false,
     val isThinking: Boolean = false,
@@ -112,6 +113,12 @@ class ChatViewModel(
         ChatPersistenceRepository(
             HermesDatabase.get(application).chatMessageDao(),
         ),
+    private val storedActiveSessionId: () -> String? = {
+        AuthManager.serverStore.getLatestState().activeSessionId
+    },
+    private val persistActiveSession: (String) -> Unit = { sessionId ->
+        AuthManager.serverStore.update { state -> state.openSessionTab(sessionId) }
+    },
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -167,6 +174,13 @@ class ChatViewModel(
      * notification session (issue #240).
      */
     var initialSessionId: String? = null
+
+    /**
+     * True while the initial session list decides whether history can be
+     * resumed. A cold start must not create an empty chat before that list is
+     * available.
+     */
+    private var awaitingInitialSessionSelection = false
 
     init {
         refreshSettings()
@@ -258,7 +272,7 @@ class ChatViewModel(
                 initialSessionId = null
                 switchSession(initial)
             } else {
-                createNewSession(setLoading = false)
+                awaitingInitialSessionSelection = true
             }
         }
     }
@@ -412,13 +426,13 @@ class ChatViewModel(
                         currentSessionId = sessionId,
                         isLoading = false,
                         messages = emptyList(),
-                        chatTitle = "Hermes",
+                        chatTitle = "Cassy",
                     )
                 }
-                // Mirror the active session id app-wide so session-scoped
-                // drawer screens (e.g. Processes, issue #532) can issue
-                // session-scoped RPCs. See ActiveSessionHolder.
+                // Mirror and persist the active session so a cold app start
+                // resumes this conversation instead of creating a duplicate.
                 ActiveSessionHolder.set(sessionId)
+                persistActiveSession(sessionId)
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
@@ -442,6 +456,19 @@ class ChatViewModel(
                         chatTitle = newTitle ?: state.chatTitle,
                     )
                 }
+
+                if (awaitingInitialSessionSelection && _uiState.value.currentSessionId == null) {
+                    awaitingInitialSessionSelection = false
+                    val storedId = storedActiveSessionId()
+                    val targetId =
+                        storedId?.takeIf { id -> sessions.any { it.id == id } }
+                            ?: sessions.firstOrNull()?.id
+                    if (targetId != null) {
+                        switchSession(targetId)
+                    } else {
+                        createNewSession(setLoading = false)
+                    }
+                }
             }
 
             WsMethods.SESSION_RESUME -> {
@@ -461,8 +488,9 @@ class ChatViewModel(
                         currentSessionId = sessionId,
                     )
                 }
-                // Mirror the active session id app-wide (issue #532).
+                // Mirror and persist the active session app-wide.
                 ActiveSessionHolder.set(sessionId)
+                sessionId?.let(persistActiveSession)
                 addSystemMessage("Session resumed")
             }
 
@@ -553,7 +581,7 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 isLoading = false,
-                errorMessage = "Error${if (method != null) " ($method)" else ""}: $errorMsg",
+                errorMessage = "Error ($method): $errorMsg",
             )
         }
     }
@@ -674,19 +702,20 @@ class ChatViewModel(
     private suspend fun readContentUriBase64(uriString: String): String? =
         try {
             val context = getApplication<Application>()
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             context.contentResolver.openInputStream(uri)?.use { stream ->
-                val baos = ByteArrayOutputStream()
-                val b64os = Base64OutputStream(baos, Base64.NO_WRAP)
-                val buffer = ByteArray(1024 * 128) // 128KB chunk
-                var bytesRead: Int
+                ByteArrayOutputStream().use { encoded ->
+                    Base64OutputStream(encoded, Base64.NO_WRAP).use { base64 ->
+                        val buffer = ByteArray(1024 * 128) // 128KB chunk
+                        var bytesRead: Int
 
-                while (stream.read(buffer).also { bytesRead = it } != -1) {
-                    b64os.write(buffer, 0, bytesRead)
-                    yield() // Prevent blocking the thread during large reads
+                        while (stream.read(buffer).also { bytesRead = it } != -1) {
+                            base64.write(buffer, 0, bytesRead)
+                            yield() // Prevent blocking the thread during large reads
+                        }
+                    }
+                    encoded.toString("UTF-8")
                 }
-                b64os.close()
-                baos.toString("UTF-8")
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -815,11 +844,12 @@ class ChatViewModel(
     }
 
     fun createNewSession(setLoading: Boolean = true) {
+        awaitingInitialSessionSelection = false
         _uiState.update {
             it.copy(
                 isLoading = setLoading,
                 messages = emptyList(),
-                chatTitle = "Hermes",
+                chatTitle = "Cassy",
             )
         }
         _streamingState.update { StreamingState() }
@@ -888,7 +918,7 @@ class ChatViewModel(
         // Reset streaming state
         streamingController.resetStreaming()
         _uiState.update {
-            val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
+            val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Cassy"
             it.copy(
                 isLoading = true,
                 currentSessionId = sessionId,
@@ -898,8 +928,9 @@ class ChatViewModel(
                 isAgentTyping = false,
             )
         }
-        // Mirror the active session id app-wide (issue #532).
+        // Mirror and persist the active session app-wide.
         ActiveSessionHolder.set(sessionId)
+        persistActiveSession(sessionId)
         _streamingState.update { StreamingState() }
         viewModelScope.launch {
             // Step 1: Load cached messages first — instant display
@@ -1288,7 +1319,7 @@ class ChatViewModel(
                         return@launch
                     }
 
-                    val body = ticketResp.body?.string().orEmpty()
+                    val body = ticketResp.body.string()
                     val ticket = JSONObject(body).optString("ticket").takeIf { it.isNotBlank() }
 
                     if (ticket.isNullOrBlank()) {

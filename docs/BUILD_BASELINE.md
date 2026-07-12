@@ -44,6 +44,22 @@ set +a
   lintRelease ktlintCheck assembleRelease
 ```
 
+Run production release builds on the NAS host rather than inside the live
+`cassy-agent` container. This isolates R8/Gradle CPU and lifecycle from Hermes.
+The host path equivalents are:
+
+```bash
+export JAVA_HOME=/volume1/docker/hermes-agent/data/jdk-21
+export ANDROID_HOME=/volume1/docker/hermes-agent/data/android-sdk
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export GRADLE_USER_HOME=/volume1/docker/hermes-agent/data/.gradle-cassy
+export KEYSTORE_PATH=/volume1/docker/hermes-agent/data/secure/cassy-control-release.jks
+```
+
+The shared Gradle cache must remain group-writable by `users` so both the
+container build user and the NAS project owner can use it without ownership
+conflicts.
+
 ## Build outputs
 
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`

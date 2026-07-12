@@ -8,6 +8,34 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+fun resolveGitSha(repositoryRoot: File): String {
+    val dotGit = repositoryRoot.resolve(".git")
+    val gitDirectory =
+        when {
+            dotGit.isDirectory -> dotGit
+            dotGit.isFile -> {
+                val target = dotGit.readText().trim().removePrefix("gitdir:").trim()
+                repositoryRoot.resolve(target).canonicalFile
+            }
+            else -> return "unknown"
+        }
+    val head = gitDirectory.resolve("HEAD").takeIf(File::isFile)?.readText()?.trim() ?: return "unknown"
+    val fullHash =
+        if (head.startsWith("ref: ")) {
+            val reference = head.removePrefix("ref: ").trim()
+            gitDirectory.resolve(reference).takeIf(File::isFile)?.readText()?.trim()
+                ?: gitDirectory
+                    .resolve("packed-refs")
+                    .takeIf(File::isFile)
+                    ?.readLines()
+                    ?.firstOrNull { line -> line.endsWith(" $reference") }
+                    ?.substringBefore(' ')
+        } else {
+            head
+        }
+    return fullHash?.takeIf { hash -> hash.matches(Regex("[0-9a-fA-F]{7,40}")) }?.take(12) ?: "unknown"
+}
+
 android {
     namespace = "com.m57.hermescontrol"
     compileSdk = 36
@@ -21,10 +49,7 @@ android {
         versionName = (project.findProperty("versionName") as? String) ?: "1.0-dev"
 
         // Embed git commit SHA for the About card in Settings
-        val gitSha =
-            providers.exec {
-                commandLine("git", "rev-parse", "--short", "HEAD")
-            }.standardOutput.asText.get().trim()
+        val gitSha = resolveGitSha(rootProject.projectDir)
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 

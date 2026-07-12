@@ -48,12 +48,16 @@ class ChatViewModelTest {
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
+    private var persistedActiveSessionId: String? = null
+    private val persistedSessionChanges = mutableListOf<String>()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         val testMainDispatcher = Dispatchers.Main
         reqCount = 0
+        persistedActiveSessionId = null
+        persistedSessionChanges.clear()
 
         mockkStatic(Log::class)
         every { Log.d(any(), any()) } returns 0
@@ -111,14 +115,24 @@ class ChatViewModelTest {
 
     /** Create a ViewModel with the fake repo injected directly. */
     private fun createViewModel(startCleanup: Boolean = false): ChatViewModel =
-        ChatViewModel(app, startCleanup, fakeRepo)
+        ChatViewModel(
+            application = app,
+            startCleanup = startCleanup,
+            repo = fakeRepo,
+            storedActiveSessionId = { persistedActiveSessionId },
+            persistActiveSession = { sessionId ->
+                persistedActiveSessionId = sessionId
+                persistedSessionChanges += sessionId
+            },
+        )
 
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
      * and return a Pair(viewModel, sessionId).
      *
-     * Request ID sequence: GatewayReady triggers loadSessions (req-id-1),
-     * fetchCommandCatalog (req-id-2), then createNewSession (req-id-3).
+     * Request ID sequence: GatewayReady triggers loadSessions (req-id-1) and
+     * fetchCommandCatalog (req-id-2). An empty list result then deliberately
+     * creates the first session (req-id-3).
      */
     private suspend fun TestScope.createViewModelWithSession(
         startCleanup: Boolean = false,
@@ -130,7 +144,10 @@ class ChatViewModelTest {
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
         advanceUntilIdle()
 
-        // Emit SESSION_CREATE result (req-id-3 — after loadSessions and fetchCommandCatalog)
+        mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("sessions" to emptyList<Map<String, Any?>>())))
+        advanceUntilIdle()
+
+        // Emit SESSION_CREATE result (req-id-3 — after the empty list response)
         mockEventsFlow.emit(WsEvent.RpcResult("req-id-3", mapOf("session_id" to "session-123")))
         advanceUntilIdle()
 
@@ -287,7 +304,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun testAlreadyConnectedOnLaunch_createsSession() =
+    fun testAlreadyConnectedOnLaunch_waitsForSessionListBeforeCreating() =
         runTest {
             mockConnectionStatus.value = ConnectionStatus.CONNECTED
 
@@ -295,11 +312,11 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
-            verify { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+            verify(inverse = true) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
         }
 
     @Test
-    fun testGatewayReady_createsSessionIfNoneExists() =
+    fun testGatewayReady_createsSessionOnlyAfterEmptyHistoryResponse() =
         runTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -309,8 +326,82 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             verify { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
+            verify(inverse = true) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+
+            mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("sessions" to emptyList<Map<String, Any?>>())))
+            advanceUntilIdle()
+
             verify { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
             assertTrue(viewModel.uiState.value.isConnected)
+        }
+
+    @Test
+    fun testGatewayReady_resumesPersistedSessionInsteadOfCreatingDuplicate() =
+        runTest {
+            persistedActiveSessionId = "session-existing"
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-id-1",
+                    mapOf(
+                        "sessions" to
+                            listOf(
+                                mapOf(
+                                    "id" to "session-existing",
+                                    "title" to "Existing conversation",
+                                    "message_count" to 8.0,
+                                ),
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("session-existing", viewModel.uiState.value.currentSessionId)
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to "session-existing"),
+                    any(),
+                )
+            }
+            verify(inverse = true) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+        }
+
+    @Test
+    fun testGatewayReady_fallsBackToMostRecentSessionWhenPersistedSessionIsMissing() =
+        runTest {
+            persistedActiveSessionId = "session-stale"
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-id-1",
+                    mapOf(
+                        "sessions" to
+                            listOf(
+                                mapOf("id" to "session-recent", "title" to "Recent", "message_count" to 2.0),
+                                mapOf("id" to "session-older", "title" to "Older", "message_count" to 4.0),
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("session-recent", viewModel.uiState.value.currentSessionId)
+            assertEquals("session-recent", persistedActiveSessionId)
+            verify(inverse = true) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
         }
 
     @Test
@@ -348,8 +439,11 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.GatewayReady(null))
             advanceUntilIdle()
 
-            // GatewayReady sends SESSION_LIST (req-id-1), COMMANDS_CATALOG (req-id-2),
-            // then SESSION_CREATE (req-id-3)
+            // GatewayReady sends SESSION_LIST (req-id-1) and COMMANDS_CATALOG
+            // (req-id-2). An empty history response deliberately triggers
+            // SESSION_CREATE (req-id-3).
+            mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("sessions" to emptyList<Map<String, Any?>>())))
+            advanceUntilIdle()
             mockEventsFlow.emit(WsEvent.RpcResult("req-id-3", mapOf("session_id" to "session-123")))
             advanceUntilIdle()
 

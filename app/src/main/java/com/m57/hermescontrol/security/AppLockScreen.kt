@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,7 +77,7 @@ fun AppLockScreen(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "Your sessions, prompts and administration controls stay private while the app is locked.",
+                    text = stringResource(R.string.app_lock_description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -98,7 +99,7 @@ fun AppLockScreen(
                 ) {
                     Icon(Icons.Filled.Fingerprint, contentDescription = null)
                     Spacer(Modifier.size(8.dp))
-                    Text("Unlock securely")
+                    Text(stringResource(R.string.app_lock_action))
                 }
             }
         }

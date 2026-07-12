@@ -1,5 +1,8 @@
 package com.m57.hermescontrol
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 
@@ -16,7 +19,8 @@ import androidx.navigation3.runtime.NavKey
  */
 object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
-    var pendingSessionId: String? = null
+    var pendingSessionId: String? by mutableStateOf(null)
+    var pendingNewChat: Boolean by mutableStateOf(false)
 
     // Bottom-nav primary screens — dynamic, updated by Navigation.kt via
     // updatePrimaryScreens() when the user customises the bottom nav bar.

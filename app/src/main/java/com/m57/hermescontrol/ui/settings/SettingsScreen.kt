@@ -49,7 +49,6 @@ import com.m57.hermescontrol.ui.settings.components.AppearanceSection
 import com.m57.hermescontrol.ui.settings.components.BehaviorSection
 import com.m57.hermescontrol.ui.settings.components.ChatSection
 import com.m57.hermescontrol.ui.settings.components.ConnectionSection
-import com.m57.hermescontrol.ui.settings.components.NavBarSection
 import com.m57.hermescontrol.ui.settings.components.TestConnectionButton
 import com.m57.hermescontrol.ui.settings.components.TestResultCard
 
@@ -180,16 +179,6 @@ fun SettingsScreen(
                             onTypingEffectEnabledChange = viewModel::onTypingEffectEnabledChange,
                             typingEffectDelayMs = state.typingEffectDelayMs,
                             onTypingEffectDelayMsChange = viewModel::onTypingEffectDelayMsChange,
-                        )
-
-                        NavBarSection(
-                            bottomNavDisplayMode = state.bottomNavDisplayMode,
-                            onBottomNavDisplayModeChange = viewModel::onBottomNavDisplayModeChange,
-                            selectedNavItems = state.selectedNavItems,
-                            availableNavItems = viewModel.availableNavItems,
-                            onReorderNavItems = viewModel::reorderNavItems,
-                            onRemoveNavItem = viewModel::removeNavItem,
-                            onAddNavItem = viewModel::addNavItem,
                         )
                     }
 

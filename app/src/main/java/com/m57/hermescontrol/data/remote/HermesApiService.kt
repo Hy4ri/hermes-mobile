@@ -7,6 +7,8 @@ import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AnalyticsResponse
+import com.m57.hermescontrol.data.model.AudioTranscriptionRequest
+import com.m57.hermescontrol.data.model.AudioTranscriptionResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.CheckpointsResponse
@@ -106,6 +108,11 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface HermesApiService {
+    @POST("api/audio/transcribe")
+    suspend fun transcribeAudio(
+        @Body body: AudioTranscriptionRequest,
+    ): Response<AudioTranscriptionResponse>
+
     @GET("api/skills/content")
     suspend fun getSkillContent(
         @Query("name") name: String,

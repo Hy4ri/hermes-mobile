@@ -1,14 +1,10 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.Manifest
-import android.app.Activity
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -72,12 +68,15 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -129,7 +128,6 @@ import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.workspace.WorkspaceControlBar
 import com.m57.hermescontrol.ui.workspace.WorkspaceSessionPane
 import com.m57.hermescontrol.ui.workspace.WorkspaceViewModel
 import kotlinx.coroutines.delay
@@ -159,68 +157,99 @@ fun ChatScreen(
     }
     val scrollScope = rememberCoroutineScope()
     var inputText by rememberSaveable { mutableStateOf("") }
-    var isListening by rememberSaveable { mutableStateOf(false) }
+    var voiceBaseText by rememberSaveable { mutableStateOf("") }
+    val voiceController = com.m57.hermescontrol.ui.chat.voice.rememberVoiceInputController()
+    val voiceState by voiceController.state.collectAsStateWithLifecycle()
+    val isVoiceCapturing =
+        voiceState is com.m57.hermescontrol.ui.chat.voice.VoiceState.Preparing ||
+            voiceState is com.m57.hermescontrol.ui.chat.voice.VoiceState.Listening
+    val isVoiceProcessing = voiceState is com.m57.hermescontrol.ui.chat.voice.VoiceState.Finalizing
+    val listeningVoiceState = voiceState as? com.m57.hermescontrol.ui.chat.voice.VoiceState.Listening
+    val voiceLevel =
+        (listeningVoiceState?.rmsDb ?: -2f)
+            .let { ((it + 2f) / 14f).coerceIn(0.05f, 1f) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
+    val sttNoMatchMessage = stringResource(R.string.stt_error_no_match)
+    val sttNetworkMessage = stringResource(R.string.stt_error_network)
+    val sttBusyMessage = stringResource(R.string.stt_error_busy)
+    val sttLanguageMessage = stringResource(R.string.stt_error_language)
+    val sttAudioMessage = stringResource(R.string.stt_error_audio)
+    val sttServerMessage = stringResource(R.string.stt_error_server)
+    val sttUnavailableMessage = stringResource(R.string.stt_not_available)
+    val sttFallbackAction = stringResource(R.string.stt_fallback_action)
+    val sttPermissionDeniedMessage = stringResource(R.string.stt_permission_denied)
 
-    val micListeningPrompt = stringResource(R.string.chat_mic_listening)
-    val sttNotAvailableMsg = stringResource(R.string.stt_not_available)
-    val sttPermissionDeniedMsg = stringResource(R.string.stt_permission_denied)
+    LaunchedEffect(voiceState) {
+        when (val current = voiceState) {
+            is com.m57.hermescontrol.ui.chat.voice.VoiceState.Listening -> {
+                inputText =
+                    com.m57.hermescontrol.ui.chat.voice.mergeVoiceTranscript(
+                        voiceBaseText,
+                        current.partialText,
+                    )
+            }
 
-    // Speech-to-text recognition launcher (issue #194)
-    val speechLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.StartActivityForResult(),
-        ) { result ->
-            isListening = false
-            if (result.resultCode == Activity.RESULT_OK) {
-                val spokenText =
-                    result.data
-                        ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                        ?.firstOrNull()
-                        .orEmpty()
-                if (spokenText.isNotBlank()) {
-                    inputText =
-                        if (inputText.isBlank()) {
-                            spokenText
-                        } else {
-                            "$inputText $spokenText"
-                        }
+            is com.m57.hermescontrol.ui.chat.voice.VoiceState.Result -> {
+                inputText =
+                    com.m57.hermescontrol.ui.chat.voice.mergeVoiceTranscript(
+                        voiceBaseText,
+                        current.text,
+                    )
+                voiceController.consumeResult()
+            }
+
+            is com.m57.hermescontrol.ui.chat.voice.VoiceState.Error -> {
+                inputText = voiceBaseText
+                val message =
+                    when (current.kind) {
+                        com.m57.hermescontrol.ui.chat.voice.VoiceError.NO_MATCH -> sttNoMatchMessage
+                        com.m57.hermescontrol.ui.chat.voice.VoiceError.NETWORK -> sttNetworkMessage
+                        com.m57.hermescontrol.ui.chat.voice.VoiceError.BUSY -> sttBusyMessage
+                        com.m57.hermescontrol.ui.chat.voice.VoiceError.LANGUAGE_UNAVAILABLE ->
+                            sttLanguageMessage
+                        com.m57.hermescontrol.ui.chat.voice.VoiceError.AUDIO -> sttAudioMessage
+                        com.m57.hermescontrol.ui.chat.voice.VoiceError.SERVER -> sttServerMessage
+                        com.m57.hermescontrol.ui.chat.voice.VoiceError.UNAVAILABLE -> sttUnavailableMessage
+                    }
+                val snackbarResult =
+                    snackbarHostState.showSnackbar(
+                        message = message,
+                        actionLabel = sttFallbackAction.takeIf { current.deviceFallbackAvailable },
+                        duration =
+                            if (current.deviceFallbackAvailable) {
+                                SnackbarDuration.Long
+                            } else {
+                                SnackbarDuration.Short
+                            },
+                    )
+                if (snackbarResult == SnackbarResult.ActionPerformed && current.deviceFallbackAvailable) {
+                    voiceBaseText = inputText
+                    voiceController.startDeviceFallback()
+                } else {
+                    voiceController.consumeResult()
                 }
             }
-        }
 
-    // Mic permission launcher
+            else -> Unit
+        }
+    }
+
+    // Mic permission stays native, but recognition itself now remains inside
+    // Cassy and streams partial text instead of opening Google's modal dialog.
     val micPermissionLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) { granted ->
             if (granted) {
-                if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                    val intent =
-                        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                            )
-                            putExtra(
-                                RecognizerIntent.EXTRA_PROMPT,
-                                micListeningPrompt,
-                            )
-                        }
-                    isListening = true
-                    speechLauncher.launch(intent)
-                } else {
-                    scrollScope.launch {
-                        snackbarHostState.showSnackbar(sttNotAvailableMsg)
-                    }
-                }
+                voiceBaseText = inputText
+                voiceController.start()
             } else {
                 scrollScope.launch {
-                    snackbarHostState.showSnackbar(sttPermissionDeniedMsg)
+                    snackbarHostState.showSnackbar(sttPermissionDeniedMessage)
                 }
             }
         }
@@ -402,25 +431,6 @@ fun ChatScreen(
                     onReloginClick = { showReloginDialog = true },
                 )
 
-                WorkspaceControlBar(
-                    state = workspaceState,
-                    currentSessionId = state.currentSessionId,
-                    isRunning = streamingState.isThinking || streamingState.streamingMessage != null,
-                    onSessionSelected = { id ->
-                        workspaceViewModel.openSession(id)
-                        viewModel.switchSession(id)
-                    },
-                    onSessionClosed = workspaceViewModel::closeSession,
-                    onSessionPinToggled = workspaceViewModel::togglePin,
-                    onModelSelected = { alias ->
-                        state.currentSessionId?.let { current -> workspaceViewModel.setSessionModel(current, alias) }
-                        viewModel.sendMessage("/model $alias")
-                    },
-                    onWorkspaceSelected = workspaceViewModel::selectWorkspace,
-                    onWorkspaceCreated = workspaceViewModel::createWorkspace,
-                    onRefresh = workspaceViewModel::refresh,
-                )
-
                 Box(
                     modifier =
                         Modifier
@@ -477,38 +487,31 @@ fun ChatScreen(
                         }
                     },
                     onMicTap = {
-                        if (isListening) {
-                            isListening = false
-                        } else if (
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.RECORD_AUDIO,
-                            ) == PackageManager.PERMISSION_GRANTED
-                        ) {
-                            if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                                val intent =
-                                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                        putExtra(
-                                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                                        )
-                                        putExtra(
-                                            RecognizerIntent.EXTRA_PROMPT,
-                                            micListeningPrompt,
-                                        )
-                                    }
-                                isListening = true
-                                speechLauncher.launch(intent)
+                        if (isVoiceCapturing) {
+                            voiceController.stop()
+                        } else if (!isVoiceProcessing) {
+                            if (
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.RECORD_AUDIO,
+                                ) == PackageManager.PERMISSION_GRANTED
+                            ) {
+                                voiceBaseText = inputText
+                                voiceController.start()
                             } else {
-                                scrollScope.launch {
-                                    snackbarHostState.showSnackbar(sttNotAvailableMsg)
-                                }
+                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             }
-                        } else {
-                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
-                    isListening = isListening,
+                    onVoiceCancel = {
+                        voiceController.cancel()
+                        inputText = voiceBaseText
+                    },
+                    voiceLevel = voiceLevel,
+                    voiceElapsedMs = listeningVoiceState?.elapsedMs ?: 0L,
+                    voiceUsesDeviceRecognizer = listeningVoiceState?.isOnDevice == true,
+                    isVoiceCapturing = isVoiceCapturing,
+                    isVoiceProcessing = isVoiceProcessing,
                     isAgentTyping = state.isAgentTyping,
                     isConnected = state.isConnected,
                     commandCatalog = state.commandCatalog,
@@ -669,7 +672,12 @@ private fun ChatInputBar(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onMicTap: () -> Unit,
-    isListening: Boolean,
+    onVoiceCancel: () -> Unit,
+    voiceLevel: Float,
+    voiceElapsedMs: Long,
+    voiceUsesDeviceRecognizer: Boolean,
+    isVoiceCapturing: Boolean,
+    isVoiceProcessing: Boolean,
     isAgentTyping: Boolean,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
@@ -790,6 +798,62 @@ private fun ChatInputBar(
                     }
                 }
 
+                AnimatedVisibility(
+                    visible = isVoiceCapturing || isVoiceProcessing,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text =
+                                    when {
+                                        isVoiceProcessing -> stringResource(R.string.stt_processing_title)
+                                        voiceUsesDeviceRecognizer ->
+                                            stringResource(
+                                                R.string.stt_live_device_title,
+                                                formatVoiceDuration(voiceElapsedMs),
+                                            )
+                                        else ->
+                                            stringResource(
+                                                R.string.stt_live_nas_title,
+                                                formatVoiceDuration(voiceElapsedMs),
+                                            )
+                                    },
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            if (isVoiceProcessing) {
+                                LinearProgressIndicator(
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    progress = { voiceLevel },
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                                    color = MaterialTheme.colorScheme.error,
+                                    trackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
+                                )
+                            }
+                        }
+                        TextButton(onClick = onVoiceCancel) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    }
+                }
+
                 Row(
                     modifier =
                         Modifier
@@ -802,7 +866,7 @@ private fun ChatInputBar(
                         IconButton(
                             onClick = { showAttachmentMenu = true },
                             enabled = isConnected,
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(48.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AttachFile,
@@ -816,7 +880,7 @@ private fun ChatInputBar(
                             onDismissRequest = { showAttachmentMenu = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Camera") },
+                                text = { Text(stringResource(R.string.chat_camera_desc)) },
                                 onClick = {
                                     showAttachmentMenu = false
                                     onCameraTap()
@@ -829,7 +893,7 @@ private fun ChatInputBar(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Image") },
+                                text = { Text(stringResource(R.string.chat_attach_image_desc)) },
                                 onClick = {
                                     showAttachmentMenu = false
                                     onImageTap()
@@ -842,7 +906,7 @@ private fun ChatInputBar(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("File") },
+                                text = { Text(stringResource(R.string.chat_attach_desc)) },
                                 onClick = {
                                     showAttachmentMenu = false
                                     onFileTap()
@@ -896,7 +960,8 @@ private fun ChatInputBar(
                     AnimatedContent(
                         targetState =
                             when {
-                                isListening -> "listening"
+                                isVoiceProcessing -> "processing"
+                                isVoiceCapturing -> "listening"
                                 inputText.isBlank() && pendingAttachments.isEmpty() -> "mic"
                                 else -> "send"
                             },
@@ -913,7 +978,7 @@ private fun ChatInputBar(
                                     enabled = isConnected,
                                     modifier =
                                         Modifier
-                                            .size(40.dp)
+                                            .size(48.dp)
                                             .testTag("mic_button"),
                                     shape = CircleShape,
                                     contentPadding = PaddingValues(0.dp),
@@ -930,7 +995,7 @@ private fun ChatInputBar(
                                     onClick = onMicTap,
                                     modifier =
                                         Modifier
-                                            .size(40.dp)
+                                            .size(48.dp)
                                             .testTag("mic_stop_button"),
                                     shape = CircleShape,
                                     contentPadding = PaddingValues(0.dp),
@@ -941,9 +1006,21 @@ private fun ChatInputBar(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Stop,
-                                        contentDescription = "Stop listening",
+                                        contentDescription = stringResource(R.string.stt_stop_desc),
                                         tint = MaterialTheme.colorScheme.onError,
                                     )
+                                }
+                            }
+
+                            "processing" -> {
+                                FilledTonalButton(
+                                    onClick = {},
+                                    enabled = false,
+                                    modifier = Modifier.size(48.dp).testTag("mic_processing_button"),
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(0.dp),
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
                                 }
                             }
 
@@ -953,7 +1030,7 @@ private fun ChatInputBar(
                                     enabled = canSend,
                                     modifier =
                                         Modifier
-                                            .size(40.dp)
+                                            .size(48.dp)
                                             .testTag("send_button"),
                                     shape = CircleShape,
                                     contentPadding = PaddingValues(0.dp),
@@ -970,6 +1047,11 @@ private fun ChatInputBar(
             }
         }
     }
+}
+
+private fun formatVoiceDuration(elapsedMs: Long): String {
+    val totalSeconds = (elapsedMs / 1_000L).coerceAtLeast(0L)
+    return "%d:%02d".format(Locale.ROOT, totalSeconds / 60L, totalSeconds % 60L)
 }
 
 /**
@@ -1143,7 +1225,11 @@ private fun SudoPromptDialog(
                     modifier = Modifier.fillMaxWidth().testTag("sudo_password_input"),
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Password),
+                    keyboardOptions =
+                        KeyboardOptions(
+                            autoCorrectEnabled = false,
+                            keyboardType = KeyboardType.Password,
+                        ),
                 )
             }
         },
@@ -1193,7 +1279,11 @@ private fun SecretPromptDialog(
                     modifier = Modifier.fillMaxWidth().testTag("secret_value_input"),
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Password),
+                    keyboardOptions =
+                        KeyboardOptions(
+                            autoCorrectEnabled = false,
+                            keyboardType = KeyboardType.Password,
+                        ),
                 )
             }
         },
@@ -1461,8 +1551,15 @@ private fun ChatLifecycleEffects(
     // Switch to session from notification/history
     var lastSessionId by remember { mutableStateOf<String?>(null) }
     val pendingSessionId = NavigationController.pendingSessionId
-    LaunchedEffect(sessionId, pendingSessionId, connectionStatus) {
+    val pendingNewChat = NavigationController.pendingNewChat
+    LaunchedEffect(sessionId, pendingSessionId, pendingNewChat, connectionStatus) {
         if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
+        if (pendingNewChat) {
+            NavigationController.pendingNewChat = false
+            NavigationController.pendingSessionId = null
+            viewModel.createNewSession()
+            return@LaunchedEffect
+        }
         val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
         if (!target.isNullOrBlank()) {
             viewModel.switchSession(target)
@@ -1896,7 +1993,7 @@ private fun BoxScope.ChatScrollToBottomFab(
                     }
                 }
             },
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(48.dp),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {

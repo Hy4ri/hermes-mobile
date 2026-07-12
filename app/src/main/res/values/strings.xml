@@ -5,8 +5,6 @@
     <string name="chat_send_desc">Send</string>
     <string name="chat_mic_desc">Voice input</string>
     <string name="chat_mic_listening">Listening…</string>
-    <string name="stt_permission_denied">Microphone permission is required for voice input</string>
-    <string name="stt_not_available">Speech recognition is not available on this device</string>
     <string name="chat_clarify_title">Clarification Needed</string>
     <string name="chat_clarify_hint">Tap an option to copy to input, or long-press to send directly.</string>
     <string name="chat_clarify_response">Response</string>
@@ -830,15 +828,6 @@
     <string name="auth_login_success">Connected!</string>
     <string name="auth_login_existing_profiles_title">Use existing logged-in profile:</string>
     <string name="auth_login_use_profile">Enter as %1$s</string>
-
-    <!-- Landing Screen -->
-    <string name="landing_title">Cassy Control</string>
-    <string name="landing_subtitle">Dein sicherer Zugang zu Cassy auf dem NAS</string>
-    <string name="landing_action_auth_login">Mit Cassy NAS verbinden</string>
-    <string name="landing_action_pairing_login">Erweiterte manuelle Kopplung</string>
-    <string name="landing_login_hint">Einmal verbinden, danach werden Zugang und automatische Wiederverbindung verschlüsselt gespeichert.</string>
-    <string name="settings_item_screen_capture_protection">Screenshots blockieren</string>
-    <string name="settings_desc_screen_capture_protection">Standardmäßig aus. Aktivieren, um sensible Inhalte vor Screenshots und Bildschirmaufnahmen zu schützen.</string>
 
     <!-- Pairing Code Entry Screen -->
     <string name="pairing_code_entry_title">Pairing Login</string>

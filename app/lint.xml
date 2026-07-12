@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+      Upstream's legacy catalog is English-only. Cassy-specific resources live
+      in cassy_strings.xml and remain fully checked against values-de.
+    -->
+    <issue id="MissingTranslation">
+        <ignore path="src/main/res/values/strings.xml" />
+    </issue>
+</lint>

@@ -157,8 +157,8 @@ class MainActivity : FragmentActivity() {
         val promptBuilder =
             BiometricPrompt.PromptInfo
                 .Builder()
-                .setTitle("Unlock Cassy Control")
-                .setSubtitle("Authenticate to access Hermes sessions and administration")
+                .setTitle(getString(R.string.app_lock_prompt_title))
+                .setSubtitle(getString(R.string.app_lock_prompt_subtitle))
                 .setAllowedAuthenticators(authenticators)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             promptBuilder.setNegativeButtonText("Cancel")

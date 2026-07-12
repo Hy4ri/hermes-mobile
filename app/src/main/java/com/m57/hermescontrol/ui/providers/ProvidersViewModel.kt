@@ -7,8 +7,8 @@ import com.m57.hermescontrol.data.model.OAuthProvider
 import com.m57.hermescontrol.data.model.OAuthStartResponse
 import com.m57.hermescontrol.data.model.OAuthSubmitRequest
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.NetworkError
+import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad

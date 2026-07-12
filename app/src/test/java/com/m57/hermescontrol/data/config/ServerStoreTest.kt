@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.config
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,6 +15,7 @@ class ServerStoreTest {
         assertEquals("100.101.12.16", state.host)
         assertEquals(9119, state.port)
         assertTrue(state.autoReconnect)
+        assertFalse(state.screenCaptureProtectionEnabled)
         assertEquals("token", state.wsAuthParam)
         assertTrue(state.connectionProfiles.isEmpty())
         assertNull(state.selectedProfileId)

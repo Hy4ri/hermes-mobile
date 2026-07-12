@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -58,6 +59,7 @@ class SettingsViewModelTest {
         every { AuthManager.getPort() } returns 9119
         every { AuthManager.getToken() } returns ""
         every { AuthManager.isAutoReconnect() } returns true
+        every { AuthManager.isScreenCaptureProtectionEnabled() } returns false
         every { AuthManager.getThemePreference() } returns ThemePreference.SYSTEM
         every { AuthManager.isUseDynamicColors() } returns true
         every { AuthManager.getThemePreset() } returns ThemePreset.DEFAULT
@@ -72,6 +74,7 @@ class SettingsViewModelTest {
         every { AuthManager.setPort(any()) } returns Unit
         every { AuthManager.setToken(any()) } returns Unit
         every { AuthManager.setAutoReconnect(any()) } returns Unit
+        every { AuthManager.setScreenCaptureProtectionEnabled(any()) } returns Unit
         every { AuthManager.setThemePreference(any()) } returns Unit
         every { AuthManager.setUseDynamicColors(any()) } returns Unit
         every { AuthManager.setThemePreset(any()) } returns Unit
@@ -84,6 +87,7 @@ class SettingsViewModelTest {
         }
         every { AuthManager.saveConnectionProfiles(any()) } returns Unit
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
+        every { AuthManager.ensureDefaultProfile() } returns Unit
 
         // Ensure ApiClient.rebuild() is stubbed (used by selectProfile)
         every { ApiClient.rebuild() } returns Unit
@@ -237,5 +241,15 @@ class SettingsViewModelTest {
 
         viewModel.clearNavigateToLogin()
         assertEquals(false, viewModel.uiState.value.navigateToLogin)
+    }
+
+    @Test
+    fun testScreenCaptureProtection_updatesImmediately() {
+        val viewModel = createViewModel()
+
+        viewModel.onScreenCaptureProtectionChange(true)
+
+        assertTrue(viewModel.uiState.value.screenCaptureProtectionEnabled)
+        verify { AuthManager.setScreenCaptureProtectionEnabled(true) }
     }
 }

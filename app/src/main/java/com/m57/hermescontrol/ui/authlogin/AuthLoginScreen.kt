@@ -66,6 +66,16 @@ fun AuthLoginScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        viewModel.probe()
+    }
+
+    LaunchedEffect(state.autoConnectReady) {
+        if (state.autoConnectReady) {
+            viewModel.connectAutomatically()
+        }
+    }
+
     LaunchedEffect(state.connectionSuccess) {
         if (state.connectionSuccess) {
             onConnected()

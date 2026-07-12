@@ -26,6 +26,7 @@ data class ServerStoreState(
     val host: String = "100.101.12.16",
     val port: Int = 9119,
     val autoReconnect: Boolean = true,
+    val screenCaptureProtectionEnabled: Boolean = false,
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val useDynamicColors: Boolean = false,
     val themePreset: ThemePreset = ThemePreset.CASSY,

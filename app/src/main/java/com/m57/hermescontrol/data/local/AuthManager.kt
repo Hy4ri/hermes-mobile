@@ -75,6 +75,9 @@ object AuthManager {
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
 
+    private val _screenCaptureProtectionFlow = MutableStateFlow(false)
+    val screenCaptureProtectionFlow: StateFlow<Boolean> = _screenCaptureProtectionFlow.asStateFlow()
+
     /**
      * Initialise the encrypted preferences.
      * Call this once from Application.onCreate() or MainActivity.onCreate().
@@ -130,6 +133,7 @@ object AuthManager {
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
                     _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
+                    _screenCaptureProtectionFlow.value = state.screenCaptureProtectionEnabled
                     // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
                     syncCookieStoreForProfile(state.selectedProfileId)
                 }
@@ -444,6 +448,12 @@ object AuthManager {
 
     fun setAutoReconnect(enabled: Boolean) {
         serverStore.update { it.copy(autoReconnect = enabled) }
+    }
+
+    fun isScreenCaptureProtectionEnabled(): Boolean = serverStore.getLatestState().screenCaptureProtectionEnabled
+
+    fun setScreenCaptureProtectionEnabled(enabled: Boolean) {
+        serverStore.update { it.copy(screenCaptureProtectionEnabled = enabled) }
     }
 
     // ── Theme preference ──────────────────────────────────────────────────

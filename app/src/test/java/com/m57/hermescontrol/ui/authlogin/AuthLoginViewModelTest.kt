@@ -12,12 +12,16 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Response
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -108,5 +112,37 @@ class AuthLoginViewModelTest {
         assertFalse(state.probing)
         assertNull(state.authMode)
         assertEquals("Dashboard unreachable", state.errorMessage)
+    }
+
+    @Test
+    fun `probe with embedded token becomes ready for seamless connection`() {
+        val server = MockWebServer()
+        server.start()
+        try {
+            every { AuthManager.getHost() } returns server.hostName
+            every { AuthManager.getPort() } returns server.port
+            every { OkHttpProvider.probe } returns OkHttpClient()
+            viewModel = AuthLoginViewModel(app)
+
+            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+            server.enqueue(MockResponse().setResponseCode(200).setBody("<html></html>"))
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("<script>window.__HERMES_SESSION_TOKEN__ = \"stable-token\";</script>"),
+            )
+
+            viewModel.probe()
+
+            val state =
+                runBlocking {
+                    withTimeout(3_000) { viewModel.uiState.first { !it.probing && it.authMode != null } }
+                }
+            assertEquals(DashboardAuthMode.TOKEN_ONLY, state.authMode)
+            assertEquals("stable-token", state.token)
+            assertTrue(state.autoConnectReady)
+        } finally {
+            server.shutdown()
+        }
     }
 }

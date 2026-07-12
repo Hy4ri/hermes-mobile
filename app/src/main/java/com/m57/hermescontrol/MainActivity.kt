@@ -35,7 +35,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         notificationSessionId = intent?.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
 
         enableEdgeToEdge()
@@ -43,6 +42,14 @@ class MainActivity : FragmentActivity() {
             val themePreference by AuthManager.themePreferenceFlow.collectAsState()
             val useDynamicColors by AuthManager.useDynamicColorsFlow.collectAsState()
             val themePreset by AuthManager.themePresetFlow.collectAsState()
+            val screenCaptureProtectionEnabled by AuthManager.screenCaptureProtectionFlow.collectAsState()
+            LaunchedEffect(screenCaptureProtectionEnabled) {
+                if (screenCaptureProtectionEnabled) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                }
+            }
             HermesControlTheme(
                 themePreference = themePreference,
                 useDynamicColors = useDynamicColors,

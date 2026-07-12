@@ -46,6 +46,7 @@ data class AuthLoginUiState(
     val isLoading: Boolean = false,
     val probing: Boolean = false,
     val authMode: DashboardAuthMode? = null,
+    val autoConnectReady: Boolean = false,
     val connectionSuccess: Boolean = false,
     val errorMessage: String? = null,
     val loggedInProfiles: List<ConnectionProfile> = emptyList(),
@@ -97,7 +98,14 @@ class AuthLoginViewModel(
 
     /** Reset ephemeral connection state (called when screen leaves composition). */
     fun clearConnectionState() {
-        _uiState.update { it.copy(connectionSuccess = false, errorMessage = null, isLoading = false) }
+        _uiState.update {
+            it.copy(
+                connectionSuccess = false,
+                errorMessage = null,
+                isLoading = false,
+                autoConnectReady = false,
+            )
+        }
     }
 
     fun onPortChange(value: String) {
@@ -149,6 +157,9 @@ class AuthLoginViewModel(
                     probing = false,
                     authMode = result?.authMode,
                     token = result?.extractedToken ?: it.token,
+                    autoConnectReady =
+                        result?.authMode == DashboardAuthMode.TOKEN_ONLY &&
+                            !result.extractedToken.isNullOrBlank(),
                     errorMessage =
                         if (result == null) {
                             app.getString(R.string.auth_login_error_unreachable)
@@ -267,7 +278,7 @@ class AuthLoginViewModel(
         val state = _uiState.value
         val port = state.port.toIntOrNull() ?: return
 
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { it.copy(isLoading = true, errorMessage = null, autoConnectReady = false) }
 
         viewModelScope.launch {
             val result =
@@ -313,6 +324,11 @@ class AuthLoginViewModel(
                 _uiState.update { it.copy(isLoading = false, connectionSuccess = true) }
             }
         }
+    }
+
+    fun connectAutomatically() {
+        if (!_uiState.value.autoConnectReady) return
+        connect()
     }
 
     /**

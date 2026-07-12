@@ -11,7 +11,8 @@ Cassy Control is an Android-first control center for Hermes Agent, based on the 
 - **Adaptive layout:** compact phones use a two-row control strip; screens at 840dp and above gain a permanent session desk beside the chat.
 - **HyperOS reliability:** direct shortcuts to Xiaomi Auto-start and battery settings, without silently requesting unrestricted battery access.
 - **Cassy Signature theme:** warm graphite, restrained violet, champagne and cool-blue accents; light and dark schemes; Material dynamic color remains optional.
-- **Private-by-default shell:** biometric/device lock, secure recents, encrypted storage and no Android backup.
+- **Private shell with user control:** biometric/device lock, encrypted storage, no Android backup and an optional screenshot/recents-protection switch.
+- **Seamless NAS sign-in:** the known private dashboard is probed automatically, its injected session credential is consumed locally, and the resulting connection profile is retained for future launches.
 
 ## Existing Hermes-native capabilities retained
 

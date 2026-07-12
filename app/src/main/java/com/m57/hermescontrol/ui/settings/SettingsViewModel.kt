@@ -26,6 +26,7 @@ data class SettingsUiState(
     val port: String = "9119",
     val token: String = "",
     val autoReconnect: Boolean = true,
+    val screenCaptureProtectionEnabled: Boolean = false,
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val useDynamicColors: Boolean = false,
     val themePreset: ThemePreset = ThemePreset.CASSY,
@@ -71,6 +72,7 @@ class SettingsViewModel(
         val port = AuthManager.getPort().toString()
         val token = AuthManager.getToken() ?: ""
         val autoReconnect = AuthManager.isAutoReconnect()
+        val screenCaptureProtectionEnabled = AuthManager.isScreenCaptureProtectionEnabled()
         val themePreference = AuthManager.getThemePreference()
         val useDynamicColors = AuthManager.isUseDynamicColors()
         val themePreset = AuthManager.getThemePreset()
@@ -87,6 +89,7 @@ class SettingsViewModel(
                 port = port,
                 token = token,
                 autoReconnect = autoReconnect,
+                screenCaptureProtectionEnabled = screenCaptureProtectionEnabled,
                 themePreference = themePreference,
                 useDynamicColors = useDynamicColors,
                 themePreset = themePreset,
@@ -281,6 +284,11 @@ class SettingsViewModel(
         AuthManager.setAutoReconnect(enabled)
     }
 
+    fun onScreenCaptureProtectionChange(enabled: Boolean) {
+        _uiState.update { it.copy(screenCaptureProtectionEnabled = enabled, isSaved = false) }
+        AuthManager.setScreenCaptureProtectionEnabled(enabled)
+    }
+
     fun onThemeChange(theme: ThemePreference) {
         _uiState.update { it.copy(themePreference = theme, isSaved = false) }
         AuthManager.setThemePreference(theme)
@@ -356,6 +364,7 @@ class SettingsViewModel(
         AuthManager.setPort(port)
         AuthManager.setToken(state.token)
         AuthManager.setAutoReconnect(state.autoReconnect)
+        AuthManager.setScreenCaptureProtectionEnabled(state.screenCaptureProtectionEnabled)
         // B6 (Jun 18 2026, kanban t_86e9be9b): persist theme choice so it
         // survives a cold start (was previously dropped on save()).
         AuthManager.setThemePreference(state.themePreference)

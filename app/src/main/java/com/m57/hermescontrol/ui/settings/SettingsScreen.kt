@@ -159,6 +159,8 @@ fun SettingsScreen(
                         BehaviorSection(
                             autoReconnect = state.autoReconnect,
                             onAutoReconnectChange = viewModel::onAutoReconnectChange,
+                            screenCaptureProtectionEnabled = state.screenCaptureProtectionEnabled,
+                            onScreenCaptureProtectionChange = viewModel::onScreenCaptureProtectionChange,
                         )
                         HyperOsReliabilitySection()
                     }

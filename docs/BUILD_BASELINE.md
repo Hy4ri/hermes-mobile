@@ -39,8 +39,8 @@ set -a
 . /opt/data/secure/cassy-control-signing.env
 set +a
 ./gradlew --no-daemon \
-  -PversionName=1.0.1-cassy \
-  -PversionCode=101 \
+  -PversionName=1.0.2-cassy \
+  -PversionCode=102 \
   lintRelease ktlintCheck assembleRelease
 ```
 
@@ -48,8 +48,8 @@ set +a
 
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`
 - Release: `app/build/outputs/apk/release/app-release.apk`
-- Delivered release: `/opt/data/workspace/Cassy-Control-v1.0.1.apk`
-- SHA-256: `d61d8456f22a3b6fb9458b33189e346d788b76c90f38deb4eef86016c43c21ce`
+- Delivered release: `/opt/data/workspace/Cassy-Control-v1.0.2.apk`
+- SHA-256: `f611985346162fb547b70cd8f8c607a3c6e0f2dc654daee467c47c58143c933e`
 
 ## Verification gates
 
@@ -64,8 +64,8 @@ set +a
 
 ## Verified release status
 
-- Version: `1.0.1-cassy` (`versionCode` 101)
-- Unit tests: 403 passed; 0 failed; 0 skipped
+- Version: `1.0.2-cassy` (`versionCode` 102)
+- Unit tests: 405 passed; 0 failed; 0 skipped
 - Release lint: 0 errors (125 warnings and 2 hints, primarily upstream/dependency notices)
 - APK: ZIP CRC valid, 402 entries, DEX present, arm64 SQLCipher present
 - Signature: APK Signature Scheme v2, RSA 4096, one signer

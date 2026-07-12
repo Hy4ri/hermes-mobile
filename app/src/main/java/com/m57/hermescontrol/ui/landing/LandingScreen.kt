@@ -87,6 +87,13 @@ fun LandingScreen(
                 textAlign = TextAlign.Center,
             )
 
+            Text(
+                text = stringResource(R.string.landing_login_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(

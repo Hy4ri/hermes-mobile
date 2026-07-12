@@ -571,6 +571,19 @@ object ChatWsEventReducer {
                 -1
             }
 
+        // A completed delegation is no longer "in flight" — drop its indicator
+        // so it doesn't linger in the chat after the subagent finishes.
+        if (event.type == "subagent.complete") {
+            if (idx >= 0) {
+                indicators.removeAt(idx)
+                return ReducerResult(
+                    state = state.copy(subagentIndicators = indicators),
+                    streamingState = streamingState,
+                )
+            }
+            return ReducerResult(state = state, streamingState = streamingState)
+        }
+
         val indicator =
             SubagentIndicator(
                 type = event.type,

@@ -161,6 +161,45 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun testSubagentComplete_removesIndicator() {
+        val initialIndicator =
+            SubagentIndicator(
+                type = "subagent.start",
+                goal = "analyze repository",
+                taskIndex = 1,
+                taskCount = 4,
+                subagentId = "sub-1",
+                text = "starting",
+            )
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                subagentIndicators = listOf(initialIndicator),
+            )
+        val event =
+            WsEvent.SubagentEvent(
+                type = "subagent.complete",
+                sessionId = "session-1",
+                payload =
+                    mapOf(
+                        "subagent_id" to "sub-1",
+                        "status" to "completed",
+                        "summary" to "done",
+                    ),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(0, result.state.subagentIndicators.size)
+    }
+
+    @Test
     fun testSessionMismatch_isIgnored() {
         val initialMessage =
             ChatMessage(

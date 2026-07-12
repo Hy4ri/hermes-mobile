@@ -13,6 +13,9 @@ object WsMethods {
     const val SESSION_DELETE = "session.delete"
     const val SESSION_TITLE = "session.title"
 
+    // ── Runtime configuration ─────────────────────────────────────────────
+    const val CONFIG_SET = "config.set"
+
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
     const val CLARIFY_RESPOND = "clarify.respond"

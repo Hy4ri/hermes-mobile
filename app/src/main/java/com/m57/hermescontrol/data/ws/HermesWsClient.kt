@@ -36,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Connection status for the WebSocket client.
@@ -70,6 +71,7 @@ object HermesWsClient {
     private val requestId = AtomicInteger(0)
     private val connected = AtomicBoolean(false)
     private val intentionalClose = AtomicBoolean(false)
+    private val connectionGeneration = AtomicLong(0)
     private val messageQueue = ConcurrentLinkedQueue<String>()
 
     @Volatile
@@ -150,7 +152,7 @@ object HermesWsClient {
                     Log.d(TAG, "Network restored — triggering immediate reconnect")
                     currentBackoff = INITIAL_BACKOFF_MS
                     reconnectJob?.cancel()
-                    openSocket()
+                    connect()
                 }
             }
         }
@@ -162,6 +164,7 @@ object HermesWsClient {
     val isConnected: Boolean get() = connected.get()
 
     /** Open a WebSocket connection using settings from [AuthManager]. */
+    @Synchronized
     fun connect() {
         if (connected.get()) {
             Log.d(TAG, "Already connected — skipping")
@@ -258,13 +261,16 @@ object HermesWsClient {
     }
 
     /** Cleanly close the WebSocket and stop auto-reconnect. */
+    @Synchronized
     fun disconnect() {
         intentionalClose.set(true)
         reconnectJob?.cancel()
         reconnectJob = null
         stopHealthTracking()
-        webSocket?.close(1000, "Client closed")
+        connectionGeneration.incrementAndGet()
+        val socket = webSocket
         webSocket = null
+        socket?.close(1000, "Client closed")
         connected.set(false)
         _connectionStatus.value = ConnectionStatus.DISCONNECTED
     }
@@ -410,7 +416,8 @@ object HermesWsClient {
         if (BuildConfig.DEBUG) Log.d(TAG, "Connecting to $safeUrl")
 
         val request = Request.Builder().url(url).build()
-        webSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl())
+        val generation = connectionGeneration.incrementAndGet()
+        webSocket = OkHttpProvider.websocket.newWebSocket(request, WsListenerImpl(generation))
     }
 
     private fun scheduleReconnect() {
@@ -444,11 +451,20 @@ object HermesWsClient {
 
     // ── Listener ─────────────────────────────────────────────────────────
 
-    private class WsListenerImpl : WebSocketListener() {
+    private class WsListenerImpl(
+        private val generation: Long,
+    ) : WebSocketListener() {
+        private fun isCurrent(): Boolean = connectionGeneration.get() == generation
+
         override fun onOpen(
             webSocket: WebSocket,
             response: Response,
         ) {
+            if (!isCurrent()) {
+                Log.d(TAG, "Ignoring superseded WebSocket open")
+                webSocket.close(1000, "Superseded connection")
+                return
+            }
             Log.i(TAG, "WebSocket opened")
             connected.set(true)
             _connectionStatus.value = ConnectionStatus.CONNECTED
@@ -468,6 +484,7 @@ object HermesWsClient {
             webSocket: WebSocket,
             text: String,
         ) {
+            if (!isCurrent()) return
             if (BuildConfig.DEBUG) Log.d(TAG, "← $text")
             lastPongTimestamp = System.currentTimeMillis()
             // Resolve any in-flight `request()` awaiting this RPC result/error
@@ -505,7 +522,12 @@ object HermesWsClient {
             code: Int,
             reason: String,
         ) {
+            if (!isCurrent()) {
+                Log.d(TAG, "Ignoring superseded WebSocket close")
+                return
+            }
             Log.i(TAG, "WebSocket closed: $code $reason")
+            HermesWsClient.webSocket = null
             connected.set(false)
             stopHealthTracking()
             if (code == 4001 || code == 4401 ||
@@ -524,7 +546,12 @@ object HermesWsClient {
             t: Throwable,
             response: Response?,
         ) {
+            if (!isCurrent()) {
+                Log.d(TAG, "Ignoring superseded WebSocket failure")
+                return
+            }
             Log.e(TAG, "WebSocket failure: ${t.message}", t)
+            HermesWsClient.webSocket = null
             connected.set(false)
             stopHealthTracking()
             val code = response?.code ?: 0

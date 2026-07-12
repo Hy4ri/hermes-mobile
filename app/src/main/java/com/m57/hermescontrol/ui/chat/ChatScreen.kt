@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -61,6 +63,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -96,11 +99,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -170,9 +176,14 @@ fun ChatScreen(
             .let { ((it + 2f) / 14f).coerceIn(0.05f, 1f) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
+    var showYoloWarning by rememberSaveable { mutableStateOf(false) }
+    var dismissYoloWarningForever by rememberSaveable { mutableStateOf(false) }
+    var showCommandSheet by rememberSaveable { mutableStateOf(false) }
+    var inputFocused by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val sttNoMatchMessage = stringResource(R.string.stt_error_no_match)
     val sttNetworkMessage = stringResource(R.string.stt_error_network)
     val sttBusyMessage = stringResource(R.string.stt_error_busy)
@@ -378,6 +389,38 @@ fun ChatScreen(
             }
         },
         actions = {
+            IconButton(
+                onClick = {
+                    if (state.yoloEnabled) {
+                        viewModel.setYoloEnabled(false)
+                    } else if (viewModel.shouldShowYoloWarning()) {
+                        showYoloWarning = true
+                    } else {
+                        viewModel.setYoloEnabled(true)
+                    }
+                },
+                enabled = state.isConnected && !state.yoloUpdating,
+                modifier = Modifier.testTag("yolo_toggle"),
+            ) {
+                if (state.yoloUpdating) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription =
+                            stringResource(
+                                if (state.yoloEnabled) R.string.chat_yolo_disable else R.string.chat_yolo_enable,
+                            ),
+                        tint =
+                            if (state.yoloEnabled) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
+                }
+            }
+
             // Search toggle
             IconButton(onClick = { viewModel.toggleSearch() }) {
                 Icon(
@@ -476,6 +519,7 @@ fun ChatScreen(
                     onSend = {
                         viewModel.sendMessage(inputText)
                         inputText = ""
+                        focusManager.clearFocus()
                         scrollScope.launch {
                             val totalItems =
                                 state.messages.size +
@@ -513,8 +557,19 @@ fun ChatScreen(
                     isVoiceCapturing = isVoiceCapturing,
                     isVoiceProcessing = isVoiceProcessing,
                     isAgentTyping = state.isAgentTyping,
+                    isInputFocused = inputFocused,
+                    onInputFocusChanged = { inputFocused = it },
                     isConnected = state.isConnected,
                     commandCatalog = state.commandCatalog,
+                    queuedPrompt = state.queuedPrompt,
+                    onEditQueuedPrompt = {
+                        viewModel.takeQueuedPromptForEdit()?.let { queuedText ->
+                            inputText = queuedText
+                        }
+                    },
+                    onCancelQueuedPrompt = viewModel::cancelQueuedPrompt,
+                    onInterrupt = viewModel::interruptSession,
+                    onOpenCommandSheet = { showCommandSheet = true },
                     pendingAttachments = state.pendingAttachments,
                     onCameraTap = {
                         try {
@@ -549,6 +604,56 @@ fun ChatScreen(
                 },
             )
         }
+    }
+
+    if (showCommandSheet) {
+        ChatCommandSheet(
+            catalog = state.commandCatalog,
+            onDismiss = { showCommandSheet = false },
+            onSelect = { command -> inputText = "$command " },
+        )
+    }
+
+    if (showYoloWarning) {
+        AlertDialog(
+            onDismissRequest = { showYoloWarning = false },
+            icon = { Icon(Icons.Default.Bolt, contentDescription = null) },
+            title = { Text(stringResource(R.string.chat_yolo_warning_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.chat_yolo_warning_body))
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { dismissYoloWarningForever = !dismissYoloWarningForever },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = dismissYoloWarningForever,
+                            onCheckedChange = { dismissYoloWarningForever = it },
+                        )
+                        Text(stringResource(R.string.chat_yolo_warning_dont_show))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (dismissYoloWarningForever) viewModel.dismissYoloWarningForever()
+                        showYoloWarning = false
+                        viewModel.setYoloEnabled(true)
+                    },
+                ) {
+                    Text(stringResource(R.string.chat_yolo_warning_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showYoloWarning = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -679,19 +784,24 @@ private fun ChatInputBar(
     isVoiceCapturing: Boolean,
     isVoiceProcessing: Boolean,
     isAgentTyping: Boolean,
+    isInputFocused: Boolean,
+    onInputFocusChanged: (Boolean) -> Unit,
     isConnected: Boolean,
     commandCatalog: CommandCatalog,
+    queuedPrompt: QueuedPromptUi? = null,
+    onEditQueuedPrompt: () -> Unit = {},
+    onCancelQueuedPrompt: () -> Unit = {},
+    onInterrupt: () -> Unit = {},
+    onOpenCommandSheet: () -> Unit = {},
     pendingAttachments: List<Attachment> = emptyList(),
     onCameraTap: () -> Unit = {},
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
 ) {
-    // Allow sending slash commands even while agent is typing
-    val isSlashCommand = inputText.startsWith("/")
     val canSend =
         (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) &&
-            isConnected && (!isAgentTyping || isSlashCommand)
+            isConnected
 
     // Attachment menu state
     var showAttachmentMenu by remember { mutableStateOf(false) }
@@ -719,6 +829,36 @@ private fun ChatInputBar(
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         ) {
             Column {
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .pointerInput(onOpenCommandSheet) {
+                                detectVerticalDragGestures { change, dragAmount ->
+                                    if (dragAmount < -8f) {
+                                        change.consume()
+                                        onOpenCommandSheet()
+                                    }
+                                }
+                            }.clickable(onClick = onOpenCommandSheet)
+                            .padding(top = 6.dp, bottom = 2.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = stringResource(R.string.chat_command_sheet_open),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.chat_command_sheet_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 // Build command list from dynamic catalog (pairs = [name, description])
                 val allCommands = commandCatalog.pairs.associate { (name, desc) -> name to desc }
                 // Commands hidden from suggestion menu (still work when manually typed)
@@ -770,6 +910,46 @@ private fun ChatInputBar(
                                         },
                                         onClick = { onInputChange(cmd) },
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = queuedPrompt != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    queuedPrompt?.let { queued ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.72f),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.chat_queue_label),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = queued.text,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                )
+                                Row(modifier = Modifier.align(Alignment.End)) {
+                                    TextButton(onClick = onEditQueuedPrompt) {
+                                        Text(stringResource(R.string.chat_queue_edit))
+                                    }
+                                    TextButton(onClick = onCancelQueuedPrompt) {
+                                        Text(stringResource(R.string.chat_queue_remove))
+                                    }
                                 }
                             }
                         }
@@ -929,13 +1109,14 @@ private fun ChatInputBar(
                                 .weight(1f)
                                 .heightIn(min = 36.dp, max = 120.dp)
                                 .padding(horizontal = 4.dp, vertical = 8.dp)
+                                .onFocusChanged { onInputFocusChanged(it.isFocused) }
                                 .testTag("chat_input"),
                         placeholder = {
                             Text(
                                 if (!isConnected) {
                                     stringResource(R.string.chat_input_placeholder_not_connected)
                                 } else if (isAgentTyping) {
-                                    stringResource(R.string.chat_input_placeholder_waiting)
+                                    stringResource(R.string.chat_queue_placeholder)
                                 } else {
                                     stringResource(R.string.chat_input_placeholder_type_message)
                                 },
@@ -962,6 +1143,11 @@ private fun ChatInputBar(
                             when {
                                 isVoiceProcessing -> "processing"
                                 isVoiceCapturing -> "listening"
+                                isAgentTyping &&
+                                    inputText.isBlank() &&
+                                    pendingAttachments.isEmpty() &&
+                                    !isInputFocused ->
+                                    "task_stop"
                                 inputText.isBlank() && pendingAttachments.isEmpty() -> "mic"
                                 else -> "send"
                             },
@@ -1021,6 +1207,26 @@ private fun ChatInputBar(
                                     contentPadding = PaddingValues(0.dp),
                                 ) {
                                     CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                                }
+                            }
+
+                            "task_stop" -> {
+                                FilledTonalButton(
+                                    onClick = onInterrupt,
+                                    enabled = isConnected,
+                                    modifier = Modifier.size(48.dp).testTag("task_stop_button"),
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors =
+                                        ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError,
+                                        ),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Stop,
+                                        contentDescription = stringResource(R.string.chat_stop_task),
+                                    )
                                 }
                             }
 
@@ -1868,25 +2074,27 @@ private fun ChatMessageList(
                     ReasoningIndicator(message.reasoningText)
                 }
 
-                if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
-                    lastAnimatedMessageId != message.id
-                ) {
-                    StreamingBubbleWithTypingEffect(
-                        streaming = message,
-                        typingDelayMs = typingEffectDelayMs,
-                        isDark = isDark,
-                        onAnimationComplete = {
-                            onLastAnimatedMessageIdChange(message.id)
-                        },
-                    )
-                } else {
-                    ChatBubble(
-                        message = message,
-                        isDarkTheme = isDark,
-                        searchQuery = if (isSearchActive) searchQuery else "",
-                        isCurrentMatch = isCurrentMatch,
-                        onRespondApproval = viewModel::respondToApproval,
-                    )
+                if (!isAssistant || message.content.isNotBlank() || !message.attachments.isNullOrEmpty()) {
+                    if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
+                        lastAnimatedMessageId != message.id
+                    ) {
+                        StreamingBubbleWithTypingEffect(
+                            streaming = message,
+                            typingDelayMs = typingEffectDelayMs,
+                            isDark = isDark,
+                            onAnimationComplete = {
+                                onLastAnimatedMessageIdChange(message.id)
+                            },
+                        )
+                    } else {
+                        ChatBubble(
+                            message = message,
+                            isDarkTheme = isDark,
+                            searchQuery = if (isSearchActive) searchQuery else "",
+                            isCurrentMatch = isCurrentMatch,
+                            onRespondApproval = viewModel::respondToApproval,
+                        )
+                    }
                 }
             }
 

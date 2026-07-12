@@ -128,4 +128,24 @@
     <string name="content_desc_new_chat">Neuer Chat</string>
     <string name="content_desc_open_drawer">Navigationsmenü öffnen</string>
     <string name="content_desc_scroll_to_bottom">Zur neuesten Nachricht</string>
+    <string name="chat_yolo_enable">YOLO-Modus aktivieren</string>
+    <string name="chat_yolo_disable">YOLO-Modus deaktivieren</string>
+    <string name="chat_yolo_warning_title">YOLO-Modus aktivieren?</string>
+    <string name="chat_yolo_warning_body">Der YOLO-Modus bestätigt für jede Hermes-Session automatisch freigabepflichtige Befehle und Tools. Harte Sicherheitsblockaden bleiben aktiv, Hermes kann aber ohne vorherige Rückfrage Änderungen am System vornehmen.</string>
+    <string name="chat_yolo_warning_dont_show">Diese Warnung nicht mehr anzeigen</string>
+    <string name="chat_yolo_warning_confirm">YOLO aktivieren</string>
+    <string name="yolo_update_failed">Der YOLO-Modus konnte nicht aktualisiert werden. Bitte prüfe die Verbindung und versuche es erneut.</string>
+    <string name="chat_error_history_load">Der Chatverlauf konnte nicht aktualisiert werden. Deine zwischengespeicherten Nachrichten bleiben erhalten; die App versucht es automatisch erneut.</string>
+    <string name="chat_queue_label">Für den nächsten Durchlauf vorgemerkt</string>
+    <string name="chat_queue_edit">Bearbeiten</string>
+    <string name="chat_queue_remove">Zurückholen</string>
+    <string name="chat_queue_placeholder">Nach der laufenden Aufgabe senden</string>
+    <string name="chat_stop_task">Laufende Aufgabe abbrechen</string>
+    <string name="chat_command_sheet_title">Befehle &amp; Skills</string>
+    <string name="chat_command_sheet_hint">Nach unten wischen, um zum Chat zurückzukehren</string>
+    <string name="chat_command_sheet_search">Befehle und Skills durchsuchen…</string>
+    <string name="chat_command_sheet_commands">Slash-Befehle</string>
+    <string name="chat_command_sheet_skills">Agent-Skills</string>
+    <string name="chat_command_sheet_empty">Kein passender Befehl oder Skill</string>
+    <string name="chat_command_sheet_open">Befehle und Skills öffnen</string>
 </resources>

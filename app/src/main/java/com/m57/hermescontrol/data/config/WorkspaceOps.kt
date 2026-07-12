@@ -37,6 +37,20 @@ fun ServerStoreState.setSessionModel(
     return copy(sessionPreferences = sessionPreferences.filterNot { it.sessionId == sessionId } + updated)
 }
 
+fun ServerStoreState.setQueuedPrompt(
+    sessionId: String,
+    text: String?,
+): ServerStoreState {
+    val existing = sessionPreferences.firstOrNull { it.sessionId == sessionId }
+    val updated =
+        (existing ?: SessionPreference(sessionId)).copy(
+            queuedPromptText = text?.trim()?.takeIf { it.isNotBlank() },
+        )
+    val preferences = sessionPreferences.filterNot { it.sessionId == sessionId }
+    val keep = updated.pinned || updated.modelAlias != null || updated.queuedPromptText != null
+    return copy(sessionPreferences = if (keep) preferences + updated else preferences)
+}
+
 fun ServerStoreState.createWorkspace(
     id: String,
     name: String,

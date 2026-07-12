@@ -869,4 +869,24 @@
     <string name="analytics_tool_uses">%1$d calls \u2022 %2$d%% of total</string>
     <string name="processes_kill_confirm">Kill</string>
     <string name="processes_kill_cd">Kill process</string>
+    <string name="chat_yolo_enable">Enable YOLO mode</string>
+    <string name="chat_yolo_disable">Disable YOLO mode</string>
+    <string name="chat_yolo_warning_title">Enable YOLO mode?</string>
+    <string name="chat_yolo_warning_body">YOLO mode automatically approves recoverable command and tool prompts for every Hermes session. Hard safety blocks remain active, but Hermes can make system changes without asking first.</string>
+    <string name="chat_yolo_warning_dont_show">Don’t show this warning again</string>
+    <string name="chat_yolo_warning_confirm">Enable YOLO</string>
+    <string name="yolo_update_failed">Could not update YOLO mode. Please check the connection and try again.</string>
+    <string name="chat_error_history_load">The chat history could not be refreshed. Your cached messages are still available; retrying automatically.</string>
+    <string name="chat_queue_label">Queued for next turn</string>
+    <string name="chat_queue_edit">Edit</string>
+    <string name="chat_queue_remove">Remove</string>
+    <string name="chat_queue_placeholder">Send after the current task</string>
+    <string name="chat_stop_task">Stop current task</string>
+    <string name="chat_command_sheet_title">Commands &amp; skills</string>
+    <string name="chat_command_sheet_hint">Swipe down to return to chat</string>
+    <string name="chat_command_sheet_search">Search commands and skills…</string>
+    <string name="chat_command_sheet_commands">Slash commands</string>
+    <string name="chat_command_sheet_skills">Agent skills</string>
+    <string name="chat_command_sheet_empty">No matching command or skill</string>
+    <string name="chat_command_sheet_open">Open commands and skills</string>
 </resources>

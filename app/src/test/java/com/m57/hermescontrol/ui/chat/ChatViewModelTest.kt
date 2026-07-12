@@ -80,6 +80,7 @@ class ChatViewModelTest {
         every { app.getString(R.string.chat_system_session_created) } returns "Chat created"
         every { app.getString(R.string.chat_system_session_resumed) } returns "Chat resumed"
         every { app.getString(R.string.chat_system_session_interrupted) } returns "Task interrupted"
+        every { app.getString(R.string.yolo_update_failed) } returns "Could not update YOLO mode"
         every { app.getString(R.string.chat_system_approval_submitted) } returns "✅ Approval submitted"
         fakeRepo = FakeChatPersistenceRepository()
 
@@ -461,6 +462,64 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages[0]
                     .content,
             )
+        }
+
+    @Test
+    fun testSessionCreateKeepsDurableAndGatewayIdsSeparate() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcResult("req-id-1", mapOf("sessions" to emptyList<Map<String, Any?>>())))
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-id-3",
+                    mapOf(
+                        "session_id" to "gateway-live-123",
+                        "stored_session_id" to "durable-chat-789",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("durable-chat-789", viewModel.uiState.value.currentSessionId)
+            assertEquals("gateway-live-123", viewModel.uiState.value.gatewaySessionId)
+            assertEquals("durable-chat-789", persistedActiveSessionId)
+        }
+
+    @Test
+    fun testSessionResumeRetainsDurableIdAndUsesReturnedGatewayId() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                val id = "resume-distinct-id"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.switchSession("durable-chat-789")
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "resume-distinct-id",
+                    mapOf(
+                        "session_id" to "gateway-live-456",
+                        "resumed" to "durable-chat-789",
+                        "running" to true,
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("durable-chat-789", viewModel.uiState.value.currentSessionId)
+            assertEquals("gateway-live-456", viewModel.uiState.value.gatewaySessionId)
+            assertEquals("durable-chat-789", persistedActiveSessionId)
+            assertTrue(viewModel.uiState.value.isAgentTyping)
         }
 
     @Test

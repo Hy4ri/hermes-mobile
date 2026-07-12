@@ -1,10 +1,13 @@
 package com.m57.hermescontrol.data.ws
 
 import android.util.Log
+import com.m57.hermescontrol.data.config.ServerStore
+import com.m57.hermescontrol.data.config.ServerStoreState
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
@@ -42,6 +45,9 @@ class HermesWsClientTest {
         mockWebServer.start()
 
         mockkObject(AuthManager)
+        val serverStore = mockk<ServerStore>()
+        every { serverStore.getLatestState() } returns ServerStoreState(wsAuthParam = "token")
+        every { AuthManager.serverStore } returns serverStore
         every { AuthManager.wsUrl() } returns mockWebServer.url("/").toString().replace("http://", "ws://")
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.getSessionCookie() } returns null
@@ -397,6 +403,38 @@ class HermesWsClientTest {
         HermesWsClient.connect()
         assertTrue(HermesWsClient.isConnected)
         assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
+    }
+
+    @Test
+    fun testConcurrentConnect_opensOnlyOneSocket() {
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        ws: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverLatch.countDown()
+                    }
+                },
+            ),
+        )
+        val startGate = CountDownLatch(1)
+        val callers =
+            List(12) {
+                Thread {
+                    startGate.await()
+                    HermesWsClient.connect()
+                }.apply(Thread::start)
+            }
+
+        startGate.countDown()
+        callers.forEach(Thread::join)
+        assertTrue("Server failed to accept connection", serverLatch.await(5, TimeUnit.SECONDS))
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
+
+        assertEquals(1, mockWebServer.requestCount)
     }
 
     @Test

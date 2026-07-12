@@ -19,6 +19,7 @@ data class SessionPreference(
     val sessionId: String,
     val pinned: Boolean = false,
     val modelAlias: String? = null,
+    val queuedPromptText: String? = null,
 )
 
 @Serializable
@@ -44,4 +45,5 @@ data class ServerStoreState(
     val openSessionIds: List<String> = emptyList(),
     val activeSessionId: String? = null,
     val sessionPreferences: List<SessionPreference> = emptyList(),
+    val yoloWarningDismissed: Boolean = false,
 )

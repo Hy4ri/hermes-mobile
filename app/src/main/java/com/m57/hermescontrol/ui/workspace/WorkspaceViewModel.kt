@@ -20,6 +20,8 @@ import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.WsEvent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +31,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-private const val SESSION_REFRESH_MS = 15_000L
+private const val SESSION_REFRESH_MS = 3_000L
 
 data class WorkspaceUiState(
     val store: ServerStoreState = ServerStoreState(),
@@ -64,6 +66,19 @@ class WorkspaceViewModel(
             while (isActive) {
                 refresh()
                 delay(SESSION_REFRESH_MS)
+            }
+        }
+        viewModelScope.launch {
+            HermesWsClient.events.collect { event ->
+                when (event) {
+                    is WsEvent.SessionUpdated,
+                    is WsEvent.MessageStart,
+                    is WsEvent.MessageComplete,
+                    is WsEvent.MessageDone,
+                    -> refresh()
+
+                    else -> Unit
+                }
             }
         }
     }

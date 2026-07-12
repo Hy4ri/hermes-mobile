@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.remote
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.StatusResponse
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -244,11 +245,11 @@ class HermesApiServiceMockWebServerTest {
             assertEquals(3, messages.size)
 
             assertEquals("user", messages[0].role)
-            assertEquals("Hello Hermes", messages[0].content)
+            assertEquals("Hello Hermes", messages[0].content?.jsonPrimitive?.content)
             assertEquals("1718000000", messages[0].timestampText)
 
             assertEquals("assistant", messages[1].role)
-            assertEquals("Hi! How can I help?", messages[1].content)
+            assertEquals("Hi! How can I help?", messages[1].content?.jsonPrimitive?.content)
 
             assertEquals("tool", messages[2].role)
             assertEquals("tool_execution", messages[2].type)
@@ -282,7 +283,7 @@ class HermesApiServiceMockWebServerTest {
             assertNotNull(body)
             assertEquals(1, body!!.messages.size)
             assertNull(body.messages[0].role)
-            assertEquals("Plain content", body.messages[0].content)
+            assertEquals("Plain content", body.messages[0].content?.jsonPrimitive?.content)
             assertNull(body.messages[0].timestamp)
         }
 

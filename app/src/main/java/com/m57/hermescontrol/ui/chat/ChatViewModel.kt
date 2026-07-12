@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.openSessionTab
+import com.m57.hermescontrol.data.config.setQueuedPrompt
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
@@ -48,7 +50,10 @@ private const val TAG = "ChatViewModel"
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
+    /** Durable database/session-list identity. Never replace with the live gateway id. */
     val currentSessionId: String? = null,
+    /** Ephemeral in-memory gateway identity used only for session-scoped WS calls. */
+    val gatewaySessionId: String? = null,
     val sessions: List<SessionUi> = emptyList(),
     val chatTitle: String = "Cassy",
     val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED,
@@ -78,10 +83,18 @@ data class ChatUiState(
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
+    val queuedPrompt: QueuedPromptUi? = null,
+    val yoloEnabled: Boolean = false,
+    val yoloUpdating: Boolean = false,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
 }
+
+data class QueuedPromptUi(
+    val text: String,
+    val attachments: List<Attachment> = emptyList(),
+)
 
 data class SessionUi(
     val id: String,
@@ -182,6 +195,8 @@ class ChatViewModel(
      * available.
      */
     private var awaitingInitialSessionSelection = false
+    private val queuedPrompts = ConcurrentHashMap<String, QueuedPromptUi>()
+    private val historyLoadsInFlight = ConcurrentHashMap.newKeySet<String>()
 
     init {
         refreshSettings()
@@ -209,6 +224,9 @@ class ChatViewModel(
         }
         if (wsClient.connectionStatus.value == ConnectionStatus.CONNECTED) {
             handleGatewayReady()
+        }
+        if (!isTestEnvironment()) {
+            startLiveSyncLoop()
         }
     }
 
@@ -257,6 +275,14 @@ class ChatViewModel(
         addSystemMessage(getApplication<Application>().getString(R.string.chat_system_connected))
         loadSessions()
         fetchCommandCatalog()
+        // Codex-style follow-up semantics: a race at turn teardown must queue,
+        // never interrupt the active turn.
+        if (!isTestEnvironment()) {
+            wsClient.send(
+                WsMethods.CONFIG_SET,
+                mapOf("key" to "busy", "value" to "queue"),
+            )
+        }
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -285,7 +311,7 @@ class ChatViewModel(
                 _uiState.value,
                 _streamingState.value,
                 event,
-                _uiState.value.currentSessionId,
+                routingSessionId(event),
             )
 
         // Apply the new state
@@ -340,10 +366,12 @@ class ChatViewModel(
             is WsEvent.MessageComplete -> {
                 // Buffers cleared before reduce; ViewModel resets them after
                 streamingController.resetStreaming()
+                scheduleQueuedPromptDrain(event.sessionId)
             }
 
             is WsEvent.MessageDone -> {
                 streamingController.resetStreaming()
+                scheduleQueuedPromptDrain(event.sessionId)
             }
 
             is WsEvent.ToolStart -> {
@@ -361,6 +389,13 @@ class ChatViewModel(
 
             is WsEvent.SessionUpdated -> {
                 loadSessions()
+            }
+
+            is WsEvent.SessionInfo -> {
+                val enabled = event.data?.get("yolo") as? Boolean
+                if (enabled != null) {
+                    _uiState.update { it.copy(yoloEnabled = enabled, yoloUpdating = false) }
+                }
             }
 
             is WsEvent.ClarifyRequest -> {
@@ -407,7 +442,17 @@ class ChatViewModel(
     private fun isCurrentSession(eventSessionId: String?): Boolean {
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
-        return eventSessionId == _uiState.value.currentSessionId
+        val state = _uiState.value
+        return eventSessionId == state.currentSessionId || eventSessionId == state.gatewaySessionId
+    }
+
+    private fun routingSessionId(event: WsEvent): String? {
+        val eventSessionId = event.sessionIdOrNull()
+        return if (eventSessionId == null || isCurrentSession(eventSessionId)) {
+            eventSessionId ?: _uiState.value.gatewaySessionId ?: _uiState.value.currentSessionId
+        } else {
+            _uiState.value.gatewaySessionId ?: _uiState.value.currentSessionId
+        }
     }
 
     // ── RPC response handling ────────────────────────────────────────────
@@ -421,10 +466,15 @@ class ChatViewModel(
         when (method) {
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
-                val sessionId = resultMap["session_id"] as? String ?: return
+                val gatewaySessionId = resultMap["session_id"] as? String ?: return
+                val sessionId =
+                    resultMap["stored_session_id"] as? String
+                        ?: resultMap["session_key"] as? String
+                        ?: gatewaySessionId
                 _uiState.update {
                     it.copy(
                         currentSessionId = sessionId,
+                        gatewaySessionId = gatewaySessionId,
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = "Cassy",
@@ -477,9 +527,12 @@ class ChatViewModel(
 
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
+                val gatewaySessionId = resultMap?.get("session_id") as? String
                 val sessionId =
-                    (resultMap?.get("session_id") as? String)
+                    (resultMap?.get("resumed") as? String)
+                        ?: (resultMap?.get("session_key") as? String)
                         ?: _uiState.value.currentSessionId
+                val running = resultMap?.get("running") as? Boolean ?: false
 
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
                 // cached messages here — switchSession() already did so before
@@ -490,12 +543,15 @@ class ChatViewModel(
                     it.copy(
                         isLoading = false,
                         currentSessionId = sessionId,
+                        gatewaySessionId = gatewaySessionId,
+                        isAgentTyping = running,
                     )
                 }
                 // Mirror and persist the active session app-wide.
                 ActiveSessionHolder.set(sessionId)
                 sessionId?.let(persistActiveSession)
                 addSystemMessage(getApplication<Application>().getString(R.string.chat_system_session_resumed))
+                if (!running) scheduleQueuedPromptDrain(gatewaySessionId)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -507,6 +563,7 @@ class ChatViewModel(
                 _streamingState.update { StreamingState() }
                 streamingController.resetStreaming()
                 addSystemMessage(getApplication<Application>().getString(R.string.chat_system_session_interrupted))
+                _uiState.value.currentSessionId?.let(::loadSessionMessages)
             }
 
             WsMethods.COMMANDS_CATALOG -> {
@@ -526,6 +583,14 @@ class ChatViewModel(
                 val resolved = (map?.get("resolved") as? Number)?.toInt() ?: 0
                 if (resolved > 0) {
                     addSystemMessage(getApplication<Application>().getString(R.string.chat_system_approval_submitted))
+                }
+            }
+
+            WsMethods.CONFIG_SET -> {
+                val map = result as? Map<*, *>
+                if (map?.get("key") == "yolo") {
+                    val enabled = map["value"]?.toString() == "1"
+                    _uiState.update { it.copy(yoloEnabled = enabled, yoloUpdating = false) }
                 }
             }
         }
@@ -582,6 +647,26 @@ class ChatViewModel(
         // Surface error in UI (these are server-pushed RpcError for
         // fire-and-forget RPCs — awaited RPCs handle their own failure
         // via the HermesWsClient.request() deferred).
+        // A stale live gateway id is recoverable. Keep the durable session
+        // selected, clear only the ephemeral binding, and retry a clean resume.
+        if (method == WsMethods.SESSION_RESUME && errorMsg.contains("session not found", ignoreCase = true)) {
+            val durableId = _uiState.value.currentSessionId
+            _uiState.update { it.copy(gatewaySessionId = null, isLoading = false) }
+            durableId?.let(::loadSessionMessages)
+            loadSessions()
+            return
+        }
+
+        if (method == WsMethods.CONFIG_SET) {
+            _uiState.update {
+                it.copy(
+                    yoloUpdating = false,
+                    errorMessage = getApplication<Application>().getString(R.string.yolo_update_failed),
+                )
+            }
+            return
+        }
+
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -605,7 +690,8 @@ class ChatViewModel(
      */
     fun sendMessage(text: String) {
         if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val state = _uiState.value
+        val sessionId = state.currentSessionId ?: return
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
@@ -613,8 +699,63 @@ class ChatViewModel(
             return
         }
 
+        if (state.isAgentTyping || state.gatewaySessionId == null) {
+            queuePrompt(sessionId, text, state.pendingAttachments)
+            clearAttachments()
+            return
+        }
+
+        sendMessageNow(sessionId, state.gatewaySessionId, text)
+    }
+
+    private fun queuePrompt(
+        sessionId: String,
+        text: String,
+        attachments: List<Attachment>,
+    ) {
+        val queued = QueuedPromptUi(text = text.trim(), attachments = attachments.toList())
+        queuedPrompts[sessionId] = queued
+        persistQueuedPrompt(sessionId, queued.text)
+        _uiState.update { it.copy(queuedPrompt = queued) }
+    }
+
+    private fun queuedPromptFor(sessionId: String): QueuedPromptUi? =
+        queuedPrompts[sessionId]
+            ?: runCatching {
+                AuthManager.serverStore
+                    .getLatestState()
+                    .sessionPreferences
+                    .firstOrNull { it.sessionId == sessionId }
+                    ?.queuedPromptText
+            }.getOrNull()?.let { QueuedPromptUi(it) }
+
+    private fun scheduleQueuedPromptDrain(eventSessionId: String?) {
+        if (eventSessionId != null && !isCurrentSession(eventSessionId)) return
+        viewModelScope.launch {
+            delay(200L)
+            drainQueuedPromptIfIdle()
+        }
+    }
+
+    private fun drainQueuedPromptIfIdle() {
+        val state = _uiState.value
+        val sessionId = state.currentSessionId ?: return
+        val gatewaySessionId = state.gatewaySessionId ?: return
+        if (state.isAgentTyping) return
+        val queued = queuedPrompts.remove(sessionId) ?: state.queuedPrompt ?: return
+        persistQueuedPrompt(sessionId, null)
+        _uiState.update { it.copy(queuedPrompt = null) }
+        sendMessageNow(sessionId, gatewaySessionId, queued.text, queued.attachments)
+    }
+
+    private fun sendMessageNow(
+        sessionId: String,
+        gatewaySessionId: String,
+        text: String,
+        queuedAttachments: List<Attachment>? = null,
+    ) {
         // Snapshot + clear attachments so the input bar empties immediately
-        val attachments = _uiState.value.pendingAttachments.toList()
+        val attachments = queuedAttachments ?: _uiState.value.pendingAttachments.toList()
         clearAttachments()
 
         val userMessage =
@@ -656,6 +797,7 @@ class ChatViewModel(
                             method = WsMethods.IMAGE_ATTACH_BYTES,
                             params =
                                 mapOf(
+                                    "session_id" to gatewaySessionId,
                                     "content_base64" to "data:${attachment.mimeType};base64,$b64",
                                     "filename" to attachment.name,
                                     "ext" to attachment.fileExtension,
@@ -667,6 +809,7 @@ class ChatViewModel(
                             method = WsMethods.FILE_ATTACH,
                             params =
                                 mapOf(
+                                    "session_id" to gatewaySessionId,
                                     "data_url" to "data:${attachment.mimeType};base64,$b64",
                                     "name" to attachment.name,
                                 ),
@@ -695,7 +838,7 @@ class ChatViewModel(
                 }
 
             wsClient.sendMessage(
-                sessionId,
+                gatewaySessionId,
                 fullText,
                 onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
             )
@@ -786,7 +929,7 @@ class ChatViewModel(
     }
 
     private fun dispatchViaRpc(command: String) {
-        val sessionId = _uiState.value.currentSessionId
+        val sessionId = activeGatewaySessionId()
         if (sessionId == null) {
             addAssistantMessage("No active session. Use `/new` to create one.")
             return
@@ -810,7 +953,7 @@ class ChatViewModel(
      */
     private fun submitPrompt(text: String) {
         if (text.isBlank()) return
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val sessionId = activeGatewaySessionId() ?: return
         _uiState.update { it.copy(isAgentTyping = true) }
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.sendMessage(
@@ -837,7 +980,7 @@ class ChatViewModel(
     // ── Session management ───────────────────────────────────────────────
 
     fun interruptSession() {
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val sessionId = activeGatewaySessionId() ?: return
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.SESSION_INTERRUPT,
@@ -852,8 +995,12 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 isLoading = setLoading,
+                currentSessionId = null,
+                gatewaySessionId = null,
                 messages = emptyList(),
                 chatTitle = "Cassy",
+                queuedPrompt = null,
+                isAgentTyping = false,
             )
         }
         _streamingState.update { StreamingState() }
@@ -888,11 +1035,6 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId ?: return
         viewModelScope.launch {
             loadCachedMessages(sessionId).join()
-            // Skip the REST call if we already have messages — the WebSocket keeps
-            // the UI current. The REST endpoint can 404 on tab switch-back when the
-            // WS session ID doesn't round-trip through the resolver (issue #366),
-            // showing a misleading error banner while the connection is fine.
-            if (_uiState.value.messages.isNotEmpty()) return@launch
             loadSessionMessages(sessionId)
         }
     }
@@ -917,7 +1059,10 @@ class ChatViewModel(
         }
 
     fun switchSession(sessionId: String) {
-        if (sessionId == _uiState.value.currentSessionId) return
+        if (sessionId == _uiState.value.currentSessionId && _uiState.value.gatewaySessionId != null) {
+            refreshCurrentSession()
+            return
+        }
 
         // Reset streaming state
         streamingController.resetStreaming()
@@ -926,10 +1071,12 @@ class ChatViewModel(
             it.copy(
                 isLoading = true,
                 currentSessionId = sessionId,
+                gatewaySessionId = null,
                 messages = emptyList(),
                 chatTitle = title,
                 showSessionPicker = false,
                 isAgentTyping = false,
+                queuedPrompt = queuedPromptFor(sessionId),
             )
         }
         // Mirror and persist the active session app-wide.
@@ -969,66 +1116,63 @@ class ChatViewModel(
 
     private fun loadSessionMessages(sessionId: String) {
         viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getSessionMessages(sessionId) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val messagesList = result.data.messages.orEmpty()
-                    val chatMessages =
-                        messagesList.mapIndexed { index, msg ->
-                            val role =
-                                when (msg.role?.lowercase()) {
-                                    "user" -> MessageRole.USER
-                                    "system" -> MessageRole.SYSTEM
-                                    "tool" -> MessageRole.TOOL
-                                    else -> MessageRole.ASSISTANT
+            if (!historyLoadsInFlight.add(sessionId)) return@launch
+            try {
+                val loadStartedAt = System.currentTimeMillis()
+                val result =
+                    withContext(Dispatchers.IO) {
+                        safeApiCall { ApiClient.hermesApi.getSessionMessages(sessionId) }
+                    }
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val chatMessages = SessionHistoryMapper.map(sessionId, result.data.messages.orEmpty())
+                        // Persist loaded messages to Room for offline access
+                        withContext(Dispatchers.IO) {
+                            repo.persistMessages(chatMessages, sessionId)
+                        }
+                        _uiState.update { state ->
+                            // Only update if still on the same session
+                            if (state.currentSessionId != sessionId) return@update state
+
+                            // Merge: keep any user messages sent between cache load
+                            // and REST response (they won't be in the REST response
+                            // yet), plus preserve any active streaming message.
+                            val localOnly =
+                                state.messages.filter { message ->
+                                    !message.id.startsWith("rest-") && message.timestamp >= loadStartedAt
                                 }
-                            // Use stable IDs based on session + index to prevent
-                            // Room duplicates when re-loading the same session.
-                            val stableId = "rest-$sessionId-$index"
-                            // Preserve original timestamp from the API when available
-                            val ts = msg.timestampText?.toLongOrNull() ?: System.currentTimeMillis()
-                            ChatMessage(
-                                id = stableId,
-                                role = role,
-                                content = msg.content.orEmpty(),
-                                timestamp = ts,
-                                isStreaming = false,
+                            state.copy(
+                                messages = chatMessages + localOnly,
+                                isLoading = false,
                             )
                         }
-                    // Persist loaded messages to Room for offline access
-                    withContext(Dispatchers.IO) {
-                        repo.persistMessages(chatMessages, sessionId)
                     }
-                    _uiState.update { state ->
-                        // Only update if still on the same session
-                        if (state.currentSessionId != sessionId) return@update state
 
-                        // Merge: keep any user messages sent between cache load
-                        // and REST response (they won't be in the REST response
-                        // yet), plus preserve any active streaming message.
-                        val existingIds = chatMessages.mapTo(HashSet(chatMessages.size)) { it.id }
-                        val localOnly = state.messages.filter { it.id !in existingIds }
-                        state.copy(
-                            messages = chatMessages + localOnly,
-                            isLoading = false,
-                        )
+                    is NetworkResult.Failure -> {
+                        // Don't overwrite messages on REST failure — cached messages
+                        // are still valid.
+                        Log.w(TAG, "Session history refresh failed (${result.error::class.simpleName})")
+                        val missingSession =
+                            result.error.message.orEmpty().let { message ->
+                                message.contains("404") || message.contains("session not found", ignoreCase = true)
+                            }
+                        _uiState.update {
+                            if (it.currentSessionId != sessionId) return@update it
+                            it.copy(
+                                isLoading = false,
+                                errorMessage =
+                                    if (missingSession) {
+                                        null
+                                    } else {
+                                        getApplication<Application>().getString(R.string.chat_error_history_load)
+                                    },
+                            )
+                        }
+                        if (missingSession) loadSessions()
                     }
                 }
-
-                is NetworkResult.Failure -> {
-                    // Don't overwrite messages on REST failure — cached messages
-                    // are still valid.
-                    _uiState.update {
-                        if (it.currentSessionId != sessionId) return@update it
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load messages: ${result.error.message}",
-                        )
-                    }
-                }
+            } finally {
+                historyLoadsInFlight.remove(sessionId)
             }
         }
     }
@@ -1044,7 +1188,8 @@ class ChatViewModel(
     }
 
     fun respondToClarify(option: String) {
-        val sessionId = _uiState.value.currentSessionId ?: return
+        val durableSessionId = _uiState.value.currentSessionId ?: return
+        val sessionId = activeGatewaySessionId() ?: return
         val clarifyId = _uiState.value.clarifyRequest?.clarifyId
         _uiState.update { it.copy(clarifyRequest = null) }
 
@@ -1062,7 +1207,7 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            repo.persistMessage(userMessage, sessionId)
+            repo.persistMessage(userMessage, durableSessionId)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -1092,6 +1237,43 @@ class ChatViewModel(
         _uiState.update { it.copy(backgroundCompleteMessage = null) }
     }
 
+    fun setYoloEnabled(enabled: Boolean) {
+        if (_uiState.value.yoloUpdating) return
+        _uiState.update { it.copy(yoloUpdating = true) }
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                method = WsMethods.CONFIG_SET,
+                params =
+                    mapOf(
+                        "key" to "yolo",
+                        "value" to if (enabled) "on" else "off",
+                        "scope" to "global",
+                    ),
+                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
+            )
+        }
+    }
+
+    fun shouldShowYoloWarning(): Boolean =
+        runCatching { !AuthManager.serverStore.getLatestState().yoloWarningDismissed }.getOrDefault(true)
+
+    fun dismissYoloWarningForever() {
+        runCatching { AuthManager.serverStore.update { it.copy(yoloWarningDismissed = true) } }
+    }
+
+    fun cancelQueuedPrompt() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        queuedPrompts.remove(sessionId)
+        persistQueuedPrompt(sessionId, null)
+        _uiState.update { it.copy(queuedPrompt = null) }
+    }
+
+    fun takeQueuedPromptForEdit(): String? {
+        val text = _uiState.value.queuedPrompt?.text ?: return null
+        cancelQueuedPrompt()
+        return text
+    }
+
     // ── Approval flow ───────────────────────────────────────────────────
 
     private fun handleApprovalRequest(event: WsEvent.ApprovalRequest) {
@@ -1119,7 +1301,7 @@ class ChatViewModel(
     fun respondToApproval(action: String) {
         val state = _uiState.value
         val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
-        val sessionId = state.currentSessionId ?: return
+        val sessionId = state.gatewaySessionId ?: return
 
         // Clear buttons immediately
         _uiState.update { s ->
@@ -1192,7 +1374,7 @@ class ChatViewModel(
      */
     fun respondToSudo(password: String) {
         val prompt = _uiState.value.sudoPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
+        val sessionId = prompt.sessionId ?: activeGatewaySessionId() ?: return
         if (password.isBlank()) return
 
         _uiState.update { it.copy(sudoPrompt = null) }
@@ -1217,7 +1399,7 @@ class ChatViewModel(
      */
     fun respondToSecret(value: String) {
         val prompt = _uiState.value.secretPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
+        val sessionId = prompt.sessionId ?: activeGatewaySessionId() ?: return
         if (value.isBlank()) return
 
         _uiState.update { it.copy(secretPrompt = null) }
@@ -1382,6 +1564,69 @@ class ChatViewModel(
         idToMethod[id] = method
     }
 
+    private fun activeGatewaySessionId(): String? = _uiState.value.gatewaySessionId ?: _uiState.value.currentSessionId
+
+    private fun persistQueuedPrompt(
+        sessionId: String,
+        text: String?,
+    ) {
+        runCatching { AuthManager.serverStore.update { it.setQueuedPrompt(sessionId, text) } }
+    }
+
+    private fun startLiveSyncLoop() {
+        viewModelScope.launch {
+            var tick = 0
+            while (isActive) {
+                delay(1_500L)
+                if (wsClient.connectionStatus.value != ConnectionStatus.CONNECTED) continue
+                tick++
+                if (tick % 2 == 0) loadSessions()
+                if (tick % 2 == 0) refreshLiveRunState()
+                val durableId = _uiState.value.currentSessionId
+                val historyReconciliationDue =
+                    if (_uiState.value.isAgentTyping) tick % 4 == 0 else tick % 10 == 0
+                if (durableId != null && historyReconciliationDue) {
+                    loadSessionMessages(durableId)
+                }
+            }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun refreshLiveRunState() {
+        val state = _uiState.value
+        val durableId = state.currentSessionId ?: return
+        val gatewayId = state.gatewaySessionId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val result =
+                runCatching {
+                    wsClient
+                        .request(
+                            method = WsMethods.SESSION_ACTIVE_LIST,
+                            params = mapOf("current_session_id" to gatewayId),
+                            timeoutMs = 5_000L,
+                        ).await() as? Map<String, Any?>
+                }.getOrNull() ?: return@launch
+            val rows = result["sessions"] as? List<Map<String, Any?>> ?: return@launch
+            val row =
+                rows.firstOrNull { item ->
+                    item["id"] == gatewayId || item["session_id"] == gatewayId || item["session_key"] == durableId
+                }
+            val running =
+                row?.get("running") as? Boolean
+                    ?: (row?.get("status") as? String)?.let { it == "streaming" || it == "running" }
+                    ?: false
+            val wasRunning = _uiState.value.isAgentTyping
+            _uiState.update { current ->
+                if (current.currentSessionId == durableId) current.copy(isAgentTyping = running) else current
+            }
+            if (wasRunning && !running) {
+                loadSessionMessages(durableId)
+                withContext(Dispatchers.Main) { drainQueuedPromptIfIdle() }
+            }
+        }
+    }
+
     // ── Search ────────────────────────────────────────────────────────────
     // Compatibility façade: stable public API around ChatSearchDelegate.
     // These thin delegates keep ChatViewModel's public surface intact while
@@ -1422,3 +1667,21 @@ class ChatViewModel(
     companion object {
     }
 }
+
+private fun WsEvent.sessionIdOrNull(): String? =
+    when (this) {
+        is WsEvent.MessageStart -> sessionId
+        is WsEvent.MessageToken -> sessionId
+        is WsEvent.ThinkingDelta -> sessionId
+        is WsEvent.ReasoningDelta -> sessionId
+        is WsEvent.ReasoningAvailable -> sessionId
+        is WsEvent.MessageComplete -> sessionId
+        is WsEvent.MessageDone -> sessionId
+        is WsEvent.ToolStart -> sessionId
+        is WsEvent.ToolComplete -> sessionId
+        is WsEvent.ClarifyRequest -> sessionId
+        is WsEvent.ApprovalRequest -> sessionId
+        is WsEvent.SudoRequest -> sessionId
+        is WsEvent.SecretRequest -> sessionId
+        else -> null
+    }

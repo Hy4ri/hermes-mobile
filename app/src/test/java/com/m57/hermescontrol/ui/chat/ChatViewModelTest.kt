@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ContentResolver
 import android.net.Uri
 import android.util.Log
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -75,6 +76,11 @@ class ChatViewModelTest {
         mockkObject(HermesDatabase)
 
         app = mockk(relaxed = true)
+        every { app.getString(R.string.chat_system_connected) } returns "Connected to Cassy"
+        every { app.getString(R.string.chat_system_session_created) } returns "Chat created"
+        every { app.getString(R.string.chat_system_session_resumed) } returns "Chat resumed"
+        every { app.getString(R.string.chat_system_session_interrupted) } returns "Task interrupted"
+        every { app.getString(R.string.chat_system_approval_submitted) } returns "✅ Approval submitted"
         fakeRepo = FakeChatPersistenceRepository()
 
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
@@ -451,7 +457,7 @@ class ChatViewModelTest {
             assertFalse(viewModel.uiState.value.isLoading)
             assertEquals(1, viewModel.uiState.value.messages.size)
             assertEquals(
-                "Session created",
+                "Chat created",
                 viewModel.uiState.value.messages[0]
                     .content,
             )
@@ -630,7 +636,7 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.ToolStart("calculator", mapOf("input" to "2+2")))
             advanceUntilIdle()
 
-            // messages[0] = "Session created" system message
+            // messages[0] = "Chat created" system message
             assertEquals(
                 "Calculating sum",
                 viewModel.uiState.value.messages[1]
@@ -662,7 +668,7 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageToken("Second part", sessionId))
             advanceUntilIdle()
 
-            // messages[0] = "Session created" system message
+            // messages[0] = "Chat created" system message
             assertEquals(
                 "First part",
                 viewModel.uiState.value.messages[1]
@@ -1062,7 +1068,7 @@ class ChatViewModelTest {
 
             assertEquals(1, viewModel.uiState.value.messages.size)
             assertEquals(
-                "Session created",
+                "Chat created",
                 viewModel.uiState.value.messages[0]
                     .content,
             )

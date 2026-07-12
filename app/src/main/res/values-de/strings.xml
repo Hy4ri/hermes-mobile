@@ -13,6 +13,11 @@
     <string name="chat_send_desc">Senden</string>
     <string name="chat_mic_desc">Spracheingabe</string>
     <string name="chat_mic_listening">Cassy hört zu …</string>
+    <string name="chat_system_connected">Mit Cassy verbunden</string>
+    <string name="chat_system_session_created">Chat erstellt</string>
+    <string name="chat_system_session_resumed">Chat fortgesetzt</string>
+    <string name="chat_system_session_interrupted">Auftrag unterbrochen</string>
+    <string name="chat_system_approval_submitted">✅ Freigabe übermittelt</string>
     <string name="stt_live_title">Cassy hört zu · zum Beenden stoppen</string>
     <string name="stt_live_nas_title">Cassy hört zu · %1$s</string>
     <string name="stt_live_device_title">Geräteerkennung · %1$s</string>
@@ -121,5 +126,6 @@
     <string name="chat_thinking">Cassy denkt nach …</string>
     <string name="chat_thinking_param">Cassy denkt nach: %1$s …</string>
     <string name="content_desc_new_chat">Neuer Chat</string>
+    <string name="content_desc_open_drawer">Navigationsmenü öffnen</string>
     <string name="content_desc_scroll_to_bottom">Zur neuesten Nachricht</string>
 </resources>

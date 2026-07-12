@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.openSessionTab
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
@@ -253,7 +254,7 @@ class ChatViewModel(
 
     private fun handleGatewayReady() {
         _uiState.update { it.copy(isLoading = false) }
-        addSystemMessage("Connected to Hermes")
+        addSystemMessage(getApplication<Application>().getString(R.string.chat_system_connected))
         loadSessions()
         fetchCommandCatalog()
         val currentId = _uiState.value.currentSessionId
@@ -434,7 +435,10 @@ class ChatViewModel(
                 ActiveSessionHolder.set(sessionId)
                 persistActiveSession(sessionId)
                 _streamingState.update { StreamingState() }
-                addSystemMessage("Session created", persist = true)
+                addSystemMessage(
+                    getApplication<Application>().getString(R.string.chat_system_session_created),
+                    persist = true,
+                )
                 loadSessions()
             }
 
@@ -491,7 +495,7 @@ class ChatViewModel(
                 // Mirror and persist the active session app-wide.
                 ActiveSessionHolder.set(sessionId)
                 sessionId?.let(persistActiveSession)
-                addSystemMessage("Session resumed")
+                addSystemMessage(getApplication<Application>().getString(R.string.chat_system_session_resumed))
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -502,7 +506,7 @@ class ChatViewModel(
                 }
                 _streamingState.update { StreamingState() }
                 streamingController.resetStreaming()
-                addSystemMessage("Session interrupted")
+                addSystemMessage(getApplication<Application>().getString(R.string.chat_system_session_interrupted))
             }
 
             WsMethods.COMMANDS_CATALOG -> {
@@ -521,7 +525,7 @@ class ChatViewModel(
                 val map = result as? Map<*, *>
                 val resolved = (map?.get("resolved") as? Number)?.toInt() ?: 0
                 if (resolved > 0) {
-                    addSystemMessage("✅ Approval submitted")
+                    addSystemMessage(getApplication<Application>().getString(R.string.chat_system_approval_submitted))
                 }
             }
         }

@@ -24,6 +24,11 @@
     <string name="stt_error_language">The selected voice language is not installed.</string>
     <string name="stt_error_audio">The microphone audio could not be processed.</string>
     <string name="stt_error_server">Cassy NAS could not transcribe this recording. Try again or use device recognition.</string>
+    <string name="chat_system_connected">Connected to Cassy</string>
+    <string name="chat_system_session_created">Chat created</string>
+    <string name="chat_system_session_resumed">Chat resumed</string>
+    <string name="chat_system_session_interrupted">Task interrupted</string>
+    <string name="chat_system_approval_submitted">✅ Approval submitted</string>
     <string name="landing_title">Cassy Control</string>
     <string name="landing_subtitle">Your secure connection to Cassy on your NAS</string>
     <string name="landing_action_auth_login">Connect to Cassy NAS</string>

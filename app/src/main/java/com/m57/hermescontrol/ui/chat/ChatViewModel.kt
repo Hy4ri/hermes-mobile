@@ -84,6 +84,8 @@ data class ChatUiState(
     val reactionKind: String? = null,
     /** Monotonic trigger ID so consecutive same-kind reactions re-animate. */
     val reactionTriggerId: Long = 0L,
+    /** Subagent delegation indicators (issue #538) — transient UI state. */
+    val subagentIndicators: List<SubagentIndicator> = emptyList(),
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED

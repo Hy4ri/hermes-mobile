@@ -1894,6 +1894,22 @@ private fun ToolBubble(
                 // ── Header row: icon + tool name ──
                 HeaderRow(message, config, contentColor)
 
+                // ── Tool progress preview (tool.progress) ──
+                if (message.toolStatus == ToolStatus.RUNNING && !message.progressPreview.isNullOrEmpty()) {
+                    Text(
+                        text = message.progressPreview,
+                        style =
+                            MaterialTheme.typography.bodySmall.copy(
+                                color = contentColor.copy(alpha = 0.7f),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                            ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp, start = 22.dp),
+                    )
+                }
+
                 // ── Security risk chip (tool.output_risk) ──
                 val riskData = message.toolOutputRiskData
                 if (riskData != null && (riskData.risk == "medium" || riskData.risk == "high" || riskData.redacted)) {

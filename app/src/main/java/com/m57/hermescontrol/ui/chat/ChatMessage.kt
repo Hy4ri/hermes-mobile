@@ -43,6 +43,27 @@ data class ChatMessage(
      * Transient — not persisted to SQLite.
      */
     val toolOutputRiskData: ToolOutputRiskData? = null,
+    /**
+     * Live preview/progress text from the backend's [tool.progress] WS event.
+     * Transient — not persisted to SQLite.
+     */
+    val progressPreview: String? = null,
+)
+
+/**
+ * Representation of subagent execution details for transient UI indicators.
+ *
+ * Events: `subagent.spawn_requested`, `subagent.start`, `subagent.progress`, `subagent.complete`
+ */
+data class SubagentIndicator(
+    val type: String, // subagent.spawn_requested / start / progress / complete
+    val goal: String? = null,
+    val taskIndex: Int? = null,
+    val taskCount: Int? = null,
+    val text: String? = null, // preview line
+    val status: String? = null, // complete only
+    val summary: String? = null, // complete only
+    val subagentId: String? = null,
 )
 
 enum class MessageRole {

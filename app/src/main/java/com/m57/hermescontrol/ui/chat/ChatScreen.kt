@@ -106,6 +106,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -439,6 +440,7 @@ fun ChatScreen(
                     lastAnimatedMessageId = lastAnimatedMessageId,
                     onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
                     viewModel = viewModel,
+                    subagentIndicators = state.subagentIndicators,
                 )
 
                 // Loading overlay
@@ -1709,6 +1711,7 @@ private fun ChatMessageList(
     lastAnimatedMessageId: String?,
     onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
+    subagentIndicators: List<SubagentIndicator> = emptyList(),
 ) {
     // Lay children out vertically so the search bar occupies real layout space
     // ABOVE the message list. Without this container the call site is a Box,
@@ -1834,6 +1837,14 @@ private fun ChatMessageList(
                 item(key = "thinking") {
                     ThinkingIndicator(thinkingText)
                 }
+            }
+
+            // Subagent indicators
+            items(
+                items = subagentIndicators,
+                key = { indicator -> "subagent-${indicator.subagentId ?: indicator.goal ?: indicator.type}" },
+            ) { indicator ->
+                SubagentIndicatorRow(indicator = indicator)
             }
         }
     }
@@ -2101,4 +2112,62 @@ private fun FloatingHeart(
                 .offset(x = horizontalOffset, y = offsetY.value.dp)
                 .graphicsLayer(alpha = alpha.value),
     )
+}
+
+@Composable
+private fun SubagentIndicatorRow(
+    indicator: SubagentIndicator,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.material3.Surface(
+        modifier =
+            modifier
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border =
+            BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+            ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = "🔀",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            val taskProgressText =
+                if (indicator.taskIndex != null && indicator.taskCount != null) {
+                    " (${indicator.taskIndex}/${indicator.taskCount})"
+                } else {
+                    ""
+                }
+
+            val goalText = indicator.goal ?: "Subagent task"
+            val textPreview =
+                if (!indicator.text.isNullOrEmpty()) {
+                    ": ${indicator.text}"
+                } else if (!indicator.summary.isNullOrEmpty()) {
+                    ": ${indicator.summary}"
+                } else {
+                    ""
+                }
+
+            Text(
+                text = "$goalText$taskProgressText$textPreview",
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }

@@ -34,6 +34,9 @@ object ChatWsEventReducer {
                 is WsEvent.ToolComplete -> event.sessionId
                 is WsEvent.ToolOutputRisk -> event.sessionId
                 is WsEvent.ClarifyRequest -> event.sessionId
+                is WsEvent.ToolProgress -> event.sessionId
+                is WsEvent.ToolGenerating -> event.sessionId
+                is WsEvent.SubagentEvent -> event.sessionId
                 else -> null
             }
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
@@ -69,6 +72,12 @@ object ChatWsEventReducer {
             is WsEvent.ToolComplete -> onToolComplete(state, streamingState, event)
 
             is WsEvent.ToolOutputRisk -> onToolOutputRisk(state, streamingState, event)
+
+            is WsEvent.ToolProgress -> onToolProgress(state, streamingState, event)
+
+            is WsEvent.ToolGenerating -> onToolGenerating(state, streamingState, event)
+
+            is WsEvent.SubagentEvent -> onSubagentEvent(state, streamingState, event)
 
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
 
@@ -493,6 +502,98 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
     ): ReducerResult = ReducerResult(state = state, streamingState = streamingState)
+
+    private fun onToolProgress(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ToolProgress,
+    ): ReducerResult {
+        val messages = state.messages.toMutableList()
+        val toolIdx =
+            messages.indexOfLast {
+                it.role == MessageRole.TOOL &&
+                    it.toolName == event.name &&
+                    it.toolStatus == ToolStatus.RUNNING
+            }
+        if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
+
+        messages[toolIdx] = messages[toolIdx].copy(progressPreview = event.preview ?: "")
+        return ReducerResult(
+            state = state.copy(messages = messages),
+            streamingState = streamingState,
+        )
+    }
+
+    private fun onToolGenerating(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ToolGenerating,
+    ): ReducerResult {
+        val messages = state.messages.toMutableList()
+        val toolIdx =
+            messages.indexOfLast {
+                it.role == MessageRole.TOOL &&
+                    it.toolName == event.name &&
+                    it.toolStatus == ToolStatus.RUNNING
+            }
+        if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
+
+        messages[toolIdx] = messages[toolIdx].copy(progressPreview = "")
+        return ReducerResult(
+            state = state.copy(messages = messages),
+            streamingState = streamingState,
+        )
+    }
+
+    private fun onSubagentEvent(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.SubagentEvent,
+    ): ReducerResult {
+        val goal = event.payload?.get("goal") as? String
+        val taskIndex = (event.payload?.get("task_index") as? Number)?.toInt()
+        val taskCount = (event.payload?.get("task_count") as? Number)?.toInt()
+        val text = event.payload?.get("text") as? String
+        val status = event.payload?.get("status") as? String
+        val summary = event.payload?.get("summary") as? String
+        val subagentId =
+            event.payload?.get(
+                "subagent_id",
+            ) as? String ?: event.payload?.get("child_session_id") as? String
+
+        val indicators = state.subagentIndicators.toMutableList()
+        val idx =
+            if (subagentId != null) {
+                indicators.indexOfLast { it.subagentId == subagentId }
+            } else if (goal != null) {
+                indicators.indexOfLast { it.goal == goal }
+            } else {
+                -1
+            }
+
+        val indicator =
+            SubagentIndicator(
+                type = event.type,
+                goal = goal ?: (if (idx >= 0) indicators[idx].goal else null),
+                taskIndex = taskIndex ?: (if (idx >= 0) indicators[idx].taskIndex else null),
+                taskCount = taskCount ?: (if (idx >= 0) indicators[idx].taskCount else null),
+                text = text ?: (if (idx >= 0) indicators[idx].text else null),
+                status = status ?: (if (idx >= 0) indicators[idx].status else null),
+                summary = summary ?: (if (idx >= 0) indicators[idx].summary else null),
+                subagentId = subagentId ?: (if (idx >= 0) indicators[idx].subagentId else null),
+            )
+
+        if (idx >= 0) {
+            indicators[idx] = indicator
+        } else {
+            indicators.add(indicator)
+        }
+
+        return ReducerResult(
+            state = state.copy(subagentIndicators = indicators),
+            streamingState = streamingState,
+        )
+    }
 }
 
 /**

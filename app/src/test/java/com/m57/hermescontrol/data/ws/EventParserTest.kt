@@ -522,4 +522,86 @@ class EventParserTest {
         val event = EventParser.parse(response, """{"null":"type"}""")
         assertTrue(event is WsEvent.Unknown)
     }
+
+    @Test
+    fun testParseToolProgress_returnsToolProgressEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "tool.progress",
+                        "session_id" to "sess-123",
+                        "payload" to mapOf("name" to "web_search", "preview" to "downloading content..."),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ToolProgress)
+        val toolProgress = event as WsEvent.ToolProgress
+        assertEquals("web_search", toolProgress.name)
+        assertEquals("downloading content...", toolProgress.preview)
+        assertEquals("sess-123", toolProgress.sessionId)
+    }
+
+    @Test
+    fun testParseToolGenerating_returnsToolGeneratingEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "tool.generating",
+                        "session_id" to "sess-123",
+                        "payload" to mapOf("name" to "code_writer"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ToolGenerating)
+        val toolGenerating = event as WsEvent.ToolGenerating
+        assertEquals("code_writer", toolGenerating.name)
+        assertEquals("sess-123", toolGenerating.sessionId)
+    }
+
+    @Test
+    fun testParseSubagentStart_returnsSubagentEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "subagent.start",
+                        "session_id" to "sess-123",
+                        "payload" to
+                            mapOf(
+                                "goal" to "research oauth providers",
+                                "task_index" to 1,
+                                "task_count" to 5,
+                                "subagent_id" to "sub-456",
+                                "text" to "analyzing docs...",
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.SubagentEvent)
+        val subagentEvent = event as WsEvent.SubagentEvent
+        assertEquals("subagent.start", subagentEvent.type)
+        assertEquals("sess-123", subagentEvent.sessionId)
+        assertEquals("research oauth providers", subagentEvent.payload?.get("goal"))
+        assertEquals(1, (subagentEvent.payload?.get("task_index") as? Number)?.toInt())
+        assertEquals(5, (subagentEvent.payload?.get("task_count") as? Number)?.toInt())
+        assertEquals("sub-456", subagentEvent.payload?.get("subagent_id"))
+        assertEquals("analyzing docs...", subagentEvent.payload?.get("text"))
+    }
 }

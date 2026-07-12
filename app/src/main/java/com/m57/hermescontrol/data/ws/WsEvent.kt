@@ -79,6 +79,41 @@ sealed class WsEvent {
         val sessionId: String? = null,
     ) : WsEvent()
 
+    /**
+     * Live tool execution progress with optional preview content.
+     *
+     * Events: `tool.progress`
+     * Payload: `{ name?: string, preview?: string }`
+     */
+    data class ToolProgress(
+        val name: String? = null,
+        val preview: String? = null,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    /**
+     * Tool generation active state.
+     *
+     * Events: `tool.generating`
+     * Payload: `{ name?: string }`
+     */
+    data class ToolGenerating(
+        val name: String? = null,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    /**
+     * Subagent execution and delegation events.
+     *
+     * Events: `subagent.spawn_requested`, `subagent.start`, `subagent.progress`, `subagent.complete`
+     * Payload includes goal, task_index, task_count, subagent_id, child_session_id, text, status, summary, duration_seconds.
+     */
+    data class SubagentEvent(
+        val type: String,
+        val payload: Map<String, Any?>?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── Interactive ──────────────────────────────────────────────────────
 
     data class ClarifyRequest(

@@ -138,4 +138,33 @@ class ApiClientTest {
             val request = mockWebServer.takeRequest()
             assertEquals("Bearer $rawToken", request.getHeader("Authorization"))
         }
+
+    @Test
+    fun testAuthInterceptor_refreshesExpiredDashboardTokenAndRetries() =
+        runTest {
+            var savedToken = "expired-token"
+            every { AuthManager.getToken() } answers { savedToken }
+            every { AuthManager.setToken(any()) } answers { savedToken = firstArg() }
+            every { AuthManager.getSessionCookie() } returns null
+
+            ApiClient.rebuild()
+
+            mockWebServer.enqueue(MockResponse().setResponseCode(401))
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "fresh-token";</script>"""),
+            )
+            mockWebServer.enqueue(
+                MockResponse().setResponseCode(200).setBody("""{"sessions":[],"total":0}"""),
+            )
+
+            val response = ApiClient.hermesApi.getSessions()
+
+            assertTrue(response.isSuccessful)
+            assertEquals("fresh-token", savedToken)
+            assertEquals("Bearer expired-token", mockWebServer.takeRequest().getHeader("Authorization"))
+            assertEquals("/", mockWebServer.takeRequest().path)
+            assertEquals("Bearer fresh-token", mockWebServer.takeRequest().getHeader("Authorization"))
+        }
 }

@@ -338,4 +338,67 @@ class HermesApiServiceMockWebServerTest {
                 request.path!!.contains("session/with/slashes"),
             )
         }
+
+    @Test
+    fun getSessionMessages_sendsLimitAndOffsetQueryParams() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "messages": [
+                                { "role": "user", "content": "older", "timestamp": "1000" }
+                            ],
+                            "pagination": { "limit": 50, "offset": 100, "returned": 1 }
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.getSessionMessages("sid", limit = 50, offset = 100)
+            assertTrue(response.isSuccessful)
+
+            val request = mockServer.takeRequest()
+            assertTrue(
+                "limit query param should be sent (issue #551)",
+                request.path!!.contains("limit=50"),
+            )
+            assertTrue(
+                "offset query param should be sent (issue #551)",
+                request.path!!.contains("offset=100"),
+            )
+
+            // Pagination metadata should parse when present.
+            val body = response.body()
+            assertNotNull(body)
+            assertNotNull(body!!.pagination)
+            assertEquals(50, body.pagination!!.limit)
+            assertEquals(100, body.pagination!!.offset)
+            assertEquals(1, body.pagination!!.returned)
+        }
+
+    @Test
+    fun getSessionMessages_handlesMissingPagination() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "messages": [
+                                { "role": "user", "content": "hi", "timestamp": "1000" }
+                            ]
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.getSessionMessages("sid", limit = 50, offset = 0)
+            assertTrue(response.isSuccessful)
+            // Backward-compatible: pagination absent on older backend responses.
+            assertNull(response.body()!!.pagination)
+        }
 }

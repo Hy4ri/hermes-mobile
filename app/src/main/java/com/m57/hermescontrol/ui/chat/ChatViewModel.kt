@@ -366,6 +366,10 @@ class ChatViewModel(
 
             is WsEvent.SessionUpdated -> {
                 loadSessions()
+                // Server reports a session changed — pull any newer messages for
+                // the currently-open session (issue #563 live-sync). Guarded
+                // internally against streaming/typing/loading states.
+                syncCurrentSession()
             }
 
             is WsEvent.ClarifyRequest -> {
@@ -397,6 +401,9 @@ class ChatViewModel(
             is WsEvent.BackgroundComplete -> {
                 // Reducer already set backgroundCompleteMessage; the UI observes
                 // it via a LaunchedEffect and triggers the snackbar.
+                // A background turn finishing may have appended messages to the
+                // open session — sync them in (issue #563 live-sync).
+                syncCurrentSession()
             }
 
             is WsEvent.ReactionEvent -> {

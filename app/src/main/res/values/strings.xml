@@ -864,6 +864,8 @@
     <string name="providers_expires_in">Expires in %1$s</string>
     <string name="providers_action_fix">Fix</string>
     <string name="action_dismiss">Dismiss</string>
+    <string name="action_done">Done</string>
+    <string name="action_close">Close</string>
 
     <!-- Processes Screen (issue #532) -->
     <string name="processes_empty_title">No running processes</string>

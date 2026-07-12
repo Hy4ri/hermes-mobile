@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.model.OAuthSubmitRequest
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.StatusResponse
 import kotlinx.coroutines.runBlocking
@@ -307,20 +308,44 @@ class HermesApiServiceMockWebServerTest {
         }
 
     @Test
-    fun getSessionMessages_encodesSessionIdWithSlashes() =
+    fun getOAuthProviders_parsesList() =
         runBlocking {
-            val sessionId = "session/with/slashes"
             mockServer.enqueue(
                 MockResponse()
                     .setResponseCode(200)
                     .setBody(
                         """
                         {
-                            "messages": [
+                            "providers": [
                                 {
-                                    "role": "user",
-                                    "content": "test",
-                                    "timestamp": "1000"
+                                    "id": "anthropic",
+                                    "name": "Anthropic",
+                                    "flow": "pkce",
+                                    "cli_command": "",
+                                    "docs_url": "https://docs.anthropic.com",
+                                    "disconnectable": true,
+                                    "status": {
+                                        "logged_in": true,
+                                        "source": "hermes_pkce",
+                                        "source_label": "Hermes PKCE (~/.hermes/.anthropic_oauth.json)",
+                                        "token_preview": "sk-ant-••••a1b2",
+                                        "expires_at": "2026-08-01T12:00:00",
+                                        "has_refresh_token": true,
+                                        "last_refresh": "2026-07-10T12:00:00"
+                                    }
+                                },
+                                {
+                                    "id": "nous",
+                                    "name": "Nous",
+                                    "flow": "device_code",
+                                    "cli_command": "hermes auth add nous",
+                                    "docs_url": null,
+                                    "disconnectable": false,
+                                    "disconnect_hint": "Run `hermes auth remove nous` on the host.",
+                                    "status": {
+                                        "logged_in": false,
+                                        "error": null
+                                    }
                                 }
                             ]
                         }
@@ -328,14 +353,199 @@ class HermesApiServiceMockWebServerTest {
                     ),
             )
 
-            val response = api.getSessionMessages(sessionId)
+            val response = api.getOAuthProviders()
             assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(2, body!!.providers.size)
 
-            // Verify the request path preserves slashes
-            val request = mockServer.takeRequest()
-            assertTrue(
-                "Slash-encoded session ID should appear in path",
-                request.path!!.contains("session/with/slashes"),
+            val first = body.providers[0]
+            assertEquals("anthropic", first.id)
+            assertEquals("Anthropic", first.name)
+            assertEquals("pkce", first.flow)
+            assertEquals(true, first.status.loggedIn)
+            assertEquals("sk-ant-••••a1b2", first.status.tokenPreview)
+            assertEquals(true, first.status.hasRefreshToken)
+
+            val second = body.providers[1]
+            assertEquals("nous", second.id)
+            assertEquals("device_code", second.flow)
+            assertEquals(false, second.disconnectable)
+            assertEquals("Run `hermes auth remove nous` on the host.", second.disconnectHint)
+            assertEquals(false, second.status.loggedIn)
+        }
+
+    @Test
+    fun startOAuthLogin_pkce_parsesResponse() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "session_id": "sess-abc",
+                            "flow": "pkce",
+                            "auth_url": "https://claude.ai/oauth/authorize?code=true",
+                            "expires_in": 600
+                        }
+                        """.trimIndent(),
+                    ),
             )
+
+            val response = api.startOAuthLogin("anthropic")
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals("sess-abc", body!!.sessionId)
+            assertEquals("pkce", body.flow)
+            assertEquals("https://claude.ai/oauth/authorize?code=true", body.authUrl)
+            assertEquals(600, body.expiresIn)
+        }
+
+    @Test
+    fun startOAuthLogin_deviceCode_parsesResponse() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "session_id": "sess-xyz",
+                            "flow": "device_code",
+                            "user_code": "ABCD-EFGH",
+                            "verification_url": "https://nous.ai/device",
+                            "expires_in": 900,
+                            "poll_interval": 5
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.startOAuthLogin("nous")
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals("device_code", body!!.flow)
+            assertEquals("ABCD-EFGH", body.userCode)
+            assertEquals("https://nous.ai/device", body.verificationUrl)
+            assertEquals(5, body.pollInterval)
+        }
+
+    @Test
+    fun submitOAuthCode_parsesResponse() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "ok": true,
+                            "status": "approved",
+                            "message": "Tokens saved"
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response =
+                api.submitOAuthCode(
+                    "anthropic",
+                    OAuthSubmitRequest(sessionId = "sess-abc", code = "auth-code-123"),
+                )
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(true, body!!.ok)
+            assertEquals("approved", body.status)
+        }
+
+    @Test
+    fun pollOAuthSession_parsesResponse() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "session_id": "sess-xyz",
+                            "status": "pending",
+                            "error_message": null,
+                            "expires_at": 1780583153.638556
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.pollOAuthSession("nous", "sess-xyz")
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals("pending", body!!.status)
+            // Backend sends expires_at as a float epoch (time.time()).
+            assertEquals(1780583153.638556, body.expiresAt ?: 0.0, 0.0001)
+        }
+
+    @Test
+    fun cancelOAuthSession_parsesResponse() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "ok": true,
+                            "session_id": "sess-xyz"
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.cancelOAuthSession("sess-xyz")
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(true, body!!.ok)
+            assertEquals("sess-xyz", body.sessionId)
+        }
+
+    @Test
+    fun disconnectOAuthProvider_sendsDeleteWithId() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse().setResponseCode(200).setBody(""),
+            )
+
+            val response = api.disconnectOAuthProvider("anthropic")
+            assertTrue(response.isSuccessful)
+            val request = mockServer.takeRequest()
+            assertEquals("DELETE", request.method)
+            assertEquals("/api/providers/oauth/anthropic", request.path)
+        }
+
+    @Test
+    fun pollOAuthSession_sendsPathWithBothIds() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "session_id": "sess-xyz",
+                            "status": "approved"
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.pollOAuthSession("nous", "sess-xyz")
+            assertTrue(response.isSuccessful)
+            val request = mockServer.takeRequest()
+            assertEquals("/api/providers/oauth/nous/poll/sess-xyz", request.path)
         }
 }

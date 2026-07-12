@@ -47,6 +47,12 @@ import com.m57.hermescontrol.data.model.ModelAssignmentRequest
 import com.m57.hermescontrol.data.model.ModelAssignmentResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelsAnalyticsResponse
+import com.m57.hermescontrol.data.model.OAuthCancelResponse
+import com.m57.hermescontrol.data.model.OAuthPollResponse
+import com.m57.hermescontrol.data.model.OAuthProvidersResponse
+import com.m57.hermescontrol.data.model.OAuthStartResponse
+import com.m57.hermescontrol.data.model.OAuthSubmitRequest
+import com.m57.hermescontrol.data.model.OAuthSubmitResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
@@ -556,6 +562,43 @@ interface HermesApiService {
     suspend fun cancelTelegramOnboarding(
         @Path("pairing_id") pairingId: String,
     ): Response<Unit>
+
+    // ── OAuth provider management (issue #534) ──────────────────────────
+    // Auth: the dashboard gates /start, /submit, /disconnect, /cancel via
+    // `_require_token`, which accepts either `X-Hermes-Session-Token` OR the
+    // legacy `Authorization: Bearer <token>`. ApiClient already injects the
+    // Bearer token on every request, so no extra header code is needed here.
+    // (poll is tokenless — read-only session state.)
+
+    @GET("api/providers/oauth")
+    suspend fun getOAuthProviders(): Response<OAuthProvidersResponse>
+
+    @DELETE("api/providers/oauth/{provider_id}")
+    suspend fun disconnectOAuthProvider(
+        @Path("provider_id") providerId: String,
+    ): Response<Unit>
+
+    @POST("api/providers/oauth/{provider_id}/start")
+    suspend fun startOAuthLogin(
+        @Path("provider_id") providerId: String,
+    ): Response<OAuthStartResponse>
+
+    @POST("api/providers/oauth/{provider_id}/submit")
+    suspend fun submitOAuthCode(
+        @Path("provider_id") providerId: String,
+        @Body body: OAuthSubmitRequest,
+    ): Response<OAuthSubmitResponse>
+
+    @GET("api/providers/oauth/{provider_id}/poll/{session_id}")
+    suspend fun pollOAuthSession(
+        @Path("provider_id") providerId: String,
+        @Path("session_id") sessionId: String,
+    ): Response<OAuthPollResponse>
+
+    @HTTP(method = "DELETE", path = "api/providers/oauth/sessions/{session_id}", hasBody = false)
+    suspend fun cancelOAuthSession(
+        @Path("session_id") sessionId: String,
+    ): Response<OAuthCancelResponse>
 
     @GET("api/env")
     suspend fun getEnvVars(): Response<Map<String, EnvVarConfig>>

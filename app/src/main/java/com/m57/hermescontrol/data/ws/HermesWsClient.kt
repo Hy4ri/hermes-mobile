@@ -142,6 +142,20 @@ object HermesWsClient {
     /** Observable connection status */
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
+    // ── Credential warning (issue #534) ─────────────────────────────────
+    // Backend surfaces `credential_warning` in `gateway.ready` / `session.info`
+    // WS payloads (desktop `requestDesktopOnboarding`). Mobile has no equivalent
+    // at the auth layer, so we extract it here once, globally, and let any
+    // screen render a banner that deep-links to ProvidersScreen.
+    private val _credentialWarning = MutableStateFlow<String?>(null)
+
+    /** Non-null when the backend reports a credential warning to resolve. */
+    val credentialWarning: StateFlow<String?> = _credentialWarning.asStateFlow()
+
+    fun clearCredentialWarning() {
+        _credentialWarning.value = null
+    }
+
     init {
         // Monitor network state to trigger immediate reconnect when network is restored
         wsScope.launch {
@@ -151,6 +165,21 @@ object HermesWsClient {
                     currentBackoff = INITIAL_BACKOFF_MS
                     reconnectJob?.cancel()
                     openSocket()
+                }
+            }
+        }
+        // Extract credential_warning from gateway.ready / session.info payloads.
+        wsScope.launch {
+            events.collect { event ->
+                val data: Map<String, Any?>? =
+                    when (event) {
+                        is WsEvent.GatewayReady -> event.data
+                        is WsEvent.SessionInfo -> event.data
+                        else -> null
+                    }
+                val warning = data?.get("credential_warning") as? String
+                if (!warning.isNullOrBlank()) {
+                    _credentialWarning.value = warning
                 }
             }
         }

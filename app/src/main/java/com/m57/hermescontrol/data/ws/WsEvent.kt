@@ -152,6 +152,17 @@ sealed class WsEvent {
         val data: Map<String, Any?>?,
     ) : WsEvent()
 
+    // ── Reaction event ────────────────────────────────────────────────────
+
+    /**
+     * Backend emitted an affection reaction (ily / <3 / good bot).
+     * Payload: `{ "kind": "<str>" }`. Purely cosmetic — play a hearts
+     * animation in the chat UI; no persistence needed.
+     */
+    data class ReactionEvent(
+        val kind: String = "",
+    ) : WsEvent()
+
     // ── Fallback ─────────────────────────────────────────────────────────
 
     data class Unknown(

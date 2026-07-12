@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -86,6 +87,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,6 +110,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -410,6 +413,12 @@ fun ChatScreen(
                     messages = state.messages,
                     streamingMessage = streamingState.streamingMessage,
                     isThinking = streamingState.isThinking,
+                )
+
+                // Reaction hearts animation (purely cosmetic — fades out
+                // automatically after the ViewModel clears the state)
+                ReactionHeartsOverlay(
+                    reactionKind = state.reactionKind,
                 )
             }
 
@@ -1953,5 +1962,82 @@ private fun ReloginDialog(
                 Text(stringResource(R.string.chat_relogin_cancel))
             }
         },
+    )
+}
+
+// ── Reaction hearts animation ──────────────────────────────────────────
+
+/**
+ * Lightweight floating-hearts animation triggered by a `reaction` WS event.
+ * Hearts rise from the bottom-center of the chat area, drift slightly
+ * horizontally, and fade out — purely cosmetic, no persistence.
+ */
+@Composable
+private fun ReactionHeartsOverlay(
+    reactionKind: String?,
+    modifier: Modifier = Modifier,
+) {
+    val emojis =
+        remember(reactionKind) {
+            when (reactionKind) {
+                "ily", "<3", "good bot" ->
+                    listOf("💗", "❤️", "💕", "💖", "🩷", "💘", "💝")
+                else -> listOf("💗", "❤️", "💕", "💖")
+            }
+        }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = reactionKind != null,
+        enter = fadeIn(animationSpec = tween(200)),
+        exit = fadeOut(animationSpec = tween(400)),
+        modifier = modifier.fillMaxSize(),
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            emojis.forEachIndexed { index, emoji ->
+                key("heart_$index") {
+                    FloatingHeart(
+                        emoji = emoji,
+                        delayMs = index * 120L + 100L,
+                        horizontalOffset = ((index - emojis.size / 2) * 28).dp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingHeart(
+    emoji: String,
+    delayMs: Long,
+    horizontalOffset: Dp,
+) {
+    var visible by remember { mutableStateOf(false) }
+    val offsetY by animateDpAsState(
+        targetValue = if (visible) (-220).dp else 0.dp,
+        animationSpec = tween(durationMillis = 1600, easing = LinearEasing),
+        label = "heartOffset",
+    )
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 0f else 1f,
+        animationSpec = tween(durationMillis = 1600, easing = LinearEasing),
+        label = "heartAlpha",
+    )
+
+    LaunchedEffect(Unit) {
+        delay(delayMs)
+        visible = true
+    }
+
+    Text(
+        text = emoji,
+        fontSize = 24.sp,
+        modifier =
+            Modifier
+                .offset(x = horizontalOffset, y = offsetY)
+                .graphicsLayer(alpha = alpha),
     )
 }

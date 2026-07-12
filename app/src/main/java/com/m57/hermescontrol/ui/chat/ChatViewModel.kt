@@ -76,6 +76,8 @@ data class ChatUiState(
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
+    // Reaction animation — set when a reaction WS event arrives, auto-clears
+    val reactionKind: String? = null,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -377,6 +379,16 @@ class ChatViewModel(
             is WsEvent.BackgroundComplete -> {
                 // Reducer already set backgroundCompleteMessage; the UI observes
                 // it via a LaunchedEffect and triggers the snackbar.
+            }
+
+            is WsEvent.ReactionEvent -> {
+                // Set reaction kind to trigger the hearts animation
+                _uiState.update { it.copy(reactionKind = event.kind) }
+                // Auto-clear after the animation duration
+                viewModelScope.launch {
+                    delay(2_000L)
+                    _uiState.update { it.copy(reactionKind = null) }
+                }
             }
 
             else -> { /* reducer handles these */ }

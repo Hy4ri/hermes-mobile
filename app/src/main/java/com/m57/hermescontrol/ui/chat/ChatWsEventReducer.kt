@@ -94,6 +94,9 @@ object ChatWsEventReducer {
             is WsEvent.SudoRequest -> ReducerResult(state = state, streamingState = streamingState)
 
             is WsEvent.SecretRequest -> ReducerResult(state = state, streamingState = streamingState)
+
+            // ReactionEvent is handled by the ViewModel — purely cosmetic animation
+            is WsEvent.ReactionEvent -> ReducerResult(state = state, streamingState = streamingState)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────

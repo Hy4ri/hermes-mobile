@@ -131,6 +131,8 @@ interface HermesApiService {
         // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
+        @Query("limit") limit: Int? = null,
+        @Query("offset") offset: Int = 0,
     ): Response<SessionMessagesResponse>
 
     @GET("api/sessions/stats")

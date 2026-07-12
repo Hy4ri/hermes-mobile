@@ -76,6 +76,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.ChatScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.flattenSessionTree
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -170,15 +172,16 @@ fun SessionsScreen(
     var query by remember { mutableStateOf("") }
     var pruneDays by remember { mutableStateOf("7") }
 
+    val sessionTree = remember(state.sessions) { flattenSessionTree(state.sessions) }
     val filteredSessions =
-        remember(query, state.sessions) {
+        remember(query, sessionTree) {
             if (query.isBlank()) {
-                state.sessions
+                sessionTree
             } else {
-                state.sessions.filter { session ->
-                    session.title?.contains(query, ignoreCase = true) == true ||
-                        session.preview?.contains(query, ignoreCase = true) == true ||
-                        session.status?.contains(query, ignoreCase = true) == true
+                sessionTree.filter { item ->
+                    item.displayTitle.contains(query, ignoreCase = true) ||
+                        item.session.preview?.contains(query, ignoreCase = true) == true ||
+                        item.session.status?.contains(query, ignoreCase = true) == true
                 }
             }
         }
@@ -435,9 +438,13 @@ fun SessionsScreen(
                         contentPadding = listContentPadding,
                         verticalArrangement = listItemSpacing,
                     ) {
-                        items(filteredSessions, key = { it.id }) { session ->
+                        items(filteredSessions, key = { it.session.id }) { item ->
+                            val session = item.session
                             SessionCard(
                                 session = session,
+                                displayTitle = item.displayTitle,
+                                depth = item.depth,
+                                branchStem = item.branchStem,
                                 query = query,
                                 isSelecting = state.isSelecting,
                                 isSelected = session.id in state.selectedIds,
@@ -594,7 +601,10 @@ fun SessionsScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SessionCard(
-    session: com.m57.hermescontrol.data.model.SessionInfo,
+    session: SessionInfo,
+    displayTitle: String,
+    depth: Int,
+    branchStem: String?,
     query: String,
     isSelecting: Boolean,
     isSelected: Boolean,
@@ -608,10 +618,6 @@ private fun SessionCard(
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
-    val displayTitle =
-        session.title?.takeIf { it.isNotBlank() }
-            ?: session.preview?.takeIf { it.isNotBlank() }?.take(80)
-            ?: stringResource(R.string.history_untitled)
     val isActive = session.status?.lowercase() == "active" || session.status?.lowercase() == "streaming"
     val srcIcon = sourceIcon(session.source)
 
@@ -619,6 +625,7 @@ private fun SessionCard(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .padding(start = (depth * 16).dp)
                 .testTag("session_card_${session.id}")
                 .combinedClickable(
                     onClick = onCardClick,
@@ -647,6 +654,16 @@ private fun SessionCard(
                     checked = isSelected,
                     onCheckedChange = { onToggleSelection() },
                     modifier = Modifier.testTag("session_checkbox_${session.id}"),
+                )
+                Spacer(modifier = Modifier.width(spacing.sm))
+            }
+
+            // Branch tree stem
+            if (branchStem != null && !isSelecting) {
+                Text(
+                    text = branchStem,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.outline,
                 )
                 Spacer(modifier = Modifier.width(spacing.sm))
             }

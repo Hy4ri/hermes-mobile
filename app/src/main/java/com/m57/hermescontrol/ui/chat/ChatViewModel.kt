@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.SessionMessage
+import com.m57.hermescontrol.data.model.flattenSessionTree
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -88,6 +89,8 @@ data class SessionUi(
     val id: String,
     val title: String,
     val messageCount: Int = 0,
+    val parentSessionId: String? = null,
+    val depth: Int = 0,
 )
 
 data class ClarifyUi(
@@ -858,11 +861,14 @@ class ChatViewModel(
             ) {
                 is NetworkResult.Success -> {
                     val sessions =
-                        result.data.sessions.map { session ->
+                        flattenSessionTree(result.data.sessions).map { item ->
+                            val session = item.session
                             SessionUi(
                                 id = session.id,
-                                title = session.title ?: session.preview?.take(80) ?: "Untitled",
+                                title = item.displayTitle,
                                 messageCount = session.message_count ?: 0,
+                                parentSessionId = session.parent_session_id,
+                                depth = item.depth,
                             )
                         }
                     _uiState.update { state ->

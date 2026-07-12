@@ -141,7 +141,8 @@ class HermesApiServiceMockWebServerTest {
                                     "created_at": "2026-06-20T14:30:00Z",
                                     "message_count": 7,
                                     "status": "idle",
-                                    "source": "web"
+                                    "source": "web",
+                                    "parent_session_id": "abc-123"
                                 }
                             ],
                             "total": 2,
@@ -173,6 +174,7 @@ class HermesApiServiceMockWebServerTest {
             assertEquals(7, second.message_count)
             assertEquals("idle", second.status)
             assertEquals("web", second.source)
+            assertEquals("abc-123", second.parent_session_id)
         }
 
     @Test

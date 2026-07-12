@@ -16,6 +16,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -80,6 +81,10 @@ data class ChatUiState(
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
+    // Reaction animation — set when a reaction WS event arrives, auto-clears
+    val reactionKind: String? = null,
+    /** Monotonic trigger ID so consecutive same-kind reactions re-animate. */
+    val reactionTriggerId: Long = 0L,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -114,7 +119,7 @@ data class SecretPromptUi(
 class ChatViewModel(
     application: Application,
     private val startCleanup: Boolean,
-    private val repo: ChatPersistenceRepository =
+    repo: ChatPersistenceRepository =
         ChatPersistenceRepository(
             HermesDatabase.get(application).chatMessageDao(),
         ),
@@ -135,8 +140,13 @@ class ChatViewModel(
     private var isSyncingMessages = false
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
+    /** Tracks the auto-clear coroutine for reaction animations. */
+    private var reactionClearJob: Job? = null
+
     private val wsClient = HermesWsClient
 
+    // ── Session persistence ──────────────────────────────────────────────
+    private val repo: ChatPersistenceRepository = repo
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchDelegate =
         ChatSearchDelegate(
@@ -393,6 +403,23 @@ class ChatViewModel(
                 // it via a LaunchedEffect and triggers the snackbar.
             }
 
+            is WsEvent.ReactionEvent -> {
+                // Cancel any previous auto-clear to avoid race (agy finding #1)
+                reactionClearJob?.cancel()
+                _uiState.update {
+                    it.copy(
+                        reactionKind = event.kind,
+                        reactionTriggerId = it.reactionTriggerId + 1L,
+                    )
+                }
+                // Auto-clear after the animation duration
+                reactionClearJob =
+                    viewModelScope.launch {
+                        delay(2_000L)
+                        _uiState.update { it.copy(reactionKind = null) }
+                    }
+            }
+
             else -> { /* reducer handles these */ }
         }
     }
@@ -431,6 +458,10 @@ class ChatViewModel(
                         chatTitle = "Hermes",
                     )
                 }
+                // Mirror the active session id app-wide so session-scoped
+                // drawer screens (e.g. Processes, issue #532) can issue
+                // session-scoped RPCs. See ActiveSessionHolder.
+                ActiveSessionHolder.set(sessionId)
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
@@ -474,6 +505,8 @@ class ChatViewModel(
                         currentSessionId = sessionId,
                     )
                 }
+                // Mirror the active session id app-wide (issue #532).
+                ActiveSessionHolder.set(sessionId)
                 addSystemMessage("Session resumed")
             }
 
@@ -946,6 +979,8 @@ class ChatViewModel(
                 isAgentTyping = false,
             )
         }
+        // Mirror the active session id app-wide (issue #532).
+        ActiveSessionHolder.set(sessionId)
         _streamingState.update { StreamingState() }
         viewModelScope.launch {
             // Resume the selected desktop session, then load its complete transcript.

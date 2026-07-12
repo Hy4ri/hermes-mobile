@@ -32,4 +32,12 @@ object WsMethods {
 
     /** Stage a non-image file (data URL) for agent access. */
     const val FILE_ATTACH = "file.attach"
+
+    // ── Background process manager (issue #532) ──────────────────────────
+
+    /** List background processes owned by the active session. */
+    const val PROCESS_LIST = "process.list"
+
+    /** Kill a single background process (scoped to the active session). */
+    const val PROCESS_KILL = "process.kill"
 }

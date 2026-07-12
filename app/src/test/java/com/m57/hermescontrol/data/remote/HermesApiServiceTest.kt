@@ -312,4 +312,127 @@ class HermesApiServiceTest {
             assertNull(stats?.cpu_percent)
             assertNull(stats?.memory?.percent)
         }
+
+    @Test
+    fun testGetAnalytics_requestsCorrectPathAndQuery() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """{"daily":[],"by_model":[""" +
+                            """{"model":"gpt-4o","input_tokens":10,"output_tokens":20,""" +
+                            """"estimated_cost":0.01,"sessions":1,"api_calls":2}],""" +
+                            """"totals":{"total_input":10,"total_output":20,""" +
+                            """"total_estimated_cost":0.01,"total_sessions":1,"total_api_calls":2},""" +
+                            """"skills":{"summary":{"total_skill_loads":0,"distinct_skills_used":0},""" +
+                            """"top_skills":[]}}""",
+                    ),
+            )
+
+            val response = apiService.getAnalytics(30, null)
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(1, body?.by_model?.size)
+            assertEquals("gpt-4o", body?.by_model?.first()?.model)
+            assertEquals(0.01, body?.totals?.total_estimated_cost)
+
+            val recorded = mockWebServer.takeRequest()
+            assertEquals("/api/analytics/usage?days=30", recorded.path)
+            assertEquals("GET", recorded.method)
+        }
+
+    @Test
+    fun testGetModelsAnalytics_forwardsProfileParam() =
+        runTest {
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """{"models":[""" +
+                            """{"model":"claude-opus","provider":"anthropic","input_tokens":5,"output_tokens":7,""" +
+                            """"cache_read_tokens":1,"reasoning_tokens":2,"estimated_cost":0.05,"actual_cost":0.04,""" +
+                            """"sessions":3,"api_calls":9,"tool_calls":1,""" +
+                            """"last_used_at":1700000000.0,"avg_tokens_per_session":4.0}],""" +
+                            """"totals":{"distinct_models":1,"total_input":5,"total_output":7,"total_cache_read":1,""" +
+                            """"total_reasoning":2,"total_estimated_cost":0.05,"total_actual_cost":0.04,""" +
+                            """"total_sessions":3,"total_api_calls":9},"period_days":30}""",
+                    ),
+            )
+
+            val response = apiService.getModelsAnalytics(30, "work")
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(1, body?.models?.size)
+            assertEquals("claude-opus", body?.models?.first()?.model)
+            assertEquals("anthropic", body?.models?.first()?.provider)
+            assertEquals(30, body?.period_days)
+
+            val recorded = mockWebServer.takeRequest()
+            assertEquals("/api/analytics/models?days=30&profile=work", recorded.path)
+        }
+
+    @Test
+    fun testGetAnalytics_missingTotalsUsesDefaults_notNullable() =
+        runTest {
+            // Backend omits `totals` and most daily fields in some responses;
+            // the model uses non-null defaults, so parsing must NOT fail or
+            // produce nulls (counter-check to a review claim that fields are
+            // nullable). Verifies kotlinx.serialization fills defaults.
+            mockWebServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """{"daily":[{"day":"2026-07-01"}],"by_model":[]}""",
+                    ),
+            )
+
+            val response = apiService.getAnalytics(7, null)
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            // totals defaults (non-null), not null
+            assertNotNull(body?.totals)
+            assertEquals(0, body?.totals?.total_input)
+            assertEquals(0.0, body?.totals?.total_estimated_cost)
+            // daily entry sparse fields default (non-null)
+            assertEquals(1, body?.daily?.size)
+            assertEquals("2026-07-01", body?.daily?.first()?.day)
+            assertEquals(0L, body?.daily?.first()?.input_tokens)
+        }
+
+    @Test
+    fun testGetAnalytics_parsesExactBackendShape() =
+        runTest {
+            // Exact shape produced by hermes_cli/web_server.py get_usage_analytics,
+            // including the extra top-level `period_days` and `tools` keys (the
+            // mobile model ignores `tools` and captures `period_days`).
+            val json =
+                """{"daily":[""" +
+                    """{"day":"2026-07-01","input_tokens":100,"output_tokens":200,"api_calls":7}],""" +
+                    """"by_model":[{"model":"gpt-4o","input_tokens":100,"api_calls":7}],""" +
+                    """"totals":{"total_input":100,"total_estimated_cost":0.03,"total_api_calls":7},""" +
+                    """"period_days":7,"skills":{"summary":{"distinct_skills_used":2},""" +
+                    """"top_skills":[{"skill":"x","total_count":1,"percentage":50.0,"last_used_at":1700000000.0}]},""" +
+                    """"tools":[{"tool":"terminal","count":21820,"percentage":44.26}]}"""
+            mockWebServer.enqueue(
+                MockResponse().setResponseCode(200).setBody(json),
+            )
+
+            val response = apiService.getAnalytics(7, null)
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals(7, body?.period_days)
+            assertEquals(1, body?.daily?.size)
+            assertEquals(100L, body?.daily?.first()?.input_tokens)
+            assertEquals(0.03, body?.totals?.total_estimated_cost)
+            assertEquals(2, body?.skills?.summary?.distinct_skills_used)
+            assertEquals("x", body?.skills?.top_skills?.first()?.skill)
+            assertEquals(1, body?.tools?.size)
+            assertEquals("terminal", body?.tools?.first()?.tool)
+            assertEquals(21820, body?.tools?.first()?.count)
+        }
 }

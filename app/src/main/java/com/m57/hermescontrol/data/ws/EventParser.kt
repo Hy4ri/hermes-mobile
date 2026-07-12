@@ -126,6 +126,11 @@ object EventParser {
                 WsEvent.SessionUpdated(payload)
             }
 
+            "reaction" -> {
+                val kind = payload?.get("kind") as? String ?: ""
+                WsEvent.ReactionEvent(kind)
+            }
+
             "approval.request" -> {
                 val command = payload?.get("command") as? String
                 val description = payload?.get("description") as? String

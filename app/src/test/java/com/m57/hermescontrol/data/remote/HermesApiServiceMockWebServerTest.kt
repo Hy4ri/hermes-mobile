@@ -255,6 +255,24 @@ class HermesApiServiceMockWebServerTest {
         }
 
     @Test
+    fun getSessionMessages_sendsPaginationQuery() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody("{\"messages\": []}"),
+            )
+
+            val response = api.getSessionMessages("desktop/session", limit = 150, offset = 300)
+
+            assertTrue(response.isSuccessful)
+            assertEquals(
+                "/api/sessions/desktop/session/messages?limit=150&offset=300",
+                mockServer.takeRequest().path,
+            )
+        }
+
+    @Test
     fun getSessionMessages_withNullRole_doesNotCrash() =
         runBlocking {
             mockServer.enqueue(

@@ -93,6 +93,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -127,6 +128,8 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -144,6 +147,27 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    var isOlderPagingArmed by remember(state.currentSessionId) { mutableStateOf(false) }
+
+    LaunchedEffect(state.currentSessionId, state.connectionStatus) {
+        while (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
+            delay(3_000)
+            viewModel.syncCurrentSession()
+        }
+    }
+
+    LaunchedEffect(listState, state.currentSessionId, state.hasOlderMessages, state.isLoadingOlder) {
+        if (!state.hasOlderMessages || state.isLoadingOlder) return@LaunchedEffect
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collectLatest { firstVisibleIndex ->
+                if (firstVisibleIndex > 2) {
+                    isOlderPagingArmed = true
+                } else if (isOlderPagingArmed) {
+                    viewModel.loadOlderMessages()
+                }
+            }
+    }
     val showScrollToBottom by remember {
         derivedStateOf {
             state.messages.isNotEmpty() && listState.canScrollForward
@@ -392,6 +416,7 @@ fun ChatScreen(
                     typingEffectEnabled = state.typingEffectEnabled,
                     typingEffectDelayMs = state.typingEffectDelayMs,
                     isLoading = state.isLoading,
+                    isLoadingOlder = state.isLoadingOlder,
                     isDark = isDark,
                     listState = listState,
                     lastAnimatedMessageId = lastAnimatedMessageId,
@@ -1653,6 +1678,7 @@ private fun ChatMessageList(
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
     isLoading: Boolean,
+    isLoadingOlder: Boolean,
     isDark: Boolean,
     listState: LazyListState,
     lastAnimatedMessageId: String?,
@@ -1706,6 +1732,16 @@ private fun ChatMessageList(
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
+            if (isLoadingOlder) {
+                item(key = "loading-older") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
             itemsIndexed(
                 items = messages,
                 key = { _, message -> message.id },

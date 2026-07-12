@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -42,6 +43,7 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
+private const val MESSAGE_PAGE_SIZE = 150
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -53,6 +55,8 @@ data class ChatUiState(
     val isThinking: Boolean = false,
     val thinkingText: String = "",
     val isLoading: Boolean = false,
+    val isLoadingOlder: Boolean = false,
+    val hasOlderMessages: Boolean = false,
     /** Standalone streaming message — rendered after the main list. */
     val streamingMessage: ChatMessage? = null,
     val errorMessage: String? = null,
@@ -124,6 +128,8 @@ class ChatViewModel(
 
     /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
     private var runtimeSessionId: String? = null
+    private var loadedMessageOffset = 0
+    private var isSyncingMessages = false
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     private val wsClient = HermesWsClient
@@ -839,15 +845,16 @@ class ChatViewModel(
     fun loadSessions(selectLatestIfNone: Boolean = false) {
         viewModelScope.launch {
             when (
-                val result = withContext(Dispatchers.IO) {
-                    safeApiCall {
-                        ApiClient.hermesApi.getSessions(
-                            limit = 500,
-                            offset = 0,
-                            order = "recent",
-                        )
+                val result =
+                    withContext(Dispatchers.IO) {
+                        safeApiCall {
+                            ApiClient.hermesApi.getSessions(
+                                limit = 500,
+                                offset = 0,
+                                order = "recent",
+                            )
+                        }
                     }
-                }
             ) {
                 is NetworkResult.Success -> {
                     val sessions =
@@ -916,13 +923,16 @@ class ChatViewModel(
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
-        // Reset streaming and runtime state before resuming the Desktop session.
+        // Reset streaming and pagination state before resuming the Desktop session.
         runtimeSessionId = null
+        loadedMessageOffset = 0
         streamingController.resetStreaming()
         _uiState.update {
             val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
             it.copy(
                 isLoading = true,
+                isLoadingOlder = false,
+                hasOlderMessages = false,
                 currentSessionId = sessionId,
                 messages = emptyList(),
                 chatTitle = title,
@@ -960,61 +970,33 @@ class ChatViewModel(
 
     private fun loadSessionMessages(sessionId: String) {
         viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getSessionMessages(sessionId) }
-                }
+            val messageCount = fetchServerMessageCount(sessionId)
+            val offset = (messageCount - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
+            val result = fetchMessagePage(sessionId, offset, MESSAGE_PAGE_SIZE)
             when (result) {
                 is NetworkResult.Success -> {
-                    val messagesList = result.data.messages.orEmpty()
-                    val chatMessages =
-                        messagesList.mapIndexed { index, msg ->
-                            val role =
-                                when (msg.role?.lowercase()) {
-                                    "user" -> MessageRole.USER
-                                    "system" -> MessageRole.SYSTEM
-                                    "tool" -> MessageRole.TOOL
-                                    else -> MessageRole.ASSISTANT
-                                }
-                            // Use stable IDs based on session + index to prevent
-                            // Room duplicates when re-loading the same session.
-                            val stableId = "rest-$sessionId-$index"
-                            // Preserve original timestamp from the API when available
-                            val ts =
-                                msg.timestampText
-                                    ?.toDoubleOrNull()
-                                    ?.times(1000)
-                                    ?.toLong()
-                                    ?: System.currentTimeMillis()
-                            ChatMessage(
-                                id = stableId,
-                                role = role,
-                                content = msg.content.orEmpty(),
-                                timestamp = ts,
-                                isStreaming = false,
-                            )
-                        }
-                    // Persist loaded messages to Room for offline access
+                    val chatMessages = mapServerMessages(sessionId, result.data.messages.orEmpty(), offset)
+                    loadedMessageOffset = offset
                     withContext(Dispatchers.IO) {
                         repo.persistMessages(chatMessages, sessionId)
                     }
                     _uiState.update { state ->
-                        // The desktop server is authoritative for synchronized sessions.
                         if (state.currentSessionId != sessionId) return@update state
                         state.copy(
                             messages = chatMessages,
                             isLoading = false,
+                            hasOlderMessages = offset > 0,
+                            isLoadingOlder = false,
                         )
                     }
                 }
 
                 is NetworkResult.Failure -> {
-                    // Don't overwrite messages on REST failure — cached messages
-                    // are still valid.
                     _uiState.update {
                         if (it.currentSessionId != sessionId) return@update it
                         it.copy(
                             isLoading = false,
+                            isLoadingOlder = false,
                             errorMessage = "Failed to load messages: ${result.error.message}",
                         )
                     }
@@ -1022,6 +1004,169 @@ class ChatViewModel(
             }
         }
     }
+
+    fun loadOlderMessages() {
+        val state = _uiState.value
+        val sessionId = state.currentSessionId ?: return
+        if (!state.hasOlderMessages || state.isLoadingOlder || loadedMessageOffset <= 0) return
+        val oldOffset = loadedMessageOffset
+        val newOffset = (oldOffset - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
+        val limit = oldOffset - newOffset
+        _uiState.update { it.copy(isLoadingOlder = true) }
+        viewModelScope.launch {
+            when (val result = fetchMessagePage(sessionId, newOffset, limit)) {
+                is NetworkResult.Success -> {
+                    val older = mapServerMessages(sessionId, result.data.messages.orEmpty(), newOffset)
+                    loadedMessageOffset = newOffset
+                    withContext(Dispatchers.IO) { repo.persistMessages(older, sessionId) }
+                    _uiState.update { current ->
+                        if (current.currentSessionId != sessionId) return@update current
+                        current.copy(
+                            messages = (older + current.messages).distinctBy { it.id },
+                            isLoadingOlder = false,
+                            hasOlderMessages = newOffset > 0,
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update { it.copy(isLoadingOlder = false) }
+                }
+            }
+        }
+    }
+
+    fun syncCurrentSession() {
+        val state = _uiState.value
+        val sessionId = state.currentSessionId ?: return
+        if (isSyncingMessages || state.isLoading || state.isLoadingOlder || state.isAgentTyping ||
+            _streamingState.value.streamingMessage != null
+        ) {
+            return
+        }
+        val nextOffset =
+            state.messages
+                .mapNotNull { serverMessageIndex(it.id, sessionId) }
+                .maxOrNull()
+                ?.plus(1)
+                ?: loadedMessageOffset
+        isSyncingMessages = true
+        viewModelScope.launch {
+            try {
+                when (val result = fetchMessagePage(sessionId, nextOffset, MESSAGE_PAGE_SIZE)) {
+                    is NetworkResult.Success -> {
+                        val incoming = mapServerMessages(sessionId, result.data.messages.orEmpty(), nextOffset)
+                        if (incoming.isEmpty()) return@launch
+                        withContext(Dispatchers.IO) { repo.persistMessages(incoming, sessionId) }
+                        _uiState.update { current ->
+                            if (current.currentSessionId != sessionId) return@update current
+                            val unmatched = incoming.map { it.role to it.content }.toMutableList()
+                            val retained =
+                                current.messages.filter { existing ->
+                                    if (serverMessageIndex(existing.id, sessionId) != null) {
+                                        true
+                                    } else {
+                                        val duplicate =
+                                            unmatched.indexOfFirst { (role, content) ->
+                                                role == existing.role && content == existing.content
+                                            }
+                                        if (duplicate >= 0) unmatched.removeAt(duplicate)
+                                        duplicate < 0
+                                    }
+                                }
+                            val merged = (retained + incoming).distinctBy { it.id }
+                            if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
+                        }
+                    }
+
+                    is NetworkResult.Failure -> Unit
+                }
+            } finally {
+                isSyncingMessages = false
+            }
+        }
+    }
+
+    private suspend fun fetchServerMessageCount(sessionId: String): Int {
+        val known = _uiState.value.sessions.find { it.id == sessionId }?.messageCount
+        val result =
+            withContext(Dispatchers.IO) {
+                safeApiCall { ApiClient.hermesApi.getSessions(limit = 500, offset = 0, order = "recent") }
+            }
+        if (result is NetworkResult.Success) {
+            val sessions = result.data.sessions.orEmpty()
+            val count = sessions.find { it.id == sessionId }?.message_count
+            if (count != null) {
+                _uiState.update { current ->
+                    current.copy(
+                        sessions =
+                            current.sessions.map {
+                                if (it.id == sessionId) {
+                                    it.copy(
+                                        messageCount = count,
+                                    )
+                                } else {
+                                    it
+                                }
+                            },
+                    )
+                }
+                return count
+            }
+        }
+        return known ?: _uiState.value.messages.size
+    }
+
+    private suspend fun fetchMessagePage(
+        sessionId: String,
+        offset: Int,
+        limit: Int,
+    ) = withContext(Dispatchers.IO) {
+        safeApiCall { ApiClient.hermesApi.getSessionMessages(sessionId, limit = limit, offset = offset) }
+    }
+
+    private fun mapServerMessages(
+        sessionId: String,
+        messages: List<SessionMessage>,
+        offset: Int,
+    ): List<ChatMessage> =
+        messages.mapIndexed { index, msg ->
+            val role =
+                when (msg.role?.lowercase()) {
+                    "user" -> MessageRole.USER
+                    "system" -> MessageRole.SYSTEM
+                    "tool" -> MessageRole.TOOL
+                    else -> MessageRole.ASSISTANT
+                }
+            val globalIndex = offset + index
+            val timestamp =
+                msg.timestampText
+                    ?.toDoubleOrNull()
+                    ?.times(1000)
+                    ?.toLong()
+                    ?: System.currentTimeMillis()
+            ChatMessage(
+                id = "rest-$sessionId-$globalIndex",
+                role = role,
+                content = msg.content.orEmpty(),
+                timestamp = timestamp,
+                isStreaming = false,
+            )
+        }
+
+    private fun serverMessageIndex(
+        id: String,
+        sessionId: String,
+    ): Int? = id.removePrefix("rest-$sessionId-").takeIf { it != id }?.toIntOrNull()
+
+    private fun sameMessages(
+        left: List<ChatMessage>,
+        right: List<ChatMessage>,
+    ): Boolean =
+        left.size == right.size &&
+            left.zip(right).all { (a, b) ->
+                a.id == b.id && a.role == b.role && a.content == b.content
+            }
 
     // ── UI actions ───────────────────────────────────────────────────────
 

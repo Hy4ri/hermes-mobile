@@ -62,6 +62,23 @@ sealed class WsEvent {
         val sessionId: String? = null,
     ) : WsEvent()
 
+    /**
+     * Backend flagged tool output as having potential risk (secrets, PII).
+     * Emitted alongside tool.progress — carries risk level, findings, and
+     * whether content was redacted.
+     *
+     * Events: `tool.output_risk`
+     * Payload: `{ tool_id, name, risk, findings[], redacted }`
+     */
+    data class ToolOutputRisk(
+        val toolId: String = "",
+        val name: String = "",
+        val risk: String = "low",
+        val findings: List<String> = emptyList(),
+        val redacted: Boolean = false,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── Interactive ──────────────────────────────────────────────────────
 
     data class ClarifyRequest(

@@ -90,6 +90,18 @@ object EventParser {
                 WsEvent.ToolComplete(name, payload, sessionId)
             }
 
+            "tool.output_risk" -> {
+                val toolId = payload?.get("tool_id") as? String ?: ""
+                val name = payload?.get("name") as? String ?: ""
+                val risk = (payload?.get("risk") as? String)?.lowercase() ?: "low"
+                val redacted = payload?.get("redacted") as? Boolean ?: false
+
+                @Suppress("UNCHECKED_CAST")
+                val findings = (payload?.get("findings") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+
+                WsEvent.ToolOutputRisk(toolId, name, risk, findings, redacted, sessionId)
+            }
+
             "clarify.request" -> {
                 // Gateway sends "question"/"choices" — fall back to "text"/"options" for any
                 // older client or test that still uses the legacy field names. (Issue #206)

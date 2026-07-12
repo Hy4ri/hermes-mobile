@@ -239,6 +239,10 @@ object HermesWsClient {
             try {
                 AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
             } catch (_: IllegalStateException) {
+                // serverStore not initialized yet (transient early call); treat
+                // as loopback so a stale-token refresh still runs. Log so a real
+                // misconfiguration isn't silently swallowed.
+                Log.w(TAG, "serverStore uninitialized during WS handshake; assuming non-gated")
                 false
             }
         if (!isGated) {

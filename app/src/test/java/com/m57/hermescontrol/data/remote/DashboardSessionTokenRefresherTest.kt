@@ -54,4 +54,17 @@ class DashboardSessionTokenRefresherTest {
 
         assertNull(token)
     }
+
+    @Test
+    fun fetchReturnsNullWhenTokenIsBlank() {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""<script>window.__HERMES_SESSION_TOKEN__ = "";</script>"""),
+        )
+
+        val token = DashboardSessionTokenRefresher.fetch(server.url("/").toString(), OkHttpClient())
+
+        assertNull(token)
+    }
 }

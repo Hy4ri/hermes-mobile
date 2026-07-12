@@ -106,19 +106,19 @@ class MainActivity : FragmentActivity() {
             lockError =
                 when (availability) {
                     BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
-                        "Set up a screen lock or fingerprint in HyperOS to unlock Cassy."
+                        getString(R.string.app_lock_error_none_enrolled)
                     }
 
                     BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
-                        "This device does not provide a secure biometric authenticator."
+                        getString(R.string.app_lock_error_no_hardware)
                     }
 
                     BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
-                        "Device authentication is temporarily unavailable."
+                        getString(R.string.app_lock_error_hw_unavailable)
                     }
 
                     else -> {
-                        "Secure device authentication is unavailable (code $availability)."
+                        getString(R.string.app_lock_error_unavailable, availability)
                     }
                 }
             return
@@ -150,7 +150,7 @@ class MainActivity : FragmentActivity() {
                     }
 
                     override fun onAuthenticationFailed() {
-                        lockError = "Authentication did not match. Try again."
+                        lockError = getString(R.string.app_lock_error_not_recognized)
                     }
                 },
             )
@@ -161,7 +161,7 @@ class MainActivity : FragmentActivity() {
                 .setSubtitle(getString(R.string.app_lock_prompt_subtitle))
                 .setAllowedAuthenticators(authenticators)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            promptBuilder.setNegativeButtonText("Cancel")
+            promptBuilder.setNegativeButtonText(getString(R.string.action_cancel))
         }
         prompt.authenticate(promptBuilder.build())
     }

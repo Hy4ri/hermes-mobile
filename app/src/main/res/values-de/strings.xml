@@ -5,6 +5,11 @@
     <string name="app_lock_prompt_subtitle">Authentifiziere dich für den Zugriff auf Chats und Verwaltung</string>
     <string name="app_lock_description">Deine Chats, Aufträge und Verwaltungsfunktionen bleiben geschützt, solange die App gesperrt ist.</string>
     <string name="app_lock_action">Sicher entsperren</string>
+    <string name="app_lock_error_none_enrolled">Richte in HyperOS eine Displaysperre oder einen Fingerabdruck ein, um Cassy zu entsperren.</string>
+    <string name="app_lock_error_no_hardware">Dieses Gerät besitzt keine sichere biometrische Authentifizierung.</string>
+    <string name="app_lock_error_hw_unavailable">Die Geräteauthentifizierung ist vorübergehend nicht verfügbar.</string>
+    <string name="app_lock_error_unavailable">Die sichere Geräteauthentifizierung ist nicht verfügbar (Code %1$d).</string>
+    <string name="app_lock_error_not_recognized">Die Authentifizierung wurde nicht erkannt. Versuche es erneut.</string>
     <string name="chat_send_desc">Senden</string>
     <string name="chat_mic_desc">Spracheingabe</string>
     <string name="chat_mic_listening">Cassy hört zu …</string>

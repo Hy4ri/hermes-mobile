@@ -5,6 +5,11 @@
     <string name="app_lock_prompt_subtitle">Authenticate to access Cassy sessions and administration</string>
     <string name="app_lock_description">Your sessions, prompts and administration controls stay private while the app is locked.</string>
     <string name="app_lock_action">Unlock securely</string>
+    <string name="app_lock_error_none_enrolled">Set up a screen lock or fingerprint in HyperOS to unlock Cassy.</string>
+    <string name="app_lock_error_no_hardware">This device does not provide a secure biometric authenticator.</string>
+    <string name="app_lock_error_hw_unavailable">Device authentication is temporarily unavailable.</string>
+    <string name="app_lock_error_unavailable">Secure device authentication is unavailable (code %1$d).</string>
+    <string name="app_lock_error_not_recognized">Authentication did not match. Try again.</string>
     <string name="stt_live_title">Listening · tap stop when finished</string>
     <string name="stt_live_nas_title">Cassy is listening · %1$s</string>
     <string name="stt_live_device_title">Device recognition · %1$s</string>

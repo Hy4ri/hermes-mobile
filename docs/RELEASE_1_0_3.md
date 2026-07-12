@@ -23,8 +23,6 @@
 ## Delivery
 
 - Release artifact: `Cassy-Control-v1.0.3.apk`
-- Source revision: `b0bfda8`
-- SHA-256: `4A104A7003B29C594FE736A0316077985C0650C6C964D942A515B4D177EC8BB3`
 - Signature: APK Signature Scheme v2, RSA 4096; signer certificate matches `1.0.2-cassy`.
 - Package: `com.akaro.cassycontrol`; version `1.0.3-cassy` (`103`).
 - Delivery occurs only after every gate above is evidenced.

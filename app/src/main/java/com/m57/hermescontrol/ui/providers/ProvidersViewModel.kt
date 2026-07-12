@@ -31,8 +31,11 @@ enum class OAuthFlowPhase {
     /** device_code: user_code + verification_url shown, background poll running. */
     POLLING,
 
-    /** terminal state — close the dialog + reload. */
+    /** terminal: success — dialog shows a confirmation + Done button. */
     DONE,
+
+    /** terminal: error — dialog stays mounted so the user can read flowErrorMessage + Close. */
+    ERROR,
 }
 
 data class ProvidersUiState(
@@ -250,7 +253,8 @@ class ProvidersViewModel :
                                 "denied", "expired", "error" -> {
                                     _uiState.update {
                                         it.copy(
-                                            flowPhase = OAuthFlowPhase.IDLE,
+                                            flowPhase = OAuthFlowPhase.ERROR,
+                                            flowStatus = status,
                                             flowErrorMessage =
                                                 poll?.errorMessage
                                                     ?: "OAuth flow ended ($status)",
@@ -269,7 +273,7 @@ class ProvidersViewModel :
                             if (code in 400..499) {
                                 _uiState.update {
                                     it.copy(
-                                        flowPhase = OAuthFlowPhase.IDLE,
+                                        flowPhase = OAuthFlowPhase.ERROR,
                                         flowErrorMessage = result.error.message,
                                     )
                                 }
@@ -283,16 +287,34 @@ class ProvidersViewModel :
 
     private fun finishFlow(status: String) {
         pollJob?.cancel()
+        load()
+        // Stay on DONE so the dialog can show a success confirmation; the Screen's
+        // Done button calls dismissFlow() to reset to IDLE. (Setting IDLE here would
+        // conflate with DONE via StateFlow and unmount the dialog before the user sees it.)
         _uiState.update {
             it.copy(
                 flowPhase = OAuthFlowPhase.DONE,
                 flowStatus = status,
+                flowErrorMessage = null,
                 toastMessage = "OAuth connected",
             )
         }
-        load()
-        // Reset to IDLE after the dialog dismisses.
-        _uiState.update { it.copy(flowPhase = OAuthFlowPhase.IDLE) }
+    }
+
+    /** Reset the re-auth flow to IDLE, clearing all flow-specific state. */
+    fun dismissFlow() {
+        pollJob?.cancel()
+        _uiState.update {
+            it.copy(
+                flowPhase = OAuthFlowPhase.IDLE,
+                flowProvider = null,
+                flowStart = null,
+                flowSessionId = "",
+                flowCodeInput = "",
+                flowStatus = "pending",
+                flowErrorMessage = null,
+            )
+        }
     }
 
     fun cancelOAuthFlow() {

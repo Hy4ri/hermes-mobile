@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.VisualTransformation
@@ -64,6 +65,7 @@ fun ProvidersScreen(
     viewModel: ProvidersViewModel = viewModel { ProvidersViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -76,9 +78,18 @@ fun ProvidersScreen(
             onCodeChange = viewModel::onCodeInputChange,
             onSubmitCode = viewModel::submitOAuthCode,
             onCancel = viewModel::cancelOAuthFlow,
+            onDismissFlow = viewModel::dismissFlow,
             onOpenBrowser = { url ->
-                // Best-effort: open the auth URL in the default browser.
-                // (URL handling is delegated to the platform intent resolver.)
+                try {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(url),
+                        ),
+                    )
+                } catch (_: Exception) {
+                    // No browser available — ignore; user can copy the URL.
+                }
             },
         )
     }
@@ -248,6 +259,7 @@ private fun OAuthFlowDialog(
     onCodeChange: (String) -> Unit,
     onSubmitCode: () -> Unit,
     onCancel: () -> Unit,
+    onDismissFlow: () -> Unit,
     onOpenBrowser: (String) -> Unit,
 ) {
     val provider = state.flowProvider ?: return
@@ -262,6 +274,16 @@ private fun OAuthFlowDialog(
                         Text(stringResource(R.string.providers_action_submit_code))
                     }
                 }
+                OAuthFlowPhase.DONE -> {
+                    Button(onClick = onDismissFlow) {
+                        Text(stringResource(R.string.action_done))
+                    }
+                }
+                OAuthFlowPhase.ERROR -> {
+                    Button(onClick = onDismissFlow) {
+                        Text(stringResource(R.string.action_close))
+                    }
+                }
                 else -> {
                     TextButton(onClick = onCancel) {
                         Text(stringResource(R.string.action_cancel))
@@ -270,12 +292,12 @@ private fun OAuthFlowDialog(
             }
         },
         dismissButton = {
-            if (state.flowPhase != OAuthFlowPhase.WAITING_CODE) {
-                null
-            } else {
+            if (state.flowPhase == OAuthFlowPhase.WAITING_CODE) {
                 TextButton(onClick = onCancel) {
                     Text(stringResource(R.string.action_cancel))
                 }
+            } else {
+                null
             }
         },
         title = { Text(provider.name, style = MaterialTheme.typography.titleLarge) },

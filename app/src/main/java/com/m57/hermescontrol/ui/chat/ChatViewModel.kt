@@ -10,7 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
-import com.m57.hermescontrol.data.model.SessionMessage
+import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -44,7 +44,9 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
-private const val MESSAGE_PAGE_SIZE = 150
+
+/** Page size for session-message pagination (issue #551). Backend clamps to 500. */
+private const val PAGE_SIZE = 50
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -56,8 +58,6 @@ data class ChatUiState(
     val isThinking: Boolean = false,
     val thinkingText: String = "",
     val isLoading: Boolean = false,
-    val isLoadingOlder: Boolean = false,
-    val hasOlderMessages: Boolean = false,
     /** Standalone streaming message — rendered after the main list. */
     val streamingMessage: ChatMessage? = null,
     val errorMessage: String? = null,
@@ -84,6 +84,16 @@ data class ChatUiState(
     val reactionKind: String? = null,
     /** Monotonic trigger ID so consecutive same-kind reactions re-animate. */
     val reactionTriggerId: Long = 0L,
+    /** Total message count reported by the session list/detail (drives pagination end). Issue #551. */
+    val totalMessageCount: Int? = null,
+    /** Current absolute offset (backend insertion order) of the oldest loaded page. Issue #551. */
+    val currentOffset: Int = 0,
+    /** True while an older-messages page is being fetched (scroll-up spinner). Issue #551. */
+    val isLoadingOlder: Boolean = false,
+    /** True once the oldest page has been loaded (no more to fetch). Issue #551. */
+    val hasReachedOldest: Boolean = false,
+    /** Number of items just prepended (issue #551) — UI scrolls down by this to keep position. */
+    val lastPrependCount: Int = 0,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -93,8 +103,6 @@ data class SessionUi(
     val id: String,
     val title: String,
     val messageCount: Int = 0,
-    val parentSessionId: String? = null,
-    val depth: Int = 0,
 )
 
 data class ClarifyUi(
@@ -129,14 +137,6 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
 
     private val _streamingState = MutableStateFlow(StreamingState())
-
-    /** Maps an in-flight RPC id to its method for UI error labeling. */
-    private val idToMethod = ConcurrentHashMap<String, String>()
-
-    /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
-    private var runtimeSessionId: String? = null
-    private var loadedMessageOffset = 0
-    private var isSyncingMessages = false
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     /** Tracks the auto-clear coroutine for reaction animations. */
@@ -293,7 +293,7 @@ class ChatViewModel(
                 _uiState.value,
                 _streamingState.value,
                 event,
-                runtimeSessionId ?: _uiState.value.currentSessionId,
+                _uiState.value.currentSessionId,
             )
 
         // Apply the new state
@@ -432,7 +432,7 @@ class ChatViewModel(
     private fun isCurrentSession(eventSessionId: String?): Boolean {
         // If the event has no session ID, process it (legacy compatibility)
         if (eventSessionId == null) return true
-        return eventSessionId == runtimeSessionId || eventSessionId == _uiState.value.currentSessionId
+        return eventSessionId == _uiState.value.currentSessionId
     }
 
     // ── RPC response handling ────────────────────────────────────────────
@@ -446,12 +446,10 @@ class ChatViewModel(
         when (method) {
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
-                val runtimeId = resultMap["session_id"] as? String ?: return
-                val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
-                runtimeSessionId = runtimeId
+                val sessionId = resultMap["session_id"] as? String ?: return
                 _uiState.update {
                     it.copy(
-                        currentSessionId = storageId,
+                        currentSessionId = sessionId,
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = "Hermes",
@@ -460,7 +458,7 @@ class ChatViewModel(
                 // Mirror the active session id app-wide so session-scoped
                 // drawer screens (e.g. Processes, issue #532) can issue
                 // session-scoped RPCs. See ActiveSessionHolder.
-                ActiveSessionHolder.set(runtimeId)
+                ActiveSessionHolder.set(sessionId)
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
@@ -479,18 +477,24 @@ class ChatViewModel(
                     }
                 _uiState.update { state ->
                     val newTitle = sessions.find { s -> s.id == state.currentSessionId }?.title
+                    // Track the active session's total message count (issue #551)
+                    // to know when pagination has reached the oldest page.
+                    val newTotal =
+                        state.currentSessionId?.let { sid ->
+                            sessions.find { s -> s.id == sid }?.messageCount?.takeIf { it > 0 }
+                        }
                     state.copy(
                         sessions = sessions,
                         chatTitle = newTitle ?: state.chatTitle,
+                        totalMessageCount = newTotal ?: state.totalMessageCount,
                     )
                 }
             }
 
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
-                runtimeSessionId = resultMap?.get("session_id") as? String
                 val sessionId =
-                    (resultMap?.get("resumed") as? String)
+                    (resultMap?.get("session_id") as? String)
                         ?: _uiState.value.currentSessionId
 
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
@@ -504,8 +508,8 @@ class ChatViewModel(
                         currentSessionId = sessionId,
                     )
                 }
-                // Mirror the active runtime session id app-wide (issue #532).
-                ActiveSessionHolder.set(runtimeSessionId ?: sessionId)
+                // Mirror the active session id app-wide (issue #532).
+                ActiveSessionHolder.set(sessionId)
                 addSystemMessage("Session resumed")
             }
 
@@ -616,8 +620,7 @@ class ChatViewModel(
      */
     fun sendMessage(text: String) {
         if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
-        val storageSessionId = _uiState.value.currentSessionId ?: return
-        val agentSessionId = runtimeSessionId ?: return
+        val sessionId = _uiState.value.currentSessionId ?: return
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
@@ -644,9 +647,9 @@ class ChatViewModel(
             )
         }
 
-        // Persist under the original Desktop session ID.
+        // Persist to Room
         viewModelScope.launch(Dispatchers.IO) {
-            repo.persistMessage(userMessage, storageSessionId)
+            repo.persistMessage(userMessage, sessionId)
         }
 
         // Upload attachments then submit prompt
@@ -707,7 +710,7 @@ class ChatViewModel(
                 }
 
             wsClient.sendMessage(
-                agentSessionId,
+                sessionId,
                 fullText,
                 onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
             )
@@ -797,7 +800,7 @@ class ChatViewModel(
     }
 
     private fun dispatchViaRpc(command: String) {
-        val sessionId = runtimeSessionId
+        val sessionId = _uiState.value.currentSessionId
         if (sessionId == null) {
             addAssistantMessage("No active session. Use `/new` to create one.")
             return
@@ -821,7 +824,7 @@ class ChatViewModel(
      */
     private fun submitPrompt(text: String) {
         if (text.isBlank()) return
-        val sessionId = runtimeSessionId ?: return
+        val sessionId = _uiState.value.currentSessionId ?: return
         _uiState.update { it.copy(isAgentTyping = true) }
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.sendMessage(
@@ -848,7 +851,7 @@ class ChatViewModel(
     // ── Session management ───────────────────────────────────────────────
 
     fun interruptSession() {
-        val sessionId = runtimeSessionId ?: return
+        val sessionId = _uiState.value.currentSessionId ?: return
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.SESSION_INTERRUPT,
@@ -871,7 +874,6 @@ class ChatViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.SESSION_CREATE,
-                params = mapOf("source" to "desktop"),
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_CREATE) },
             )
         }
@@ -897,7 +899,15 @@ class ChatViewModel(
 
     fun refreshCurrentSession() {
         val sessionId = _uiState.value.currentSessionId ?: return
-        loadSessionMessages(sessionId)
+        viewModelScope.launch {
+            loadCachedMessages(sessionId).join()
+            // Skip the REST call if we already have messages — the WebSocket keeps
+            // the UI current. The REST endpoint can 404 on tab switch-back when the
+            // WS session ID doesn't round-trip through the resolver (issue #366),
+            // showing a misleading error banner while the connection is fine.
+            if (_uiState.value.messages.isNotEmpty()) return@launch
+            loadSessionMessages(sessionId)
+        }
     }
 
     fun refreshSettings() {
@@ -922,16 +932,12 @@ class ChatViewModel(
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
-        // Reset streaming and pagination state before resuming the Desktop session.
-        runtimeSessionId = null
-        loadedMessageOffset = 0
+        // Reset streaming state
         streamingController.resetStreaming()
         _uiState.update {
             val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
             it.copy(
                 isLoading = true,
-                isLoadingOlder = false,
-                hasOlderMessages = false,
                 currentSessionId = sessionId,
                 messages = emptyList(),
                 chatTitle = title,
@@ -943,7 +949,9 @@ class ChatViewModel(
         ActiveSessionHolder.set(sessionId)
         _streamingState.update { StreamingState() }
         viewModelScope.launch {
-            // Resume the selected desktop session, then load its complete transcript.
+            // Step 1: Load cached messages first — instant display
+            loadCachedMessages(sessionId).join()
+            // Step 2: Resume session on server
             launch(Dispatchers.IO) {
                 wsClient.send(
                     WsMethods.SESSION_RESUME,
@@ -951,7 +959,9 @@ class ChatViewModel(
                     onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
                 )
             }
+            // Step 3: Load fresh messages from REST and merge
             loadSessionMessages(sessionId)
+            // Step 4: Refresh session list to get latest titles
             loadSessions()
         }
     }
@@ -971,33 +981,90 @@ class ChatViewModel(
 
     private fun loadSessionMessages(sessionId: String) {
         viewModelScope.launch {
-            val messageCount = fetchServerMessageCount(sessionId)
-            val offset = (messageCount - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
-            val result = fetchMessagePage(sessionId, offset, MESSAGE_PAGE_SIZE)
+            // Resolve the true total first (issue #551). The backend returns
+            // messages oldest→newest, so to show the newest page we need the
+            // count to compute the first-page offset. Fall back to the WS
+            // session-list total if the detail call fails.
+            val total =
+                withContext(Dispatchers.IO) {
+                    when (val r = safeApiCall { ApiClient.hermesApi.getSession(sessionId) }) {
+                        is NetworkResult.Success -> r.data.message_count ?: _uiState.value.totalMessageCount
+                        is NetworkResult.Failure -> _uiState.value.totalMessageCount
+                    }
+                }
+            val firstOffset = (total ?: PAGE_SIZE).let { t -> maxOf(0, t - PAGE_SIZE) }
+
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.getSessionMessages(
+                            sessionId,
+                            limit = PAGE_SIZE,
+                            offset = firstOffset,
+                        )
+                    }
+                }
             when (result) {
                 is NetworkResult.Success -> {
-                    val chatMessages = mapServerMessages(sessionId, result.data.messages.orEmpty(), offset)
-                    loadedMessageOffset = offset
+                    val messagesList = result.data.messages.orEmpty()
+                    val chatMessages =
+                        messagesList.mapIndexed { index, msg ->
+                            val role =
+                                when (msg.role?.lowercase()) {
+                                    "user" -> MessageRole.USER
+                                    "system" -> MessageRole.SYSTEM
+                                    "tool" -> MessageRole.TOOL
+                                    else -> MessageRole.ASSISTANT
+                                }
+                            // Stable ID = absolute backend position (firstOffset + index).
+                            // Globally unique across pages, so Room upsert never collides
+                            // and re-loading / prepending older pages never duplicates.
+                            val absoluteIndex = firstOffset + index
+                            val stableId = "rest-$sessionId-$absoluteIndex"
+                            val ts = msg.timestampText?.toLongOrNull() ?: System.currentTimeMillis()
+                            ChatMessage(
+                                id = stableId,
+                                role = role,
+                                content = msg.content.orEmpty(),
+                                timestamp = ts,
+                                isStreaming = false,
+                            )
+                        }
+                    // Persist loaded messages to Room for offline access
                     withContext(Dispatchers.IO) {
                         repo.persistMessages(chatMessages, sessionId)
                     }
+
+                    val reachedOldest = firstOffset <= 0
+
                     _uiState.update { state ->
+                        // Only update if still on the same session
                         if (state.currentSessionId != sessionId) return@update state
+
+                        // Merge: keep any user messages sent between cache load
+                        // and REST response (they won't be in the REST response
+                        // yet), plus preserve any active streaming message.
+                        val existingIds = chatMessages.mapTo(HashSet(chatMessages.size)) { it.id }
+                        val localOnly = state.messages.filter { it.id !in existingIds }
                         state.copy(
-                            messages = chatMessages,
+                            messages = chatMessages + localOnly,
                             isLoading = false,
-                            hasOlderMessages = offset > 0,
+                            totalMessageCount = total ?: state.totalMessageCount,
+                            currentOffset = firstOffset,
+                            hasReachedOldest = reachedOldest,
                             isLoadingOlder = false,
+                            lastPrependCount = 0,
                         )
                     }
                 }
 
                 is NetworkResult.Failure -> {
+                    // Don't overwrite messages on REST failure — cached messages
+                    // are still valid.
                     _uiState.update {
                         if (it.currentSessionId != sessionId) return@update it
                         it.copy(
                             isLoading = false,
-                            isLoadingOlder = false,
                             errorMessage = "Failed to load messages: ${result.error.message}",
                         )
                     }
@@ -1006,169 +1073,100 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Loads an older page of messages and prepends it to the current list.
+     * Triggered by scrolling to the top of the chat (issue #551).
+     *
+     * The backend returns messages oldest→newest in insertion order, and
+     * `offset` skips from the start. The currently-loaded page begins at
+     * [currentOffset]; an older page begins at [currentOffset - PAGE_SIZE]
+     * (clamped at 0). Each message gets a stable ID `rest-<session>-<offset+index>`
+     * equal to its true absolute backend position, so pages never collide.
+     */
     fun loadOlderMessages() {
-        val state = _uiState.value
-        val sessionId = state.currentSessionId ?: return
-        if (!state.hasOlderMessages || state.isLoadingOlder || loadedMessageOffset <= 0) return
-        val oldOffset = loadedMessageOffset
-        val newOffset = (oldOffset - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
-        val limit = oldOffset - newOffset
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val offset = _uiState.value.currentOffset
+        if (_uiState.value.isLoadingOlder || _uiState.value.hasReachedOldest) return
+        if (offset <= 0) {
+            _uiState.update { it.copy(hasReachedOldest = true) }
+            return
+        }
+        val nextOffset = maxOf(0, offset - PAGE_SIZE)
+
+        // Set the loading flag synchronously so concurrent scroll triggers in
+        // the same frame can't pass the guard and double-fetch (issue #551).
         _uiState.update { it.copy(isLoadingOlder = true) }
         viewModelScope.launch {
-            when (val result = fetchMessagePage(sessionId, newOffset, limit)) {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.getSessionMessages(
+                            sessionId,
+                            limit = PAGE_SIZE,
+                            offset = nextOffset,
+                        )
+                    }
+                }
+            when (result) {
                 is NetworkResult.Success -> {
-                    val older = mapServerMessages(sessionId, result.data.messages.orEmpty(), newOffset)
-                    loadedMessageOffset = newOffset
-                    withContext(Dispatchers.IO) { repo.persistMessages(older, sessionId) }
-                    _uiState.update { current ->
-                        if (current.currentSessionId != sessionId) return@update current
-                        current.copy(
-                            messages = (older + current.messages).distinctBy { it.id },
+                    val page = result.data.messages.orEmpty()
+                    if (page.isEmpty()) {
+                        _uiState.update { state ->
+                            if (state.currentSessionId != sessionId) return@update state
+                            state.copy(isLoadingOlder = false, hasReachedOldest = true)
+                        }
+                        return@launch
+                    }
+                    val chatMessages =
+                        page.mapIndexed { index, msg ->
+                            val role =
+                                when (msg.role?.lowercase()) {
+                                    "user" -> MessageRole.USER
+                                    "system" -> MessageRole.SYSTEM
+                                    "tool" -> MessageRole.TOOL
+                                    else -> MessageRole.ASSISTANT
+                                }
+                            val absoluteIndex = nextOffset + index
+                            val stableId = "rest-$sessionId-$absoluteIndex"
+                            val ts = msg.timestampText?.toLongOrNull() ?: System.currentTimeMillis()
+                            ChatMessage(
+                                id = stableId,
+                                role = role,
+                                content = msg.content.orEmpty(),
+                                timestamp = ts,
+                                isStreaming = false,
+                            )
+                        }
+                    withContext(Dispatchers.IO) {
+                        repo.persistMessages(chatMessages, sessionId)
+                    }
+
+                    val reachedOldest = nextOffset <= 0
+
+                    _uiState.update { state ->
+                        if (state.currentSessionId != sessionId) return@update state
+                        // Prepend older messages above the existing newer ones.
+                        // Expose lastPrependCount so the UI can preserve scroll
+                        // position (scroll down by that many) and avoid a jump.
+                        state.copy(
+                            messages = chatMessages + state.messages,
                             isLoadingOlder = false,
-                            hasOlderMessages = newOffset > 0,
+                            currentOffset = nextOffset,
+                            hasReachedOldest = reachedOldest,
+                            lastPrependCount = chatMessages.size,
                         )
                     }
                 }
 
                 is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(isLoadingOlder = false) }
-                }
-            }
-        }
-    }
-
-    fun syncCurrentSession() {
-        val state = _uiState.value
-        val sessionId = state.currentSessionId ?: return
-        if (isSyncingMessages || state.isLoading || state.isLoadingOlder || state.isAgentTyping ||
-            _streamingState.value.streamingMessage != null
-        ) {
-            return
-        }
-        val nextOffset =
-            state.messages
-                .mapNotNull { serverMessageIndex(it.id, sessionId) }
-                .maxOrNull()
-                ?.plus(1)
-                ?: loadedMessageOffset
-        isSyncingMessages = true
-        viewModelScope.launch {
-            try {
-                when (val result = fetchMessagePage(sessionId, nextOffset, MESSAGE_PAGE_SIZE)) {
-                    is NetworkResult.Success -> {
-                        val incoming = mapServerMessages(sessionId, result.data.messages.orEmpty(), nextOffset)
-                        if (incoming.isEmpty()) return@launch
-                        withContext(Dispatchers.IO) { repo.persistMessages(incoming, sessionId) }
-                        _uiState.update { current ->
-                            if (current.currentSessionId != sessionId) return@update current
-                            val unmatched = incoming.map { it.role to it.content }.toMutableList()
-                            val retained =
-                                current.messages.filter { existing ->
-                                    if (serverMessageIndex(existing.id, sessionId) != null) {
-                                        true
-                                    } else {
-                                        val duplicate =
-                                            unmatched.indexOfFirst { (role, content) ->
-                                                role == existing.role && content == existing.content
-                                            }
-                                        if (duplicate >= 0) unmatched.removeAt(duplicate)
-                                        duplicate < 0
-                                    }
-                                }
-                            val merged = (retained + incoming).distinctBy { it.id }
-                            if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
-                        }
+                    _uiState.update { state ->
+                        if (state.currentSessionId != sessionId) return@update state
+                        state.copy(isLoadingOlder = false)
                     }
-
-                    is NetworkResult.Failure -> Unit
                 }
-            } finally {
-                isSyncingMessages = false
             }
         }
     }
-
-    private suspend fun fetchServerMessageCount(sessionId: String): Int {
-        val known = _uiState.value.sessions.find { it.id == sessionId }?.messageCount
-        if (known != null) return known
-        val result =
-            withContext(Dispatchers.IO) {
-                safeApiCall { ApiClient.hermesApi.getSessions(limit = 500, offset = 0, order = "recent") }
-            }
-        if (result is NetworkResult.Success) {
-            val sessions = result.data.sessions.orEmpty()
-            val count = sessions.find { it.id == sessionId }?.message_count
-            if (count != null) {
-                _uiState.update { current ->
-                    current.copy(
-                        sessions =
-                            current.sessions.map {
-                                if (it.id == sessionId) {
-                                    it.copy(
-                                        messageCount = count,
-                                    )
-                                } else {
-                                    it
-                                }
-                            },
-                    )
-                }
-                return count
-            }
-        }
-        return known ?: _uiState.value.messages.size
-    }
-
-    private suspend fun fetchMessagePage(
-        sessionId: String,
-        offset: Int,
-        limit: Int,
-    ) = withContext(Dispatchers.IO) {
-        safeApiCall { ApiClient.hermesApi.getSessionMessages(sessionId, limit = limit, offset = offset) }
-    }
-
-    private fun mapServerMessages(
-        sessionId: String,
-        messages: List<SessionMessage>,
-        offset: Int,
-    ): List<ChatMessage> =
-        messages.mapIndexed { index, msg ->
-            val role =
-                when (msg.role?.lowercase()) {
-                    "user" -> MessageRole.USER
-                    "system" -> MessageRole.SYSTEM
-                    "tool" -> MessageRole.TOOL
-                    else -> MessageRole.ASSISTANT
-                }
-            val globalIndex = offset + index
-            val timestamp =
-                msg.timestampText
-                    ?.toDoubleOrNull()
-                    ?.times(1000)
-                    ?.toLong()
-                    ?: System.currentTimeMillis()
-            ChatMessage(
-                id = "rest-$sessionId-$globalIndex",
-                role = role,
-                content = msg.content.orEmpty(),
-                timestamp = timestamp,
-                isStreaming = false,
-            )
-        }
-
-    private fun serverMessageIndex(
-        id: String,
-        sessionId: String,
-    ): Int? = id.removePrefix("rest-$sessionId-").takeIf { it != id }?.toIntOrNull()
-
-    private fun sameMessages(
-        left: List<ChatMessage>,
-        right: List<ChatMessage>,
-    ): Boolean =
-        left.size == right.size &&
-            left.zip(right).all { (a, b) ->
-                a.id == b.id && a.role == b.role && a.content == b.content
-            }
 
     // ── UI actions ───────────────────────────────────────────────────────
 
@@ -1508,6 +1506,9 @@ class ChatViewModel(
     }
 
     // ── Pending request tracking ─────────────────────────────────────────
+
+    /** Maps an in-flight RPC id → its method, purely for UI error labeling. The deferred/timeout lives in [HermesWsClient.request] (issue #526). */
+    private val idToMethod = ConcurrentHashMap<String, String>()
 
     private fun trackRequest(
         id: String,

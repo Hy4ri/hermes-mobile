@@ -131,15 +131,11 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private const val SESSION_SYNC_INTERVAL_MS = 5_000L
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -152,27 +148,6 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    var isOlderPagingArmed by remember(state.currentSessionId) { mutableStateOf(false) }
-
-    LaunchedEffect(state.currentSessionId, state.connectionStatus) {
-        while (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
-            delay(SESSION_SYNC_INTERVAL_MS)
-            viewModel.syncCurrentSession()
-        }
-    }
-
-    LaunchedEffect(listState, state.currentSessionId, state.hasOlderMessages, state.isLoadingOlder) {
-        if (!state.hasOlderMessages || state.isLoadingOlder) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collectLatest { firstVisibleIndex ->
-                if (firstVisibleIndex > 2) {
-                    isOlderPagingArmed = true
-                } else if (isOlderPagingArmed) {
-                    viewModel.loadOlderMessages()
-                }
-            }
-    }
     val showScrollToBottom by remember {
         derivedStateOf {
             state.messages.isNotEmpty() && listState.canScrollForward
@@ -421,11 +396,15 @@ fun ChatScreen(
                     typingEffectEnabled = state.typingEffectEnabled,
                     typingEffectDelayMs = state.typingEffectDelayMs,
                     isLoading = state.isLoading,
-                    isLoadingOlder = state.isLoadingOlder,
                     isDark = isDark,
                     listState = listState,
                     lastAnimatedMessageId = lastAnimatedMessageId,
                     onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
+                    hasReachedOldest = state.hasReachedOldest,
+                    isLoadingOlder = state.isLoadingOlder,
+                    currentOffset = state.currentOffset,
+                    lastPrependCount = state.lastPrependCount,
+                    onLoadOlderMessages = { viewModel.loadOlderMessages() },
                     viewModel = viewModel,
                 )
 
@@ -1691,13 +1670,42 @@ private fun ChatMessageList(
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
     isLoading: Boolean,
-    isLoadingOlder: Boolean,
     isDark: Boolean,
     listState: LazyListState,
     lastAnimatedMessageId: String?,
     onLastAnimatedMessageIdChange: (String?) -> Unit,
+    hasReachedOldest: Boolean,
+    isLoadingOlder: Boolean,
+    currentOffset: Int,
+    lastPrependCount: Int,
+    onLoadOlderMessages: () -> Unit,
     viewModel: ChatViewModel,
 ) {
+    // Load older messages when the user scrolls the list back to the top
+    // (issue #551). The header item at index 0 becomes visible at the top.
+    val canLoadMore by remember { derivedStateOf { currentOffset > 0 && !hasReachedOldest } }
+    LaunchedEffect(canLoadMore) {
+        if (!canLoadMore) return@LaunchedEffect
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .collect { firstIndex ->
+                // Trigger once when the top becomes visible. Because canLoadMore
+                // flips to false while loading (currentOffset unchanged but
+                // isLoadingOlder true guards re-entry) and resets only after the
+                // next page loads, this won't spin into an infinite loop.
+                if (firstIndex <= 0 && canLoadMore && !isLoadingOlder) {
+                    onLoadOlderMessages()
+                }
+            }
+    }
+
+    // Preserve scroll position after older messages are prepended (issue #551).
+    // Without this the viewport snaps to the top of the newly loaded page.
+    LaunchedEffect(lastPrependCount) {
+        if (lastPrependCount > 0) {
+            listState.scrollToItem(lastPrependCount)
+        }
+    }
+
     // Lay children out vertically so the search bar occupies real layout space
     // ABOVE the message list. Without this container the call site is a Box,
     // which overlays the LazyColumn on top of the search AnimatedVisibility and
@@ -1745,16 +1753,35 @@ private fun ChatMessageList(
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            if (isLoadingOlder) {
-                item(key = "loading-older") {
+            // ── Load-older header (issue #551) ──
+            // Spinner while fetching an older page; hidden once the oldest
+            // page is reached (currentOffset == 0).
+            if (currentOffset > 0 && !hasReachedOldest) {
+                item(key = "load_older_header") {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        if (isLoadingOlder) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else {
+                            Text(
+                                text = "↑ Load earlier messages",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 }
             }
+
             itemsIndexed(
                 items = messages,
                 key = { _, message -> message.id },

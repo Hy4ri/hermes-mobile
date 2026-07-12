@@ -60,6 +60,7 @@ import com.m57.hermescontrol.data.model.RawConfigResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
+import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionPromptResponse
@@ -131,12 +132,18 @@ interface HermesApiService {
         // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
-        // Pagination (issue #551): backend returns newest-first when limit is set.
-        // Defaults match the un-paginated full-history behavior; callers pass an
-        // explicit page to fetch older messages. Backend clamps limit to 500.
+        // Pagination (issue #551). Backend returns messages in insertion order
+        // (oldest→newest) and `offset` skips from the start. To show the newest
+        // page first, callers compute offset = max(0, total - PAGE_SIZE).
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
     ): Response<SessionMessagesResponse>
+
+    /** Single-session detail (issue #551) — gives a reliable `message_count`. */
+    @GET("api/sessions/{id}")
+    suspend fun getSession(
+        @Path("id", encoded = true) sessionId: String,
+    ): Response<SessionInfo>
 
     @GET("api/sessions/stats")
     suspend fun getSessionStats(): Response<SessionStatsResponse>

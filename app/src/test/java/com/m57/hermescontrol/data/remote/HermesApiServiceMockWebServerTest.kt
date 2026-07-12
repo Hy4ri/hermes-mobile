@@ -401,4 +401,30 @@ class HermesApiServiceMockWebServerTest {
             // Backward-compatible: pagination absent on older backend responses.
             assertNull(response.body()!!.pagination)
         }
+
+    @Test
+    fun getSession_parsesMessageCount() =
+        runBlocking {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setBody(
+                        """
+                        {
+                            "id": "sid",
+                            "title": "Chat",
+                            "message_count": 123,
+                            "status": "active"
+                        }
+                        """.trimIndent(),
+                    ),
+            )
+
+            val response = api.getSession("sid")
+            assertTrue(response.isSuccessful)
+            val body = response.body()
+            assertNotNull(body)
+            assertEquals("sid", body!!.id)
+            assertEquals(123, body.message_count)
+        }
 }

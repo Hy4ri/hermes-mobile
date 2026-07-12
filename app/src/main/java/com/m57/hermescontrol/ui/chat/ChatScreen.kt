@@ -95,7 +95,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -403,7 +402,6 @@ fun ChatScreen(
                     hasReachedOldest = state.hasReachedOldest,
                     isLoadingOlder = state.isLoadingOlder,
                     currentOffset = state.currentOffset,
-                    lastPrependCount = state.lastPrependCount,
                     onLoadOlderMessages = { viewModel.loadOlderMessages() },
                     viewModel = viewModel,
                 )
@@ -1677,35 +1675,9 @@ private fun ChatMessageList(
     hasReachedOldest: Boolean,
     isLoadingOlder: Boolean,
     currentOffset: Int,
-    lastPrependCount: Int,
     onLoadOlderMessages: () -> Unit,
     viewModel: ChatViewModel,
 ) {
-    // Load older messages when the user scrolls the list back to the top
-    // (issue #551). The header item at index 0 becomes visible at the top.
-    val canLoadMore by remember { derivedStateOf { currentOffset > 0 && !hasReachedOldest } }
-    LaunchedEffect(canLoadMore) {
-        if (!canLoadMore) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .collect { firstIndex ->
-                // Trigger once when the top becomes visible. Because canLoadMore
-                // flips to false while loading (currentOffset unchanged but
-                // isLoadingOlder true guards re-entry) and resets only after the
-                // next page loads, this won't spin into an infinite loop.
-                if (firstIndex <= 0 && canLoadMore && !isLoadingOlder) {
-                    onLoadOlderMessages()
-                }
-            }
-    }
-
-    // Preserve scroll position after older messages are prepended (issue #551).
-    // Without this the viewport snaps to the top of the newly loaded page.
-    LaunchedEffect(lastPrependCount) {
-        if (lastPrependCount > 0) {
-            listState.scrollToItem(lastPrependCount)
-        }
-    }
-
     // Lay children out vertically so the search bar occupies real layout space
     // ABOVE the message list. Without this container the call site is a Box,
     // which overlays the LazyColumn on top of the search AnimatedVisibility and
@@ -1758,6 +1730,16 @@ private fun ChatMessageList(
             // page is reached (currentOffset == 0).
             if (currentOffset > 0 && !hasReachedOldest) {
                 item(key = "load_older_header") {
+                    // Trigger the older-page load once when this header scrolls
+                    // into view (enters composition). Using LaunchedEffect(Unit)
+                    // means it fires exactly once per composition — on success
+                    // the prepended page removes the header (stable keys preserve
+                    // scroll); on failure it does NOT auto-retry (avoiding an
+                    // infinite failing-request loop). The user can scroll away
+                    // and back to retry.
+                    LaunchedEffect(Unit) {
+                        onLoadOlderMessages()
+                    }
                     Box(
                         modifier =
                             Modifier

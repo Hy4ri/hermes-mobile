@@ -10,7 +10,6 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
-import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -92,8 +91,6 @@ data class ChatUiState(
     val isLoadingOlder: Boolean = false,
     /** True once the oldest page has been loaded (no more to fetch). Issue #551. */
     val hasReachedOldest: Boolean = false,
-    /** Number of items just prepended (issue #551) — UI scrolls down by this to keep position. */
-    val lastPrependCount: Int = 0,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -1053,7 +1050,6 @@ class ChatViewModel(
                             currentOffset = firstOffset,
                             hasReachedOldest = reachedOldest,
                             isLoadingOlder = false,
-                            lastPrependCount = 0,
                         )
                     }
                 }
@@ -1153,7 +1149,6 @@ class ChatViewModel(
                             isLoadingOlder = false,
                             currentOffset = nextOffset,
                             hasReachedOldest = reachedOldest,
-                            lastPrependCount = chatMessages.size,
                         )
                     }
                 }

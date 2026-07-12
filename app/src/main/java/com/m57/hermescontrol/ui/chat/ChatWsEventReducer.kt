@@ -32,6 +32,7 @@ object ChatWsEventReducer {
                 is WsEvent.MessageDone -> event.sessionId
                 is WsEvent.ToolStart -> event.sessionId
                 is WsEvent.ToolComplete -> event.sessionId
+                is WsEvent.ToolOutputRisk -> event.sessionId
                 is WsEvent.ClarifyRequest -> event.sessionId
                 else -> null
             }
@@ -66,6 +67,8 @@ object ChatWsEventReducer {
             is WsEvent.ToolStart -> onToolStart(state, streamingState, event)
 
             is WsEvent.ToolComplete -> onToolComplete(state, streamingState, event)
+
+            is WsEvent.ToolOutputRisk -> onToolOutputRisk(state, streamingState, event)
 
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
 
@@ -347,6 +350,56 @@ object ChatWsEventReducer {
             state = state.copy(messages = messages),
             streamingState = streamingState,
             effects = effects,
+        )
+    }
+
+    // ── ToolOutputRisk ────────────────────────────────────────────────
+
+    /**
+     * Attaches [ToolOutputRiskData] to the matching tool message.
+     *
+     * Finds the last RUNNING tool message with matching [WsEvent.ToolOutputRisk.name].
+     * If no RUNNING message exists (tool already completed), falls back to the last
+     * COMPLETED tool with that name. This covers the case where the risk event arrives
+     * after tool.complete.
+     */
+    private fun onToolOutputRisk(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ToolOutputRisk,
+    ): ReducerResult {
+        val riskData =
+            ToolOutputRiskData(
+                risk = event.risk,
+                findings = event.findings,
+                redacted = event.redacted,
+            )
+
+        val messages = state.messages.toMutableList()
+
+        // Prefer RUNNING tool, fall back to COMPLETED
+        var toolIdx =
+            messages.indexOfLast {
+                it.role == MessageRole.TOOL &&
+                    it.toolName == event.name &&
+                    it.toolStatus == ToolStatus.RUNNING
+            }
+        if (toolIdx < 0) {
+            toolIdx =
+                messages.indexOfLast {
+                    it.role == MessageRole.TOOL &&
+                        it.toolName == event.name &&
+                        it.toolStatus == ToolStatus.COMPLETED
+                }
+        }
+        if (toolIdx < 0) return ReducerResult(state = state, streamingState = streamingState)
+
+        messages[toolIdx] = messages[toolIdx].copy(toolOutputRiskData = riskData)
+
+        // No persist — risk data is transient (not stored in SQLite)
+        return ReducerResult(
+            state = state.copy(messages = messages),
+            streamingState = streamingState,
         )
     }
 

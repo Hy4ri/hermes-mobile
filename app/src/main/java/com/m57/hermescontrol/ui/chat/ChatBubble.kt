@@ -85,6 +85,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.theme.AssistantBubble
 import com.m57.hermescontrol.theme.AssistantBubbleLight
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.StatusGreen
 import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.theme.SystemMessageColor
@@ -1893,6 +1894,12 @@ private fun ToolBubble(
                 // ── Header row: icon + tool name ──
                 HeaderRow(message, config, contentColor)
 
+                // ── Security risk chip (tool.output_risk) ──
+                val riskData = message.toolOutputRiskData
+                if (riskData != null && (riskData.risk == "medium" || riskData.risk == "high" || riskData.redacted)) {
+                    SecurityRiskChip(riskData, contentColor)
+                }
+
                 // ── Summary line (always visible when collapsed) ──
                 if (!expanded && parsed?.summaryText != null) {
                     Text(
@@ -2066,6 +2073,56 @@ private fun HeaderRow(
                     fontFamily = FontFamily.Monospace,
                 ),
         )
+    }
+}
+
+/**
+ * Security risk chip for [tool.output_risk] events.
+ *
+ * Shows a compact ⚠ badge when the backend flagged tool output as risky.
+ * Renders in the tool card between the header row and the summary line.
+ */
+@Composable
+private fun SecurityRiskChip(
+    riskData: ToolOutputRiskData,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    val statusColors = LocalHermesStatusColors.current
+    val (chipColor, label) =
+        when {
+            riskData.risk == "high" -> statusColors.error to "Risky output"
+            riskData.risk == "medium" -> statusColors.warning to "Caution"
+            else -> statusColors.warning to "Redacted"
+        }
+
+    Row(
+        modifier =
+            modifier
+                .padding(top = 4.dp, start = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "⚠",
+            style = MaterialTheme.typography.labelSmall,
+            color = chipColor,
+        )
+        Text(
+            text = label,
+            style =
+                MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Medium,
+                ),
+            color = chipColor,
+        )
+        if (riskData.redacted && (riskData.risk == "high" || riskData.risk == "medium")) {
+            Text(
+                text = "· redacted",
+                style = MaterialTheme.typography.labelSmall,
+                color = chipColor.copy(alpha = 0.7f),
+            )
+        }
     }
 }
 

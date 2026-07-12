@@ -14,6 +14,17 @@ data class ApprovalInfo(
     val patternKeys: List<String>?,
 )
 
+/**
+ * Risk metadata from the backend's [tool.output_risk] WS event.
+ * Attached to the tool [ChatMessage] so the UI can render a security chip.
+ * Transient — not persisted to SQLite.
+ */
+data class ToolOutputRiskData(
+    val risk: String, // "low" | "medium" | "high"
+    val findings: List<String>,
+    val redacted: Boolean,
+)
+
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: MessageRole,
@@ -26,6 +37,12 @@ data class ChatMessage(
     val approvalInfo: ApprovalInfo? = null,
     /** Files attached to this message — shown inline in the bubble. */
     val attachments: List<Attachment>? = null,
+    /**
+     * Risk metadata from [tool.output_risk] WS event.
+     * When risk is "medium"/"high" or redacted is true, the UI shows a ⚠ chip.
+     * Transient — not persisted to SQLite.
+     */
+    val toolOutputRiskData: ToolOutputRiskData? = null,
 )
 
 enum class MessageRole {

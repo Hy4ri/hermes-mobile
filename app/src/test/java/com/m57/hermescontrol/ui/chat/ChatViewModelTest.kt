@@ -191,6 +191,51 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSlashCommand_fork_sendsSessionBranch() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // /fork with an optional branch title.
+            viewModel.sendMessage("/fork my-fork")
+            advanceUntilIdle()
+
+            val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH }
+            assertNotNull("session.branch should be dispatched for /fork", branchSent)
+            assertEquals(sessionId, branchSent!!.second["session_id"])
+            assertEquals("my-fork", branchSent.second["name"])
+        }
+
+    @Test
+    fun testSlashCommand_fork_withoutName_omitsNameParam() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendMessage("/fork")
+            advanceUntilIdle()
+
+            val branchSent = captured.firstOrNull { it.first == WsMethods.SESSION_BRANCH }
+            assertNotNull("session.branch should be dispatched for /fork", branchSent)
+            assertEquals(sessionId, branchSent!!.second["session_id"])
+            assertFalse("name param should be omitted when no title given", branchSent.second.containsKey("name"))
+        }
+
+    @Test
     fun testSlashCommand_stop_sendsInterrupt() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

@@ -466,6 +466,25 @@ class ChatViewModel(
                 loadSessions()
             }
 
+            WsMethods.SESSION_BRANCH -> {
+                val resultMap = result as? Map<String, Any?> ?: return
+                val newId = resultMap["session_id"] as? String ?: return
+                runtimeSessionId = newId
+                _uiState.update {
+                    it.copy(
+                        currentSessionId = newId,
+                        isLoading = false,
+                        messages = emptyList(),
+                        chatTitle = (resultMap["title"] as? String)?.takeIf { t -> t.isNotBlank() } ?: "Hermes",
+                    )
+                }
+                ActiveSessionHolder.set(newId)
+                _streamingState.update { StreamingState() }
+                addSystemMessage("Session branched", persist = true)
+                loadSessionMessages(newId)
+                loadSessions()
+            }
+
             WsMethods.SESSION_LIST -> {
                 val resultMap = result as? Map<String, Any?> ?: return
                 val sessionsList = resultMap["sessions"] as? List<Map<String, Any?>> ?: return
@@ -790,9 +809,37 @@ class ChatViewModel(
                 createNewSession()
             }
 
+            is SlashResult.SessionBranch -> {
+                branchSession(command)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
+        }
+    }
+
+    /**
+     * Fork the active conversation via the session.branch WS RPC (issue #533).
+     * The backend already supports session.branch; the mobile previously had
+     * no client surface, so `/fork` fell through to command.dispatch and 4018'd.
+     * The optional arg becomes the new branch's title.
+     */
+    private fun branchSession(command: String) {
+        val sessionId = runtimeSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session. Use `/new` to create one.")
+            return
+        }
+        val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+        val params = mutableMapOf<String, Any>("session_id" to sessionId)
+        if (arg.isNotBlank()) params["name"] = arg
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.SESSION_BRANCH,
+                params,
+                onSent = { id -> trackRequest(id, WsMethods.SESSION_BRANCH) },
+            )
         }
     }
 

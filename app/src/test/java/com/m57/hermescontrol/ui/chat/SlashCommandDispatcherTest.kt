@@ -35,6 +35,15 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `fork routes to SessionBranch`() {
+        // /fork (and /branch) fork the active conversation via session.branch —
+        // the backend's command, not command.dispatch. See issue #533.
+        assertEquals(SlashResult.SessionBranch, dispatcher.dispatch("/fork"))
+        assertEquals(SlashResult.SessionBranch, dispatcher.dispatch("/branch"))
+        assertEquals(SlashResult.SessionBranch, dispatcher.dispatch("/FORK hello"))
+    }
+
+    @Test
     fun `NEW uppercase still routes to NewSession`() {
         // Dispatcher lower-cases before matching, so case must not matter.
         assertEquals(SlashResult.NewSession, dispatcher.dispatch("/NEW"))

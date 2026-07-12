@@ -17,6 +17,7 @@ class SlashCommandDispatcher {
         return when (cmd) {
             "/stop", "/interrupt" -> SlashResult.Interrupt
             "/new" -> SlashResult.NewSession
+            "/fork", "/branch" -> SlashResult.SessionBranch
             else -> SlashResult.RpcDispatch
         }
     }
@@ -34,4 +35,7 @@ sealed class SlashResult {
 
     /** Forward to command.dispatch via WebSocket. */
     data object RpcDispatch : SlashResult()
+
+    /** Fork the active conversation via the session.branch WebSocket RPC. */
+    data object SessionBranch : SlashResult()
 }

@@ -18,13 +18,80 @@ import kotlinx.serialization.Serializable
 enum class ThemePreference { SYSTEM, LIGHT, DARK }
 
 @Serializable
-enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NEON_NOIR }
+enum class ThemePreset { CASSY, DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NEON_NOIR }
 
 @Serializable
 enum class BottomNavDisplayMode { ICON_AND_TEXT, ICON_ONLY, TEXT_ONLY }
 
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
-val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
+val LocalThemePreset = compositionLocalOf { ThemePreset.CASSY }
+
+private val CassyDarkColorScheme =
+    darkColorScheme(
+        primary = Color(0xFFB5A7FF),
+        onPrimary = Color(0xFF17102F),
+        primaryContainer = Color(0xFF3B3265),
+        onPrimaryContainer = Color(0xFFE7E2FF),
+        secondary = Color(0xFFD8BF8B),
+        onSecondary = Color(0xFF2B2110),
+        secondaryContainer = Color(0xFF46381F),
+        onSecondaryContainer = Color(0xFFF4DFC0),
+        tertiary = Color(0xFF9AB9FF),
+        onTertiary = Color(0xFF0B2556),
+        tertiaryContainer = Color(0xFF243B67),
+        onTertiaryContainer = Color(0xFFDCE7FF),
+        background = Color(0xFF0D0D12),
+        onBackground = Color(0xFFE8E6EE),
+        surface = Color(0xFF13131A),
+        onSurface = Color(0xFFE8E6EE),
+        surfaceVariant = Color(0xFF24232E),
+        onSurfaceVariant = Color(0xFFC8C4D2),
+        surfaceTint = Color(0xFFB5A7FF),
+        surfaceContainer = Color(0xFF191921),
+        surfaceContainerLow = Color(0xFF16161D),
+        surfaceContainerHigh = Color(0xFF21212B),
+        surfaceContainerHighest = Color(0xFF2A2935),
+        inverseSurface = Color(0xFFE8E6EE),
+        inverseOnSurface = Color(0xFF29272F),
+        outline = Color(0xFF8C8798),
+        outlineVariant = Color(0xFF3B3946),
+        error = Color(0xFFFFB4AB),
+        onError = Color(0xFF690005),
+        errorContainer = Color(0xFF93000A),
+        onErrorContainer = Color(0xFFFFDAD6),
+        scrim = Color.Black,
+    )
+
+private val CassyLightColorScheme =
+    lightColorScheme(
+        primary = Color(0xFF5B4CC4),
+        onPrimary = Color.White,
+        primaryContainer = Color(0xFFE6E0FF),
+        onPrimaryContainer = Color(0xFF1B0F72),
+        secondary = Color(0xFF735B2C),
+        onSecondary = Color.White,
+        secondaryContainer = Color(0xFFFFDEA5),
+        onSecondaryContainer = Color(0xFF281900),
+        tertiary = Color(0xFF3F5F99),
+        onTertiary = Color.White,
+        tertiaryContainer = Color(0xFFD8E2FF),
+        onTertiaryContainer = Color(0xFF001A41),
+        background = Color(0xFFF8F6F4),
+        onBackground = Color(0xFF1C1B20),
+        surface = Color(0xFFFFFBFF),
+        onSurface = Color(0xFF1C1B20),
+        surfaceVariant = Color(0xFFE7E1EC),
+        onSurfaceVariant = Color(0xFF49454F),
+        surfaceTint = Color(0xFF5B4CC4),
+        surfaceContainer = Color(0xFFF2EFF4),
+        surfaceContainerLow = Color(0xFFF8F5FA),
+        surfaceContainerHigh = Color(0xFFECE9EE),
+        surfaceContainerHighest = Color(0xFFE6E3E9),
+        inverseSurface = Color(0xFF313036),
+        inverseOnSurface = Color(0xFFF4F0F7),
+        outline = Color(0xFF79747E),
+        outlineVariant = Color(0xFFCAC4D0),
+    )
 
 private val HermesDarkColorScheme =
     darkColorScheme(
@@ -299,7 +366,7 @@ private val NeonNoirLightColorScheme =
 fun HermesControlTheme(
     themePreference: ThemePreference = LocalThemePreference.current,
     useDynamicColors: Boolean = true,
-    themePreset: ThemePreset = ThemePreset.DEFAULT,
+    themePreset: ThemePreset = ThemePreset.CASSY,
     content: @Composable () -> Unit,
 ) {
     val darkTheme =
@@ -323,6 +390,7 @@ fun HermesControlTheme(
 
             else -> {
                 when (themePreset) {
+                    ThemePreset.CASSY -> if (darkTheme) CassyDarkColorScheme else CassyLightColorScheme
                     ThemePreset.DEFAULT -> if (darkTheme) HermesDarkColorScheme else HermesLightColorScheme
                     ThemePreset.MONOCHROME -> if (darkTheme) MonochromeDarkColorScheme else MonochromeLightColorScheme
                     ThemePreset.GRUVBOX -> if (darkTheme) GruvboxDarkColorScheme else GruvboxLightColorScheme

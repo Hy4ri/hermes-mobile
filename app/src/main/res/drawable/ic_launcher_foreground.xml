@@ -3,23 +3,29 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Left pillar of H -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M30,22 L46,22 Q48,22 48,24 L48,84 Q48,86 46,86 L30,86 Q28,86 28,84 L28,24 Q28,22 30,22 Z" />
-
-    <!-- Right pillar of H — extends upward into a wing/swoop -->
+        android:fillColor="#00000000"
+        android:pathData="M82,33 A34,34 0,1 0,82 76"
+        android:strokeColor="#9E8CFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="9" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M66,30 L80,30 Q82,30 82,32 L82,84 Q82,86 80,86 L66,86 Q64,86 64,84 L64,32 Q64,30 66,30 Z" />
-
-    <!-- Crossbar of H -->
+        android:fillColor="#00000000"
+        android:pathData="M29,74 A34,34 0,0 0,79 80"
+        android:strokeColor="#739DFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="3.2" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M38,48 L72,48 Q74,48 74,50 L74,58 Q74,60 72,60 L38,60 Q36,60 36,58 L36,50 Q36,48 38,48 Z" />
-
-    <!-- Wing swoop — extends from right pillar top, curving upward and outward -->
+        android:fillColor="#332A5C"
+        android:pathData="M42,35 h24 a7,7 0,0 1,7 7 v11 a7,7 0,0 1,-7 7 h-8 l-7,6 v-6 h-9 a7,7 0,0 1,-7 -7 v-11 a7,7 0,0 1,7 -7 z"
+        android:strokeColor="#C2B6FF"
+        android:strokeWidth="1.5" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M72,30 Q84,14 96,10 Q100,8 98,14 Q94,26 82,30 Z" />
+        android:fillColor="#172548"
+        android:pathData="M54,53 h19 a7,7 0,0 1,7 7 v10 h7 l-7,7 h-26 a7,7 0,0 1,-7 -7 v-10 a7,7 0,0 1,7 -7 z"
+        android:strokeColor="#8DB2FF"
+        android:strokeWidth="1.5" />
+    <path
+        android:fillColor="#F0D29A"
+        android:pathData="M58,50 L61,57 L68,60 L61,63 L58,70 L55,63 L48,60 L55,57 Z" />
 </vector>

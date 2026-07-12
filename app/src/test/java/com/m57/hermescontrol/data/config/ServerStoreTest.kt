@@ -11,7 +11,7 @@ class ServerStoreTest {
     @Test
     fun testDefaultValues() {
         val state = ServerStoreState()
-        assertEquals("127.0.0.1", state.host)
+        assertEquals("100.101.12.16", state.host)
         assertEquals(9119, state.port)
         assertTrue(state.autoReconnect)
         assertEquals("token", state.wsAuthParam)

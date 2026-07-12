@@ -12,7 +12,7 @@ android {
     namespace = "com.m57.hermescontrol"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.m57.hermescontrol"
+        applicationId = "com.akaro.cassycontrol"
         minSdk = 26
         targetSdk = 36
         // Version overrides passed from CI via -PversionName / -PversionCode
@@ -159,6 +159,7 @@ dependencies {
 
     // Encrypted storage
     implementation(libs.androidx.security.crypto)
+    implementation("androidx.biometric:biometric:1.1.0")
     implementation(libs.androidx.datastore)
     implementation("androidx.startup:startup-runtime:1.1.1")
 

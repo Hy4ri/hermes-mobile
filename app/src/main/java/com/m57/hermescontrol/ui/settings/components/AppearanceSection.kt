@@ -128,6 +128,7 @@ internal fun AppearanceSection(
             ) {
                 Text(
                     when (themePreset) {
+                        ThemePreset.CASSY -> stringResource(R.string.theme_preset_cassy)
                         ThemePreset.DEFAULT -> stringResource(R.string.theme_preset_default)
                         ThemePreset.MONOCHROME -> stringResource(R.string.theme_preset_monochrome)
                         ThemePreset.GRUVBOX -> stringResource(R.string.theme_preset_gruvbox)
@@ -147,6 +148,10 @@ internal fun AppearanceSection(
                         text = {
                             Text(
                                 when (preset) {
+                                    ThemePreset.CASSY -> {
+                                        stringResource(R.string.theme_preset_cassy)
+                                    }
+
                                     ThemePreset.DEFAULT -> {
                                         stringResource(
                                             R.string.theme_preset_default,

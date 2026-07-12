@@ -1,5 +1,10 @@
 package com.m57.hermescontrol.ui.settings
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,6 +23,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -29,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -153,6 +160,7 @@ fun SettingsScreen(
                             autoReconnect = state.autoReconnect,
                             onAutoReconnectChange = viewModel::onAutoReconnectChange,
                         )
+                        HyperOsReliabilitySection()
                     }
 
                     SettingsTab.APPEARANCE -> {
@@ -238,6 +246,62 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun HyperOsReliabilitySection() {
+    val context = LocalContext.current
+    SectionCard(title = "HyperOS reliability") {
+        Text(
+            "For background run notifications, allow Cassy to auto-start " +
+                "and set battery use to No restrictions in HyperOS.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = { openHyperOsAutostart(context) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Open Auto-start settings")
+        }
+        OutlinedButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                }.onFailure { openAppDetails(context) }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Open battery settings")
+        }
+        Text(
+            "Cassy never requests unrestricted battery access automatically.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun openHyperOsAutostart(context: Context) {
+    val intent =
+        Intent().apply {
+            component =
+                ComponentName(
+                    "com.miui.securitycenter",
+                    "com.miui.permcenter.autostart.AutoStartManagementActivity",
+                )
+        }
+    runCatching { context.startActivity(intent) }.onFailure { openAppDetails(context) }
+}
+
+private fun openAppDetails(context: Context) {
+    context.startActivity(
+        Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:${context.packageName}"),
+        ),
+    )
 }
 
 @Composable

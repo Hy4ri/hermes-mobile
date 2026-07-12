@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HermesMobile</string>
+    <string name="app_name">Cassy Control</string>
 
     <!-- Chat -->
     <string name="chat_send_desc">Send</string>
@@ -171,7 +171,7 @@
     <string name="settings_save_success">✅ Settings saved</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
-    <string name="settings_about_app_name">⚡ Hermes Mobile</string>
+    <string name="settings_about_app_name">Cassy Control</string>
     <string name="settings_about_version">Version</string>
     <string name="settings_about_build">Build</string>
     <string name="settings_about_debug">Debug</string>
@@ -198,6 +198,7 @@
     <string name="settings_item_use_dynamic_colors">Dynamic Colors</string>
     <string name="settings_desc_use_dynamic_colors">Derive scheme from wallpaper (Android 12+)</string>
     <string name="settings_item_theme_preset">Preset Theme</string>
+    <string name="theme_preset_cassy">Cassy Signature</string>
     <string name="theme_preset_default">Default (Voltage Purple)</string>
     <string name="theme_preset_monochrome">Monochrome</string>
     <string name="theme_preset_gruvbox">Gruvbox</string>

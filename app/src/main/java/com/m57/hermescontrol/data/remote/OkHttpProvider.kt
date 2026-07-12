@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.security.PrivateNetworkOnlyInterceptor
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
@@ -33,6 +34,7 @@ object OkHttpProvider {
         OkHttpClient
             .Builder()
             .cookieJar(resolveCookieJar())
+            .addInterceptor(PrivateNetworkOnlyInterceptor())
             .connectionPool(connectionPool)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)

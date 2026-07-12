@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -100,6 +101,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -126,6 +129,9 @@ import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.workspace.WorkspaceControlBar
+import com.m57.hermescontrol.ui.workspace.WorkspaceSessionPane
+import com.m57.hermescontrol.ui.workspace.WorkspaceViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -140,9 +146,11 @@ fun ChatScreen(
     onOpenDrawer: (() -> Unit)? = null,
     sessionId: String? = null,
     viewModel: ChatViewModel = viewModel(),
+    workspaceViewModel: WorkspaceViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
+    val workspaceState by workspaceViewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val showScrollToBottom by remember {
         derivedStateOf {
@@ -289,6 +297,10 @@ fun ChatScreen(
         viewModel = viewModel,
     )
 
+    LaunchedEffect(state.currentSessionId) {
+        state.currentSessionId?.takeIf { it.isNotBlank() }?.let(workspaceViewModel::openSession)
+    }
+
     val backgroundGradient =
         Brush.verticalGradient(
             colors =
@@ -361,133 +373,169 @@ fun ChatScreen(
             }
         },
     ) { _ ->
-        Column(
+        val containerWidth = LocalWindowInfo.current.containerSize.width
+        val showSessionDesk = with(LocalDensity.current) { containerWidth.toDp() >= 840.dp }
+        Row(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .background(backgroundGradient)
-                    .imePadding(),
+                    .background(backgroundGradient),
         ) {
-            ChatTopBanner(
-                connectionStatus = state.connectionStatus,
-                onReconnect = viewModel::reconnect,
-                onReloginClick = { showReloginDialog = true },
-            )
-
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-            ) {
-                ChatMessageList(
-                    messages = state.messages,
-                    streamingMessage = streamingState.streamingMessage,
-                    isThinking = streamingState.isThinking,
-                    thinkingText = streamingState.thinkingText,
-                    isSearchActive = state.isSearchActive,
-                    searchQuery = state.searchQuery,
-                    currentSearchMatchIndex = state.currentSearchMatchIndex,
-                    searchMatchIndices = state.searchMatchIndices,
-                    typingEffectEnabled = state.typingEffectEnabled,
-                    typingEffectDelayMs = state.typingEffectDelayMs,
-                    isLoading = state.isLoading,
-                    isDark = isDark,
-                    listState = listState,
-                    lastAnimatedMessageId = lastAnimatedMessageId,
-                    onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
-                    viewModel = viewModel,
-                )
-
-                // Loading overlay
-                ChatLoadingOverlay(isLoading = state.isLoading)
-
-                // Scroll-to-bottom FAB
-                ChatScrollToBottomFab(
-                    showScrollToBottom = showScrollToBottom,
-                    scrollScope = scrollScope,
-                    listState = listState,
-                    messages = state.messages,
-                    streamingMessage = streamingState.streamingMessage,
-                    isThinking = streamingState.isThinking,
+            if (showSessionDesk) {
+                WorkspaceSessionPane(
+                    state = workspaceState,
+                    currentSessionId = state.currentSessionId,
+                    isRunning = streamingState.isThinking || streamingState.streamingMessage != null,
+                    onSessionSelected = { id ->
+                        workspaceViewModel.openSession(id)
+                        viewModel.switchSession(id)
+                    },
+                    onSessionClosed = workspaceViewModel::closeSession,
                 )
             }
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight().imePadding(),
+            ) {
+                ChatTopBanner(
+                    connectionStatus = state.connectionStatus,
+                    onReconnect = viewModel::reconnect,
+                    onReloginClick = { showReloginDialog = true },
+                )
 
-            ChatInputBar(
-                inputText = inputText,
-                onInputChange = { inputText = it },
-                onSend = {
-                    viewModel.sendMessage(inputText)
-                    inputText = ""
-                    scrollScope.launch {
-                        val totalItems =
-                            state.messages.size +
-                                (if (streamingState.streamingMessage != null) 1 else 0) +
-                                (if (streamingState.isThinking) 1 else 0)
-                        if (totalItems > 0) {
-                            listState.animateScrollToItem(totalItems - 1)
-                        }
-                    }
-                },
-                onMicTap = {
-                    if (isListening) {
-                        isListening = false
-                    } else if (
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.RECORD_AUDIO,
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                            val intent =
-                                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(
-                                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                                    )
-                                    putExtra(
-                                        RecognizerIntent.EXTRA_PROMPT,
-                                        micListeningPrompt,
-                                    )
-                                }
-                            isListening = true
-                            speechLauncher.launch(intent)
-                        } else {
-                            scrollScope.launch {
-                                snackbarHostState.showSnackbar(sttNotAvailableMsg)
+                WorkspaceControlBar(
+                    state = workspaceState,
+                    currentSessionId = state.currentSessionId,
+                    isRunning = streamingState.isThinking || streamingState.streamingMessage != null,
+                    onSessionSelected = { id ->
+                        workspaceViewModel.openSession(id)
+                        viewModel.switchSession(id)
+                    },
+                    onSessionClosed = workspaceViewModel::closeSession,
+                    onSessionPinToggled = workspaceViewModel::togglePin,
+                    onModelSelected = { alias ->
+                        state.currentSessionId?.let { current -> workspaceViewModel.setSessionModel(current, alias) }
+                        viewModel.sendMessage("/model $alias")
+                    },
+                    onWorkspaceSelected = workspaceViewModel::selectWorkspace,
+                    onWorkspaceCreated = workspaceViewModel::createWorkspace,
+                    onRefresh = workspaceViewModel::refresh,
+                )
+
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                ) {
+                    ChatMessageList(
+                        messages = state.messages,
+                        streamingMessage = streamingState.streamingMessage,
+                        isThinking = streamingState.isThinking,
+                        thinkingText = streamingState.thinkingText,
+                        isSearchActive = state.isSearchActive,
+                        searchQuery = state.searchQuery,
+                        currentSearchMatchIndex = state.currentSearchMatchIndex,
+                        searchMatchIndices = state.searchMatchIndices,
+                        typingEffectEnabled = state.typingEffectEnabled,
+                        typingEffectDelayMs = state.typingEffectDelayMs,
+                        isLoading = state.isLoading,
+                        isDark = isDark,
+                        listState = listState,
+                        lastAnimatedMessageId = lastAnimatedMessageId,
+                        onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
+                        viewModel = viewModel,
+                    )
+
+                    // Loading overlay
+                    ChatLoadingOverlay(isLoading = state.isLoading)
+
+                    // Scroll-to-bottom FAB
+                    ChatScrollToBottomFab(
+                        showScrollToBottom = showScrollToBottom,
+                        scrollScope = scrollScope,
+                        listState = listState,
+                        messages = state.messages,
+                        streamingMessage = streamingState.streamingMessage,
+                        isThinking = streamingState.isThinking,
+                    )
+                }
+
+                ChatInputBar(
+                    inputText = inputText,
+                    onInputChange = { inputText = it },
+                    onSend = {
+                        viewModel.sendMessage(inputText)
+                        inputText = ""
+                        scrollScope.launch {
+                            val totalItems =
+                                state.messages.size +
+                                    (if (streamingState.streamingMessage != null) 1 else 0) +
+                                    (if (streamingState.isThinking) 1 else 0)
+                            if (totalItems > 0) {
+                                listState.animateScrollToItem(totalItems - 1)
                             }
                         }
-                    } else {
-                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                },
-                isListening = isListening,
-                isAgentTyping = state.isAgentTyping,
-                isConnected = state.isConnected,
-                commandCatalog = state.commandCatalog,
-                pendingAttachments = state.pendingAttachments,
-                onCameraTap = {
-                    try {
-                        val timeStamp =
-                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                        val photoFile =
-                            File.createTempFile("camera_${timeStamp}_", ".jpg", context.cacheDir)
-                        val uri =
-                            FileProvider.getUriForFile(
+                    },
+                    onMicTap = {
+                        if (isListening) {
+                            isListening = false
+                        } else if (
+                            ContextCompat.checkSelfPermission(
                                 context,
-                                "${context.packageName}.fileprovider",
-                                photoFile,
-                            )
-                        pendingCameraUri = uri
-                        cameraLauncher.launch(uri)
-                    } catch (e: Exception) {
-                        Log.e("ChatScreen", "Camera launch failed", e)
-                    }
-                },
-                onImageTap = { filePickerLauncher.launch("image/*") },
-                onFileTap = { filePickerLauncher.launch("*/*") },
-                onRemoveAttachment = viewModel::removeAttachment,
-            )
+                                Manifest.permission.RECORD_AUDIO,
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                                val intent =
+                                    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(
+                                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                                        )
+                                        putExtra(
+                                            RecognizerIntent.EXTRA_PROMPT,
+                                            micListeningPrompt,
+                                        )
+                                    }
+                                isListening = true
+                                speechLauncher.launch(intent)
+                            } else {
+                                scrollScope.launch {
+                                    snackbarHostState.showSnackbar(sttNotAvailableMsg)
+                                }
+                            }
+                        } else {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    isListening = isListening,
+                    isAgentTyping = state.isAgentTyping,
+                    isConnected = state.isConnected,
+                    commandCatalog = state.commandCatalog,
+                    pendingAttachments = state.pendingAttachments,
+                    onCameraTap = {
+                        try {
+                            val timeStamp =
+                                SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                            val photoFile =
+                                File.createTempFile("camera_${timeStamp}_", ".jpg", context.cacheDir)
+                            val uri =
+                                FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    photoFile,
+                                )
+                            pendingCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        } catch (e: Exception) {
+                            Log.e("ChatScreen", "Camera launch failed", e)
+                        }
+                    },
+                    onImageTap = { filePickerLauncher.launch("image/*") },
+                    onFileTap = { filePickerLauncher.launch("*/*") },
+                    onRemoveAttachment = viewModel::removeAttachment,
+                )
+            }
         }
 
         if (showReloginDialog) {

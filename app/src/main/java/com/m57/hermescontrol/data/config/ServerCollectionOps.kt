@@ -28,7 +28,7 @@ fun ServerStoreState.selfHealed(): ServerStoreState {
     return copy(
         selectedProfileId = newSelected,
         bottomNavItems = finalBottomNavItems,
-    )
+    ).healWorkspaces()
 }
 
 val ServerStoreState.resolvedHost: String

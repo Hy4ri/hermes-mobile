@@ -9,11 +9,15 @@ import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.WsEvent
+import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -41,6 +45,9 @@ data class SessionsUiState(
     val toastMessage: String? = null,
     val sessionToDeleteConfirm: String? = null,
     val showBulkDeleteConfirm: Boolean = false,
+    val branchingSessionIds: Set<String> = emptySet(),
+    /** Runtime session id of a freshly forked branch, pending one-shot navigation. */
+    val branchedSessionId: String? = null,
 ) {
     val hasMore: Boolean get() = total > sessions.size
 }
@@ -316,6 +323,99 @@ class SessionsViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    // ── Branch (fork a conversation) — issue #533 ────────────────────────
+
+    /**
+     * Fork [sourceSessionId] into a new session via the `session.branch` WS RPC
+     * (the gateway already supports it; mobile was missing the client surface).
+     * On success the new runtime session id is stashed in [branchedSessionId]
+     * for the screen to observe and navigate to. [name] optionally overrides
+     * the auto-generated branch title.
+     */
+    fun branchSession(
+        sourceSessionId: String,
+        name: String? = null,
+    ) {
+        if (sourceSessionId in _uiState.value.branchingSessionIds) return
+        _uiState.update { it.copy(branchingSessionIds = it.branchingSessionIds + sourceSessionId) }
+        viewModelScope.launch {
+            try {
+                val params = mutableMapOf<String, Any>("session_id" to sourceSessionId)
+                if (!name.isNullOrBlank()) params["name"] = name
+                val reqId =
+                    HermesWsClient.send(
+                        WsMethods.SESSION_BRANCH,
+                        params = params,
+                        onSent = { /* tracked via events below */ },
+                    )
+                var handled = false
+                HermesWsClient.events
+                    .first { ev ->
+                        (ev is WsEvent.RpcResult && ev.id == reqId) ||
+                            (ev is WsEvent.RpcError && ev.id == reqId)
+                    }.let { ev ->
+                        handled = true
+                        when (ev) {
+                            is WsEvent.RpcResult -> {
+                                val resultMap = ev.result as? Map<String, Any?> ?: emptyMap()
+                                val newSessionId = resultMap["session_id"] as? String
+                                if (newSessionId.isNullOrBlank()) {
+                                    _uiState.update {
+                                        it.copy(
+                                            branchingSessionIds = it.branchingSessionIds - sourceSessionId,
+                                            toastMessage = "Branch failed: no session id returned",
+                                        )
+                                    }
+                                } else {
+                                    _uiState.update {
+                                        it.copy(
+                                            branchingSessionIds = it.branchingSessionIds - sourceSessionId,
+                                            branchedSessionId = newSessionId,
+                                        )
+                                    }
+                                }
+                            }
+
+                            is WsEvent.RpcError -> {
+                                _uiState.update {
+                                    it.copy(
+                                        branchingSessionIds = it.branchingSessionIds - sourceSessionId,
+                                        toastMessage = "Branch failed: ${ev.error.message}",
+                                    )
+                                }
+                            }
+
+                            else -> Unit
+                        }
+                    }
+                if (!handled) {
+                    _uiState.update {
+                        it.copy(
+                            branchingSessionIds = it.branchingSessionIds - sourceSessionId,
+                            toastMessage = "Branch timed out",
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        branchingSessionIds = it.branchingSessionIds - sourceSessionId,
+                        toastMessage = "Branch failed: ${e.message}",
+                    )
+                }
+            }
+        }
+    }
+
+    /** One-shot consumer: clears the pending branched session id after navigation. */
+    fun consumeBranchedSession() {
+        _uiState.update { it.copy(branchedSessionId = null) }
+    }
+
+    fun cancelBranch(sourceSessionId: String) {
+        _uiState.update { it.copy(branchingSessionIds = it.branchingSessionIds - sourceSessionId) }
     }
 
     // ── Bulk delete ──────────────────────────────────────────────────────

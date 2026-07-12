@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
@@ -198,6 +199,16 @@ fun SessionsScreen(
         toastMessage = state.toastMessage,
         onClearToast = { viewModel.clearToast() },
     )
+
+    // Branch result → navigate to the freshly forked session (issue #533)
+    LaunchedEffect(state.branchedSessionId) {
+        val branched = state.branchedSessionId
+        if (!branched.isNullOrBlank()) {
+            NavigationController.pendingSessionId = branched
+            viewModel.consumeBranchedSession()
+            NavigationController.navigateTo(ChatScreen)
+        }
+    }
 
     // Prune dialog
     if (state.showPruneDialog) {
@@ -449,6 +460,7 @@ fun SessionsScreen(
                                 isSelecting = state.isSelecting,
                                 isSelected = session.id in state.selectedIds,
                                 isDeleting = session.id in state.deletingSessionIds,
+                                isBranching = session.id in state.branchingSessionIds,
                                 highlightBackground = primaryContainer,
                                 highlightForeground = onPrimaryContainer,
                                 onCardClick = {
@@ -467,6 +479,7 @@ fun SessionsScreen(
                                 },
                                 onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
                                 onDelete = { viewModel.requestDeleteSession(session.id) },
+                                onBranch = { viewModel.branchSession(session.id) },
                             )
                         }
 
@@ -609,12 +622,14 @@ private fun SessionCard(
     isSelecting: Boolean,
     isSelected: Boolean,
     isDeleting: Boolean,
+    isBranching: Boolean,
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
     onCardLongClick: () -> Unit,
     onToggleSelection: () -> Unit,
     onDelete: () -> Unit,
+    onBranch: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
@@ -717,6 +732,25 @@ private fun SessionCard(
             // Action buttons (not in select mode)
             if (!isSelecting) {
                 Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                    // Branch (fork) — issue #533
+                    if (isBranching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        IconButton(
+                            onClick = onBranch,
+                            modifier = Modifier.size(32.dp).testTag("session_branch_${session.id}"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CallSplit,
+                                contentDescription = stringResource(R.string.sessions_action_branch),
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                     // Delete
                     if (isDeleting) {
                         CircularProgressIndicator(

@@ -30,6 +30,7 @@
     <string name="action_clear">Clear</string>
     <string name="action_ok">OK</string>
     <string name="action_delete">Delete</string>
+    <string name="sessions_action_branch">Branch (fork conversation)</string>
 
     <!-- Content Descriptions -->
     <string name="content_desc_back">Back</string>

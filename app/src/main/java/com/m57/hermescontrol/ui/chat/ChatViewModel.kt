@@ -450,6 +450,10 @@ class ChatViewModel(
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = "Hermes",
+                        // Fresh session: reset pagination state (issue #551).
+                        currentOffset = 0,
+                        hasReachedOldest = false,
+                        isLoadingOlder = false,
                     )
                 }
                 // Mirror the active session id app-wide so session-scoped
@@ -940,6 +944,11 @@ class ChatViewModel(
                 chatTitle = title,
                 showSessionPicker = false,
                 isAgentTyping = false,
+                // Reset pagination so the new session doesn't inherit the
+                // previous one's offset / reached-oldest state (issue #551).
+                currentOffset = 0,
+                hasReachedOldest = false,
+                isLoadingOlder = false,
             )
         }
         // Mirror the active session id app-wide (issue #532).
@@ -1095,10 +1104,14 @@ class ChatViewModel(
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
+                    // Request only the messages not already loaded. When the
+                    // remaining span is smaller than a full page the last page
+                    // would otherwise overlap the already-loaded page; sizing
+                    // the limit to the real gap avoids duplicate keys (issue #551).
                     safeApiCall {
                         ApiClient.hermesApi.getSessionMessages(
                             sessionId,
-                            limit = PAGE_SIZE,
+                            limit = offset - nextOffset,
                             offset = nextOffset,
                         )
                     }
@@ -1142,10 +1155,9 @@ class ChatViewModel(
                     _uiState.update { state ->
                         if (state.currentSessionId != sessionId) return@update state
                         // Prepend older messages above the existing newer ones.
-                        // Expose lastPrependCount so the UI can preserve scroll
-                        // position (scroll down by that many) and avoid a jump.
+                        // distinctBy guards against any key overlap (issue #551).
                         state.copy(
-                            messages = chatMessages + state.messages,
+                            messages = (chatMessages + state.messages).distinctBy { it.id },
                             isLoadingOlder = false,
                             currentOffset = nextOffset,
                             hasReachedOldest = reachedOldest,

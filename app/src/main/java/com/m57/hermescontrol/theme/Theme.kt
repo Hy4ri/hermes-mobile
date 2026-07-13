@@ -339,12 +339,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = Color(0xFFB8BB26),
                     successContainer = Color(0xFF32302F),
+                    onSuccess = Color(0xFF282828),
                     warning = Color(0xFFFABD2F),
                     warningContainer = Color(0xFF3C3836),
+                    onWarning = Color(0xFF282828),
                     error = Color(0xFFFB4934),
                     errorContainer = Color(0xFF282828),
+                    onError = Color(0xFF282828),
                     info = Color(0xFF83A598),
                     infoContainer = Color(0xFF3C3836),
+                    onInfo = Color(0xFF282828),
                 )
             }
 
@@ -352,12 +356,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = Color(0xFF98971A),
                     successContainer = Color(0xFFEBDBB2),
+                    onSuccess = Color(0xFFEBDBB2),
                     warning = Color(0xFFD79921),
                     warningContainer = Color(0xFFEBDBB2),
+                    onWarning = Color(0xFFEBDBB2),
                     error = Color(0xFFCC241D),
                     errorContainer = Color(0xFFEBDBB2),
+                    onError = Color(0xFFEBDBB2),
                     info = Color(0xFF458588),
                     infoContainer = Color(0xFFEBDBB2),
+                    onInfo = Color(0xFFEBDBB2),
                 )
             }
 
@@ -365,12 +373,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = Color(0xFFA6E3A1),
                     successContainer = Color(0xFF313244),
+                    onSuccess = Color(0xFF11111B),
                     warning = Color(0xFFF9E2AF),
                     warningContainer = Color(0xFF313244),
+                    onWarning = Color(0xFF11111B),
                     error = Color(0xFFF38BA8),
                     errorContainer = Color(0xFF313244),
+                    onError = Color(0xFF11111B),
                     info = Color(0xFF89B4FA),
                     infoContainer = Color(0xFF313244),
+                    onInfo = Color(0xFF11111B),
                 )
             }
 
@@ -378,12 +390,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = Color(0xFF40A02B),
                     successContainer = Color(0xFFE6E9EF),
+                    onSuccess = Color(0xFFE6E9EF),
                     warning = Color(0xFFDF8E1D),
                     warningContainer = Color(0xFFE6E9EF),
+                    onWarning = Color(0xFFE6E9EF),
                     error = Color(0xFFD20F39),
                     errorContainer = Color(0xFFE6E9EF),
+                    onError = Color(0xFFE6E9EF),
                     info = Color(0xFF1E66F5),
                     infoContainer = Color(0xFFE6E9EF),
+                    onInfo = Color(0xFFE6E9EF),
                 )
             }
 
@@ -391,12 +407,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = Color(0xFF6FEA8B),
                     successContainer = Color(0xFF0A3A14),
+                    onSuccess = Color(0xFF0F0B1A),
                     warning = Color(0xFFFFB347),
                     warningContainer = Color(0xFF3A2000),
+                    onWarning = Color(0xFF0F0B1A),
                     error = Color(0xFFFF3D68),
                     errorContainer = Color(0xFF3A0A14),
+                    onError = Color(0xFF0F0B1A),
                     info = Color(0xFF60F0FF),
                     infoContainer = Color(0xFF003B40),
+                    onInfo = Color(0xFF0F0B1A),
                 )
             }
 
@@ -404,12 +424,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = Color(0xFF1B873A),
                     successContainer = Color(0xFFD7F5E0),
+                    onSuccess = Color(0xFFFDF8FF),
                     warning = Color(0xFFB87800),
                     warningContainer = Color(0xFFFFEAB3),
+                    onWarning = Color(0xFFFDF8FF),
                     error = Color(0xFFB3261E),
                     errorContainer = Color(0xFFF9DEDC),
+                    onError = Color(0xFFFDF8FF),
                     info = Color(0xFF2E6FBD),
                     infoContainer = Color(0xFFD4E7FF),
+                    onInfo = Color(0xFFFDF8FF),
                 )
             }
 
@@ -417,12 +441,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = StatusGreen,
                     successContainer = StatusGreenContainer,
+                    onSuccess = StatusGreyLight,
                     warning = StatusYellow,
                     warningContainer = StatusYellowContainer,
+                    onWarning = StatusGreyLight,
                     error = StatusRed,
                     errorContainer = StatusRedContainer,
+                    onError = StatusGreyLight,
                     info = StatusBlue,
                     infoContainer = StatusBlueContainer,
+                    onInfo = StatusGreyLight,
                 )
             }
 
@@ -430,12 +458,16 @@ fun HermesControlTheme(
                 HermesStatusColors(
                     success = Color(0xFF1B873A),
                     successContainer = Color(0xFFD7F5E0),
+                    onSuccess = Color(0xFFFDF8FF),
                     warning = HermesAmberDark,
                     warningContainer = Color(0xFFFFEAB3),
+                    onWarning = Color(0xFFFDF8FF),
                     error = Color(0xFFB3261E),
                     errorContainer = Color(0xFFF9DEDC),
+                    onError = Color(0xFFFDF8FF),
                     info = Color(0xFF2E6FBD),
                     infoContainer = Color(0xFFD4E7FF),
+                    onInfo = Color(0xFFFDF8FF),
                 )
             }
         }

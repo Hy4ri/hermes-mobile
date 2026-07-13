@@ -1588,39 +1588,32 @@ private fun ChatLifecycleEffects(
         }
     }
 
-    // Auto-scroll to bottom on new messages + follow the stream (issue #584)
+    // Auto-scroll to bottom on new messages + session switch (issues #584/#583)
     //
-    // This used to be a LaunchedEffect keyed on
-    // (messages.size, streamingMessage?.content?.length, isThinking). Those
-    // keys change on EVERY streamed token, so the effect restarted per token
-    // and cancelled the in-flight animateScrollToItem — leaving the view
-    // stuck/frozen mid-stream. A single persistent snapshotFlow now reacts to
-    // the same signals WITHOUT restarting the effect, and the streaming follow
-    // uses an instant (non-cancellable-animation) scroll so rapid tokens don't
-    // thrash.
+    // IMPORTANT (m57, #584 follow-up): while an assistant message is STREAMING
+    // the scroll is left completely FREE — no auto-follow of the streaming
+    // message — so the user can scroll up/down to read while it generates.
+    // Auto-scroll only happens on explicit actions (send / FAB / session
+    // switch, handled elsewhere) and when a discrete non-streaming message
+    // lands while the user is already pinned to the bottom.
     //
     // The effect runs once (Unit), so we mirror the params through
-    // rememberUpdatedState and read them via getValue() inside the flow — that
-    // keeps the lambda bound to the latest propagated values (live snapshot
-    // reads) instead of the first-composition closure captures.
+    // rememberUpdatedState and read them live inside the flow/collect — that
+    // keeps the lambda bound to the latest values instead of first-composition
+    // closure captures. streamingMessage is intentionally NOT a flow key, so
+    // the flow doesn't churn per token; we just read it live to gate scrolling.
     val latestMessages by rememberUpdatedState(messages)
     val latestStreaming by rememberUpdatedState(streamingMessage)
     val latestIsThinking by rememberUpdatedState(isThinking)
     val latestSessionId by rememberUpdatedState(currentSessionId)
     LaunchedEffect(Unit) {
         snapshotFlow {
-            Triple(
-                latestMessages.size,
-                latestStreaming?.content?.length ?: -1,
-                latestIsThinking,
-            )
-        }.collectLatest { (msgCount, _, thinking) ->
-            val streamMsg = latestStreaming
-            val totalItems =
-                msgCount +
-                    (if (streamMsg != null) 1 else 0) +
-                    (if (thinking) 1 else 0)
+            Pair(latestMessages.size, latestIsThinking)
+        }.collectLatest { (msgCount, thinking) ->
+            val totalItems = msgCount + (if (thinking) 1 else 0)
             if (totalItems <= 0) return@collectLatest
+            // While a message is streaming, leave scrolling free (no auto-follow).
+            if (latestStreaming != null) return@collectLatest
             val isSessionSwitch = latestSessionId != lastSessionId
             if (isSessionSwitch) {
                 lastSessionId = latestSessionId
@@ -1628,9 +1621,8 @@ private fun ChatLifecycleEffects(
                 return@collectLatest
             }
             if (!listState.isAtBottom()) return@collectLatest
-            // Instant when streaming (no animation to cancel per token);
-            // animated when a discrete new message lands while at the bottom.
-            listState.scrollToBottom(animated = streamMsg == null)
+            // Discrete new message while pinned to the bottom — follow it.
+            listState.scrollToBottom(animated = true)
         }
     }
 

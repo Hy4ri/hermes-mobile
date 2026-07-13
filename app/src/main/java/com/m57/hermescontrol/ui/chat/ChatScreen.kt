@@ -43,10 +43,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -1049,45 +1051,53 @@ private fun ClarifyDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.chat_clarify_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = clarify.text)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier =
+                        Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(text = clarify.text)
 
-                if (clarify.options.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.chat_clarify_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    clarify.options.forEach { option ->
-                        Surface(
-                            onClick = { typedText = option },
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .testTag("clarify_option"),
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                        ) {
-                            Box(
+                    if (clarify.options.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.chat_clarify_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        clarify.options.forEach { option ->
+                            Surface(
+                                onClick = { typedText = option },
                                 modifier =
                                     Modifier
-                                        .combinedClickable(
-                                            role = Role.Button,
-                                            onClick = { typedText = option },
-                                            onLongClick = { onOptionSelected(option) },
-                                        ).padding(horizontal = 24.dp, vertical = 10.dp),
-                                contentAlignment = Alignment.Center,
+                                        .fillMaxWidth()
+                                        .testTag("clarify_option"),
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
                             ) {
-                                Text(
-                                    text = option,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    style = MaterialTheme.typography.labelLarge,
-                                )
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .combinedClickable(
+                                                role = Role.Button,
+                                                onClick = { typedText = option },
+                                                onLongClick = { onOptionSelected(option) },
+                                            ).padding(horizontal = 24.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = option,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.height(4.dp))
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
                     }
                 }
 

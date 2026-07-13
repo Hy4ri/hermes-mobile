@@ -84,13 +84,15 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.theme.AssistantBubble
 import com.m57.hermescontrol.theme.AssistantBubbleLight
+import com.m57.hermescontrol.theme.DarkOnSurface
+import com.m57.hermescontrol.theme.HermesStatusColors
+import com.m57.hermescontrol.theme.LightOnSurface
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
-import com.m57.hermescontrol.theme.StatusGreen
-import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.theme.SystemMessageColor
 import com.m57.hermescontrol.theme.ToolChipColor
 import com.m57.hermescontrol.theme.ToolChipColorLight
 import com.m57.hermescontrol.theme.UserBubble
+import com.m57.hermescontrol.theme.onColorFor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -176,10 +178,17 @@ private fun UserBubble(
         }
     }
 
+    val statusColors = LocalHermesStatusColors.current
+
     val highlightedText =
-        remember(message.content, searchQuery, isCurrentMatch) {
+        remember(message.content, searchQuery, isCurrentMatch, statusColors) {
             if (searchQuery.isNotBlank()) {
-                buildHighlightedString(message.content, searchQuery, isCurrentMatch)
+                buildHighlightedString(
+                    message.content,
+                    searchQuery,
+                    isCurrentMatch,
+                    statusColors,
+                )
             } else {
                 AnnotatedString(message.content)
             }
@@ -207,13 +216,13 @@ private fun UserBubble(
                 if (MaterialTheme.colorScheme.onPrimary.luminance() < 0.5f) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
-                    Color(0xFF1A1A24)
+                    LightOnSurface
                 }
             } else {
                 if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
-                    Color.White
+                    DarkOnSurface
                 }
             }
         Box {
@@ -324,13 +333,13 @@ private fun AssistantBubble(
             if (MaterialTheme.colorScheme.onSurface.luminance() < 0.5f) {
                 MaterialTheme.colorScheme.onSurface
             } else {
-                Color(0xFF1A1A24)
+                LightOnSurface
             }
         } else {
             if (MaterialTheme.colorScheme.onSurface.luminance() > 0.5f) {
                 MaterialTheme.colorScheme.onSurface
             } else {
-                Color(0xFFE8E6EE)
+                DarkOnSurface
             }
         }
     val clipboard = LocalClipboard.current
@@ -1719,6 +1728,7 @@ fun parseToolOutput(
 private fun ExpandedToolContent(
     parsed: ParsedToolData,
     contentColor: Color,
+    statusColors: HermesStatusColors,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Summary line at top of expanded view
@@ -1753,7 +1763,7 @@ private fun ExpandedToolContent(
                     text = stringResource(R.string.chat_tool_stderr, it),
                     style =
                         MaterialTheme.typography.bodySmall.copy(
-                            color = StatusRed.copy(alpha = 0.9f),
+                            color = statusColors.error.copy(alpha = 0.9f),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                         ),
@@ -1764,7 +1774,7 @@ private fun ExpandedToolContent(
                     text = stringResource(R.string.chat_tool_execution_error, it),
                     style =
                         MaterialTheme.typography.bodySmall.copy(
-                            color = StatusRed,
+                            color = statusColors.error,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
@@ -1777,7 +1787,7 @@ private fun ExpandedToolContent(
                         text = stringResource(R.string.chat_tool_exit_code, code),
                         style =
                             MaterialTheme.typography.labelSmall.copy(
-                                color = StatusRed,
+                                color = statusColors.error,
                                 fontWeight = FontWeight.Medium,
                             ),
                     )
@@ -1854,6 +1864,7 @@ private fun ToolBubble(
     var showRawJson by remember { mutableStateOf(false) }
     val chipColor = if (isDarkTheme) ToolChipColor else ToolChipColorLight
     val contentColor = if (isDarkTheme) Color.White else Color.Black
+    val statusColors = LocalHermesStatusColors.current
 
     val parsed =
         remember(message.content, message.toolName, message.toolStatus) {
@@ -1892,7 +1903,7 @@ private fun ToolBubble(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 // ── Header row: icon + tool name ──
-                HeaderRow(message, config, contentColor)
+                HeaderRow(message, config, contentColor, statusColors)
 
                 // ── Tool progress preview (tool.progress) ──
                 if (message.toolStatus == ToolStatus.RUNNING && !message.progressPreview.isNullOrEmpty()) {
@@ -1978,7 +1989,7 @@ private fun ToolBubble(
                         // Clean structured expanded view
                         Box {
                             SelectionContainer {
-                                ExpandedToolContent(parsed, contentColor)
+                                ExpandedToolContent(parsed, contentColor, statusColors)
                             }
                             CopyButton(
                                 visible = showCopyButton,
@@ -2048,6 +2059,7 @@ private fun HeaderRow(
     message: ChatMessage,
     config: ToolDisplayConfig,
     contentColor: Color,
+    statusColors: HermesStatusColors,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -2069,8 +2081,8 @@ private fun HeaderRow(
                 }
             val tint =
                 when (message.toolStatus) {
-                    ToolStatus.COMPLETED -> StatusGreen
-                    ToolStatus.FAILED -> StatusRed
+                    ToolStatus.COMPLETED -> statusColors.success
+                    ToolStatus.FAILED -> statusColors.error
                     else -> contentColor.copy(alpha = 0.6f)
                 }
             Icon(
@@ -2200,8 +2212,14 @@ private fun buildHighlightedString(
     text: String,
     query: String,
     isCurrentMatch: Boolean = false,
+    statusColors: HermesStatusColors,
 ): AnnotatedString {
-    val highlightColor = if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
+    val (highlightColor, highlightText) =
+        if (isCurrentMatch) {
+            statusColors.warning to statusColors.onWarning
+        } else {
+            statusColors.warningContainer to onColorFor(statusColors.warningContainer)
+        }
     return buildAnnotatedString {
         var i = 0
         while (i < text.length) {
@@ -2216,7 +2234,7 @@ private fun buildHighlightedString(
                     append(text.substring(i, matchEnd))
                 }
                 // Append the match highlighted
-                withStyle(SpanStyle(background = highlightColor, color = Color(0xFF1A1A24))) {
+                withStyle(SpanStyle(background = highlightColor, color = highlightText)) {
                     append(text.substring(matchEnd, matchEnd + query.length))
                 }
                 i = matchEnd + query.length

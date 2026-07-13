@@ -57,11 +57,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.theme.SearchHighlightColors
+import com.m57.hermescontrol.theme.searchHighlightColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"‘’]+""")
-private val HIGHLIGHT_BG = Color(0xFFFFFF00).copy(alpha = 0.3f)
+private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"'‘’]+""")
 private val TABLE_COL_WIDTH = 160.dp
 private val FN_DEF_RE = Regex("""^\[\^([^\]]+)\]:\s*(.*)$""")
 
@@ -84,6 +86,8 @@ fun MarkdownText(
     isCurrentMatch: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val statusColors = LocalHermesStatusColors.current
+    val highlights = searchHighlightColors(statusColors)
     if (isStreaming) {
         Text(
             text = text,
@@ -121,7 +125,7 @@ fun MarkdownText(
                     Text(
                         text =
                             remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor, highlights)
                             },
                         color = textColor,
                         style =
@@ -145,7 +149,14 @@ fun MarkdownText(
                         Text(
                             text =
                                 remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                    parseInline(
+                                        block.text,
+                                        textColor,
+                                        searchQuery,
+                                        isCurrentMatch,
+                                        linkColor,
+                                        highlights,
+                                    )
                                 },
                             color = textColor,
                             style = MaterialTheme.typography.bodyMedium,
@@ -180,7 +191,14 @@ fun MarkdownText(
                         Text(
                             text =
                                 remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                    parseInline(
+                                        block.text,
+                                        textColor,
+                                        searchQuery,
+                                        isCurrentMatch,
+                                        linkColor,
+                                        highlights,
+                                    )
                                 },
                             color = textColor,
                             style = MaterialTheme.typography.bodyMedium,
@@ -203,7 +221,14 @@ fun MarkdownText(
                         Text(
                             text =
                                 remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                    parseInline(
+                                        block.text,
+                                        textColor,
+                                        searchQuery,
+                                        isCurrentMatch,
+                                        linkColor,
+                                        highlights,
+                                    )
                                 },
                             color = textColor,
                             style = MaterialTheme.typography.bodyMedium,
@@ -229,7 +254,14 @@ fun MarkdownText(
                         Text(
                             text =
                                 remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                    parseInline(
+                                        block.text,
+                                        textColor,
+                                        searchQuery,
+                                        isCurrentMatch,
+                                        linkColor,
+                                        highlights,
+                                    )
                                 },
                             color = textColor,
                             style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
@@ -283,7 +315,14 @@ fun MarkdownText(
                                 Text(
                                     text =
                                         remember(note.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                            parseInline(note.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                            parseInline(
+                                                note.text,
+                                                textColor,
+                                                searchQuery,
+                                                isCurrentMatch,
+                                                linkColor,
+                                                highlights,
+                                            )
                                         },
                                     color = textColor,
                                     style = MaterialTheme.typography.bodySmall,
@@ -298,7 +337,7 @@ fun MarkdownText(
                     Text(
                         text =
                             remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor, highlights)
                             },
                         color = textColor,
                         style = MaterialTheme.typography.bodyMedium,
@@ -663,9 +702,14 @@ internal fun parseInline(
     searchQuery: String,
     isCurrentMatch: Boolean,
     linkColor: Color,
+    highlights: SearchHighlightColors,
 ): AnnotatedString {
     val searchHighlightColor =
-        if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
+        if (isCurrentMatch) {
+            highlights.currentSearchBackground to highlights.currentSearchForeground
+        } else {
+            highlights.searchBackground to highlights.searchForeground
+        }
 
     return buildAnnotatedString {
         var i = 0
@@ -732,7 +776,7 @@ internal fun parseInline(
                 src.startsWith("==", i) -> {
                     val end = src.indexOf("==", i + 2)
                     if (end != -1) {
-                        withStyle(SpanStyle(background = HIGHLIGHT_BG)) {
+                        withStyle(SpanStyle(background = highlights.markupBackground)) {
                             append(src.substring(i + 2, end))
                         }
                         i = end + 2
@@ -881,8 +925,8 @@ internal fun parseInline(
                     src.regionMatches(i, searchQuery, 0, searchQuery.length, ignoreCase = true) -> {
                     withStyle(
                         SpanStyle(
-                            background = searchHighlightColor,
-                            color = Color(0xFF1A1A24),
+                            background = searchHighlightColor.first,
+                            color = searchHighlightColor.second,
                         ),
                     ) {
                         append(src.substring(i, i + searchQuery.length))

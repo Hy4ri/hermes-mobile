@@ -131,7 +131,6 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
-import com.m57.hermescontrol.theme.StatusRed
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -358,7 +357,7 @@ fun ChatScreen(
                             Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(StatusRed),
+                                .background(LocalHermesStatusColors.current.error),
                     )
                 }
             }

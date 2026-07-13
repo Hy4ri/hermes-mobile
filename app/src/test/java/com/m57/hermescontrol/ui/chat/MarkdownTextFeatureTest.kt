@@ -1,10 +1,38 @@
 package com.m57.hermescontrol.ui.chat
 
 import androidx.compose.ui.graphics.Color
+import com.m57.hermescontrol.theme.HermesStatusColors
+import com.m57.hermescontrol.theme.StatusBlue
+import com.m57.hermescontrol.theme.StatusBlueContainer
+import com.m57.hermescontrol.theme.StatusGreen
+import com.m57.hermescontrol.theme.StatusGreenContainer
+import com.m57.hermescontrol.theme.StatusRed
+import com.m57.hermescontrol.theme.StatusRedContainer
+import com.m57.hermescontrol.theme.StatusYellow
+import com.m57.hermescontrol.theme.StatusYellowContainer
+import com.m57.hermescontrol.theme.searchHighlightColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+private val DEFAULT_HIGHLIGHTS =
+    searchHighlightColors(
+        HermesStatusColors(
+            success = StatusGreen,
+            successContainer = StatusGreenContainer,
+            onSuccess = Color.White,
+            warning = StatusYellow,
+            warningContainer = StatusYellowContainer,
+            onWarning = Color.White,
+            error = StatusRed,
+            errorContainer = StatusRedContainer,
+            onError = Color.White,
+            info = StatusBlue,
+            infoContainer = StatusBlueContainer,
+            onInfo = Color.White,
+        ),
+    )
 
 /**
  * Verifies the hand-rolled Markdown parser covers the feature set requested for issue #572
@@ -47,7 +75,7 @@ class MarkdownTextFeatureTest {
     // 3. STRIKETHROUGH
     @Test
     fun testStrikethrough_parses() {
-        val an = parseInline("~~gone~~", Color.Black, "", false, Color.Blue)
+        val an = parseInline("~~gone~~", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertEquals("gone", an.toString())
         assertTrue(an.spanStyles.any { it.item.textDecoration != null })
     }
@@ -55,7 +83,7 @@ class MarkdownTextFeatureTest {
     // 4. BOLD + ITALIC in same word (***bolditalic***)
     @Test
     fun testBoldItalic_combined() {
-        val an = parseInline("***both***", Color.Black, "", false, Color.Blue)
+        val an = parseInline("***both***", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertEquals("both", an.toString())
         assertTrue(an.spanStyles.isNotEmpty())
     }
@@ -128,7 +156,7 @@ class MarkdownTextFeatureTest {
     // 9. HIGHLIGHT
     @Test
     fun testHighlight_parses() {
-        val an = parseInline("==mark==", Color.Black, "", false, Color.Blue)
+        val an = parseInline("==mark==", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertEquals("mark", an.toString())
         assertTrue(an.spanStyles.any { it.item.background != null })
     }
@@ -136,16 +164,17 @@ class MarkdownTextFeatureTest {
     // 10. SUPERSCRIPT / SUBSCRIPT
     @Test
     fun testSuperscriptAndSubscript_parse() {
-        val sup = parseInline("x^2^", Color.Black, "", false, Color.Blue)
+        val sup = parseInline("x^2^", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertTrue(sup.spanStyles.any { it.item.baselineShift != null })
-        val sub = parseInline("H~2~O", Color.Black, "", false, Color.Blue)
+        val sub = parseInline("H~2~O", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertTrue(sub.spanStyles.any { it.item.baselineShift != null })
     }
 
     // 11. KEYBOARD KEYS <kbd>
     @Test
     fun testKbd_parses() {
-        val an = parseInline("Press <kbd>Ctrl</kbd>+<kbd>C</kbd>", Color.Black, "", false, Color.Blue)
+        val an =
+            parseInline("Press <kbd>Ctrl</kbd>+<kbd>C</kbd>", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertTrue(an.toString().contains("Ctrl"))
         assertTrue(an.toString().contains("C"))
         assertTrue(an.spanStyles.any { it.item.fontFamily != null })
@@ -161,7 +190,7 @@ class MarkdownTextFeatureTest {
     // --- regression: streaming gate handled in composable, parser must not split inline code ---
     @Test
     fun testInlineCode_preserved() {
-        val an = parseInline("use `val x = 1` here", Color.Black, "", false, Color.Blue)
+        val an = parseInline("use `val x = 1` here", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertEquals("use val x = 1 here", an.toString())
         assertTrue(an.spanStyles.any { it.item.fontFamily != null })
     }

@@ -29,13 +29,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
@@ -50,6 +50,7 @@ fun GatewayScreen(
     viewModel: GatewayViewModel = viewModel { GatewayViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val statusColors = LocalHermesStatusColors.current
 
     LaunchedEffect(Unit) {
         viewModel.loadStatus()
@@ -188,8 +189,8 @@ fun GatewayScreen(
                                             enabled = !isRunning && !state.isActionRunning,
                                             colors =
                                                 ButtonDefaults.buttonColors(
-                                                    containerColor = Color(0xFF4CAF50), // Green for start
-                                                    contentColor = Color.White,
+                                                    containerColor = statusColors.success,
+                                                    contentColor = statusColors.onSuccess,
                                                 ),
                                         ) {
                                             Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null)
@@ -203,8 +204,8 @@ fun GatewayScreen(
                                             enabled = isRunning && !state.isActionRunning,
                                             colors =
                                                 ButtonDefaults.buttonColors(
-                                                    containerColor = Color(0xFFF44336), // Red for stop
-                                                    contentColor = Color.White,
+                                                    containerColor = statusColors.error,
+                                                    contentColor = statusColors.onError,
                                                 ),
                                         ) {
                                             Text(stringResource(R.string.gateway_action_stop))
@@ -270,9 +271,9 @@ fun GatewayScreen(
                                                     val stateText = pStatus?.state?.uppercase() ?: "UNKNOWN"
                                                     val badgeColor =
                                                         when (stateText) {
-                                                            "RUNNING" -> Color(0xFF4CAF50)
-                                                            "STOPPED" -> Color(0xFFF44336)
-                                                            "ERROR" -> Color(0xFFFF9800)
+                                                            "RUNNING" -> statusColors.success
+                                                            "STOPPED" -> statusColors.error
+                                                            "ERROR" -> statusColors.warning
                                                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                                                         }
                                                     Text(

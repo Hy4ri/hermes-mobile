@@ -68,7 +68,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -383,9 +382,10 @@ private fun AssistantBubble(
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                     SelectionContainer {
-                        RichText(
+                        MarkdownText(
                             text = message.content,
                             textColor = textColor,
+                            isStreaming = message.isStreaming,
                             searchQuery = searchQuery,
                             isCurrentMatch = isCurrentMatch,
                         )
@@ -2180,121 +2180,6 @@ private fun CopyButton(
             }
         }
     }
-}
-
-/**
- * Simple rich text renderer supporting **bold**, `inline code`, ```code blocks```, and clickable URLs.
- */
-@Composable
-private fun RichText(
-    text: String,
-    textColor: Color,
-    searchQuery: String = "",
-    isCurrentMatch: Boolean = false,
-) {
-    val urlPattern = remember { Regex("""https?://[^\s)>\]\u0022\u0027]+""") }
-    val linkColor = MaterialTheme.colorScheme.primary
-    val searchHighlightColor = if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
-    val annotated =
-        remember(text, searchQuery, isCurrentMatch) {
-            buildAnnotatedString {
-                var i = 0
-                val src = text
-                while (i < src.length) {
-                    when {
-                        // Code block: ```...```
-                        src.startsWith("```", i) -> {
-                            val end = src.indexOf("```", i + 3)
-                            if (end != -1) {
-                                val code = src.substring(i + 3, end).trimStart('\n').trimEnd('\n')
-                                withStyle(
-                                    SpanStyle(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 13.sp,
-                                        background = textColor.copy(alpha = 0.08f),
-                                    ),
-                                ) {
-                                    append(code)
-                                }
-                                i = end + 3
-                            } else {
-                                append(src[i])
-                                i++
-                            }
-                        }
-
-                        // Inline code: `...`
-                        src[i] == '`' -> {
-                            val end = src.indexOf('`', i + 1)
-                            if (end != -1) {
-                                withStyle(
-                                    SpanStyle(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 13.sp,
-                                        background = textColor.copy(alpha = 0.08f),
-                                    ),
-                                ) {
-                                    append(src.substring(i + 1, end))
-                                }
-                                i = end + 1
-                            } else {
-                                append(src[i])
-                                i++
-                            }
-                        }
-
-                        // Bold: **...**
-                        src.startsWith("**", i) -> {
-                            val end = src.indexOf("**", i + 2)
-                            if (end != -1) {
-                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                                    append(src.substring(i + 2, end))
-                                }
-                                i = end + 2
-                            } else {
-                                append(src[i])
-                                i++
-                            }
-                        }
-
-                        // URL: https://...
-                        urlPattern.matchAt(src, i) != null -> {
-                            val match = urlPattern.matchAt(src, i)!!
-                            pushLink(LinkAnnotation.Url(match.value))
-                            withStyle(
-                                SpanStyle(
-                                    color = linkColor,
-                                    textDecoration = TextDecoration.Underline,
-                                ),
-                            ) {
-                                append(match.value)
-                            }
-                            pop()
-                            i = match.range.last + 1
-                        }
-
-                        // Search match highlight
-                        searchQuery.isNotEmpty() &&
-                            src.regionMatches(i, searchQuery, 0, searchQuery.length, ignoreCase = true) -> {
-                            withStyle(SpanStyle(background = searchHighlightColor, color = Color(0xFF1A1A24))) {
-                                append(src.substring(i, i + searchQuery.length))
-                            }
-                            i += searchQuery.length
-                        }
-
-                        else -> {
-                            append(src[i])
-                            i++
-                        }
-                    }
-                }
-            }
-        }
-
-    Text(
-        text = annotated,
-        style = MaterialTheme.typography.bodyMedium.copy(color = textColor),
-    )
 }
 
 private fun formatTimestamp(

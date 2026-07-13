@@ -766,6 +766,50 @@ class ChatViewModelTest {
             }
         }
 
+    @Test
+    fun testClarifyDismissInformsAgent() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    "Please choose:",
+                    listOf("Yes", "No"),
+                    "clarify-789",
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("clarify-789", viewModel.uiState.value.clarifyRequest?.clarifyId)
+
+            viewModel.dismissClarify()
+            advanceUntilIdle()
+
+            // Dialog dismissed locally
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            // Baseline has 1 "Connected" system message; dismiss adds exactly
+            // ONE system note and must NOT fake a user bubble.
+            val messages = viewModel.uiState.value.messages
+            assertEquals(2, messages.size)
+            assertEquals(MessageRole.SYSTEM, messages[0].role) // pre-existing "Connected"
+            assertEquals(MessageRole.SYSTEM, messages[1].role) // dismiss trace
+            assertTrue(messages[1].content.contains("dismissed", ignoreCase = true))
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "The user cancelled. Use your best judgement to proceed.",
+                            "answer" to "The user cancelled. Use your best judgement to proceed.",
+                            "clarify_id" to "clarify-789",
+                            "request_id" to "clarify-789",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
     // ── Attachments ──────────────────────────────────────────────────────────
 
     /** Add [count] dummy attachments so a test starts with a populated list. */

@@ -105,6 +105,14 @@ data class ClarifyUi(
     val clarifyId: String? = null,
 )
 
+/**
+ * String sent to the agent when a clarify prompt is dismissed (the Dismiss
+ * button). Mirrors the CLI's interrupt-cancel sentinel (cli.py:12036) so the
+ * agent reads a dismiss identically across CLI / desktop / mobile and proceeds
+ * on its own judgement instead of re-prompting.
+ */
+private const val CLARIFY_DISMISS_RESPONSE = "The user cancelled. Use your best judgement to proceed."
+
 /** Transient — not persisted. Holds a pending sudo.password request. */
 data class SudoPromptUi(
     val requestId: String?,
@@ -1225,8 +1233,44 @@ class ChatViewModel(
         _uiState.update { it.copy(showSessionPicker = !it.showSessionPicker) }
     }
 
+    /**
+     * Dismiss the active clarify prompt and tell the agent it was cancelled.
+     *
+     * The backend's clarify tool blocks the agent thread waiting for a response
+     * (CLI timeout is 120s). A silent dismiss would leave the agent hanging
+     * until that timeout, so we send the same cancel sentinel the CLI pushes on
+     * interrupt (cli.py:12036): "The user cancelled. Use your best judgement to
+     * proceed." — the agent reads it as "decide on your own" and continues.
+     *
+     * Unlike [respondToClarify] we do NOT append a user chat bubble: a dismiss
+     * is not something the user typed, so faking a USER message would be
+     * dishonest. We instead surface a short SYSTEM note so the dismissal is
+     * visible in the transcript.
+     */
     fun dismissClarify() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val clarifyId = _uiState.value.clarifyRequest?.clarifyId
         _uiState.update { it.copy(clarifyRequest = null) }
+
+        addSystemMessage("Clarify dismissed — agent will decide on its own", persist = true)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "response" to CLARIFY_DISMISS_RESPONSE,
+                    "answer" to CLARIFY_DISMISS_RESPONSE,
+                )
+            if (clarifyId != null) {
+                params["clarify_id"] = clarifyId
+                params["request_id"] = clarifyId
+            }
+            wsClient.send(
+                method = WsMethods.CLARIFY_RESPOND,
+                params = params,
+                onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
+            )
+        }
     }
 
     fun respondToClarify(option: String) {

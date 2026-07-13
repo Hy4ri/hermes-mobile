@@ -1486,7 +1486,13 @@ private suspend fun LazyListState.scrollToBottom(animated: Boolean) {
     if (layoutInfo.totalItemsCount == 0) return
     val lastIndex = layoutInfo.totalItemsCount - 1
     // Top-align the last item first so layoutInfo reflects the last item's offset.
-    scrollToItem(lastIndex)
+    // When animated, use the animated variant so the FAB / send clicks keep a
+    // smooth scroll instead of an instant jump followed by a tiny animation.
+    if (animated) {
+        animateScrollToItem(lastIndex)
+    } else {
+        scrollToItem(lastIndex)
+    }
     val info = this.layoutInfo
     val lastItem = info.visibleItemsInfo.lastOrNull { it.index == lastIndex } ?: return
     val remaining =

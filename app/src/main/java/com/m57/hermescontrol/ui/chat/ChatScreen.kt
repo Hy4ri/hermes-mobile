@@ -717,11 +717,8 @@ private fun ChatInputBar(
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         ) {
             Column {
-                // Build command list from dynamic catalog (pairs = [name, description])
-                val allCommands = commandCatalog.pairs.associate { (name, desc) -> name to desc }
-                // Commands hidden from suggestion menu (still work when manually typed)
-                val hiddenSlashDisplay = setOf("/stop", "/interrupt")
-                val commandNames = allCommands.keys.filter { it !in hiddenSlashDisplay }
+                // All catalog commands are offered in the suggestion menu
+                val commandNames = commandCatalog.pairs.map { it[0] }
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = inputText.startsWith("/") && !inputText.contains(" "),

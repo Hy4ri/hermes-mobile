@@ -17,8 +17,10 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1394,6 +1396,71 @@ class ChatViewModelTest {
                     viewModel.uiState.value.messages
                         .any { it.content == "Here is an image" }
             assertTrue("Message should still be sent despite attachment read failure", sent)
+        }
+
+    /**
+     * Regression for the "session not found" (code 4001) error when sending an
+     * image: the mobile image-attach path must pass `session_id` to
+     * `image.attach_bytes` (the gateway resolves the session from it; desktop
+     * does the same). Without it the backend 4001s and the image is dropped.
+     * Also asserts the image attach is AWAITED (staged before prompt.submit),
+     * not fire-and-forget.
+     */
+    @Test
+    fun testSendMessage_imageAttachment_sendsSessionId() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // sendRpcAndAwait calls HermesWsClient.request(method, params) — the
+            // 2-arg form (Kotlin synthesizes request(String, Map)). Stub that
+            // exact signature, capture params, and return a completed deferred
+            // so the await resolves without hanging.
+            val paramsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.request(any(), capture(paramsSlot), any())
+            } returns CompletableDeferred<Any?>(mapOf("attached" to true))
+
+            // Mock Android's Base64OutputStream constructor to avoid "Stub!" exception in JVM tests
+            io.mockk.mockkConstructor(android.util.Base64OutputStream::class)
+            every {
+                anyConstructed<android.util.Base64OutputStream>().write(
+                    any<ByteArray>(),
+                    any(),
+                    any(),
+                )
+            } returns Unit
+            every { anyConstructed<android.util.Base64OutputStream>().close() } returns Unit
+
+            // The image bytes read via ContentResolver must succeed.
+            mockkStatic(Uri::class)
+            val mockUri = mockk<Uri>()
+            every { Uri.parse("content://dummy") } returns mockUri
+            val contentResolver = mockk<ContentResolver>()
+            every { app.contentResolver } returns contentResolver
+            every { contentResolver.openInputStream(any()) } returns
+                java.io.ByteArrayInputStream(byteArrayOf(1, 2, 3, 4))
+
+            viewModel.addAttachment("content://dummy", "test.png", "image/png", 1000)
+            advanceUntilIdle()
+            assertTrue(
+                "pendingAttachments must contain the image before send",
+                viewModel.uiState.value.pendingAttachments.isNotEmpty(),
+            )
+            assertTrue(
+                "attached png must have isImage=true",
+                viewModel.uiState.value.pendingAttachments.first().isImage,
+            )
+
+            viewModel.sendMessage("Here is an image")
+            advanceUntilIdle()
+
+            // Verify the image attach RPC was issued with session_id.
+            verify { HermesWsClient.request(WsMethods.IMAGE_ATTACH_BYTES, any()) }
+            assertEquals(
+                "session_id must be forwarded to image.attach_bytes",
+                sessionId,
+                paramsSlot.captured["session_id"],
+            )
         }
 
     // ── Pending request timeout + rejectAllPending (issue #526) ───────────

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
@@ -26,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +50,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -97,59 +98,62 @@ fun MarkdownText(
                             5 -> 15.sp
                             else -> 14.sp
                         }
-                    SelectionContainer {
+                    Text(
+                        text =
+                            remember(block.text, searchQuery, isCurrentMatch, textColor) {
+                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                            },
+                        color = textColor,
+                        style =
+                            MaterialTheme.typography.bodyMedium
+                                .copy(fontSize = fontSize, fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    )
+                }
+
+                is MdBlock.Bullet -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
                         Text(
-                            text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
+                            text = "•",
                             color = textColor,
-                            style =
-                                MaterialTheme.typography.bodyMedium
-                                    .copy(fontSize = fontSize, fontWeight = FontWeight.Bold),
-                            modifier = Modifier.padding(vertical = 2.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(end = 6.dp),
+                        )
+                        Text(
+                            text =
+                                remember(block.text, searchQuery, isCurrentMatch, textColor) {
+                                    parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                },
+                            color = textColor,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
 
-                is MdBlock.Bullet -> {
-                    SelectionContainer {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-                            verticalAlignment = Alignment.Top,
-                        ) {
-                            Text(
-                                text = "•",
-                                color = textColor,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(end = 6.dp),
-                            )
-                            Text(
-                                text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
-                                color = textColor,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-
                 is MdBlock.Ordered -> {
-                    SelectionContainer {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-                            verticalAlignment = Alignment.Top,
-                        ) {
-                            Text(
-                                text = "${block.index}.",
-                                color = textColor,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(end = 6.dp),
-                            )
-                            Text(
-                                text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
-                                color = textColor,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text(
+                            text = "${block.index}.",
+                            color = textColor,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(end = 6.dp),
+                        )
+                        Text(
+                            text =
+                                remember(block.text, searchQuery, isCurrentMatch, textColor) {
+                                    parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                },
+                            color = textColor,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
 
@@ -167,25 +171,28 @@ fun MarkdownText(
                                     .background(textColor.copy(alpha = 0.35f)),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        SelectionContainer(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
-                                color = textColor,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-                            )
-                        }
+                        Text(
+                            text =
+                                remember(block.text, searchQuery, isCurrentMatch, textColor) {
+                                    parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                                },
+                            color = textColor,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
 
                 is MdBlock.Paragraph -> {
-                    SelectionContainer {
-                        Text(
-                            text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
-                            color = textColor,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        )
-                    }
+                    Text(
+                        text =
+                            remember(block.text, searchQuery, isCurrentMatch, textColor) {
+                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor)
+                            },
+                        color = textColor,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    )
                 }
             }
         }
@@ -203,6 +210,14 @@ private fun CodeBlockCard(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
+
+    // Auto-dismiss the "copied" checkmark after 2s
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(2000)
+            copied = false
+        }
+    }
 
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -251,6 +266,8 @@ private fun CodeBlockCard(
     }
 }
 
+private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"‘’]+""")
+
 /**
  * Splits source text into Markdown blocks. Fenced code blocks (```...```) are extracted first;
  * everything else is grouped into headings, lists, blockquotes, or paragraphs by line.
@@ -280,8 +297,13 @@ private fun parseBlocks(src: String): List<MdBlock> {
 
             line.startsWith("#") -> {
                 val level = line.takeWhile { it == '#' }.length.coerceIn(1, 6)
-                blocks.add(MdBlock.Heading(level, line.substring(level).trim()))
-                i++
+                // Require a space after the '#' run so issue refs like "#572" stay paragraphs.
+                if (level < line.length && line[level] == ' ') {
+                    blocks.add(MdBlock.Heading(level, line.substring(level).trim()))
+                    i++
+                } else {
+                    i = fallthroughToParagraph(lines, i, bulletRe, orderedRe, blocks)
+                }
             }
 
             line.startsWith(">") -> {
@@ -312,24 +334,40 @@ private fun parseBlocks(src: String): List<MdBlock> {
             }
 
             else -> {
-                val para = mutableListOf<String>()
-                while (
-                    i < lines.size &&
-                    lines[i].isNotBlank() &&
-                    !lines[i].startsWith("```") &&
-                    !lines[i].startsWith("#") &&
-                    !lines[i].startsWith(">") &&
-                    !bulletRe.matches(lines[i]) &&
-                    !orderedRe.matches(lines[i])
-                ) {
-                    para.add(lines[i])
-                    i++
-                }
-                if (para.isNotEmpty()) blocks.add(MdBlock.Paragraph(para.joinToString("\n")))
+                i = fallthroughToParagraph(lines, i, bulletRe, orderedRe, blocks)
             }
         }
     }
     return blocks
+}
+
+/**
+ * Collects consecutive non-special lines into a [MdBlock.Paragraph] and returns the next index.
+ * Shared by the default `else` branch and the non-heading "#572"-style fallthrough.
+ */
+private fun fallthroughToParagraph(
+    lines: List<String>,
+    start: Int,
+    bulletRe: Regex,
+    orderedRe: Regex,
+    blocks: MutableList<MdBlock>,
+): Int {
+    var i = start
+    val para = mutableListOf<String>()
+    while (
+        i < lines.size &&
+        lines[i].isNotBlank() &&
+        !lines[i].startsWith("```") &&
+        !lines[i].startsWith("#") &&
+        !lines[i].startsWith(">") &&
+        !bulletRe.matches(lines[i]) &&
+        !orderedRe.matches(lines[i])
+    ) {
+        para.add(lines[i])
+        i++
+    }
+    if (para.isNotEmpty()) blocks.add(MdBlock.Paragraph(para.joinToString("\n")))
+    return i
 }
 
 /**
@@ -343,7 +381,6 @@ private fun parseInline(
     isCurrentMatch: Boolean,
     linkColor: Color,
 ): AnnotatedString {
-    val urlPattern = Regex("""https?://[^\s)>\[\]"'“]+""")
     val searchHighlightColor =
         if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
 
@@ -425,8 +462,8 @@ private fun parseInline(
                     }
                 }
 
-                urlPattern.matchAt(src, i) != null -> {
-                    val match = urlPattern.matchAt(src, i)!!
+                URL_PATTERN.matchAt(src, i) != null -> {
+                    val match = URL_PATTERN.matchAt(src, i)!!
                     val url = match.value
                     pushLink(LinkAnnotation.Url(url))
                     withStyle(

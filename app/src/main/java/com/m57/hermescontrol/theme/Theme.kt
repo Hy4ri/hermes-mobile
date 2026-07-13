@@ -28,10 +28,10 @@ val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
 
 private val HermesDarkColorScheme =
     darkColorScheme(
-        primary = HermesPurple,
+        primary = HermesBlue,
         onPrimary = Color.White,
-        primaryContainer = HermesPurpleContainer,
-        onPrimaryContainer = HermesPurpleOnContainer,
+        primaryContainer = HermesBlueContainer,
+        onPrimaryContainer = HermesBlueOnContainer,
         secondary = HermesAmber,
         onSecondary = Color.Black,
         secondaryContainer = Color(0xFF3D2F0F),
@@ -44,7 +44,7 @@ private val HermesDarkColorScheme =
         onSurface = DarkOnSurface,
         surfaceVariant = DarkSurfaceVariant,
         onSurfaceVariant = DarkOnSurfaceVariant,
-        surfaceTint = HermesPurple,
+        surfaceTint = HermesBlue,
         surfaceContainer = DarkSurfaceContainer,
         surfaceContainerHigh = DarkSurfaceContainerHigh,
         surfaceContainerHighest = DarkSurfaceContainerHighest,
@@ -61,9 +61,9 @@ private val HermesDarkColorScheme =
 
 private val HermesLightColorScheme =
     lightColorScheme(
-        primary = HermesPurpleDark,
+        primary = HermesBlueDark,
         onPrimary = Color.White,
-        primaryContainer = HermesPurpleLight,
+        primaryContainer = HermesBlueLight,
         onPrimaryContainer = Color(0xFF1E0F66),
         secondary = HermesAmberDark,
         onSecondary = Color.White,
@@ -77,7 +77,7 @@ private val HermesLightColorScheme =
         onSurface = LightOnSurface,
         surfaceVariant = LightSurfaceVariant,
         onSurfaceVariant = LightOnSurfaceVariant,
-        surfaceTint = HermesPurple,
+        surfaceTint = HermesBlue,
         surfaceContainer = LightSurfaceContainer,
         surfaceContainerHigh = LightSurfaceContainerHigh,
         surfaceContainerHighest = LightSurfaceContainerHighest,
@@ -208,10 +208,10 @@ private val CatppuccinLightColorScheme =
 
 private val AmoledDarkColorScheme =
     darkColorScheme(
-        primary = HermesPurple,
+        primary = HermesBlue,
         onPrimary = Color.White,
         primaryContainer = Color(0xFF1A1040),
-        onPrimaryContainer = HermesPurpleOnContainer,
+        onPrimaryContainer = HermesBlueOnContainer,
         secondary = HermesAmber,
         onSecondary = Color.Black,
         secondaryContainer = Color(0xFF2A2000),

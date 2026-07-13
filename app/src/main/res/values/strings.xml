@@ -199,7 +199,7 @@
     <string name="settings_item_use_dynamic_colors">Dynamic Colors</string>
     <string name="settings_desc_use_dynamic_colors">Derive scheme from wallpaper (Android 12+)</string>
     <string name="settings_item_theme_preset">Preset Theme</string>
-    <string name="theme_preset_default">Default (Voltage Purple)</string>
+    <string name="theme_preset_default">Default (Slate Blue)</string>
     <string name="theme_preset_monochrome">Monochrome</string>
     <string name="theme_preset_gruvbox">Gruvbox</string>
     <string name="theme_preset_catppuccin">Catppuccin</string>

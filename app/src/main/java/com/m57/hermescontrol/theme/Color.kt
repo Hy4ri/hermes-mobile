@@ -11,13 +11,13 @@ import androidx.compose.ui.graphics.Color
 // brand-defined. All pairs verified for WCAG AA contrast (4.5:1 text, 3:1
 // large text / icons).
 
-// ── Brand: Voltage Purple (primary) ──────────────────────────────────────
+// ── Brand: Slate Blue (primary) ───────────────────────────────────────
 
-val HermesPurple = Color(0xFF7C5CFF)
-val HermesPurpleLight = Color(0xFFAC93FF)
-val HermesPurpleDark = Color(0xFF5A3FE0)
-val HermesPurpleContainer = Color(0xFF2B2159)
-val HermesPurpleOnContainer = Color(0xFFD9CCFF)
+val HermesBlue = Color(0xFF5B8BD6)
+val HermesBlueLight = Color(0xFFA9C7F0)
+val HermesBlueDark = Color(0xFF3E6BB0)
+val HermesBlueContainer = Color(0xFF1E3358)
+val HermesBlueOnContainer = Color(0xFFD6E4F8)
 
 // ── Brand: Plasma Amber (secondary) ─────────────────────────────────────
 
@@ -71,8 +71,8 @@ val StatusGrey = Color(0xFF9E9E9E)
 
 // ── Chat-specific colours (always brand-defined for consistency) ───────
 
-val UserBubble = HermesPurple
-val UserBubbleDark = HermesPurpleDark
+val UserBubble = HermesBlue
+val UserBubbleDark = HermesBlueDark
 val AssistantBubble = Color(0xFF1C1C26)
 val AssistantBubbleLight = Color(0xFFEDEAF4)
 val SystemMessageColor = Color(0xFF8B879A)

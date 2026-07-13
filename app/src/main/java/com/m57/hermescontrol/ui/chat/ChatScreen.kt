@@ -717,8 +717,47 @@ private fun ChatInputBar(
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
         ) {
             Column {
-                // All catalog commands are offered in the suggestion menu
-                val commandNames = commandCatalog.pairs.map { it[0] }
+                // Commands hidden from the suggestion menu — desktop/CLI-only and
+                // TUI-only commands that don't function on mobile (issue #574).
+                // Source of truth: backend `cli_only` / TUI-only flags in the catalog.
+                val hiddenSlashDisplay =
+                    setOf(
+                        "/clear",
+                        "/redraw",
+                        "/history",
+                        "/save",
+                        "/prompt",
+                        "/snapshot",
+                        "/handoff",
+                        "/journey",
+                        "/config",
+                        "/statusbar",
+                        "/timestamps",
+                        "/verbose",
+                        "/skin",
+                        "/indicator",
+                        "/busy",
+                        "/tools",
+                        "/toolsets",
+                        "/skills",
+                        "/pet",
+                        "/hatch",
+                        "/cron",
+                        "/reload",
+                        "/browser",
+                        "/plugins",
+                        "/billing",
+                        "/platforms",
+                        "/copy",
+                        "/paste",
+                        "/image",
+                        "/quit",
+                        // TUI-only extras (meaningless outside the TUI)
+                        "/compact",
+                        "/logs",
+                        "/mouse",
+                    )
+                val commandNames = commandCatalog.pairs.map { it[0] }.filter { it !in hiddenSlashDisplay }
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = inputText.startsWith("/") && !inputText.contains(" "),

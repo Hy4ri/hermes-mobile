@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -479,7 +480,7 @@ fun ChatScreen(
                                 (if (streamingState.streamingMessage != null) 1 else 0) +
                                 (if (streamingState.isThinking) 1 else 0)
                         if (totalItems > 0) {
-                            listState.animateScrollToItem(totalItems - 1)
+                            listState.scrollToBottom(animated = true)
                         }
                     }
                 },
@@ -1469,6 +1470,36 @@ private fun LazyListState.isAtBottom(threshold: Int = 3): Boolean {
     return lastVisibleItem.index >= layoutInfo.totalItemsCount - threshold
 }
 
+/**
+ * Scroll so the bottom edge of the last item is aligned to the bottom of the
+ * viewport (issue #583).
+ *
+ * `animateScrollToItem(lastIndex)` only top-aligns the last item, so when the
+ * last item is taller than the viewport its bottom is clipped below the fold.
+ * We first top-align (instant), then scroll the exact remaining gap so the
+ * bottom is visible. Using the remaining delta (not `scrollOffset = Int.MAX_VALUE`)
+ * avoids integer overflow in the internal scroll-position clamp, which would
+ * otherwise wrap the offset to 0 and scroll back to the top.
+ */
+private suspend fun LazyListState.scrollToBottom(animated: Boolean) {
+    val layoutInfo = this.layoutInfo
+    if (layoutInfo.totalItemsCount == 0) return
+    val lastIndex = layoutInfo.totalItemsCount - 1
+    // Top-align the last item first so layoutInfo reflects the last item's offset.
+    scrollToItem(lastIndex)
+    val info = this.layoutInfo
+    val lastItem = info.visibleItemsInfo.lastOrNull { it.index == lastIndex } ?: return
+    val remaining =
+        (lastItem.offset + lastItem.size + info.afterContentPadding) - info.viewportEndOffset
+    if (remaining > 0) {
+        if (animated) {
+            animateScrollBy(remaining.toFloat())
+        } else {
+            scroll { scrollBy(remaining.toFloat()) }
+        }
+    }
+}
+
 @Composable
 private fun ChatLifecycleEffects(
     sessionId: String?,
@@ -1561,9 +1592,9 @@ private fun ChatLifecycleEffects(
             val isSessionSwitch = currentSessionId != lastSessionId
             if (isSessionSwitch) {
                 lastSessionId = currentSessionId
-                listState.scrollToItem(totalItems - 1)
+                listState.scrollToBottom(animated = false)
             } else if (listState.isAtBottom()) {
-                listState.animateScrollToItem(totalItems - 1)
+                listState.scrollToBottom(animated = true)
             }
         }
     }
@@ -1957,7 +1988,7 @@ private fun BoxScope.ChatScrollToBottomFab(
                             (if (streamingMessage != null) 1 else 0) +
                             (if (isThinking) 1 else 0)
                     if (totalItems > 0) {
-                        listState.animateScrollToItem(totalItems - 1)
+                        listState.scrollToBottom(animated = true)
                     }
                 }
             },

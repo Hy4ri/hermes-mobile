@@ -1588,20 +1588,49 @@ private fun ChatLifecycleEffects(
         }
     }
 
-    // Auto-scroll to bottom on new messages
-    LaunchedEffect(messages.size, streamingMessage?.content?.length, isThinking) {
-        val totalItems =
-            messages.size +
-                (if (streamingMessage != null) 1 else 0) +
-                (if (isThinking) 1 else 0)
-        if (totalItems > 0) {
-            val isSessionSwitch = currentSessionId != lastSessionId
+    // Auto-scroll to bottom on new messages + follow the stream (issue #584)
+    //
+    // This used to be a LaunchedEffect keyed on
+    // (messages.size, streamingMessage?.content?.length, isThinking). Those
+    // keys change on EVERY streamed token, so the effect restarted per token
+    // and cancelled the in-flight animateScrollToItem — leaving the view
+    // stuck/frozen mid-stream. A single persistent snapshotFlow now reacts to
+    // the same signals WITHOUT restarting the effect, and the streaming follow
+    // uses an instant (non-cancellable-animation) scroll so rapid tokens don't
+    // thrash.
+    //
+    // The effect runs once (Unit), so we mirror the params through
+    // rememberUpdatedState and read them via getValue() inside the flow — that
+    // keeps the lambda bound to the latest propagated values (live snapshot
+    // reads) instead of the first-composition closure captures.
+    val latestMessages by rememberUpdatedState(messages)
+    val latestStreaming by rememberUpdatedState(streamingMessage)
+    val latestIsThinking by rememberUpdatedState(isThinking)
+    val latestSessionId by rememberUpdatedState(currentSessionId)
+    LaunchedEffect(Unit) {
+        snapshotFlow {
+            Triple(
+                latestMessages.size,
+                latestStreaming?.content?.length ?: -1,
+                latestIsThinking,
+            )
+        }.collectLatest { (msgCount, _, thinking) ->
+            val streamMsg = latestStreaming
+            val totalItems =
+                msgCount +
+                    (if (streamMsg != null) 1 else 0) +
+                    (if (thinking) 1 else 0)
+            if (totalItems <= 0) return@collectLatest
+            val isSessionSwitch = latestSessionId != lastSessionId
             if (isSessionSwitch) {
-                lastSessionId = currentSessionId
+                lastSessionId = latestSessionId
                 listState.scrollToBottom(animated = false)
-            } else if (listState.isAtBottom()) {
-                listState.scrollToBottom(animated = true)
+                return@collectLatest
             }
+            if (!listState.isAtBottom()) return@collectLatest
+            // Instant when streaming (no animation to cancel per token);
+            // animated when a discrete new message lands while at the bottom.
+            listState.scrollToBottom(animated = streamMsg == null)
         }
     }
 

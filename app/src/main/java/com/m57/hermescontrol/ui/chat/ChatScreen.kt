@@ -747,24 +747,13 @@ private fun ChatInputBar(
                                 modifier = Modifier.heightIn(max = 200.dp),
                             ) {
                                 items(filteredCommands, key = { it }) { cmd ->
-                                    val description = allCommands[cmd] ?: ""
                                     DropdownMenuItem(
                                         text = {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                            ) {
-                                                Text(
-                                                    cmd,
-                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                )
-                                                Text(
-                                                    description,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                )
-                                            }
+                                            Text(
+                                                cmd,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
                                         },
                                         onClick = { onInputChange(cmd) },
                                     )

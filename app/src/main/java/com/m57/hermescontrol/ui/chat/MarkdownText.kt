@@ -479,14 +479,10 @@ internal fun parseBlocks(src: String): List<MdBlock> {
             }
 
             // Heading: requires a space after the '#' run so "#572" stays a paragraph
-            line.startsWith("#") -> {
+            isValidHeading(line) -> {
                 val level = line.takeWhile { it == '#' }.length.coerceIn(1, 6)
-                if (level < line.length && line[level] == ' ') {
-                    blocks.add(MdBlock.Heading(level, line.substring(level).trim()))
-                    i++
-                } else {
-                    i = fallthroughToParagraph(lines, i, bulletRe, orderedRe, blocks)
-                }
+                blocks.add(MdBlock.Heading(level, line.substring(level).trim()))
+                i++
             }
 
             isTableStart(lines, i) -> {
@@ -621,6 +617,12 @@ private fun isDefListStart(
     return lines[i + 1].trim().startsWith(":")
 }
 
+private fun isValidHeading(line: String): Boolean {
+    if (!line.startsWith("#")) return false
+    val level = line.takeWhile { it == '#' }.length.coerceIn(1, 6)
+    return level < line.length && line[level] == ' '
+}
+
 private fun fallthroughToParagraph(
     lines: List<String>,
     start: Int,
@@ -634,7 +636,7 @@ private fun fallthroughToParagraph(
         i < lines.size &&
         lines[i].isNotBlank() &&
         !lines[i].startsWith("```") &&
-        !lines[i].startsWith("#") &&
+        !isValidHeading(lines[i]) &&
         !lines[i].startsWith(">") &&
         !bulletRe.matches(lines[i]) &&
         !orderedRe.matches(lines[i]) &&

@@ -1,0 +1,478 @@
+package com.m57.hermescontrol.ui.chat
+
+import android.content.ClipData
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.m57.hermescontrol.R
+import kotlinx.coroutines.launch
+
+/**
+ * Renders chat assistant text as Markdown — but ONLY once the message has finished streaming.
+ * While [isStreaming] is true we show the raw text to avoid flicker / re-parse churn, then swap
+ * to the formatted view on completion (and for all historical/restored messages).
+ *
+ * Supports: fenced ```code``` blocks (horizontal scroll + copy), inline `code`, **bold**, *italic*,
+ * headings (#..######), bullet/ ordered lists, > blockquotes, and [links](url) / bare URLs.
+ */
+@Composable
+fun MarkdownText(
+    text: String,
+    textColor: Color,
+    isStreaming: Boolean = false,
+    searchQuery: String = "",
+    isCurrentMatch: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    if (isStreaming) {
+        Text(
+            text = text,
+            color = textColor,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val linkColor = MaterialTheme.colorScheme.primary
+    val blocks = remember(text) { parseBlocks(text) }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        for (block in blocks) {
+            when (block) {
+                is MdBlock.Code -> CodeBlockCard(code = block.code, textColor = textColor)
+
+                is MdBlock.Heading -> {
+                    val fontSize =
+                        when (block.level) {
+                            1 -> 22.sp
+                            2 -> 20.sp
+                            3 -> 18.sp
+                            4 -> 16.sp
+                            5 -> 15.sp
+                            else -> 14.sp
+                        }
+                    SelectionContainer {
+                        Text(
+                            text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
+                            color = textColor,
+                            style =
+                                MaterialTheme.typography.bodyMedium
+                                    .copy(fontSize = fontSize, fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(vertical = 2.dp),
+                        )
+                    }
+                }
+
+                is MdBlock.Bullet -> {
+                    SelectionContainer {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text(
+                                text = "•",
+                                color = textColor,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(end = 6.dp),
+                            )
+                            Text(
+                                text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
+                                color = textColor,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+
+                is MdBlock.Ordered -> {
+                    SelectionContainer {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text(
+                                text = "${block.index}.",
+                                color = textColor,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(end = 6.dp),
+                            )
+                            Text(
+                                text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
+                                color = textColor,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+
+                is MdBlock.Quote -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .width(3.dp)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(textColor.copy(alpha = 0.35f)),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        SelectionContainer(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
+                                color = textColor,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                            )
+                        }
+                    }
+                }
+
+                is MdBlock.Paragraph -> {
+                    SelectionContainer {
+                        Text(
+                            text = parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor),
+                            color = textColor,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Fenced code block rendered as a card: monospaced text with horizontal scroll and a copy button.
+ */
+@Composable
+private fun CodeBlockCard(
+    code: String,
+    textColor: Color,
+) {
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    var copied by remember { mutableStateOf(false) }
+
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = textColor.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, textColor.copy(alpha = 0.15f)),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    ) {
+        Column {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
+            ) {
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, code)))
+                        }
+                        copied = true
+                    },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                        contentDescription = stringResource(R.string.content_desc_copy),
+                        modifier = Modifier.size(15.dp),
+                        tint = textColor.copy(alpha = 0.7f),
+                    )
+                }
+            }
+            Text(
+                text = code,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 13.sp,
+                color = textColor,
+                softWrap = false,
+                modifier =
+                    Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Splits source text into Markdown blocks. Fenced code blocks (```...```) are extracted first;
+ * everything else is grouped into headings, lists, blockquotes, or paragraphs by line.
+ */
+private fun parseBlocks(src: String): List<MdBlock> {
+    val lines = src.lines()
+    val blocks = mutableListOf<MdBlock>()
+    val bulletRe = Regex("""^\s*[-*+]\s+(.*)""")
+    val orderedRe = Regex("""^\s*\d+\.\s+(.*)""")
+    var i = 0
+
+    while (i < lines.size) {
+        val line = lines[i]
+        when {
+            line.startsWith("```") -> {
+                val end = (i + 1 until lines.size).firstOrNull { lines[it].startsWith("```") }
+                if (end != null) {
+                    blocks.add(MdBlock.Code(lines.subList(i + 1, end).joinToString("\n")))
+                    i = end + 1
+                } else {
+                    blocks.add(MdBlock.Code(lines.subList(i + 1, lines.size).joinToString("\n")))
+                    i = lines.size
+                }
+            }
+
+            line.isBlank() -> i++
+
+            line.startsWith("#") -> {
+                val level = line.takeWhile { it == '#' }.length.coerceIn(1, 6)
+                blocks.add(MdBlock.Heading(level, line.substring(level).trim()))
+                i++
+            }
+
+            line.startsWith(">") -> {
+                val quote = mutableListOf<String>()
+                while (i < lines.size && lines[i].startsWith(">")) {
+                    quote.add(lines[i].removePrefix(">").trim())
+                    i++
+                }
+                blocks.add(MdBlock.Quote(quote.joinToString("\n")))
+            }
+
+            bulletRe.matches(line) -> {
+                val items = mutableListOf<String>()
+                while (i < lines.size && bulletRe.matches(lines[i])) {
+                    items.add(bulletRe.find(lines[i])!!.groupValues[1])
+                    i++
+                }
+                items.forEach { blocks.add(MdBlock.Bullet(it)) }
+            }
+
+            orderedRe.matches(line) -> {
+                val items = mutableListOf<String>()
+                while (i < lines.size && orderedRe.matches(lines[i])) {
+                    items.add(orderedRe.find(lines[i])!!.groupValues[1])
+                    i++
+                }
+                items.forEachIndexed { idx, t -> blocks.add(MdBlock.Ordered(idx + 1, t)) }
+            }
+
+            else -> {
+                val para = mutableListOf<String>()
+                while (
+                    i < lines.size &&
+                    lines[i].isNotBlank() &&
+                    !lines[i].startsWith("```") &&
+                    !lines[i].startsWith("#") &&
+                    !lines[i].startsWith(">") &&
+                    !bulletRe.matches(lines[i]) &&
+                    !orderedRe.matches(lines[i])
+                ) {
+                    para.add(lines[i])
+                    i++
+                }
+                if (para.isNotEmpty()) blocks.add(MdBlock.Paragraph(para.joinToString("\n")))
+            }
+        }
+    }
+    return blocks
+}
+
+/**
+ * Inline Markdown -> AnnotatedString. Handles `code`, **bold**, *italic*, [text](url) and bare URLs,
+ * plus search-query highlighting.
+ */
+private fun parseInline(
+    text: String,
+    textColor: Color,
+    searchQuery: String,
+    isCurrentMatch: Boolean,
+    linkColor: Color,
+): AnnotatedString {
+    val urlPattern = Regex("""https?://[^\s)>\[\]"'“]+""")
+    val searchHighlightColor =
+        if (isCurrentMatch) Color(0xFFF57C00) else Color(0xFFFFF176).copy(alpha = 0.9f)
+
+    return buildAnnotatedString {
+        var i = 0
+        val src = text
+        while (i < src.length) {
+            when {
+                src.startsWith("`", i) -> {
+                    val end = src.indexOf('`', i + 1)
+                    if (end != -1) {
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 13.sp,
+                                background = textColor.copy(alpha = 0.08f),
+                            ),
+                        ) {
+                            append(src.substring(i + 1, end))
+                        }
+                        i = end + 1
+                    } else {
+                        append(src[i])
+                        i++
+                    }
+                }
+
+                src.startsWith("**", i) -> {
+                    val end = src.indexOf("**", i + 2)
+                    if (end != -1) {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append(src.substring(i + 2, end))
+                        }
+                        i = end + 2
+                    } else {
+                        append(src[i])
+                        i++
+                    }
+                }
+
+                src.startsWith("*", i) -> {
+                    val end = src.indexOf('*', i + 1)
+                    if (end != -1 && end > i + 1) {
+                        withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                            append(src.substring(i + 1, end))
+                        }
+                        i = end + 1
+                    } else {
+                        append(src[i])
+                        i++
+                    }
+                }
+
+                src.startsWith("[", i) -> {
+                    val close = src.indexOf(']', i)
+                    if (close != -1 && close + 1 < src.length && src[close + 1] == '(') {
+                        val urlEnd = src.indexOf(')', close + 2)
+                        if (urlEnd != -1) {
+                            val label = src.substring(i + 1, close)
+                            val url = src.substring(close + 2, urlEnd)
+                            pushLink(LinkAnnotation.Url(url))
+                            withStyle(
+                                SpanStyle(
+                                    color = linkColor,
+                                    textDecoration = TextDecoration.Underline,
+                                ),
+                            ) {
+                                append(label)
+                            }
+                            pop()
+                            i = urlEnd + 1
+                        } else {
+                            append(src[i])
+                            i++
+                        }
+                    } else {
+                        append(src[i])
+                        i++
+                    }
+                }
+
+                urlPattern.matchAt(src, i) != null -> {
+                    val match = urlPattern.matchAt(src, i)!!
+                    val url = match.value
+                    pushLink(LinkAnnotation.Url(url))
+                    withStyle(
+                        SpanStyle(
+                            color = linkColor,
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    ) {
+                        append(url)
+                    }
+                    pop()
+                    i = match.range.last + 1
+                }
+
+                searchQuery.isNotEmpty() &&
+                    src.regionMatches(i, searchQuery, 0, searchQuery.length, ignoreCase = true) -> {
+                    withStyle(
+                        SpanStyle(
+                            background = searchHighlightColor,
+                            color = Color(0xFF1A1A24),
+                        ),
+                    ) {
+                        append(src.substring(i, i + searchQuery.length))
+                    }
+                    i += searchQuery.length
+                }
+
+                else -> {
+                    append(src[i])
+                    i++
+                }
+            }
+        }
+    }
+}
+
+private sealed interface MdBlock {
+    data class Code(val code: String) : MdBlock
+
+    data class Heading(val level: Int, val text: String) : MdBlock
+
+    data class Bullet(val text: String) : MdBlock
+
+    data class Ordered(val index: Int, val text: String) : MdBlock
+
+    data class Quote(val text: String) : MdBlock
+
+    data class Paragraph(val text: String) : MdBlock
+}

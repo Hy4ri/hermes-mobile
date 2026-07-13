@@ -107,11 +107,14 @@ data class ClarifyUi(
 
 /**
  * String sent to the agent when a clarify prompt is dismissed (the Dismiss
- * button). Mirrors the CLI's interrupt-cancel sentinel (cli.py:12036) so the
- * agent reads a dismiss identically across CLI / desktop / mobile and proceeds
- * on its own judgement instead of re-prompting.
+ * button). This is a *reject* — "I'm not answering this question" — NOT an
+ * instruction to proceed. Deliberately NOT the CLI's interrupt sentinel
+ * ("...Use your best judgement to proceed."): a mobile Dismiss is a
+ * skip-the-question gesture, not an interrupt of the whole turn. The agent is
+ * unblocked but told no answer was given, so it re-asks or backs off rather
+ * than charging ahead.
  */
-private const val CLARIFY_DISMISS_RESPONSE = "The user cancelled. Use your best judgement to proceed."
+private const val CLARIFY_DISMISS_RESPONSE = "The user cancelled — no answer provided."
 
 /** Transient — not persisted. Holds a pending sudo.password request. */
 data class SudoPromptUi(
@@ -1234,13 +1237,16 @@ class ChatViewModel(
     }
 
     /**
-     * Dismiss the active clarify prompt and tell the agent it was cancelled.
+     * Dismiss the active clarify prompt and reject it (tell the agent no answer
+     * was given).
      *
      * The backend's clarify tool blocks the agent thread waiting for a response
      * (CLI timeout is 120s). A silent dismiss would leave the agent hanging
-     * until that timeout, so we send the same cancel sentinel the CLI pushes on
-     * interrupt (cli.py:12036): "The user cancelled. Use your best judgement to
-     * proceed." — the agent reads it as "decide on your own" and continues.
+     * until that timeout, so we send a cancel sentinel
+     * ([CLARIFY_DISMISS_RESPONSE]) over `clarify.respond` to unblock it.
+     *
+     * This is a *reject*, not an instruction to proceed — the agent is told no
+     * answer was provided and should re-ask or back off, NOT charge ahead.
      *
      * Unlike [respondToClarify] we do NOT append a user chat bubble: a dismiss
      * is not something the user typed, so faking a USER message would be
@@ -1252,7 +1258,7 @@ class ChatViewModel(
         val clarifyId = _uiState.value.clarifyRequest?.clarifyId
         _uiState.update { it.copy(clarifyRequest = null) }
 
-        addSystemMessage("Clarify dismissed — agent will decide on its own", persist = true)
+        addSystemMessage("Clarify dismissed — no answer sent", persist = true)
 
         viewModelScope.launch(Dispatchers.IO) {
             val params =

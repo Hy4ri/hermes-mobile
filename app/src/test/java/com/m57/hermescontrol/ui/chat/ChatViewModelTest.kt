@@ -800,8 +800,8 @@ class ChatViewModelTest {
                     params =
                         mapOf(
                             "session_id" to sessionId,
-                            "response" to "The user cancelled. Use your best judgement to proceed.",
-                            "answer" to "The user cancelled. Use your best judgement to proceed.",
+                            "response" to "The user cancelled — no answer provided.",
+                            "answer" to "The user cancelled — no answer provided.",
                             "clarify_id" to "clarify-789",
                             "request_id" to "clarify-789",
                         ),

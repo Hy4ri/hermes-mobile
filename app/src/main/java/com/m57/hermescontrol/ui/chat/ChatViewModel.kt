@@ -694,17 +694,29 @@ class ChatViewModel(
 
                 try {
                     if (attachment.isImage) {
-                        // Fire-and-forget — backend queues into session["attached_images"],
-                        // auto-picked by the subsequent prompt.submit
-                        wsClient.send(
-                            method = WsMethods.IMAGE_ATTACH_BYTES,
-                            params =
-                                mapOf(
-                                    "content_base64" to "data:${attachment.mimeType};base64,$b64",
-                                    "filename" to attachment.name,
-                                    "ext" to attachment.fileExtension,
-                                ),
-                        )
+                        // Await so the backend stages the image into
+                        // session["attached_images"] BEFORE prompt.submit runs
+                        // (a fire-and-forget send raced prompt.submit and the
+                        // image was dropped). Requires session_id or the gateway
+                        // 4001s "session not found" (desktop passes it too).
+                        val result =
+                            sendRpcAndAwait(
+                                method = WsMethods.IMAGE_ATTACH_BYTES,
+                                params =
+                                    mapOf(
+                                        "session_id" to agentSessionId,
+                                        "content_base64" to "data:${attachment.mimeType};base64,$b64",
+                                        "filename" to attachment.name,
+                                        "ext" to attachment.fileExtension,
+                                    ),
+                            )
+                        if (result != null) {
+                            @Suppress("UNCHECKED_CAST")
+                            val ok = (result as? Map<String, Any?>)?.get("attached") as? Boolean
+                            if (ok != true) {
+                                Log.w(TAG, "Image attach for ${attachment.name} returned non-ok: $result")
+                            }
+                        }
                     } else {
                         // Await the @file: ref text so we can embed it in the prompt
                         sendRpcAndAwait(

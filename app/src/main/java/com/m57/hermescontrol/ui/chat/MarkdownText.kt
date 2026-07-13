@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -158,7 +160,12 @@ fun MarkdownText(
                         verticalAlignment = Alignment.Top,
                     ) {
                         Icon(
-                            imageVector = if (block.checked) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
+                            imageVector =
+                                if (block.checked) {
+                                    Icons.Outlined.CheckBox
+                                } else {
+                                    Icons.Outlined.CheckBoxOutlineBlank
+                                },
                             contentDescription = null,
                             tint =
                                 if (block.checked) {
@@ -207,7 +214,7 @@ fun MarkdownText(
 
                 is MdBlock.Quote -> {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
@@ -376,6 +383,7 @@ private fun MarkdownTable(
     textColor: Color,
 ) {
     val headerBg = textColor.copy(alpha = 0.08f)
+    val alignments = block.alignments
     Column(
         modifier =
             Modifier
@@ -388,13 +396,13 @@ private fun MarkdownTable(
             block.header.forEachIndexed { idx, cell ->
                 Text(
                     text = cell,
+                    textAlign = tableTextAlign(alignments.getOrNull(idx)),
                     color = textColor,
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                     modifier =
                         Modifier
                             .width(TABLE_COL_WIDTH)
-                            .padding(6.dp)
-                            .then(tableAlignModifier(block.alignments.getOrNull(idx))),
+                            .padding(6.dp),
                 )
             }
         }
@@ -405,13 +413,13 @@ private fun MarkdownTable(
                 row.forEachIndexed { idx, cell ->
                     Text(
                         text = cell,
+                        textAlign = tableTextAlign(alignments.getOrNull(idx)),
                         color = textColor,
                         style = MaterialTheme.typography.bodySmall,
                         modifier =
                             Modifier
                                 .width(TABLE_COL_WIDTH)
-                                .padding(6.dp)
-                                .then(tableAlignModifier(block.alignments.getOrNull(idx))),
+                                .padding(6.dp),
                     )
                 }
             }
@@ -420,11 +428,11 @@ private fun MarkdownTable(
     }
 }
 
-private fun tableAlignModifier(align: TableAlign?): Modifier =
+private fun tableTextAlign(align: TableAlign?): TextAlign? =
     when (align) {
-        TableAlign.CENTER -> Modifier.fillMaxWidth()
-        TableAlign.RIGHT -> Modifier.fillMaxWidth()
-        else -> Modifier
+        TableAlign.CENTER -> TextAlign.Center
+        TableAlign.RIGHT -> TextAlign.End
+        else -> null
     }
 
 /**

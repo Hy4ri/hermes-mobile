@@ -1615,7 +1615,10 @@ private fun ChatTopBanner(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     if (connectionStatus == ConnectionStatus.RECONNECTING) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp).padding(end = 8.dp),
@@ -1624,6 +1627,9 @@ private fun ChatTopBanner(
                         )
                     }
                     Text(
+                        modifier = Modifier.weight(1f, fill = false),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         text =
                             when (connectionStatus) {
                                 ConnectionStatus.RECONNECTING -> stringResource(R.string.chat_status_reconnecting)

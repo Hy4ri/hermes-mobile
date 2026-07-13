@@ -101,10 +101,10 @@
     <string name="chat_empty_title">Ready to chat</string>
     <string name="chat_empty_subtitle">Send a message to start a conversation</string>
     <string name="chat_status_connecting">Connecting to Hermes\u2026</string>
-    <string name="chat_status_reconnecting">Reconnecting to Hermes\u2026</string>
-    <string name="chat_status_disconnected">Disconnected from Hermes</string>
-    <string name="chat_status_no_network">No network connection</string>
-    <string name="chat_status_auth_expired">Session expired \u2014 please sign in again</string>
+    <string name="chat_status_reconnecting">Reconnecting\u2026</string>
+    <string name="chat_status_disconnected">Disconnected</string>
+    <string name="chat_status_no_network">No network</string>
+    <string name="chat_status_auth_expired">Session expired</string>
     <string name="chat_thinking">Thinking\u2026</string>
     <string name="chat_thinking_param">Thinking: %1$s\u2026</string>
     <string name="chat_reasoning">Reasoning</string>

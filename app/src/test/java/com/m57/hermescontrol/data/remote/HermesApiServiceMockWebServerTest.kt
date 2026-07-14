@@ -369,7 +369,7 @@ class HermesApiServiceMockWebServerTest {
         }
 
     @Test
-    fun getSessionMessages_encodesSessionIdWithSlashes() =
+    fun getSessionMessages_preservesSessionIdSlashes() =
         runBlocking {
             val sessionId = "session/with/slashes"
             mockServer.enqueue(
@@ -382,8 +382,8 @@ class HermesApiServiceMockWebServerTest {
 
             val request = mockServer.takeRequest()
             assertEquals(
-                "path should contain the session ID properly encoded",
-                "/api/sessions/session%2Fwith%2Fslashes/messages?offset=0",
+                "path should contain the session ID with slashes preserved",
+                "/api/sessions/session/with/slashes/messages?offset=0",
                 request.path,
             )
         }

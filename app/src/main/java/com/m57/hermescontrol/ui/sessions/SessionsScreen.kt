@@ -265,8 +265,9 @@ fun SessionsScreen(
         visibleSessionIds.isNotEmpty() && visibleSessionIds.all { it in state.selectedIds }
     val listPadding =
         PaddingValues(
-            horizontal = 12.dp,
-            vertical = 8.dp,
+            start = 12.dp,
+            top = 8.dp,
+            end = 12.dp,
             bottom = if (hasSelection) 72.dp else 8.dp,
         )
 

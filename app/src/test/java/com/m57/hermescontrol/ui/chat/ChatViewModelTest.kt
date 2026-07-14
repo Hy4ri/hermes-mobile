@@ -375,10 +375,12 @@ class ChatViewModelTest {
             advanceUntilIdle()
             assertTrue(viewModel.uiState.value.showModelPicker)
 
-            // Selecting a model must send "/model openai/gpt-4o --provider openai --session"
-            // via the `config.set` RPC with key="model" (the gateway routes key=="model"
-            // to _apply_model_switch). NOT command.dispatch (4018s on /model), NOT
-            // prompt.submit (LLM would treat it as text). Capture the config.set params.
+            // Selecting a model must send the bare spec "gpt-4o --provider openai
+            // --session" via the `config.set` RPC with key="model" (the gateway
+            // routes key=="model" to _apply_model_switch; the /model prefix is
+            // stripped before send because config.set does not parse slash
+            // commands). NOT command.dispatch (4018s on /model), NOT prompt.submit
+            // (LLM would treat it as text). Capture the config.set params.
             val modelCalls = mutableListOf<Triple<String, String, String>>()
             every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
                 val params = arg<Map<String, Any>>(1)
@@ -403,7 +405,7 @@ class ChatViewModelTest {
             verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
             val call = modelCalls.firstOrNull { it.first == "model" }
             assertNotNull("selection must route through config.set key=model", call)
-            assertEquals("/model gpt-4o --provider openai --session", call!!.second)
+            assertEquals("gpt-4o --provider openai --session", call!!.second)
             assertEquals(sessionId, call.third)
         }
 

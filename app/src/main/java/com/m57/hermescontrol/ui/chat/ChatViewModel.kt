@@ -928,8 +928,14 @@ class ChatViewModel(
      * correct RPC is `config.set` with `key="model"` — the gateway (server.py
      * `config.set`, L10253) routes `key=="model"` straight to `_apply_model_switch`
      * using the same `_sessions.get(session_id)` lookup that the working
-     * `command.dispatch` uses. The model string carries the flags
-     * `parse_model_flags` understands: `/model <model> --provider <slug> --session`.
+     * `command.dispatch` uses.
+     *
+     * IMPORTANT: `config.set` key=model passes the value DIRECTLY to
+     * `parse_model_flags` (it does NOT strip a leading "/model" like slash.exec /
+     * prompt.submit do). So we strip the "/model" prefix here and send the bare
+     * spec `parse_model_flags` understands:
+     *   `<model> --provider <slug> --session`
+     * (matching the TUI client's `modelValueForConfigSet`).
      */
     private fun handleModelSwitch(command: String) {
         val sessionId = runtimeSessionId
@@ -937,10 +943,13 @@ class ChatViewModel(
             addAssistantMessage("No active session. Use `/new` to create one.")
             return
         }
+        // Strip a leading "/model" (and any following whitespace) — config.set
+        // key=model expects the bare spec, not a slash command.
+        val spec = command.removePrefix("/model").trim()
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.CONFIG_SET,
-                mapOf("key" to "model", "value" to command, "session_id" to sessionId),
+                mapOf("key" to "model", "value" to spec, "session_id" to sessionId),
                 onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
             )
         }

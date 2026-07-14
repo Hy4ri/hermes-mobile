@@ -1,5 +1,11 @@
 package com.m57.hermescontrol.ui.sessions
 
+import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.HermesApiService
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -17,6 +23,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
+    private val mockApi = mockk<HermesApiService>(relaxed = true)
 
     private fun createViewModel(): SessionsViewModel {
         val vm = SessionsViewModel()
@@ -27,11 +34,14 @@ class SessionsViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        mockkObject(ApiClient)
+        every { ApiClient.hermesApi } returns mockApi
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        unmockkAll()
     }
 
     @Test
@@ -59,5 +69,17 @@ class SessionsViewModelTest {
         // Either way the spinner must stop and the query persists.
         assertFalse(vm.uiState.value.isSearching)
         assertEquals("hello", vm.uiState.value.searchQuery)
+    }
+
+    @Test
+    fun `select all uses the IDs shown in the current view`() {
+        val vm = createViewModel()
+
+        vm.selectAll(setOf("search-session-1", "search-session-2"))
+
+        assertEquals(
+            setOf("search-session-1", "search-session-2"),
+            vm.uiState.value.selectedIds,
+        )
     }
 }

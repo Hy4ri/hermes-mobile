@@ -12,6 +12,9 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,7 +97,6 @@ import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
-import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import java.time.Instant
 import java.time.ZoneId
@@ -218,7 +220,8 @@ private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
                 session = session,
                 depth = 0,
                 branchStem = null,
-                displayTitle = session.title?.takeIf(String::isNotBlank)
+                displayTitle =
+                    session.title?.takeIf(String::isNotBlank)
                     ?: session.display_name?.takeIf(String::isNotBlank)
                     ?: session.preview?.takeIf(String::isNotBlank)?.take(80)
                     ?: "Untitled",
@@ -254,6 +257,18 @@ fun SessionsScreen(
         }
 
     val hasSelection = state.selectedIds.isNotEmpty()
+    val visibleSessionIds =
+        remember(sessionsToDisplay) {
+            sessionsToDisplay.mapTo(linkedSetOf()) { it.session.id }
+        }
+    val allVisibleSessionsSelected =
+        visibleSessionIds.isNotEmpty() && visibleSessionIds.all { it in state.selectedIds }
+    val listPadding =
+        PaddingValues(
+            horizontal = 12.dp,
+            vertical = 8.dp,
+            bottom = if (hasSelection) 72.dp else 8.dp,
+        )
 
     LaunchedEffect(Unit) {
         viewModel.loadSessions()
@@ -321,7 +336,14 @@ fun SessionsScreen(
             state.sessions
                 .find { it.id == sessionToDelete }
                 ?.title
-                ?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
+                ?.takeIf { it.isNotBlank() }
+                ?: state.searchResults
+                    .find { it.session_id == sessionToDelete }
+                    ?.snippet
+                    ?.replace(">>>", "")
+                    ?.replace("<<<", "")
+                    ?.take(80)
+                ?: stringResource(R.string.history_untitled)
         AlertDialog(
             onDismissRequest = { viewModel.cancelDeleteSession() },
             title = { Text(stringResource(R.string.sessions_delete_title)) },
@@ -467,7 +489,7 @@ fun SessionsScreen(
                                         )
                                         LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
-                                            contentPadding = listContentPadding,
+                                            contentPadding = listPadding,
                                             verticalArrangement = listItemSpacing,
                                         ) {
                                             items(sessionsToDisplay, key = { it.session.id }) { item ->
@@ -596,7 +618,7 @@ fun SessionsScreen(
                             // ── Session list ────────────────────────────────────
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = listContentPadding,
+                                contentPadding = listPadding,
                                 verticalArrangement = listItemSpacing,
                             ) {
                                 items(sessionsToDisplay, key = { it.session.id }) { item ->
@@ -697,16 +719,16 @@ fun SessionsScreen(
                         // Select all / deselect
                         OutlinedButton(
                             onClick = {
-                                if (state.selectedIds.size == state.sessions.size) {
+                                if (allVisibleSessionsSelected) {
                                     viewModel.clearSelection()
                                 } else {
-                                    viewModel.selectAll()
+                                    viewModel.selectAll(visibleSessionIds)
                                 }
                             },
                         ) {
                             Icon(
                                 imageVector =
-                                    if (state.selectedIds.size == state.sessions.size) {
+                                    if (allVisibleSessionsSelected) {
                                         Icons.Filled.Close
                                     } else {
                                         Icons.Filled.SelectAll
@@ -716,7 +738,7 @@ fun SessionsScreen(
                             )
                             Spacer(modifier = Modifier.width(spacing.xs))
                             Text(
-                                if (state.selectedIds.size == state.sessions.size) {
+                                if (allVisibleSessionsSelected) {
                                     stringResource(R.string.sessions_action_deselect_all)
                                 } else {
                                     stringResource(R.string.sessions_action_select_all)
@@ -910,7 +932,7 @@ private fun SessionCard(
  * honest about it: it shows a "Match" label + the highlighted snippet as the body, plus
  * source / model / played-at metadata chips. It never presents the snippet as a name.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SearchResultCard(
     session: com.m57.hermescontrol.data.model.SessionInfo,
@@ -1013,9 +1035,9 @@ private fun SearchResultCard(
                 Spacer(modifier = Modifier.height(spacing.xs))
 
                 // Metadata chips row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(spacing.xs),
                 ) {
                     session.source?.let { src ->
                         StatusBadge(

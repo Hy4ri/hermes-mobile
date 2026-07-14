@@ -383,7 +383,7 @@ class HermesApiServiceMockWebServerTest {
             val request = mockServer.takeRequest()
             assertEquals(
                 "path should contain the session ID properly encoded",
-                "/api/sessions/desktop/session/messages/session%2Fwith%2Fslashes?limit=150&offset=0",
+                "/api/sessions/session%2Fwith%2Fslashes/messages?offset=0",
                 request.path,
             )
         }

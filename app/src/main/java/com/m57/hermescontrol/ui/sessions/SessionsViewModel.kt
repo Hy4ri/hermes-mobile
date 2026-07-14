@@ -246,9 +246,9 @@ class SessionsViewModel : ViewModel() {
         }
     }
 
-    fun selectAll() {
+    fun selectAll(sessionIds: Set<String> = _uiState.value.sessions.mapTo(linkedSetOf()) { it.id }) {
         _uiState.update {
-            it.copy(selectedIds = it.sessions.map { s -> s.id }.toSet())
+            it.copy(selectedIds = sessionIds.toSet())
         }
     }
 
@@ -358,7 +358,8 @@ class SessionsViewModel : ViewModel() {
                         it.copy(
                             deletingSessionIds = it.deletingSessionIds - sessionId,
                             sessions = it.sessions.filter { s -> s.id != sessionId },
-                            total = it.total - 1,
+                            searchResults = it.searchResults.filter { it.session_id != sessionId },
+                            total = (it.total - 1).coerceAtLeast(0),
                             toastMessage = "Session deleted",
                         )
                     }
@@ -406,7 +407,8 @@ class SessionsViewModel : ViewModel() {
                             isSelecting = false,
                             selectedIds = emptySet(),
                             sessions = it.sessions.filter { s -> s.id !in ids },
-                            total = it.total - ids.size,
+                            searchResults = it.searchResults.filter { it.session_id !in ids },
+                            total = (it.total - ids.size).coerceAtLeast(0),
                             toastMessage = "${ids.size} session(s) deleted",
                         )
                     }

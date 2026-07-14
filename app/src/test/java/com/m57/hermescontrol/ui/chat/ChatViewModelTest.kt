@@ -375,13 +375,17 @@ class ChatViewModelTest {
             advanceUntilIdle()
             assertTrue(viewModel.uiState.value.showModelPicker)
 
-            // Selecting a model must send "/model openai/gpt-4o" through the slash path.
-            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
-            every { HermesWsClient.send(any(), any(), any()) } answers {
-                val id = "req-${captured.size + 1}"
-                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
-                arg<((String) -> Unit)?>(2)?.invoke(id)
-                id
+            // Selecting a model must send "/model openai/gpt-4o --provider openai --session"
+            // through the NORMAL prompt path (prompt.submit / wsClient.sendMessage) — NOT
+            // command.dispatch, which only knows quick/plugin/bundle/skill commands and
+            // 4018s on /model. Capture the prompt.submit params to assert the text + session.
+            val promptCalls = mutableListOf<Pair<String, String>>()
+            every { HermesWsClient.send(WsMethods.PROMPT_SUBMIT, any(), any()) } answers {
+                val params = arg<Map<String, Any>>(1)
+                promptCalls.add(
+                    (params["session_id"] as String) to (params["text"] as String),
+                )
+                "req-prompt-${promptCalls.size}"
             }
 
             viewModel.sendSlashModel("openai", "gpt-4o")
@@ -392,12 +396,11 @@ class ChatViewModelTest {
                 "openai/gpt-4o",
                 viewModel.uiState.value.currentSessionModel,
             )
-            val dispatch =
-                captured.firstOrNull { it.first == WsMethods.COMMAND_DISPATCH }
-            assertNotNull("selection must route through command.dispatch (slash path)", dispatch)
-            assertEquals("model", dispatch!!.second["name"])
-            assertEquals("gpt-4o --provider openai --session", dispatch.second["arg"])
-            assertEquals(sessionId, dispatch.second["session_id"])
+            verify { HermesWsClient.send(WsMethods.PROMPT_SUBMIT, any(), any()) }
+            val prompt = promptCalls.firstOrNull { it.second.startsWith("/model") }
+            assertNotNull("selection must route through prompt.submit (slash command path)", prompt)
+            assertEquals("/model gpt-4o --provider openai --session", prompt!!.second)
+            assertEquals(sessionId, prompt.first)
         }
 
     @Test
@@ -406,7 +409,7 @@ class ChatViewModelTest {
             val (viewModel, sessionId) = createViewModelWithSession()
 
             // A fully-typed "/model <model> --provider <slug> --session" bypasses the
-            // picker and dispatches straight to the backend.
+            // picker and dispatches straight to the backend as a normal prompt.
             viewModel.sendMessage("/model gpt-4o --provider openai --session")
             advanceUntilIdle()
 
@@ -414,7 +417,10 @@ class ChatViewModelTest {
                 "typed /model with arg should not open the picker",
                 viewModel.uiState.value.showModelPicker,
             )
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            // A fully-typed /model goes to the backend as a normal prompt (the
+            // backend's slash parser handles it), NOT via command.dispatch. The
+            // prompt path maps to wsClient.send(PROMPT_SUBMIT, ...).
+            verify { HermesWsClient.send(WsMethods.PROMPT_SUBMIT, any(), any()) }
         }
 
     // ── Connection / init tests ──────────────────────────────────────────────

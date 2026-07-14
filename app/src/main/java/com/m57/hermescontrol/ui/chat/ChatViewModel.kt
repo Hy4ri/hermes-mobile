@@ -866,6 +866,10 @@ class ChatViewModel(
                 branchSession(command)
             }
 
+            is SlashResult.ModelSwitch -> {
+                handleModelSwitch(command)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
@@ -910,6 +914,34 @@ class ChatViewModel(
                 WsMethods.COMMAND_DISPATCH,
                 mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
                 onSent = { id -> trackRequest(id, WsMethods.COMMAND_DISPATCH) },
+            )
+        }
+    }
+
+    /**
+     * Hot-swap the current session's model via the backend's `/model` slash
+     * command (issue #589).
+     *
+     * CRITICAL: `/model` is a real backend slash command — it must travel as a
+     * NORMAL prompt message (`prompt.submit`), NOT the `command.dispatch` RPC.
+     * `command.dispatch` only knows quick/plugin/bundle/skill commands and
+     * returns `4018: not a quick/plugin/bundle/skill command: model`. The
+     * backend's message pipeline (`_handle_message` → `_handle_model_command`)
+     * parses the leading `/model` from the prompt text and runs the switch,
+     * exactly as if the user typed it into the chat box. `sendSlashModel` builds
+     * the `/model <model> --provider <slug> --session` form the backend expects.
+     */
+    private fun handleModelSwitch(command: String) {
+        val sessionId = runtimeSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session. Use `/new` to create one.")
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.PROMPT_SUBMIT,
+                mapOf("session_id" to sessionId, "text" to command),
+                onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
             )
         }
     }

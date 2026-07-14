@@ -11,10 +11,31 @@ class ToolBubbleParsingTest {
     // ── Terminal ──────────────────────────────────────────────
 
     @Test
-    fun testParseTerminal_withStdout() {
+    fun testParseTerminal_withOutput() {
         val json =
             """{
             "tool_id": "call_001",
+            "name": "terminal",
+            "args": {"command": "echo hellp"},
+            "result": {"output": "hellp", "exit_code": 0, "error": null},
+            "duration_s": 0.06
+        }"""
+        val parsed = parseToolOutput(json, "terminal", false)
+        assertNotNull(parsed)
+        assertEquals("terminal", parsed!!.toolName)
+        assertTrue(parsed.isTerminal)
+        assertEquals("hellp", parsed.stdout)
+        assertEquals("hellp", parsed.mainOutput)
+        assertEquals(0, parsed.exitCode)
+        assertEquals(0.06, parsed.durationSec!!, 0.01)
+        assertEquals("$ echo hellp", parsed.summaryText)
+    }
+
+    @Test
+    fun testParseTerminal_legacyStdout() {
+        val json =
+            """{
+            "tool_id": "call_001b",
             "name": "terminal",
             "args": {"command": "npm run build"},
             "result": {"stdout": "Build succeeded!", "exit_code": 0},
@@ -22,12 +43,31 @@ class ToolBubbleParsingTest {
         }"""
         val parsed = parseToolOutput(json, "terminal", false)
         assertNotNull(parsed)
-        assertEquals("terminal", parsed!!.toolName)
-        assertTrue(parsed.isTerminal)
+        assertTrue(parsed!!.isTerminal)
         assertEquals("Build succeeded!", parsed.stdout)
+        assertEquals("Build succeeded!", parsed.mainOutput)
         assertEquals(0, parsed.exitCode)
         assertEquals(5.2, parsed.durationSec!!, 0.01)
         assertEquals("$ npm run build", parsed.summaryText)
+    }
+
+    @Test
+    fun testParseTerminal_floatExitCode_isNotDropped() {
+        // Backend emits exit_code as a FLOAT (0.0), not an int. asInt on a
+        // "0.0" primitive throws NumberFormatException, which previously
+        // nulled the whole parse -> raw JSON. Reproduces the live bug.
+        val json =
+            """{
+            "tool_id": "call_001d",
+            "name": "terminal",
+            "args": {"command": "echo hi"},
+            "result": {"output": "hi", "exit_code": 0.0, "error": null}
+        }"""
+        val parsed = parseToolOutput(json, "terminal", false)
+        assertNotNull("float exit_code must not null the parse", parsed)
+        assertTrue(parsed!!.isTerminal)
+        assertEquals("hi", parsed.stdout)
+        assertEquals(0, parsed.exitCode)
     }
 
     @Test
@@ -42,7 +82,7 @@ class ToolBubbleParsingTest {
         val parsed = parseToolOutput(json, "terminal", false)
         assertNotNull(parsed)
         assertTrue(parsed!!.isTerminal)
-        assertEquals("Permission denied", parsed.stderr)
+        assertEquals("Permission denied", parsed.stdout)
         assertEquals(1, parsed.exitCode)
         assertEquals("$ rm -rf /", parsed.summaryText)
     }

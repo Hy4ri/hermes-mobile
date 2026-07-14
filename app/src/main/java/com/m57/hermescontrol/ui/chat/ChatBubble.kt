@@ -1643,31 +1643,40 @@ fun parseToolOutput(
             )
         }
 
-        // Check if this looks like a terminal result (check dataSource for backward compat)
+        // Terminal result. The backend (tools/terminal_tool.py) emits a single
+        // `output` string (stdout+stderr merged, ANSI-stripped), plus `exit_code`
+        // and an `error` string on failure. Older payloads used `stdout`/`stderr`
+        // — accept both for backward compat, but `output` is canonical.
+        val hasOutput = dataSource.has("output")
         val hasStdout = dataSource.has("stdout")
         val hasStderr = dataSource.has("stderr")
         val hasExitCode = dataSource.has("exit_code") || dataSource.has("exitCode")
 
-        if (hasStdout || hasStderr || hasExitCode) {
-            val stdout =
-                dataSource
-                    .get("stdout")
-                    ?.takeIf { !it.isJsonNull }
-                    ?.asString
-                    ?.takeIf { it.isNotEmpty() }
-            val stderr =
-                dataSource
-                    .get("stderr")
-                    ?.takeIf { !it.isJsonNull }
-                    ?.asString
-                    ?.takeIf { it.isNotEmpty() }
-            val exitCode = (dataSource.get("exit_code") ?: dataSource.get("exitCode"))?.takeIf { !it.isJsonNull }?.asInt
+        if (hasOutput || hasStdout || hasStderr || hasExitCode) {
+            val terminalOutput =
+                (
+                    dataSource.get("output")?.takeIf { !it.isJsonNull }?.asString
+                        ?: listOfNotNull(
+                            dataSource.get("stdout")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() },
+                            dataSource.get("stderr")?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotEmpty() },
+                        ).joinToString("\n").takeIf { it.isNotEmpty() }
+                )?.takeIf { it.isNotEmpty() }
+            val exitCode = (dataSource.get("exit_code") ?: dataSource.get("exitCode"))?.toIntOrNull()
             val error =
                 dataSource
                     .get("error")
                     ?.takeIf { !it.isJsonNull }
                     ?.asString
                     ?.takeIf { it.isNotEmpty() }
+            // Surface non-zero exit codes as an error line even when `error` is absent.
+            val effectiveError =
+                if (error != null) {
+                    error
+                } else if (exitCode != null && exitCode != 0 && terminalOutput == null) {
+                    "exit code $exitCode"
+                } else {
+                    null
+                }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
 
             ParsedToolData(
@@ -1675,11 +1684,12 @@ fun parseToolOutput(
                 args = args,
                 result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 isTerminal = true,
-                stdout = stdout,
-                stderr = stderr,
+                stdout = terminalOutput,
+                stderr = null,
                 exitCode = exitCode,
-                error = error,
+                error = effectiveError,
                 summaryText = summaryText,
+                mainOutput = terminalOutput,
                 durationSec = duration,
                 isRunning = isRunning,
             )
@@ -1753,17 +1763,6 @@ private fun ExpandedToolContent(
                     style =
                         MaterialTheme.typography.bodySmall.copy(
                             color = contentColor.copy(alpha = 0.9f),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                        ),
-                )
-            }
-            parsed.stderr?.let {
-                Text(
-                    text = stringResource(R.string.chat_tool_stderr, it),
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = statusColors.error.copy(alpha = 0.9f),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                         ),
@@ -2319,3 +2318,19 @@ private fun JsonObject.entrySet(): Set<Map.Entry<String, JsonElement>> = entries
 private fun JsonObject.keySet(): Set<String> = keys
 
 private fun JsonArray.size(): Int = size
+
+/**
+ * Parse a numeric/string JSON primitive into an Int, tolerating backend quirks
+ * (e.g. terminal `exit_code` arrives as a FLOAT `0.0` or a STRING). Returns null
+ * if missing, null, or non-numeric — callers must not throw, or the whole tool
+ * parse is caught and the bubble falls back to raw JSON.
+ */
+private fun JsonElement?.toIntOrNull(): Int? {
+    if (this == null || this is JsonNull) return null
+    return when (this) {
+        is JsonPrimitive -> {
+            content.toIntOrNull() ?: content.toDoubleOrNull()?.toInt()
+        }
+        else -> null
+    }
+}

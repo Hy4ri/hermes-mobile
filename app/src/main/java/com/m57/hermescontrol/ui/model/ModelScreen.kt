@@ -500,7 +500,7 @@ private fun AuxTasksDialog(
                                     if (isAuto) {
                                         "auto (use main model)"
                                     } else {
-                                        "${cur?.provider} · ${cur?.model ?: "(provider default)"}"
+                                        "${cur.provider} · ${cur.model.ifBlank { "(provider default)" }}"
                                     },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -601,7 +601,7 @@ private fun PinnedSectionCard(
                     pinnedModels.forEach { pinned ->
                         val isActive =
                             activeProfile?.provider == pinned.providerSlug &&
-                                activeProfile?.model == pinned.modelName
+                                activeProfile.model == pinned.modelName
 
                         Card(
                             onClick = { onModelClick(pinned.providerSlug, pinned.modelName) },
@@ -778,7 +778,7 @@ private fun ProviderCard(
                         filteredModels.forEach { model ->
                             val isActive =
                                 activeProfile?.provider == provider.slug &&
-                                    activeProfile?.model == model
+                                    activeProfile.model == model
                             Card(
                                 onClick = { onModelClick(provider.slug, model) },
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

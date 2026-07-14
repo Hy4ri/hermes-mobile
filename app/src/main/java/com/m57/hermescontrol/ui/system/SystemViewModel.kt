@@ -128,10 +128,7 @@ class SystemViewModel :
                         curator = (curatorResult as? NetworkResult.Success)?.data,
                         memory = (memoryResult as? NetworkResult.Success)?.data,
                         credentials =
-                            (
-                                (credResult as? NetworkResult.Success)?.data
-                                    as? CredentialPoolResponse
-                            )?.providers ?: emptyList(),
+                            ((credResult as? NetworkResult.Success)?.data)?.providers ?: emptyList(),
                         checkpoints = (checkpointsResult as? NetworkResult.Success)?.data,
                         hooks = (hooksResult as? NetworkResult.Success)?.data,
                         updateInfo = (updateResult as? NetworkResult.Success)?.data,
@@ -414,7 +411,7 @@ class SystemViewModel :
                     _uiState.update {
                         it.copy(
                             toastMessage = "Backup triggered",
-                            backupArchive = result.data?.archive,
+                            backupArchive = result.data.archive,
                         )
                     }
                     loadAll()
@@ -641,7 +638,7 @@ class SystemViewModel :
             val result = withContext(Dispatchers.IO) { apiCall() }
             when (result) {
                 is NetworkResult.Success -> {
-                    result.data?.name?.let { pollActionStatus(it) }
+                    result.data.name?.let { pollActionStatus(it) }
                     _uiState.update { it.copy(toastMessage = "$label started") }
                 }
 

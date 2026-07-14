@@ -361,7 +361,8 @@ class ChatViewModelTest {
             )
             assertTrue(
                 "picker should have preloaded providers (cached at GatewayReady)",
-                viewModel.uiState.value.modelPickerProviders.isNotEmpty(),
+                viewModel.uiState.value.modelPickerProviders
+                    .isNotEmpty(),
             )
             verify(exactly = 0) { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
@@ -930,7 +931,11 @@ class ChatViewModelTest {
                 ),
             )
             advanceUntilIdle()
-            assertEquals("clarify-789", viewModel.uiState.value.clarifyRequest?.clarifyId)
+            assertEquals(
+                "clarify-789",
+                viewModel.uiState.value.clarifyRequest
+                    ?.clarifyId,
+            )
 
             viewModel.dismissClarify()
             advanceUntilIdle()
@@ -1593,11 +1598,14 @@ class ChatViewModelTest {
             advanceUntilIdle()
             assertTrue(
                 "pendingAttachments must contain the image before send",
-                viewModel.uiState.value.pendingAttachments.isNotEmpty(),
+                viewModel.uiState.value.pendingAttachments
+                    .isNotEmpty(),
             )
             assertTrue(
                 "attached png must have isImage=true",
-                viewModel.uiState.value.pendingAttachments.first().isImage,
+                viewModel.uiState.value.pendingAttachments
+                    .first()
+                    .isImage,
             )
 
             viewModel.sendMessage("Here is an image")

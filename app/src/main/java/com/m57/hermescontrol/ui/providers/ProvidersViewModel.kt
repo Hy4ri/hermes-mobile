@@ -77,7 +77,7 @@ class ProvidersViewModel :
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        providers = data?.providers.orEmpty(),
+                        providers = data.providers.orEmpty(),
                     )
                 }
             },
@@ -161,16 +161,7 @@ class ProvidersViewModel :
             val result = safeApiCall { ApiClient.hermesApi.startOAuthLogin(provider.id) }
             when (result) {
                 is NetworkResult.Success -> {
-                    val start =
-                        result.data ?: run {
-                            _uiState.update {
-                                it.copy(
-                                    flowPhase = OAuthFlowPhase.IDLE,
-                                    flowErrorMessage = "Empty start response",
-                                )
-                            }
-                            return@launch
-                        }
+                    val start = result.data
                     _uiState.update {
                         it.copy(
                             flowPhase =
@@ -224,13 +215,13 @@ class ProvidersViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     val submit = result.data
-                    if (submit?.ok == true) {
+                    if (submit.ok) {
                         finishFlow("approved")
                     } else {
                         _uiState.update {
                             it.copy(
-                                flowStatus = submit?.status ?: "error",
-                                flowErrorMessage = submit?.message ?: "Submission rejected",
+                                flowStatus = submit.status ?: "error",
+                                flowErrorMessage = submit.message ?: "Submission rejected",
                             )
                         }
                     }
@@ -271,6 +262,7 @@ class ProvidersViewModel :
                                     finishFlow("approved")
                                     return@launch
                                 }
+
                                 "denied", "expired", "error" -> {
                                     _uiState.update {
                                         it.copy(
@@ -283,6 +275,7 @@ class ProvidersViewModel :
                                     }
                                     return@launch
                                 }
+
                                 else -> { /* still pending — keep polling */ }
                             }
                         }

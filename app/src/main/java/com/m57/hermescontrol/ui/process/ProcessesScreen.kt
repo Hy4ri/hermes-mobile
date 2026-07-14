@@ -76,30 +76,34 @@ fun ProcessesScreen(
         modifier = modifier,
     ) {
         when {
-            state.sessionId == null ->
+            state.sessionId == null -> {
                 EmptyState(
                     title = stringResource(R.string.processes_no_session_title),
                     subtitle = stringResource(R.string.processes_no_session_desc),
                     icon = Icons.Filled.Memory,
                 )
+            }
 
-            state.isLoading && state.processes.isEmpty() ->
+            state.isLoading && state.processes.isEmpty() -> {
                 LoadingState()
+            }
 
-            state.errorMessage != null ->
+            state.errorMessage != null -> {
                 ErrorState(
                     message = state.errorMessage ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.load() },
                 )
+            }
 
-            state.processes.isEmpty() ->
+            state.processes.isEmpty() -> {
                 EmptyState(
                     title = stringResource(R.string.processes_empty_title),
                     subtitle = stringResource(R.string.processes_empty_desc),
                     icon = Icons.Filled.Memory,
                 )
+            }
 
-            else ->
+            else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = listContentPadding,
@@ -113,6 +117,7 @@ fun ProcessesScreen(
                         )
                     }
                 }
+            }
         }
     }
 
@@ -238,8 +243,14 @@ private fun formatUptime(seconds: Int): String {
     val m = seconds / 60
     val s = seconds % 60
     return when {
-        m <= 0 -> "${s}s"
-        m < 60 -> "${m}m ${s}s"
+        m <= 0 -> {
+            "${s}s"
+        }
+
+        m < 60 -> {
+            "${m}m ${s}s"
+        }
+
         else -> {
             val h = m / 60
             "${h}h ${m % 60}m"

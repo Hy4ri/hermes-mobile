@@ -138,7 +138,7 @@ class SkillsViewModel(
                 },
                 onStart = { _uiState.update { it.copy(isHubSearching = true) } },
                 onSuccess = { data ->
-                    _uiState.update { it.copy(isHubSearching = false, hubResults = data?.results.orEmpty()) }
+                    _uiState.update { it.copy(isHubSearching = false, hubResults = data.results.orEmpty()) }
                 },
                 onError = { errorMsg ->
                     _uiState.update {
@@ -313,7 +313,7 @@ class SkillsViewModel(
                     _uiState.update {
                         it.copy(
                             isLoadingPreview = false,
-                            previewSkillContent = result.data?.content,
+                            previewSkillContent = result.data.content,
                         )
                     }
                 }
@@ -405,7 +405,7 @@ class SkillsViewModel(
                     _uiState.update {
                         it.copy(
                             isLoadingContent = false,
-                            skillContent = result.data?.content.orEmpty(),
+                            skillContent = result.data.content.orEmpty(),
                         )
                     }
                 }

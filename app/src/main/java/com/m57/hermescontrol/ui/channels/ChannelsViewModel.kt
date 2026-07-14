@@ -72,9 +72,9 @@ class ChannelsViewModel :
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        platforms = data?.platforms.orEmpty(),
-                        gatewayStartCommand = data?.gatewayStartCommand ?: "hermes gateway start",
-                        envPath = data?.envPath ?: "~/.hermes/.env",
+                        platforms = data.platforms.orEmpty(),
+                        gatewayStartCommand = data.gatewayStartCommand,
+                        envPath = data.envPath,
                     )
                 }
             },
@@ -218,7 +218,7 @@ class ChannelsViewModel :
             apiCall = { safeApiCall { ApiClient.hermesApi.testMessagingPlatform(platformId) } },
             onStart = {},
             onSuccess = { result ->
-                val msg = result?.message ?: "Test complete"
+                val msg = result.message
                 _uiState.update {
                     it.copy(testingId = null, toastMessage = msg)
                 }
@@ -297,8 +297,8 @@ class ChannelsViewModel :
                         it.copy(
                             onboardingPhase = OnboardingPhase.WAITING,
                             onboardingSetup = setup,
-                            onboardingQrDataUrl = setup?.qrPayload,
-                            onboardingExpiresIn = formatExpiry(setup?.expiresAt),
+                            onboardingQrDataUrl = setup.qrPayload,
+                            onboardingExpiresIn = formatExpiry(setup.expiresAt),
                         )
                     }
 
@@ -330,7 +330,7 @@ class ChannelsViewModel :
                     when (result) {
                         is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
                             val status = result.data
-                            if (status?.status == "ready") {
+                            if (status.status == "ready") {
                                 _uiState.update {
                                     it.copy(
                                         onboardingPhase = OnboardingPhase.READY,
@@ -466,7 +466,7 @@ class ChannelsViewModel :
                         )
                     }
                     resetOnboarding()
-                    if (applyResult?.needsRestart == true) {
+                    if (applyResult.needsRestart) {
                         restartGateway()
                     } else {
                         loadPlatforms()

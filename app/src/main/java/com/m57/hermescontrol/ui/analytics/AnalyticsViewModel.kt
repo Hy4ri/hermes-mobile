@@ -105,13 +105,21 @@ class AnalyticsViewModel : ViewModel() {
                     }
                 val error =
                     when {
-                        usage == null && models == null ->
+                        usage == null && models == null -> {
                             failure?.message ?: "Failed to load analytics"
-                        usage == null ->
+                        }
+
+                        usage == null -> {
                             failure?.message ?: "Failed to load usage analytics"
-                        models == null ->
+                        }
+
+                        models == null -> {
                             failure?.message ?: "Failed to load model analytics"
-                        else -> null
+                        }
+
+                        else -> {
+                            null
+                        }
                     }
                 // Only update UI if this is still the active day window.
                 if (_uiState.value.days == days) {

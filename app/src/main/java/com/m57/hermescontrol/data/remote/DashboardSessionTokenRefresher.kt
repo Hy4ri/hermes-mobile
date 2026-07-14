@@ -25,7 +25,12 @@ internal object DashboardSessionTokenRefresher {
         client: OkHttpClient,
     ): String? =
         try {
-            val request = Request.Builder().url(baseUrl).get().build()
+            val request =
+                Request
+                    .Builder()
+                    .url(baseUrl)
+                    .get()
+                    .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return null
                 // Cap the read — the SPA HTML can be large, and we only need the

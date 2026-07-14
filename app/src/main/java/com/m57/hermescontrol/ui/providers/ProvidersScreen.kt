@@ -274,21 +274,25 @@ private fun OAuthFlowDialog(
                         Text(stringResource(R.string.providers_action_submit_code))
                     }
                 }
+
                 OAuthFlowPhase.DONE -> {
                     Button(onClick = onDismissFlow) {
                         Text(stringResource(R.string.action_done))
                     }
                 }
+
                 OAuthFlowPhase.ERROR -> {
                     Button(onClick = onDismissFlow) {
                         Text(stringResource(R.string.action_close))
                     }
                 }
+
                 OAuthFlowPhase.SHOW_CLI -> {
                     Button(onClick = onDismissFlow) {
                         Text(stringResource(R.string.action_close))
                     }
                 }
+
                 else -> {
                     TextButton(onClick = onCancel) {
                         Text(stringResource(R.string.action_cancel))
@@ -301,8 +305,6 @@ private fun OAuthFlowDialog(
                 TextButton(onClick = onCancel) {
                     Text(stringResource(R.string.action_cancel))
                 }
-            } else {
-                Unit
             }
         },
         title = { Text(provider.name, style = MaterialTheme.typography.titleLarge) },
@@ -312,6 +314,7 @@ private fun OAuthFlowDialog(
                     provider.flow == "external" -> {
                         ExternalFlowContent(provider = provider)
                     }
+
                     state.flowPhase == OAuthFlowPhase.WAITING_CODE && start?.authUrl != null -> {
                         PkceFlowContent(
                             authUrl = start.authUrl,
@@ -321,6 +324,7 @@ private fun OAuthFlowDialog(
                             error = state.flowErrorMessage,
                         )
                     }
+
                     state.flowPhase == OAuthFlowPhase.POLLING -> {
                         DeviceCodeFlowContent(
                             start = start,
@@ -329,15 +333,17 @@ private fun OAuthFlowDialog(
                             error = state.flowErrorMessage,
                         )
                     }
+
                     state.flowPhase == OAuthFlowPhase.DONE -> {
                         Text(
                             text = stringResource(R.string.providers_flow_success),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
+
                     state.flowErrorMessage != null -> {
                         Text(
-                            text = state.flowErrorMessage!!,
+                            text = state.flowErrorMessage,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                         )

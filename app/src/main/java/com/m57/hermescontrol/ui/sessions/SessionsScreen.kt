@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
@@ -37,7 +38,6 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -115,7 +115,7 @@ import kotlin.math.abs
  */
 private fun sourceIcon(source: String?): ImageVector? =
     when (source?.lowercase()) {
-        "telegram", "tg" -> Icons.Filled.Send
+        "telegram", "tg" -> Icons.AutoMirrored.Filled.Send
         "web", "dashboard" -> Icons.Filled.Language
         "api", "rest" -> Icons.Filled.Code
         "cli", "terminal" -> Icons.Filled.Terminal
@@ -253,10 +253,6 @@ private fun JsonElement.searchText(): String? =
             textFieldNames
                 .firstNotNullOfOrNull { fieldName -> this[fieldName]?.searchText() }
                 ?: wrapperFieldNames.firstNotNullOfOrNull { fieldName -> this[fieldName]?.searchText() }
-        }
-
-        else -> {
-            null
         }
     }
 

@@ -73,26 +73,31 @@ fun AnalyticsScreen(
         modifier = modifier,
     ) {
         when {
-            state.isLoading && state.usage == null -> LoadingState()
+            state.isLoading && state.usage == null -> {
+                LoadingState()
+            }
 
-            state.errorMessage != null && state.usage == null ->
+            state.errorMessage != null && state.usage == null -> {
                 ErrorState(
                     message = state.errorMessage ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.load() },
                 )
+            }
 
-            state.usage == null ->
+            state.usage == null -> {
                 EmptyState(
                     title = stringResource(R.string.analytics_empty_title),
                     subtitle = stringResource(R.string.analytics_empty_desc),
                     icon = Icons.Filled.BarChart,
                 )
+            }
 
-            else ->
+            else -> {
                 AnalyticsContent(
                     state = state,
                     onDaysSelected = viewModel::setDays,
                 )
+            }
         }
     }
 }

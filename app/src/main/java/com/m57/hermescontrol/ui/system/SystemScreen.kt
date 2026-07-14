@@ -1299,6 +1299,7 @@ private fun LazyListScope.operationsSection(
                 // Debug share results
                 state.debugShare?.let { share ->
                     Spacer(modifier = Modifier.height(spacing.sm))
+                    @Suppress("DEPRECATION")
                     val clipboardManager = LocalClipboardManager.current
 
                     Row(
@@ -1637,7 +1638,8 @@ private fun LazyListScope.actionLogSection(
 }
 
 private val actionButtonPadding =
-    androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+    androidx.compose.foundation.layout
+        .PaddingValues(horizontal = 8.dp, vertical = 8.dp)
 
 @Composable
 private fun ActionButtonContent(

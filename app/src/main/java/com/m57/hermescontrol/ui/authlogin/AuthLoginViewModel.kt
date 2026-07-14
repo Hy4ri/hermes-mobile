@@ -228,7 +228,7 @@ class AuthLoginViewModel(
                         .get()
                         .build()
                 val resp = probeClient.newCall(req).execute()
-                val body = resp.body?.string() ?: ""
+                val body = resp.body.string()
                 // Extract __HERMES_SESSION_TOKEN__ from the SPA HTML
                 val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__\s*=\s*"([^"]+)"""").find(body)
                 extractedToken = tokenMatch?.groupValues?.getOrNull(1)
@@ -453,7 +453,7 @@ class AuthLoginViewModel(
                 return null
             }
 
-            val ticketBody = ticketResp.body?.string() ?: ""
+            val ticketBody = ticketResp.body.string()
             val ticketMatch = Regex(""""ticket":"([^"]+)"""").find(ticketBody)
             val ticket = ticketMatch?.groupValues?.getOrNull(1)
 

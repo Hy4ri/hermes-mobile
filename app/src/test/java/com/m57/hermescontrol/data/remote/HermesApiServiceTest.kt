@@ -430,7 +430,14 @@ class HermesApiServiceTest {
             assertEquals(100L, body?.daily?.first()?.input_tokens)
             assertEquals(0.03, body?.totals?.total_estimated_cost)
             assertEquals(2, body?.skills?.summary?.distinct_skills_used)
-            assertEquals("x", body?.skills?.top_skills?.first()?.skill)
+            assertEquals(
+                "x",
+                body
+                    ?.skills
+                    ?.top_skills
+                    ?.first()
+                    ?.skill,
+            )
             assertEquals(1, body?.tools?.size)
             assertEquals("terminal", body?.tools?.first()?.tool)
             assertEquals(21820, body?.tools?.first()?.count)

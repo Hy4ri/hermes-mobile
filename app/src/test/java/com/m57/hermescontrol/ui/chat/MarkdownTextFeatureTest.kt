@@ -158,7 +158,7 @@ class MarkdownTextFeatureTest {
     fun testHighlight_parses() {
         val an = parseInline("==mark==", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertEquals("mark", an.toString())
-        assertTrue(an.spanStyles.any { it.item.background != null })
+        assertTrue(an.spanStyles.any { it.item.background != Color.Unspecified })
     }
 
     // 10. SUPERSCRIPT / SUBSCRIPT

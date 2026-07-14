@@ -1197,7 +1197,7 @@ private fun SudoPromptDialog(
                     modifier = Modifier.fillMaxWidth().testTag("sudo_password_input"),
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Password),
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
                 )
             }
         },
@@ -1247,7 +1247,7 @@ private fun SecretPromptDialog(
                     modifier = Modifier.fillMaxWidth().testTag("secret_value_input"),
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(autoCorrect = false, keyboardType = KeyboardType.Password),
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
                 )
             }
         },
@@ -2156,9 +2156,13 @@ private fun ReactionHeartsOverlay(
     val emojis =
         remember(reactionKind) {
             when (reactionKind) {
-                "ily", "<3", "good bot" ->
+                "ily", "<3", "good bot" -> {
                     listOf("💗", "❤️", "💕", "💖", "🩷", "💘", "💝")
-                else -> listOf("💗", "❤️", "💕", "💖")
+                }
+
+                else -> {
+                    listOf("💗", "❤️", "💕", "💖")
+                }
             }
         }
 

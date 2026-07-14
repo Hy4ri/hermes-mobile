@@ -190,7 +190,7 @@ class CronJobsViewModel :
                 }
             when (result) {
                 is NetworkResult.Success -> {
-                    val job = result.data ?: return@launch
+                    val job = result.data
                     _uiState.update {
                         it.copy(
                             editorState =

@@ -25,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -32,7 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -494,7 +495,7 @@ private fun ConfigTabs(
     selectedCategory: String,
     onCategorySelected: (String) -> Unit,
 ) {
-    ScrollableTabRow(
+    SecondaryScrollableTabRow(
         selectedTabIndex = categories.indexOf(selectedCategory).coerceAtLeast(0),
         edgePadding = 0.dp,
     ) {
@@ -637,7 +638,6 @@ private fun ConfigField(
                                 is JsonPrimitive -> it.content
                                 is JsonObject -> it.toString()
                                 is JsonArray -> it.toString()
-                                else -> ""
                             }
                         } ?: ""
 
@@ -676,7 +676,7 @@ private fun DropdownField(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .menuAnchor(),
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             singleLine = true,

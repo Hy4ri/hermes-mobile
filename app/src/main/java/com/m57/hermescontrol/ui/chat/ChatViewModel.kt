@@ -649,7 +649,7 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 isLoading = false,
-                errorMessage = "Error${if (method != null) " ($method)" else ""}: $errorMsg",
+                errorMessage = "Error ($method): $errorMsg",
             )
         }
     }
@@ -1084,8 +1084,10 @@ class ChatViewModel(
         val body = trimmed.removePrefix("/").trimStart()
         // Must be exactly "model" with no argument (or just whitespace).
         return body.equals("model", ignoreCase = true) ||
-            body.startsWith("model ", ignoreCase = true) &&
-            body.substringAfter("model").trim().isEmpty()
+            (
+                body.startsWith("model ", ignoreCase = true) &&
+                    body.substringAfter("model").trim().isEmpty()
+            )
     }
 
     /** Preload model options so the picker opens instantly (no spinner on /model). */
@@ -1343,7 +1345,7 @@ class ChatViewModel(
                         }
                     }
 
-                    is NetworkResult.Failure -> Unit
+                    is NetworkResult.Failure -> {}
                 }
             } finally {
                 isSyncingMessages = false
@@ -1352,7 +1354,10 @@ class ChatViewModel(
     }
 
     private suspend fun fetchServerMessageCount(sessionId: String): Int {
-        val known = _uiState.value.sessions.find { it.id == sessionId }?.messageCount
+        val known =
+            _uiState.value.sessions
+                .find { it.id == sessionId }
+                ?.messageCount
         if (known != null) return known
         val result =
             withContext(Dispatchers.IO) {
@@ -1762,7 +1767,7 @@ class ChatViewModel(
                         return@launch
                     }
 
-                    val body = ticketResp.body?.string().orEmpty()
+                    val body = ticketResp.body.string()
                     val ticket = JSONObject(body).optString("ticket").takeIf { it.isNotBlank() }
 
                     if (ticket.isNullOrBlank()) {

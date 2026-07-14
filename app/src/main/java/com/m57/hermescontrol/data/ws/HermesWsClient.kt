@@ -276,7 +276,7 @@ object HermesWsClient {
                 }
 
             if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
+                val body = response.body.string()
                 val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
                 val ticket = ticketMatch?.groupValues?.getOrNull(1)
                 if (!ticket.isNullOrBlank()) {

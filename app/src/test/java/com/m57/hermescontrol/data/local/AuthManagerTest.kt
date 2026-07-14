@@ -52,7 +52,7 @@ class AuthManagerTest {
         every { android.util.Log.i(any(), any()) } returns 0
 
         // Mock filesDir to point to temporary directory for DataStore
-        val tempDir = java.io.File(System.getProperty("java.io.tmpdir"))
+        val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
         testContext = TestContext(tempDir, mockContext)
 
         val tempFile = java.io.File(tempDir, "server_store.json")
@@ -101,7 +101,7 @@ class AuthManagerTest {
 
     @After
     fun tearDown() {
-        val tempDir = java.io.File(System.getProperty("java.io.tmpdir"))
+        val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) {
             tempFile.delete()

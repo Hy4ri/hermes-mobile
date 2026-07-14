@@ -34,9 +34,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -223,7 +223,7 @@ private fun AddServerSection(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         ) {
             Column(modifier = Modifier.padding(spacing.md)) {
-                TabRow(selectedTabIndex = if (state.addMode == AddServerMode.HTTP) 0 else 1) {
+                SecondaryTabRow(selectedTabIndex = if (state.addMode == AddServerMode.HTTP) 0 else 1) {
                     Tab(
                         selected = state.addMode == AddServerMode.HTTP,
                         onClick = { viewModel.setAddMode(AddServerMode.HTTP) },
@@ -562,7 +562,7 @@ private fun CatalogSection(
 
                 state.catalogError != null -> {
                     ErrorState(
-                        message = state.catalogError ?: "",
+                        message = state.catalogError,
                         onRetry = { viewModel.loadCatalog() },
                     )
                 }

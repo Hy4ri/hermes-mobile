@@ -104,13 +104,16 @@ fun MarkdownText(
     Column(modifier = modifier.fillMaxWidth()) {
         for (block in blocks) {
             when (block) {
-                is MdBlock.Code -> CodeBlockCard(code = block.code, textColor = textColor)
+                is MdBlock.Code -> {
+                    CodeBlockCard(code = block.code, textColor = textColor)
+                }
 
-                is MdBlock.Hr ->
+                is MdBlock.Hr -> {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
                         color = textColor.copy(alpha = 0.25f),
                     )
+                }
 
                 is MdBlock.Heading -> {
                     val fontSize =
@@ -291,7 +294,9 @@ fun MarkdownText(
                     }
                 }
 
-                is MdBlock.Table -> MarkdownTable(block = block, textColor = textColor)
+                is MdBlock.Table -> {
+                    MarkdownTable(block = block, textColor = textColor)
+                }
 
                 is MdBlock.Footnotes -> {
                     HorizontalDivider(
@@ -510,7 +515,9 @@ internal fun parseBlocks(src: String): List<MdBlock> {
                 }
             }
 
-            line.isBlank() -> i++
+            line.isBlank() -> {
+                i++
+            }
 
             isHorizontalRule(line) -> {
                 blocks.add(MdBlock.Hr)
@@ -944,19 +951,36 @@ internal fun parseInline(
 }
 
 internal sealed interface MdBlock {
-    data class Code(val code: String) : MdBlock
+    data class Code(
+        val code: String,
+    ) : MdBlock
 
-    data class Heading(val level: Int, val text: String) : MdBlock
+    data class Heading(
+        val level: Int,
+        val text: String,
+    ) : MdBlock
 
-    data class Bullet(val text: String) : MdBlock
+    data class Bullet(
+        val text: String,
+    ) : MdBlock
 
-    data class Task(val checked: Boolean, val text: String) : MdBlock
+    data class Task(
+        val checked: Boolean,
+        val text: String,
+    ) : MdBlock
 
-    data class Ordered(val index: Int, val text: String) : MdBlock
+    data class Ordered(
+        val index: Int,
+        val text: String,
+    ) : MdBlock
 
-    data class Quote(val text: String) : MdBlock
+    data class Quote(
+        val text: String,
+    ) : MdBlock
 
-    data class Paragraph(val text: String) : MdBlock
+    data class Paragraph(
+        val text: String,
+    ) : MdBlock
 
     data class Table(
         val header: List<String>,
@@ -966,9 +990,13 @@ internal sealed interface MdBlock {
 
     object Hr : MdBlock
 
-    data class DefList(val items: List<DefItem>) : MdBlock
+    data class DefList(
+        val items: List<DefItem>,
+    ) : MdBlock
 
-    data class Footnotes(val notes: List<FnNote>) : MdBlock
+    data class Footnotes(
+        val notes: List<FnNote>,
+    ) : MdBlock
 }
 
 internal data class DefItem(

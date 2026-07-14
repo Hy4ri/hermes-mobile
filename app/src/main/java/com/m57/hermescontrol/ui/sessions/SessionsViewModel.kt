@@ -85,8 +85,8 @@ class SessionsViewModel : ViewModel() {
                         it.copy(
                             isLoading = false,
                             isLoadingMore = false,
-                            sessions = data?.sessions.orEmpty(),
-                            total = data?.total ?: 0,
+                            sessions = data.sessions.orEmpty(),
+                            total = data.total,
                             selectedIds = emptySet(),
                         )
                     }
@@ -173,7 +173,7 @@ class SessionsViewModel : ViewModel() {
                         _uiState.update {
                             it.copy(
                                 isSearching = false,
-                                searchResults = result.data?.results.orEmpty(),
+                                searchResults = result.data.results.orEmpty(),
                                 searchError = null,
                             )
                         }
@@ -207,8 +207,7 @@ class SessionsViewModel : ViewModel() {
                         it.copy(
                             isLoadingStats = false,
                             stats =
-                                data?.let { SessionStats(total = it.total, active = it.active) }
-                                    ?: SessionStats(),
+                                SessionStats(total = data.total, active = data.active),
                         )
                     }
                 },
@@ -318,7 +317,7 @@ class SessionsViewModel : ViewModel() {
                 }
             when (result) {
                 is NetworkResult.Success -> {
-                    val promptText = result.data?.prompt ?: "No prompt available"
+                    val promptText = result.data.prompt ?: "No prompt available"
                     _uiState.update { it.copy(toastMessage = promptText) }
                 }
 

@@ -82,4 +82,12 @@ class SessionsViewModelTest {
             vm.uiState.value.selectedIds,
         )
     }
+
+    @Test
+    fun `clean search snippet extracts text from JSON payload`() {
+        assertEquals(
+            "Find the deployment logs",
+            cleanSearchSnippet("{\"role\":\"user\",\"content\":\">>>Find<<< the deployment logs\"}"),
+        )
+    }
 }

@@ -98,6 +98,12 @@ import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -212,6 +218,48 @@ private fun formatPlayedAt(epochSeconds: Double?): String? {
     }
 }
 
+private val searchSnippetJson = Json { isLenient = true }
+
+/**
+ * Makes a backend FTS snippet safe to present as prose. Some indexed messages are stored as
+ * JSON, so prefer their human-readable text fields rather than rendering the entire payload.
+ */
+internal fun cleanSearchSnippet(snippet: String): String {
+    val withoutHighlightMarkers = snippet.replace(">>>", "").replace("<<<", "").trim()
+    val parsedSnippet =
+        runCatching { searchSnippetJson.parseToJsonElement(withoutHighlightMarkers) }.getOrNull()
+    val displayText = parsedSnippet?.searchText() ?: withoutHighlightMarkers
+    return displayText
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}
+
+private fun JsonElement.searchText(): String? =
+    when (this) {
+        is JsonPrimitive -> {
+            contentOrNull?.takeIf(String::isNotBlank)
+        }
+
+        is JsonArray -> {
+            mapNotNull { it.searchText() }
+                .joinToString(" ")
+                .takeIf(String::isNotBlank)
+        }
+
+        is JsonObject -> {
+            val textFieldNames =
+                listOf("content", "text", "message", "body", "prompt", "summary", "title")
+            val wrapperFieldNames = listOf("data", "result", "payload", "parts")
+            textFieldNames
+                .firstNotNullOfOrNull { fieldName -> this[fieldName]?.searchText() }
+                ?: wrapperFieldNames.firstNotNullOfOrNull { fieldName -> this[fieldName]?.searchText() }
+        }
+
+        else -> {
+            null
+        }
+    }
+
 private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
     if (state.isSearchMode) {
         state.searchResults.map { searchResult ->
@@ -222,9 +270,9 @@ private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
                 branchStem = null,
                 displayTitle =
                     session.title?.takeIf(String::isNotBlank)
-                    ?: session.display_name?.takeIf(String::isNotBlank)
-                    ?: session.preview?.takeIf(String::isNotBlank)?.take(80)
-                    ?: "Untitled",
+                        ?: session.display_name?.takeIf(String::isNotBlank)
+                        ?: session.preview?.takeIf(String::isNotBlank)?.take(80)
+                        ?: "Untitled",
             )
         }
     } else {
@@ -341,8 +389,7 @@ fun SessionsScreen(
                 ?: state.searchResults
                     .find { it.session_id == sessionToDelete }
                     ?.snippet
-                    ?.replace(">>>", "")
-                    ?.replace("<<<", "")
+                    ?.let(::cleanSearchSnippet)
                     ?.take(80)
                 ?: stringResource(R.string.history_untitled)
         AlertDialog(
@@ -450,6 +497,7 @@ fun SessionsScreen(
                                 state.isSearching && state.searchResults.isEmpty() -> {
                                     LoadingState()
                                 }
+
                                 state.searchError != null -> {
                                     ErrorState(
                                         message =
@@ -458,6 +506,7 @@ fun SessionsScreen(
                                         onRetry = { viewModel.setSearchQuery(state.searchQuery) },
                                     )
                                 }
+
                                 state.searchResults.isEmpty() -> {
                                     EmptyState(
                                         title = stringResource(R.string.sessions_search_empty_title),
@@ -469,6 +518,7 @@ fun SessionsScreen(
                                         icon = Icons.Filled.Search,
                                     )
                                 }
+
                                 else -> {
                                     Column(modifier = Modifier.fillMaxSize()) {
                                         Text(
@@ -951,10 +1001,7 @@ private fun SearchResultCard(
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
     val snippet = session.preview?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
-    // Backend search snippets carry FTS5 highlight markers (>>>term<<<). The mobile
-    // highlights by the raw query term, so strip those markers before display to avoid
-    // rendering literal ">>>"/"<<<" in the result text.
-    val cleanSnippet = snippet.replace(">>>", "").replace("<<<", "")
+    val cleanSnippet = cleanSearchSnippet(snippet)
     val playedAt = formatPlayedAt(session.started_at)
 
     Card(

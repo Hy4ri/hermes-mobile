@@ -1105,8 +1105,11 @@ class ChatViewModel(
 
     /**
      * Hot-swap the CURRENT session's model via the /model slash command.
-     * Reuses [handleSlashCommand] so the dispatch path is identical to a
-     * hand-typed `/model provider/model` — session-scoped, not global config.
+     *
+     * Builds the backend-valid command form `/model <model> --provider <slug>
+     * --session`. The `--session` flag keeps the switch scoped to this chat
+     * only (it writes a per-session override and never touches the global
+     * model config), per the backend model-switch contract.
      */
     fun sendSlashModel(
         provider: String,
@@ -1121,7 +1124,7 @@ class ChatViewModel(
                 currentSessionModel = "$provider/$model",
             )
         }
-        handleSlashCommand("/model $provider/$model")
+        handleSlashCommand("/model $model --provider $provider --session")
     }
 
     fun switchSession(sessionId: String) {

@@ -395,7 +395,7 @@ class ChatViewModelTest {
                 captured.firstOrNull { it.first == WsMethods.COMMAND_DISPATCH }
             assertNotNull("selection must route through command.dispatch (slash path)", dispatch)
             assertEquals("model", dispatch!!.second["name"])
-            assertEquals("openai/gpt-4o", dispatch.second["arg"])
+            assertEquals("gpt-4o --provider openai --session", dispatch.second["arg"])
             assertEquals(sessionId, dispatch.second["session_id"])
         }
 
@@ -404,8 +404,9 @@ class ChatViewModelTest {
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
 
-            // A fully-typed "/model provider/model" bypasses the picker and dispatches.
-            viewModel.sendMessage("/model openai/gpt-4o")
+            // A fully-typed "/model <model> --provider <slug> --session" bypasses the
+            // picker and dispatches straight to the backend.
+            viewModel.sendMessage("/model gpt-4o --provider openai --session")
             advanceUntilIdle()
 
             assertFalse(

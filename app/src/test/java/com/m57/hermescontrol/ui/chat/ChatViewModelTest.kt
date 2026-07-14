@@ -69,6 +69,7 @@ class ChatViewModelTest {
         every { Dispatchers.Main } returns testMainDispatcher
 
         mockkObject(AuthManager)
+        every { AuthManager.getPinnedModels() } returns emptyList()
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)

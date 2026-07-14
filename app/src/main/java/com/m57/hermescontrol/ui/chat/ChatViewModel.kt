@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -80,10 +81,11 @@ data class ChatUiState(
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // In-session model picker (issue #589) — surfaced when the user types /model
-    // (or taps the top-bar model chip). Selecting a model hot-swaps the current
-    // session via the slash-command path, NOT /api/model/set (which is global only).
+    // (or taps the top-bar model chip). Mirror of the global model screen's
+    // picker, but the selection hot-swaps the CURRENT session via the slash path.
     val showModelPicker: Boolean = false,
     val modelPickerProviders: List<ModelProvider> = emptyList(),
+    val modelPickerPinned: List<PinnedModel> = emptyList(),
     val modelPickerLoading: Boolean = false,
     // Current session's active model label (provider/model), shown in the chip
     val currentSessionModel: String? = null,
@@ -1044,6 +1046,7 @@ class ChatViewModel(
                 }
             if (result is NetworkResult.Success) {
                 cachedModelOptions = result.data.providers.orEmpty()
+                _uiState.update { it.copy(modelPickerPinned = AuthManager.getPinnedModels()) }
             }
         }
     }
@@ -1060,6 +1063,7 @@ class ChatViewModel(
             it.copy(
                 showModelPicker = true,
                 modelPickerProviders = if (hasCached) cachedModelOptions else emptyList(),
+                modelPickerPinned = AuthManager.getPinnedModels(),
                 modelPickerLoading = !hasCached,
             )
         }

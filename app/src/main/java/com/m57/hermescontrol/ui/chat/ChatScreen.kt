@@ -135,6 +135,7 @@ import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import com.m57.hermescontrol.ui.providers.ProvidersScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -550,6 +551,20 @@ fun ChatScreen(
                 onRelogin = { username, password, onResult ->
                     viewModel.relogin(username, password, onResult)
                 },
+            )
+        }
+
+        // In-session model picker (issue #589) — opens on "/model".
+        if (state.showModelPicker) {
+            ModelPickerDialog(
+                providers = state.modelPickerProviders,
+                title = "Switch model (this chat)",
+                isLoading = state.modelPickerLoading && state.modelPickerProviders.isEmpty(),
+                pinnedModels = state.modelPickerPinned,
+                onSelect = { provider, model ->
+                    viewModel.sendSlashModel(provider, model)
+                },
+                onDismiss = { viewModel.closeModelPicker() },
             )
         }
     }

@@ -44,6 +44,16 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `model routes to ModelSwitch`() {
+        // /model is a real backend slash command (issue #589) that must travel as
+        // a normal prompt message — NOT via command.dispatch (which 4018s on it,
+        // because that RPC only knows quick/plugin/bundle/skill commands).
+        assertEquals(SlashResult.ModelSwitch, dispatcher.dispatch("/model"))
+        assertEquals(SlashResult.ModelSwitch, dispatcher.dispatch("/MODEL openai/gpt-4o --session"))
+        assertEquals(SlashResult.ModelSwitch, dispatcher.dispatch("/Model"))
+    }
+
+    @Test
     fun `NEW uppercase still routes to NewSession`() {
         // Dispatcher lower-cases before matching, so case must not matter.
         assertEquals(SlashResult.NewSession, dispatcher.dispatch("/NEW"))

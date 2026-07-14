@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -68,6 +69,7 @@ class ChatViewModelTest {
         every { Dispatchers.Main } returns testMainDispatcher
 
         mockkObject(AuthManager)
+        every { AuthManager.getPinnedModels() } returns emptyList()
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
@@ -101,6 +103,30 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+
+        // Stub model-options so preloadModelOptions() (fired at GatewayReady) is safe.
+        val mockApi = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+        every { ApiClient.hermesApi } returns mockApi
+        coEvery {
+            mockApi.getModelOptions(any(), any())
+        } returns
+            retrofit2.Response.success(
+                com.m57.hermescontrol.data.model.ModelOptionsResponse(
+                    providers =
+                        listOf(
+                            com.m57.hermescontrol.data.model.ModelProvider(
+                                slug = "openai",
+                                name = "OpenAI",
+                                models = listOf("gpt-4o", "gpt-4o-mini"),
+                            ),
+                            com.m57.hermescontrol.data.model.ModelProvider(
+                                slug = "anthropic",
+                                name = "Anthropic",
+                                models = listOf("claude-3-5-sonnet"),
+                            ),
+                        ),
+                ),
+            )
     }
 
     @After
@@ -113,7 +139,7 @@ class ChatViewModelTest {
 
     /** Create a ViewModel with the fake repo injected directly. */
     private fun createViewModel(startCleanup: Boolean = false): ChatViewModel =
-        ChatViewModel(app, startCleanup, fakeRepo)
+        ChatViewModel(app, startCleanup, fakeRepo, testDispatcher)
 
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
@@ -318,6 +344,129 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+        }
+
+    @Test
+    fun testBareModelCommand_opensPickerInsteadOfDispatch() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            // A bare "/model" must NOT dispatch a slash command; it opens the picker.
+            viewModel.sendMessage("/model")
+            advanceUntilIdle()
+
+            assertTrue(
+                "picker should be shown when bare /model is typed",
+                viewModel.uiState.value.showModelPicker,
+            )
+            assertTrue(
+                "picker should have preloaded providers (cached at GatewayReady)",
+                viewModel.uiState.value.modelPickerProviders.isNotEmpty(),
+            )
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+        }
+
+    @Test
+    fun testModelPickerSelection_hotSwapsCurrentSessionViaSlash() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            viewModel.sendMessage("/model")
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.showModelPicker)
+
+            // Selecting a model must send the bare spec "gpt-4o --provider openai
+            // --session" via the `config.set` RPC with key="model" (the gateway
+            // routes key=="model" to _apply_model_switch; the /model prefix is
+            // stripped before send because config.set does not parse slash
+            // commands). NOT command.dispatch (4018s on /model), NOT prompt.submit
+            // (LLM would treat it as text). Capture the config.set params.
+            val modelCalls = mutableListOf<Triple<String, String, String>>()
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+                val params = arg<Map<String, Any>>(1)
+                modelCalls.add(
+                    Triple(
+                        params["key"] as String,
+                        params["value"] as String,
+                        params["session_id"] as String,
+                    ),
+                )
+                "req-cfg-${modelCalls.size}"
+            }
+
+            viewModel.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+
+            assertFalse("picker closes after selection", viewModel.uiState.value.showModelPicker)
+            assertEquals(
+                "openai/gpt-4o",
+                viewModel.uiState.value.currentSessionModel,
+            )
+            verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
+            val call = modelCalls.firstOrNull { it.first == "model" }
+            assertNotNull("selection must route through config.set key=model", call)
+            assertEquals("gpt-4o --provider openai --session", call!!.second)
+            assertEquals(sessionId, call.third)
+        }
+
+    @Test
+    fun testTypedModelCommandWithArg_dispatchesDirectly() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // A fully-typed "/model <model> --provider <slug> --session" bypasses the
+            // picker and dispatches straight to the backend as a normal prompt.
+            viewModel.sendMessage("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            assertFalse(
+                "typed /model with arg should not open the picker",
+                viewModel.uiState.value.showModelPicker,
+            )
+            // A fully-typed /model goes to the backend via the `config.set` RPC
+            // (key="model"), which the gateway routes to _apply_model_switch. NOT
+            // command.dispatch (4018s on /model) and NOT prompt.submit (LLM would
+            // treat it as text).
+            verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
+        }
+
+    @Test
+    fun testTypedModelCommand_caseInsensitive_doesNotForwardSlashPrefix() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // A fully-typed /MODEL (uppercase) must still route through
+            // config.set key=model with the BARE spec — the leading "/MODEL"
+            // slash prefix must be stripped, or parse_model_flags on the
+            // backend won't recognize it and the hot-swap silently fails.
+            val modelCalls = mutableListOf<Triple<String, String, String>>()
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+                val params = arg<Map<String, Any>>(1)
+                modelCalls.add(
+                    Triple(
+                        params["key"] as String,
+                        params["value"] as String,
+                        params["session_id"] as String,
+                    ),
+                )
+                "req-cfg-ci-${modelCalls.size}"
+            }
+
+            viewModel.sendMessage("/MODEL gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            val call = modelCalls.firstOrNull { it.first == "model" }
+            assertNotNull("uppercase /MODEL must route through config.set key=model", call)
+            assertEquals(
+                "slash prefix must be stripped before send",
+                "gpt-4o --provider openai --session",
+                call!!.second,
+            )
+            assertFalse(
+                "value must not carry the literal /MODEL prefix",
+                call.second.startsWith("/"),
+            )
+            assertEquals(sessionId, call.third)
         }
 
     // ── Connection / init tests ──────────────────────────────────────────────

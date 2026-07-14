@@ -10,6 +10,8 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -78,6 +80,15 @@ data class ChatUiState(
     val typingEffectDelayMs: Int = 30,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
+    // In-session model picker (issue #589) — surfaced when the user types /model
+    // (or taps the top-bar model chip). Mirror of the global model screen's
+    // picker, but the selection hot-swaps the CURRENT session via the slash path.
+    val showModelPicker: Boolean = false,
+    val modelPickerProviders: List<ModelProvider> = emptyList(),
+    val modelPickerPinned: List<PinnedModel> = emptyList(),
+    val modelPickerLoading: Boolean = false,
+    // Current session's active model label (provider/model), shown in the chip
+    val currentSessionModel: String? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     // Reaction animation — set when a reaction WS event arrives, auto-clears
@@ -135,6 +146,7 @@ class ChatViewModel(
         ChatPersistenceRepository(
             HermesDatabase.get(application).chatMessageDao(),
         ),
+    searchDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -164,8 +176,16 @@ class ChatViewModel(
         ChatSearchDelegate(
             scope = viewModelScope,
             uiState = _uiState,
+            dispatcher = searchDispatcher,
         )
     private val attachmentsDelegate = ChatAttachmentsDelegate(uiState = _uiState)
+
+    /**
+     * Model options cached from GET /api/model/options so the in-session model
+     * picker (issue #589) opens instantly when the user types /model or taps the
+     * top-bar chip. Preloaded at GatewayReady; refreshed on open if empty.
+     */
+    private var cachedModelOptions: List<ModelProvider> = emptyList()
 
     private val streamingController =
         ChatStreamingController(
@@ -278,6 +298,7 @@ class ChatViewModel(
         addSystemMessage("Connected to Hermes")
         loadSessions()
         fetchCommandCatalog()
+        preloadModelOptions()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -653,6 +674,12 @@ class ChatViewModel(
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
+            // Issue #589: a bare "/model" (no argument) opens the picker instead
+            // of requiring the user to hand-type the provider/model.
+            if (isModelPickerCommand(trimmed)) {
+                openModelPicker()
+                return
+            }
             handleSlashCommand(trimmed)
             return
         }
@@ -841,6 +868,10 @@ class ChatViewModel(
                 branchSession(command)
             }
 
+            is SlashResult.ModelSwitch -> {
+                handleModelSwitch(command)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
@@ -885,6 +916,51 @@ class ChatViewModel(
                 WsMethods.COMMAND_DISPATCH,
                 mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
                 onSent = { id -> trackRequest(id, WsMethods.COMMAND_DISPATCH) },
+            )
+        }
+    }
+
+    /**
+     * Hot-swap the current session's model via the backend's model-switch
+     * mechanism (issue #589).
+     *
+     * The TUI gateway's `prompt.submit` does NOT parse slash commands (it would
+     * make the LLM treat "/model ..." as a chat message), and `command.dispatch`
+     * only knows quick/plugin/bundle/skill commands (4018s on /model). The
+     * correct RPC is `config.set` with `key="model"` — the gateway (server.py
+     * `config.set`, L10253) routes `key=="model"` straight to `_apply_model_switch`
+     * using the same `_sessions.get(session_id)` lookup that the working
+     * `command.dispatch` uses.
+     *
+     * IMPORTANT: `config.set` key=model passes the value DIRECTLY to
+     * `parse_model_flags` (it does NOT strip a leading "/model" like slash.exec /
+     * prompt.submit do). So we strip the "/model" prefix here and send the bare
+     * spec `parse_model_flags` understands:
+     *   `<model> --provider <slug> --session`
+     * (matching the TUI client's `modelValueForConfigSet`).
+     */
+    private fun handleModelSwitch(command: String) {
+        val sessionId = runtimeSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session. Use `/new` to create one.")
+            return
+        }
+        // Strip a leading "/model" (and any following whitespace) — config.set
+        // key=model expects the bare spec, not a slash command. Match the
+        // dispatcher's case-insensitive "/model" detection so a typed "/MODEL"
+        // (or any casing) doesn't forward the literal slash prefix to the
+        // backend, where parse_model_flags wouldn't recognize it.
+        val spec =
+            if (command.startsWith("/model", ignoreCase = true)) {
+                command.substring(6).trim()
+            } else {
+                command.trim()
+            }
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.CONFIG_SET,
+                mapOf("key" to "model", "value" to spec, "session_id" to sessionId),
+                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
             )
         }
     }
@@ -993,6 +1069,118 @@ class ChatViewModel(
             Log.e(TAG, "Failed to parse command catalog", e)
             null
         }
+
+    // ── In-session model picker (issue #589) ─────────────────────────────
+
+    /**
+     * Whether [command] should open the in-session model picker instead of being
+     * dispatched as a normal slash command. True for a bare `/model` (with no
+     * trailing model argument) — the picker supplies the argument interactively.
+     * A fully-typed `/model provider/model` is forwarded straight to the backend.
+     */
+    private fun isModelPickerCommand(command: String): Boolean {
+        val trimmed = command.trim()
+        if (!trimmed.startsWith("/", ignoreCase = true)) return false
+        val body = trimmed.removePrefix("/").trimStart()
+        // Must be exactly "model" with no argument (or just whitespace).
+        return body.equals("model", ignoreCase = true) ||
+            body.startsWith("model ", ignoreCase = true) &&
+            body.substringAfter("model").trim().isEmpty()
+    }
+
+    /** Preload model options so the picker opens instantly (no spinner on /model). */
+    private fun preloadModelOptions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result =
+                safeApiCall {
+                    ApiClient.hermesApi.getModelOptions(refresh = false)
+                }
+            if (result is NetworkResult.Success) {
+                cachedModelOptions = result.data.providers.orEmpty()
+                _uiState.update { it.copy(modelPickerPinned = AuthManager.getPinnedModels()) }
+            }
+        }
+    }
+
+    /**
+     * Open the in-session model picker. Uses the preloaded options if available
+     * (instant open); otherwise shows a loading state and fetches them. The
+     * `/model` slash command is the supported session hot-swap mechanism per the
+     * backend contract (issue #589).
+     */
+    fun openModelPicker() {
+        val hasCached = cachedModelOptions.isNotEmpty()
+        _uiState.update {
+            it.copy(
+                showModelPicker = true,
+                modelPickerProviders = if (hasCached) cachedModelOptions else emptyList(),
+                modelPickerPinned = AuthManager.getPinnedModels(),
+                modelPickerLoading = !hasCached,
+            )
+        }
+        if (!hasCached) {
+            refreshModelOptions()
+        }
+    }
+
+    /** Re-fetch options (pull-to-refresh style) when the picker is already open. */
+    fun refreshModelOptions() {
+        _uiState.update { it.copy(modelPickerLoading = true) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val result =
+                safeApiCall {
+                    ApiClient.hermesApi.getModelOptions(refresh = true)
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    cachedModelOptions = result.data.providers.orEmpty()
+                    _uiState.update {
+                        it.copy(
+                            modelPickerProviders = cachedModelOptions,
+                            modelPickerLoading = false,
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            modelPickerLoading = false,
+                            errorMessage = "Failed to load models: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun closeModelPicker() {
+        _uiState.update { it.copy(showModelPicker = false, modelPickerLoading = false) }
+    }
+
+    /**
+     * Hot-swap the CURRENT session's model via the /model slash command.
+     *
+     * Builds the backend-valid command form `/model <model> --provider <slug>
+     * --session`. The `--session` flag keeps the switch scoped to this chat
+     * only (it writes a per-session override and never touches the global
+     * model config), per the backend model-switch contract.
+     */
+    fun sendSlashModel(
+        provider: String,
+        model: String,
+    ) {
+        _uiState.update {
+            it.copy(
+                showModelPicker = false,
+                modelPickerLoading = false,
+                // Optimistic: reflect the chosen model in the top-bar chip until
+                // the next session sync confirms the backend hot-swap.
+                currentSessionModel = "$provider/$model",
+            )
+        }
+        handleSlashCommand("/model $model --provider $provider --session")
+    }
 
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return

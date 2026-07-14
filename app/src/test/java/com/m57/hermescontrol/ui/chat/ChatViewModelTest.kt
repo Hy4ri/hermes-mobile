@@ -139,7 +139,7 @@ class ChatViewModelTest {
 
     /** Create a ViewModel with the fake repo injected directly. */
     private fun createViewModel(startCleanup: Boolean = false): ChatViewModel =
-        ChatViewModel(app, startCleanup, fakeRepo)
+        ChatViewModel(app, startCleanup, fakeRepo, testDispatcher)
 
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,

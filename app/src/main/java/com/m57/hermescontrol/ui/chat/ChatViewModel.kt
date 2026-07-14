@@ -146,6 +146,7 @@ class ChatViewModel(
         ChatPersistenceRepository(
             HermesDatabase.get(application).chatMessageDao(),
         ),
+    searchDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -175,6 +176,7 @@ class ChatViewModel(
         ChatSearchDelegate(
             scope = viewModelScope,
             uiState = _uiState,
+            dispatcher = searchDispatcher,
         )
     private val attachmentsDelegate = ChatAttachmentsDelegate(uiState = _uiState)
 

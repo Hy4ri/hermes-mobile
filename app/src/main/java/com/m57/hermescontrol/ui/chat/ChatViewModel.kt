@@ -944,8 +944,16 @@ class ChatViewModel(
             return
         }
         // Strip a leading "/model" (and any following whitespace) — config.set
-        // key=model expects the bare spec, not a slash command.
-        val spec = command.removePrefix("/model").trim()
+        // key=model expects the bare spec, not a slash command. Match the
+        // dispatcher's case-insensitive "/model" detection so a typed "/MODEL"
+        // (or any casing) doesn't forward the literal slash prefix to the
+        // backend, where parse_model_flags wouldn't recognize it.
+        val spec =
+            if (command.startsWith("/model", ignoreCase = true)) {
+                command.substring(6).trim()
+            } else {
+                command.trim()
+            }
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.CONFIG_SET,

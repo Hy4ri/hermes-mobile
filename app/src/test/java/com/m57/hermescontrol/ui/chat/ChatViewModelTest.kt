@@ -430,6 +430,45 @@ class ChatViewModelTest {
             verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
         }
 
+    @Test
+    fun testTypedModelCommand_caseInsensitive_doesNotForwardSlashPrefix() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // A fully-typed /MODEL (uppercase) must still route through
+            // config.set key=model with the BARE spec — the leading "/MODEL"
+            // slash prefix must be stripped, or parse_model_flags on the
+            // backend won't recognize it and the hot-swap silently fails.
+            val modelCalls = mutableListOf<Triple<String, String, String>>()
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+                val params = arg<Map<String, Any>>(1)
+                modelCalls.add(
+                    Triple(
+                        params["key"] as String,
+                        params["value"] as String,
+                        params["session_id"] as String,
+                    ),
+                )
+                "req-cfg-ci-${modelCalls.size}"
+            }
+
+            viewModel.sendMessage("/MODEL gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            val call = modelCalls.firstOrNull { it.first == "model" }
+            assertNotNull("uppercase /MODEL must route through config.set key=model", call)
+            assertEquals(
+                "slash prefix must be stripped before send",
+                "gpt-4o --provider openai --session",
+                call!!.second,
+            )
+            assertFalse(
+                "value must not carry the literal /MODEL prefix",
+                call.second.startsWith("/"),
+            )
+            assertEquals(sessionId, call.third)
+        }
+
     // ── Connection / init tests ──────────────────────────────────────────────
 
     @Test

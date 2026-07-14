@@ -376,16 +376,20 @@ class ChatViewModelTest {
             assertTrue(viewModel.uiState.value.showModelPicker)
 
             // Selecting a model must send "/model openai/gpt-4o --provider openai --session"
-            // through the `slash.exec` RPC (NOT command.dispatch, which 4018s on /model,
-            // and NOT prompt.submit, which would make the LLM treat it as text). Capture
-            // the slash.exec params to assert the command text + session id.
-            val slashCalls = mutableListOf<Pair<String, String>>()
-            every { HermesWsClient.send(WsMethods.SLASH_EXEC, any(), any()) } answers {
+            // via the `config.set` RPC with key="model" (the gateway routes key=="model"
+            // to _apply_model_switch). NOT command.dispatch (4018s on /model), NOT
+            // prompt.submit (LLM would treat it as text). Capture the config.set params.
+            val modelCalls = mutableListOf<Triple<String, String, String>>()
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
                 val params = arg<Map<String, Any>>(1)
-                slashCalls.add(
-                    (params["session_id"] as String) to (params["command"] as String),
+                modelCalls.add(
+                    Triple(
+                        params["key"] as String,
+                        params["value"] as String,
+                        params["session_id"] as String,
+                    ),
                 )
-                "req-slash-${slashCalls.size}"
+                "req-cfg-${modelCalls.size}"
             }
 
             viewModel.sendSlashModel("openai", "gpt-4o")
@@ -396,11 +400,11 @@ class ChatViewModelTest {
                 "openai/gpt-4o",
                 viewModel.uiState.value.currentSessionModel,
             )
-            verify { HermesWsClient.send(WsMethods.SLASH_EXEC, any(), any()) }
-            val prompt = slashCalls.firstOrNull { it.second.startsWith("/model") }
-            assertNotNull("selection must route through slash.exec (slash command path)", prompt)
-            assertEquals("/model gpt-4o --provider openai --session", prompt!!.second)
-            assertEquals(sessionId, prompt.first)
+            verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
+            val call = modelCalls.firstOrNull { it.first == "model" }
+            assertNotNull("selection must route through config.set key=model", call)
+            assertEquals("/model gpt-4o --provider openai --session", call!!.second)
+            assertEquals(sessionId, call.third)
         }
 
     @Test
@@ -417,10 +421,11 @@ class ChatViewModelTest {
                 "typed /model with arg should not open the picker",
                 viewModel.uiState.value.showModelPicker,
             )
-            // A fully-typed /model goes to the backend via the `slash.exec` RPC (NOT
-            // command.dispatch, which 4018s on it, and NOT prompt.submit, which would
-            // make the LLM treat it as text).
-            verify { HermesWsClient.send(WsMethods.SLASH_EXEC, any(), any()) }
+            // A fully-typed /model goes to the backend via the `config.set` RPC
+            // (key="model"), which the gateway routes to _apply_model_switch. NOT
+            // command.dispatch (4018s on /model) and NOT prompt.submit (LLM would
+            // treat it as text).
+            verify { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) }
         }
 
     // ── Connection / init tests ──────────────────────────────────────────────

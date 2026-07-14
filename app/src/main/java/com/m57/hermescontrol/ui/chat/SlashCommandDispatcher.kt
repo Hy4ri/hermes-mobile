@@ -9,12 +9,12 @@ package com.m57.hermescontrol.ui.chat
  * Only commands that MUST be handled client-side (immediate UX) are here.
  * `/fork` and `/model` are NOT sent via [SlashResult.RpcDispatch] (which maps
  * to the `command.dispatch` RPC — that RPC only knows quick/plugin/bundle/skill
- * commands and 4018s on everything else). They are real backend slash commands
- * that get their own results: `/fork` goes via the `session.branch` RPC and
- * `/model` via the `slash.exec` RPC (the TUI gateway's `prompt.submit` does NOT
- * parse slash commands, so sending it as a normal prompt makes the LLM treat it
- * as text). Everything else is forwarded to the backend via
- * [SlashResult.RpcDispatch].
+ * commands and 4018s on everything else). They are real backend commands that
+ * get their own results: `/fork` goes via the `session.branch` RPC and `/model`
+ * via the `config.set` RPC (key="model" → gateway `_apply_model_switch`; the
+ * TUI gateway's `prompt.submit` does NOT parse slash commands, so sending it as
+ * a normal prompt makes the LLM treat it as text). Everything else is forwarded
+ * to the backend via [SlashResult.RpcDispatch].
  */
 class SlashCommandDispatcher {
     fun dispatch(command: String): SlashResult {
@@ -48,11 +48,11 @@ sealed class SlashResult {
     data object SessionBranch : SlashResult()
 
     /**
-     * Hot-swap the current session's model via the backend `/model` slash
-     * command. Sent as a `slash.exec` RPC (not command.dispatch — which 4018s on
-     * `/model` — and not prompt.submit, which would make the LLM treat it as
-     * text). `slash.exec` runs the command through the slash worker and
-     * `_apply_model_switch` to hot-swap the live session model.
+     * Hot-swap the current session's model via the backend `config.set` RPC
+     * (key="model" → `_apply_model_switch`). NOT command.dispatch (4018s on
+     * /model) and NOT prompt.submit (LLM would treat it as text). The value
+     * string carries the flags `parse_model_flags` understands:
+     * `/model <model> --provider <slug> --session`.
      */
     data object ModelSwitch : SlashResult()
 }

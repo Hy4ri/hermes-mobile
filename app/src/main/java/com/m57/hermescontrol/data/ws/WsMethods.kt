@@ -26,6 +26,7 @@ object WsMethods {
     const val COMMAND_DISPATCH = "command.dispatch"
     const val COMMAND_RESOLVE = "command.resolve"
     const val SLASH_EXEC = "slash.exec"
+    const val CONFIG_SET = "config.set"
 
     // ── Attachments ───────────────────────────────────────────────────────
 

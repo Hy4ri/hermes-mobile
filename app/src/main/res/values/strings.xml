@@ -112,6 +112,7 @@
     <string name="chat_reasoning_collapse">Collapse reasoning</string>
     <string name="chat_input_placeholder_not_connected">Not connected\u2026</string>
     <string name="chat_input_placeholder_waiting">Waiting for response\u2026</string>
+    <string name="chat_input_placeholder_queue">Queued \u2014 sends when agent is free\u2026</string>
     <string name="chat_input_placeholder_type_message">Type a message\u2026</string>
     <string name="chat_tool_stderr">Error Output (stderr):\n%1$s</string>
     <string name="chat_tool_execution_error">Execution Error: %1$s</string>

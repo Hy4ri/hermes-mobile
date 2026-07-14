@@ -700,11 +700,12 @@ private fun ChatInputBar(
     onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
 ) {
-    // Allow sending slash commands even while agent is typing
+    // Allow sending while the agent is mid-turn or awaiting approval: the
+    // gateway's prompt.submit busy-input policy queues it as the next turn
+    // (tui_gateway/server.py:_handle_busy_submit), so the message is never
+    // dropped. Slash commands were already allowed; regular prompts now are too.
     val isSlashCommand = inputText.startsWith("/")
-    val canSend =
-        (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) &&
-            isConnected && (!isAgentTyping || isSlashCommand)
+    val canSend = ChatInputPolicy.canSend(inputText, pendingAttachments, isConnected)
 
     // Attachment menu state
     var showAttachmentMenu by remember { mutableStateOf(false) }
@@ -916,6 +917,8 @@ private fun ChatInputBar(
                             Text(
                                 if (!isConnected) {
                                     stringResource(R.string.chat_input_placeholder_not_connected)
+                                } else if (ChatInputPolicy.showQueuePlaceholder(inputText, isAgentTyping)) {
+                                    stringResource(R.string.chat_input_placeholder_queue)
                                 } else if (isAgentTyping) {
                                     stringResource(R.string.chat_input_placeholder_waiting)
                                 } else {

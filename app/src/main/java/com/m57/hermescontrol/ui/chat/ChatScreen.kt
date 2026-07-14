@@ -114,6 +114,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -187,7 +188,9 @@ fun ChatScreen(
         }
     }
     val scrollScope = rememberCoroutineScope()
-    var inputText by rememberSaveable { mutableStateOf("") }
+    var inputFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
@@ -212,12 +215,13 @@ fun ChatScreen(
                         ?.firstOrNull()
                         .orEmpty()
                 if (spokenText.isNotBlank()) {
-                    inputText =
-                        if (inputText.isBlank()) {
+                    val merged =
+                        if (inputFieldValue.text.isBlank()) {
                             spokenText
                         } else {
-                            "$inputText $spokenText"
+                            "${inputFieldValue.text} $spokenText"
                         }
+                    inputFieldValue = ChatInputPolicy.commandFieldValue(merged)
                 }
             }
         }
@@ -469,11 +473,11 @@ fun ChatScreen(
             }
 
             ChatInputBar(
-                inputText = inputText,
-                onInputChange = { inputText = it },
+                inputFieldValue = inputFieldValue,
+                onInputChange = { inputFieldValue = it },
                 onSend = {
-                    viewModel.sendMessage(inputText)
-                    inputText = ""
+                    viewModel.sendMessage(inputFieldValue.text)
+                    inputFieldValue = TextFieldValue("")
                     scrollScope.launch {
                         val totalItems =
                             state.messages.size +
@@ -686,8 +690,8 @@ private fun ReasoningIndicator(reasoningText: String) {
 
 @Composable
 private fun ChatInputBar(
-    inputText: String,
-    onInputChange: (String) -> Unit,
+    inputFieldValue: TextFieldValue,
+    onInputChange: (TextFieldValue) -> Unit,
     onSend: () -> Unit,
     onMicTap: () -> Unit,
     isListening: Boolean,
@@ -704,8 +708,8 @@ private fun ChatInputBar(
     // gateway's prompt.submit busy-input policy queues it as the next turn
     // (tui_gateway/server.py:_handle_busy_submit), so the message is never
     // dropped. Slash commands were already allowed; regular prompts now are too.
-    val isSlashCommand = inputText.startsWith("/")
-    val canSend = ChatInputPolicy.canSend(inputText, pendingAttachments, isConnected)
+    val isSlashCommand = inputFieldValue.text.startsWith("/")
+    val canSend = ChatInputPolicy.canSend(inputFieldValue.text, pendingAttachments, isConnected)
 
     // Attachment menu state
     var showAttachmentMenu by remember { mutableStateOf(false) }
@@ -776,11 +780,12 @@ private fun ChatInputBar(
                 val commandNames = commandCatalog.pairs.map { it[0] }.filter { it !in hiddenSlashDisplay }
 
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = inputText.startsWith("/") && !inputText.contains(" "),
+                    visible = inputFieldValue.text.startsWith("/") && !inputFieldValue.text.contains(" "),
                     enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
                     exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
                 ) {
-                    val filteredCommands = commandNames.filter { it.startsWith(inputText, ignoreCase = true) }
+                    val filteredCommands =
+                        commandNames.filter { it.startsWith(inputFieldValue.text, ignoreCase = true) }
                     if (filteredCommands.isNotEmpty()) {
                         androidx.compose.material3.Surface(
                             modifier =
@@ -807,7 +812,7 @@ private fun ChatInputBar(
                                                 color = MaterialTheme.colorScheme.primary,
                                             )
                                         },
-                                        onClick = { onInputChange(cmd) },
+                                        onClick = { onInputChange(ChatInputPolicy.commandFieldValue(cmd)) },
                                     )
                                 }
                             }
@@ -905,7 +910,7 @@ private fun ChatInputBar(
                     }
 
                     OutlinedTextField(
-                        value = inputText,
+                        value = inputFieldValue,
                         onValueChange = onInputChange,
                         modifier =
                             Modifier
@@ -917,7 +922,7 @@ private fun ChatInputBar(
                             Text(
                                 if (!isConnected) {
                                     stringResource(R.string.chat_input_placeholder_not_connected)
-                                } else if (ChatInputPolicy.showQueuePlaceholder(inputText, isAgentTyping)) {
+                                } else if (ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping)) {
                                     stringResource(R.string.chat_input_placeholder_queue)
                                 } else if (isAgentTyping) {
                                     stringResource(R.string.chat_input_placeholder_waiting)
@@ -946,7 +951,7 @@ private fun ChatInputBar(
                         targetState =
                             when {
                                 isListening -> "listening"
-                                inputText.isBlank() && pendingAttachments.isEmpty() -> "mic"
+                                inputFieldValue.text.isBlank() && pendingAttachments.isEmpty() -> "mic"
                                 else -> "send"
                             },
                         transitionSpec = {

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -88,5 +89,22 @@ class ChatInputPolicyTest {
             "/stop must remain sendable while typing",
             ChatInputPolicy.canSend("/stop", emptyList(), isConnected = true),
         )
+    }
+
+    @Test
+    fun commandFieldValue_placesCursorAtEnd() {
+        val cmd = "/help"
+        val value = ChatInputPolicy.commandFieldValue(cmd)
+        assertEquals("command text must be preserved", cmd, value.text)
+        assertEquals("cursor must be at the end, not the middle", cmd.length, value.selection.start)
+        assertEquals("selection must be collapsed at the end", cmd.length, value.selection.end)
+    }
+
+    @Test
+    fun commandFieldValue_endSelectionOnPrefixReplacement() {
+        // Regression guard for issue #599: inserting /help over an existing /h
+        // prefix must not leave the cursor at position 2 (middle of the text).
+        val value = ChatInputPolicy.commandFieldValue("/help")
+        assertTrue("cursor must be past the shared /h prefix", value.selection.start > 2)
     }
 }

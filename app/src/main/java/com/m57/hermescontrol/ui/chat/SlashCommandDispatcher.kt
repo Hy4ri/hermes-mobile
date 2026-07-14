@@ -10,8 +10,11 @@ package com.m57.hermescontrol.ui.chat
  * `/fork` and `/model` are NOT sent via [SlashResult.RpcDispatch] (which maps
  * to the `command.dispatch` RPC — that RPC only knows quick/plugin/bundle/skill
  * commands and 4018s on everything else). They are real backend slash commands
- * that must travel as normal prompt messages, so they get their own results.
- * Everything else is forwarded to the backend via [SlashResult.RpcDispatch].
+ * that get their own results: `/fork` goes via the `session.branch` RPC and
+ * `/model` via the `slash.exec` RPC (the TUI gateway's `prompt.submit` does NOT
+ * parse slash commands, so sending it as a normal prompt makes the LLM treat it
+ * as text). Everything else is forwarded to the backend via
+ * [SlashResult.RpcDispatch].
  */
 class SlashCommandDispatcher {
     fun dispatch(command: String): SlashResult {
@@ -46,9 +49,10 @@ sealed class SlashResult {
 
     /**
      * Hot-swap the current session's model via the backend `/model` slash
-     * command. Sent as a NORMAL prompt message (not command.dispatch), because
-     * `command.dispatch` only knows quick/plugin/bundle/skill commands and
-     * returns `4018: not a quick/plugin/bundle/skill command: model` for `/model`.
+     * command. Sent as a `slash.exec` RPC (not command.dispatch — which 4018s on
+     * `/model` — and not prompt.submit, which would make the LLM treat it as
+     * text). `slash.exec` runs the command through the slash worker and
+     * `_apply_model_switch` to hot-swap the live session model.
      */
     data object ModelSwitch : SlashResult()
 }

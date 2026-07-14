@@ -922,14 +922,15 @@ class ChatViewModel(
      * Hot-swap the current session's model via the backend's `/model` slash
      * command (issue #589).
      *
-     * CRITICAL: `/model` is a real backend slash command — it must travel as a
-     * NORMAL prompt message (`prompt.submit`), NOT the `command.dispatch` RPC.
-     * `command.dispatch` only knows quick/plugin/bundle/skill commands and
-     * returns `4018: not a quick/plugin/bundle/skill command: model`. The
-     * backend's message pipeline (`_handle_message` → `_handle_model_command`)
-     * parses the leading `/model` from the prompt text and runs the switch,
-     * exactly as if the user typed it into the chat box. `sendSlashModel` builds
-     * the `/model <model> --provider <slug> --session` form the backend expects.
+     * CRITICAL: `/model` is a real backend slash command, but the TUI gateway's
+     * `prompt.submit` handler does NOT parse slash commands — it runs the text as
+     * a normal agent turn (so the LLM just sees "/model ..." as a message, which
+     * is exactly the bug that was reported). The correct transport is the
+     * `slash.exec` RPC, which runs the command through the slash worker and then
+     * `_mirror_slash_side_effects` → `_apply_model_switch` to hot-swap the model
+     * on the live session. `command.dispatch` is ALSO wrong (only knows
+     * quick/plugin/bundle/skill commands → 4018). `sendSlashModel` builds the
+     * `/model <model> --provider <slug> --session` form `slash.exec` expects.
      */
     private fun handleModelSwitch(command: String) {
         val sessionId = runtimeSessionId
@@ -939,9 +940,9 @@ class ChatViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
-                WsMethods.PROMPT_SUBMIT,
-                mapOf("session_id" to sessionId, "text" to command),
-                onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
+                WsMethods.SLASH_EXEC,
+                mapOf("command" to command, "session_id" to sessionId),
+                onSent = { id -> trackRequest(id, WsMethods.SLASH_EXEC) },
             )
         }
     }

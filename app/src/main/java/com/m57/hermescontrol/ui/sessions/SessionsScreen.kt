@@ -80,6 +80,8 @@ import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionSearchResult
+import com.m57.hermescontrol.data.model.SessionTreeItem
+import com.m57.hermescontrol.data.model.flattenSessionTree
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -208,18 +210,22 @@ private fun formatPlayedAt(epochSeconds: Double?): String? {
     }
 }
 
-/**
- * Builds the list of sessions to display. In search mode the backend results are
- * used; otherwise the locally-paginated list is filtered by title/status as before.
- */
-private fun displayedSessions(state: SessionsUiState): List<SessionInfo> =
+private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
     if (state.isSearchMode) {
-        state.searchResults.map { it.toSessionInfo() }
-    } else {
-        state.sessions.filter { session ->
-            session.title?.contains(state.searchQuery, ignoreCase = true) == true ||
-                session.status?.contains(state.searchQuery, ignoreCase = true) == true
+        state.searchResults.map { searchResult ->
+            val session = searchResult.toSessionInfo()
+            SessionTreeItem(
+                session = session,
+                depth = 0,
+                branchStem = null,
+                displayTitle = session.title?.takeIf(String::isNotBlank)
+                    ?: session.display_name?.takeIf(String::isNotBlank)
+                    ?: session.preview?.takeIf(String::isNotBlank)?.take(80)
+                    ?: "Untitled",
+            )
         }
+    } else {
+        flattenSessionTree(state.sessions)
     }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -464,7 +470,8 @@ fun SessionsScreen(
                                             contentPadding = listContentPadding,
                                             verticalArrangement = listItemSpacing,
                                         ) {
-                                            items(sessionsToDisplay, key = { it.id }) { session ->
+                                            items(sessionsToDisplay, key = { it.session.id }) { item ->
+                                                val session = item.session
                                                 SearchResultCard(
                                                     session = session,
                                                     query = state.searchQuery,
@@ -592,9 +599,13 @@ fun SessionsScreen(
                                 contentPadding = listContentPadding,
                                 verticalArrangement = listItemSpacing,
                             ) {
-                                items(sessionsToDisplay, key = { it.id }) { session ->
+                                items(sessionsToDisplay, key = { it.session.id }) { item ->
+                                    val session = item.session
                                     SessionCard(
                                         session = session,
+                                        displayTitle = item.displayTitle,
+                                        depth = item.depth,
+                                        branchStem = item.branchStem,
                                         query = state.searchQuery,
                                         isSelecting = state.isSelecting,
                                         isSelected = session.id in state.selectedIds,
@@ -754,6 +765,9 @@ fun SessionsScreen(
 @Composable
 private fun SessionCard(
     session: com.m57.hermescontrol.data.model.SessionInfo,
+    displayTitle: String,
+    depth: Int,
+    branchStem: String?,
     query: String,
     isSelecting: Boolean,
     isSelected: Boolean,
@@ -767,7 +781,6 @@ private fun SessionCard(
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
-    val displayTitle = session.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
     val isActive = session.status?.lowercase() == "active" || session.status?.lowercase() == "streaming"
     val srcIcon = sourceIcon(session.source)
 
@@ -775,6 +788,7 @@ private fun SessionCard(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .padding(start = (depth * 16).dp)
                 .testTag("session_card_${session.id}")
                 .combinedClickable(
                     onClick = onCardClick,
@@ -803,6 +817,16 @@ private fun SessionCard(
                     checked = isSelected,
                     onCheckedChange = { onToggleSelection() },
                     modifier = Modifier.testTag("session_checkbox_${session.id}"),
+                )
+                Spacer(modifier = Modifier.width(spacing.sm))
+            }
+
+            // Branch tree stem
+            if (branchStem != null && !isSelecting) {
+                Text(
+                    text = branchStem,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.outline,
                 )
                 Spacer(modifier = Modifier.width(spacing.sm))
             }

@@ -43,3 +43,9 @@ val MonochromeLightColorScheme =
         onSurfaceVariant = Color(0xFF4A4A4A),
         outline = Color(0xFF888888),
     )
+
+/** Monochrome status colors (dark) — reuses the brand default set. */
+val MonochromeDarkStatusColors = DefaultDarkStatusColors
+
+/** Monochrome status colors (light) — reuses the brand default set. */
+val MonochromeLightStatusColors = DefaultLightStatusColors

@@ -135,6 +135,7 @@ import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import com.m57.hermescontrol.ui.providers.ProvidersScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -373,6 +374,35 @@ fun ChatScreen(
             }
         },
         actions = {
+            // In-session model chip (issue #589): opens the /model picker, which
+            // hot-swaps the current session's model. Shows the active model label.
+            val modelLabel = state.currentSessionModel
+            Surface(
+                onClick = { viewModel.openModelPicker() },
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 4.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Psychology,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = modelLabel ?: "model",
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
             // Search toggle
             IconButton(onClick = { viewModel.toggleSearch() }) {
                 Icon(
@@ -550,6 +580,19 @@ fun ChatScreen(
                 onRelogin = { username, password, onResult ->
                     viewModel.relogin(username, password, onResult)
                 },
+            )
+        }
+
+        // In-session model picker (issue #589) — opens on "/model" or the top-bar chip.
+        if (state.showModelPicker) {
+            ModelPickerDialog(
+                providers = state.modelPickerProviders,
+                title = "Switch model (this chat)",
+                isLoading = state.modelPickerLoading && state.modelPickerProviders.isEmpty(),
+                onSelect = { provider, model ->
+                    viewModel.sendSlashModel(provider, model)
+                },
+                onDismiss = { viewModel.closeModelPicker() },
             )
         }
     }

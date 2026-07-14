@@ -63,6 +63,7 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.model.components.MoaConfigDialog
+import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -241,6 +242,7 @@ fun ModelScreen(
         ModelPickerDialog(
             providers = state.providers,
             title = "Set Main Model",
+            isLoading = state.isLoading && state.providers.isEmpty(),
             onSelect = { provider, model ->
                 viewModel.setMainModel(provider, model)
             },
@@ -264,6 +266,7 @@ fun ModelScreen(
         ModelPickerDialog(
             providers = state.providers,
             title = "Set Aux: ${state.auxPickerTask}",
+            isLoading = state.isLoading && state.providers.isEmpty(),
             onSelect = { provider, model ->
                 viewModel.setAuxTask(state.auxPickerTask, provider, model)
             },
@@ -541,70 +544,6 @@ private fun AuxTasksDialog(
 // ────────────────────────────────────────────────────────────────────
 // Model Picker Dialog
 // ────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun ModelPickerDialog(
-    providers: List<com.m57.hermescontrol.data.model.ModelProvider>,
-    title: String,
-    onSelect: (provider: String, model: String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var pickerQuery by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                SearchBar(
-                    query = pickerQuery,
-                    onQueryChange = { pickerQuery = it },
-                    placeholder = "Search providers...",
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                LazyColumn(modifier = Modifier.height(400.dp)) {
-                    items(
-                        providers.filter {
-                            pickerQuery.isBlank() ||
-                                it.name.contains(pickerQuery, ignoreCase = true) ||
-                                it.slug.contains(pickerQuery, ignoreCase = true)
-                        },
-                        key = { it.slug },
-                    ) { provider ->
-                        val models =
-                            provider.models.orEmpty().filter {
-                                pickerQuery.isBlank() ||
-                                    it.contains(pickerQuery, ignoreCase = true)
-                            }
-
-                        if (models.isNotEmpty()) {
-                            Text(
-                                text = provider.name,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                            )
-
-                            models.forEach { model ->
-                                OutlinedButton(
-                                    onClick = { onSelect(provider.slug, model) },
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                ) {
-                                    Text(text = model, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
 
 // ────────────────────────────────────────────────────────────────────
 // Pinned Section Card — extracted from existing screen

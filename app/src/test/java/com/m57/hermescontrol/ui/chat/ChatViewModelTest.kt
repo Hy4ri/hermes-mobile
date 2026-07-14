@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -101,6 +102,30 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+
+        // Stub model-options so preloadModelOptions() (fired at GatewayReady) is safe.
+        val mockApi = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
+        every { ApiClient.hermesApi } returns mockApi
+        coEvery {
+            mockApi.getModelOptions(any(), any())
+        } returns
+            retrofit2.Response.success(
+                com.m57.hermescontrol.data.model.ModelOptionsResponse(
+                    providers =
+                        listOf(
+                            com.m57.hermescontrol.data.model.ModelProvider(
+                                slug = "openai",
+                                name = "OpenAI",
+                                models = listOf("gpt-4o", "gpt-4o-mini"),
+                            ),
+                            com.m57.hermescontrol.data.model.ModelProvider(
+                                slug = "anthropic",
+                                name = "Anthropic",
+                                models = listOf("claude-3-5-sonnet"),
+                            ),
+                        ),
+                ),
+            )
     }
 
     @After
@@ -317,6 +342,76 @@ class ChatViewModelTest {
             viewModel.sendMessage("/stats")
             advanceUntilIdle()
 
+            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+        }
+
+    @Test
+    fun testBareModelCommand_opensPickerInsteadOfDispatch() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            // A bare "/model" must NOT dispatch a slash command; it opens the picker.
+            viewModel.sendMessage("/model")
+            advanceUntilIdle()
+
+            assertTrue(
+                "picker should be shown when bare /model is typed",
+                viewModel.uiState.value.showModelPicker,
+            )
+            assertTrue(
+                "picker should have preloaded providers (cached at GatewayReady)",
+                viewModel.uiState.value.modelPickerProviders.isNotEmpty(),
+            )
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+        }
+
+    @Test
+    fun testModelPickerSelection_hotSwapsCurrentSessionViaSlash() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            viewModel.sendMessage("/model")
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.showModelPicker)
+
+            // Selecting a model must send "/model openai/gpt-4o" through the slash path.
+            val captured = mutableListOf<Pair<String, Map<String, Any>>>()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                val id = "req-${captured.size + 1}"
+                captured.add(arg<String>(0) to (arg<Map<String, Any>>(1)))
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            viewModel.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+
+            assertFalse("picker closes after selection", viewModel.uiState.value.showModelPicker)
+            assertEquals(
+                "openai/gpt-4o",
+                viewModel.uiState.value.currentSessionModel,
+            )
+            val dispatch =
+                captured.firstOrNull { it.first == WsMethods.COMMAND_DISPATCH }
+            assertNotNull("selection must route through command.dispatch (slash path)", dispatch)
+            assertEquals("model", dispatch!!.second["name"])
+            assertEquals("openai/gpt-4o", dispatch.second["arg"])
+            assertEquals(sessionId, dispatch.second["session_id"])
+        }
+
+    @Test
+    fun testTypedModelCommandWithArg_dispatchesDirectly() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // A fully-typed "/model provider/model" bypasses the picker and dispatches.
+            viewModel.sendMessage("/model openai/gpt-4o")
+            advanceUntilIdle()
+
+            assertFalse(
+                "typed /model with arg should not open the picker",
+                viewModel.uiState.value.showModelPicker,
+            )
             verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 

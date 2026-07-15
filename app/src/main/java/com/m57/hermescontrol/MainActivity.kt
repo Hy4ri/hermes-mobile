@@ -1,5 +1,6 @@
 package com.m57.hermescontrol
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,10 +17,23 @@ import androidx.compose.ui.Modifier
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
 import com.m57.hermescontrol.theme.HermesControlTheme
+import com.m57.hermescontrol.util.LocaleContextWrapper
 
 class MainActivity : ComponentActivity() {
     // Observable state so both onCreate and onNewIntent updates flow to Compose
     private var notificationSessionId by mutableStateOf<String?>(null)
+
+    /**
+     * Apply the user-selected display language before any view is inflated.
+     * Reads the persisted code from [AuthManager]; an uninitialized store
+     * (shouldn't happen here, but guarded) falls back to the device locale.
+     */
+    override fun attachBaseContext(base: Context) {
+        val code =
+            runCatching { AuthManager.getAppLanguage() }
+                .getOrDefault(LocaleContextWrapper.SYSTEM_LANGUAGE)
+        super.attachBaseContext(LocaleContextWrapper.wrapWithCode(base, code))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

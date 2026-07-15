@@ -163,6 +163,8 @@ fun SettingsScreen(
                             onUseDynamicColorsChange = viewModel::onUseDynamicColorsChange,
                             themePreset = state.themePreset,
                             onThemePresetChange = viewModel::onThemePresetChange,
+                            appLanguage = state.appLanguage,
+                            onAppLanguageChange = viewModel::onAppLanguageChange,
                         )
 
                         ChatSection(

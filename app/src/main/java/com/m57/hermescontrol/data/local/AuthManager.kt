@@ -498,6 +498,15 @@ object AuthManager {
         serverStore.update { it.copy(typingEffectEnabled = enabled) }
     }
 
+    // ── App display language ───────────────────────────────────────────
+    // "system" follows the device locale; any other value is a BCP-47 code.
+
+    fun getAppLanguage(): String = serverStore.getLatestState().appLanguage
+
+    fun setAppLanguage(code: String) {
+        serverStore.update { it.copy(appLanguage = code) }
+    }
+
     fun getTypingEffectDelayMs(): Int = serverStore.getLatestState().typingEffectDelayMs
 
     fun setTypingEffectDelayMs(delayMs: Int) {

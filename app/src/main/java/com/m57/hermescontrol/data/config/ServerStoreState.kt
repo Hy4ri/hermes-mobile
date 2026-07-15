@@ -23,4 +23,7 @@ data class ServerStoreState(
     val wsAuthParam: String = "token",
     val typingEffectEnabled: Boolean = true,
     val typingEffectDelayMs: Int = 30,
+    // App display language. "system" = follow device locale; otherwise a BCP-47
+    // language code such as "en" or "ko". Applied via ContextWrapper in MainActivity.
+    val appLanguage: String = "system",
 )

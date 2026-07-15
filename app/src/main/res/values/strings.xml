@@ -207,6 +207,12 @@
     <string name="theme_preset_amoled">AMOLED Black (Dark only)</string>
     <string name="theme_preset_neon_noir">Neon Noir</string>
 
+    <!-- Language -->
+    <string name="settings_item_language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="language_english">English</string>
+    <string name="language_korean">한국어</string>
+
     <!-- Connect Screen -->
     <string name="connect_selected_profile">Profile: %1$s</string>
     <string name="connect_action_select_profile">Select Saved Profile</string>

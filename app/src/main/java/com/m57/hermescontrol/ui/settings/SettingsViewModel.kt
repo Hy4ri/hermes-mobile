@@ -39,6 +39,7 @@ data class SettingsUiState(
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
     val bottomNavDisplayMode: BottomNavDisplayMode = BottomNavDisplayMode.ICON_AND_TEXT,
+    val appLanguage: String = "system",
     // Profile add/edit dialog
     val showProfileDialog: Boolean = false,
     val editingProfileId: String? = null,
@@ -79,6 +80,7 @@ class SettingsViewModel(
         val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
         val profiles = AuthManager.getConnectionProfiles()
         val bottomNavDisplayMode = AuthManager.getBottomNavDisplayMode()
+        val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
             profiles.firstOrNull { p -> p.id == selectedId }?.name ?: ""
         _uiState.update {
@@ -97,6 +99,7 @@ class SettingsViewModel(
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
                 bottomNavDisplayMode = bottomNavDisplayMode,
+                appLanguage = appLanguage,
             )
         }
     }
@@ -294,6 +297,11 @@ class SettingsViewModel(
     fun onThemePresetChange(preset: ThemePreset) {
         _uiState.update { it.copy(themePreset = preset, isSaved = false) }
         AuthManager.setThemePreset(preset)
+    }
+
+    fun onAppLanguageChange(code: String) {
+        _uiState.update { it.copy(appLanguage = code, isSaved = false) }
+        AuthManager.setAppLanguage(code)
     }
 
     fun onBottomNavDisplayModeChange(mode: BottomNavDisplayMode) {

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.settings.components
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.ui.settings.SectionCard
+import com.m57.hermescontrol.util.LocaleContextWrapper
 
 @Composable
 internal fun AppearanceSection(
@@ -52,6 +54,8 @@ internal fun AppearanceSection(
     onUseDynamicColorsChange: (Boolean) -> Unit,
     themePreset: ThemePreset,
     onThemePresetChange: (ThemePreset) -> Unit,
+    appLanguage: String,
+    onAppLanguageChange: (String) -> Unit,
 ) {
     SectionCard(title = stringResource(R.string.settings_sec_appearance)) {
         Text(
@@ -190,6 +194,42 @@ internal fun AppearanceSection(
                             presetsExpanded = false
                         },
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = stringResource(R.string.settings_item_language),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        val languageOptions =
+            listOf(
+                LocaleContextWrapper.SYSTEM_LANGUAGE to stringResource(R.string.language_system),
+                "en" to stringResource(R.string.language_english),
+                "ko" to stringResource(R.string.language_korean),
+            )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            val activity = LocalActivity.current
+            languageOptions.forEachIndexed { index, (code, label) ->
+                SegmentedButton(
+                    selected = appLanguage == code,
+                    onClick = {
+                        onAppLanguageChange(code)
+                        // MainActivity is a plain ComponentActivity (not
+                        // AppCompatActivity), so the locale only takes effect
+                        // after the activity is recreated.
+                        activity?.recreate()
+                    },
+                    shape =
+                        SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = languageOptions.size,
+                        ),
+                ) {
+                    Text(label)
                 }
             }
         }

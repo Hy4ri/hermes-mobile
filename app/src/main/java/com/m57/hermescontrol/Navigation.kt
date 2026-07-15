@@ -183,9 +183,13 @@ fun MainNavigation(sessionId: String? = null) {
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
-    // B7 (Jun 30 2026, kanban t_424): close drawer if gestures are disabled to dismiss scrim
+    // B7 (Jun 30 2026, kanban t_424): close drawer if gestures are disabled to dismiss scrim.
+    // Also force-close on transition into a non-gesture screen so the drawer's scrim
+    // surface cannot intercept the first back-button tap (e.g. settings sub-pages drilled
+    // down from the gesture-enabled Settings root). snapTo(Closed) is a safe no-op when
+    // already closed.
     LaunchedEffect(gesturesEnabled) {
-        if (!gesturesEnabled && drawerState.isOpen) {
+        if (!gesturesEnabled) {
             drawerState.snapTo(DrawerValue.Closed)
         }
     }

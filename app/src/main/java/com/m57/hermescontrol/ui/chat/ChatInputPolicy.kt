@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.ui.chat
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+
 /**
  * Pure, testable decision logic for the chat input bar.
  *
@@ -32,4 +35,14 @@ object ChatInputPolicy {
         text: String,
         isAgentTyping: Boolean,
     ): Boolean = isAgentTyping && text.isNotBlank()
+
+    /**
+     * Builds the [TextFieldValue] for a slash command inserted via the
+     * suggestion dropdown. The cursor is placed at the END of the text, not the
+     * middle (issue #599): a plain-String [OutlinedTextField] value leaves the
+     * cursor at the end of the shared prefix when an external update replaces
+     * `/h` with `/help`, so the dropdown click must carry an explicit end
+     * selection.
+     */
+    fun commandFieldValue(command: String): TextFieldValue = TextFieldValue(command, TextRange(command.length))
 }

@@ -15,6 +15,7 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -129,20 +130,17 @@ class SlashCommandDispatchRpcTest {
             val paramsSlot = slot<Map<String, Any>>()
             var captured = false
             every {
-                HermesWsClient.send(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
             } answers {
                 captured = true
-                reqCount++
-                val id = "req-dispatch-$reqCount"
-                arg<((String) -> Unit)?>(2)?.invoke(id)
-                id
+                CompletableDeferred<Any?>(Unit)
             }
 
             // /help is NOT client-special-cased -> RpcDispatch
             vm.sendMessage("/help")
             advanceUntilIdle()
 
-            assertTrue("expected a COMMAND_DISPATCH send", captured)
+            assertTrue("expected a COMMAND_DISPATCH request", captured)
             assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
             val params = paramsSlot.captured
             assertEquals("help", params["name"])
@@ -158,12 +156,9 @@ class SlashCommandDispatchRpcTest {
             val methodSlot = slot<String>()
             val paramsSlot = slot<Map<String, Any>>()
             every {
-                HermesWsClient.send(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
             } answers {
-                reqCount++
-                val id = "req-dispatch-$reqCount"
-                arg<((String) -> Unit)?>(2)?.invoke(id)
-                id
+                CompletableDeferred<Any?>(Unit)
             }
 
             vm.sendMessage("/queue do the thing")
@@ -194,13 +189,10 @@ class SlashCommandDispatchRpcTest {
             // Narrow stub to record COMMAND_DISPATCH calls
             val seen = mutableListOf<String>()
             every {
-                HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any())
+                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
             } answers {
                 seen.add("dispatch")
-                reqCount++
-                val id = "req-id-$reqCount"
-                arg<((String) -> Unit)?>(2)?.invoke(id)
-                id
+                CompletableDeferred<Any?>(Unit)
             }
 
             vm.sendMessage("/stop")

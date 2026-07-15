@@ -912,11 +912,18 @@ class ChatViewModel(
         val name = parts[0].lowercase().removePrefix("/")
         val arg = parts.getOrElse(1) { "" }
         viewModelScope.launch(Dispatchers.IO) {
-            wsClient.send(
-                WsMethods.COMMAND_DISPATCH,
-                mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
-                onSent = { id -> trackRequest(id, WsMethods.COMMAND_DISPATCH) },
-            )
+            try {
+                // Await the gateway's response instead of fire-and-forget. The
+                // backend returns an explicit 4018 for commands it doesn't
+                // route (issue #576) — swallow that and the user sees NOTHING.
+                wsClient.request(
+                    WsMethods.COMMAND_DISPATCH,
+                    mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
+                ).await()
+            } catch (e: HermesWsClient.HermesRpcException) {
+                // Surface the backend error so the dead-tap is no longer silent.
+                addAssistantMessage("⚠️ /$name: ${e.message}")
+            }
         }
     }
 

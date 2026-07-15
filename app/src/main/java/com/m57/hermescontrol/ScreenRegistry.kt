@@ -208,9 +208,7 @@ object ScreenRegistry {
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer ->
                 SettingsScreenContent(
-                    onBack = {
-                        NavigationController.goBack()
-                    },
+                    onOpenDrawer = openDrawer,
                     onNavigateToLogin = {
                         NavigationController.navigateTo(AuthLoginScreen)
                     },

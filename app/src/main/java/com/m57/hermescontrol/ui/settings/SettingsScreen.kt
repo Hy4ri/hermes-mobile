@@ -47,7 +47,7 @@ import com.m57.hermescontrol.ui.common.NavIcon
 
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
+    onOpenDrawer: (() -> Unit)? = null,
     onNavigateToLogin: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -57,7 +57,7 @@ fun SettingsScreen(
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
-        navigationIcon = NavIcon.Back(onBack),
+        navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
     ) {
         Column(
             modifier =

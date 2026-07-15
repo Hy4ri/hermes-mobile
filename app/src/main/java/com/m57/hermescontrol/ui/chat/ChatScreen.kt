@@ -127,6 +127,7 @@ import coil.compose.AsyncImage
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -739,44 +740,9 @@ private fun ChatInputBar(
             Column {
                 // Commands hidden from the suggestion menu — desktop/CLI-only and
                 // TUI-only commands that don't function on mobile (issue #574).
-                // Source of truth: backend `cli_only` / TUI-only flags in the catalog.
-                val hiddenSlashDisplay =
-                    setOf(
-                        "/clear",
-                        "/redraw",
-                        "/history",
-                        "/save",
-                        "/prompt",
-                        "/snapshot",
-                        "/handoff",
-                        "/journey",
-                        "/config",
-                        "/statusbar",
-                        "/timestamps",
-                        "/verbose",
-                        "/skin",
-                        "/indicator",
-                        "/busy",
-                        "/tools",
-                        "/toolsets",
-                        "/skills",
-                        "/pet",
-                        "/hatch",
-                        "/cron",
-                        "/reload",
-                        "/browser",
-                        "/plugins",
-                        "/billing",
-                        "/platforms",
-                        "/copy",
-                        "/paste",
-                        "/image",
-                        "/quit",
-                        // TUI-only extras (meaningless outside the TUI)
-                        "/compact",
-                        "/logs",
-                        "/mouse",
-                    )
+                // Single source of truth: CommandBlocklist.UNSUPPORTED, which is
+                // also enforced at dispatch time (issue #576, deliverable #3).
+                val hiddenSlashDisplay = CommandBlocklist.UNSUPPORTED
                 val commandNames = commandCatalog.pairs.map { it[0] }.filter { it !in hiddenSlashDisplay }
 
                 androidx.compose.animation.AnimatedVisibility(

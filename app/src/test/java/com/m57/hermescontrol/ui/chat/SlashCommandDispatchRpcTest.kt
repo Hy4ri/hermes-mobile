@@ -235,4 +235,30 @@ class SlashCommandDispatchRpcTest {
             val last = vm.uiState.value.messages.lastOrNull()
             assertEquals("STATUS: gateway reachable", last?.content)
         }
+
+    @Test
+    fun `blocklisted cli_only or TUI-only command is rejected with friendly message and no RPC`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+
+            var rpcCalls = 0
+            every {
+                HermesWsClient.request(any(), any(), any())
+            } answers {
+                rpcCalls++
+                CompletableDeferred<Any?>(Unit)
+            }
+
+            // /redraw is TUI-only (issue #574) — hidden from suggestions but a
+            // user can still type it. It must be blocked before any RPC fires.
+            vm.sendMessage("/redraw")
+            advanceUntilIdle()
+
+            val last = vm.uiState.value.messages.lastOrNull()
+            assertTrue(
+                "expected a 'not supported on mobile' message, got: ${last?.content}",
+                last?.content?.contains("not supported on mobile") == true,
+            )
+            assertEquals("no RPC should fire for a blocklisted command", 0, rpcCalls)
+        }
 }

@@ -18,6 +18,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -853,6 +854,17 @@ class ChatViewModel(
             viewModelScope.launch(Dispatchers.IO) {
                 repo.persistMessage(userMsg, sessionId)
             }
+        }
+
+        // Block desktop/CLI-only + TUI-only commands that don't function on
+        // mobile (issue #576, deliverable #3). These are also hidden from the
+        // suggestion menu, but a user can still type one — intercept it here
+        // (before any RPC fires) with a clear message instead of a doomed call.
+        if (CommandBlocklist.contains(command)) {
+            addAssistantMessage(
+                "⚠️ ${command.split(" ", limit = 2)[0]} is not supported on mobile",
+            )
+            return
         }
 
         when (val result = slashDispatcher.dispatch(command)) {

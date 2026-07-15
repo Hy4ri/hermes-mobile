@@ -913,16 +913,39 @@ class ChatViewModel(
         val arg = parts.getOrElse(1) { "" }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Await the gateway's response instead of fire-and-forget. The
-                // backend returns an explicit 4018 for commands it doesn't
-                // route (issue #576) — swallow that and the user sees NOTHING.
+                // Primary path: command.dispatch handles quick/plugin/bundle/
+                // skill commands + a few hardcoded ones. It returns a hard 4018
+                // "not a ... command" for everything that lives only in the TUI
+                // slash worker (the 29 commands that 4018'd on mobile — issue
+                // #576). For those we fall back to slash.exec, which runs the
+                // full COMMAND_REGISTRY through the worker.
                 wsClient.request(
                     WsMethods.COMMAND_DISPATCH,
                     mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
                 ).await()
             } catch (e: HermesWsClient.HermesRpcException) {
-                // Surface the backend error so the dead-tap is no longer silent.
-                addAssistantMessage("⚠️ /$name: ${e.message}")
+                val msg = e.message.orEmpty()
+                if (msg.contains("not a") && msg.contains("command")) {
+                    // Registry miss on command.dispatch -> retry via slash.exec,
+                    // which routes the full CLI command set through the worker.
+                    try {
+                        val result =
+                            wsClient.request(
+                                WsMethods.SLASH_EXEC,
+                                mapOf(
+                                    "command" to "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
+                                    "session_id" to sessionId,
+                                ),
+                            ).await()
+                        val output = (result as? Map<*, *>)?.get("output") as? String
+                        if (!output.isNullOrBlank()) addAssistantMessage(output)
+                    } catch (e2: HermesWsClient.HermesRpcException) {
+                        addAssistantMessage("⚠️ /$name: ${e2.message}")
+                    }
+                } else {
+                    // Legit error from command.dispatch (busy, no history, etc.)
+                    addAssistantMessage("⚠️ /$name: ${e.message}")
+                }
             }
         }
     }

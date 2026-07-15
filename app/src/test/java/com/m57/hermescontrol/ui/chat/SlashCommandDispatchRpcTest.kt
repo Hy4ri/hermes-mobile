@@ -172,38 +172,67 @@ class SlashCommandDispatchRpcTest {
         }
 
     @Test
-    fun `client-special-cased commands do NOT hit COMMAND_DISPATCH`() =
+    fun `non-registry-miss backend error is surfaced directly (no fallback)`() =
         runTest {
             val (vm, _) = createViewModelWithSession()
 
-            val dispatched = mutableListOf<String>()
             every {
-                HermesWsClient.send(any(), any(), any())
+                HermesWsClient.request(any(), any(), any())
             } answers {
-                // track method via the captured value isn't possible here; re-stub below
-                reqCount++
-                val id = "req-id-$reqCount"
-                arg<((String) -> Unit)?>(2)?.invoke(id)
-                id
-            }
-            // Narrow stub to record COMMAND_DISPATCH calls
-            val seen = mutableListOf<String>()
-            every {
-                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
-            } answers {
-                seen.add("dispatch")
-                CompletableDeferred<Any?>(Unit)
+                val d = CompletableDeferred<Any?>()
+                d.completeExceptionally(
+                    // A real, actionable error (not the "not a command" 4018
+                    // that triggers the slash.exec fallback).
+                    HermesWsClient.HermesRpcException("session busy — /interrupt first"),
+                )
+                d
             }
 
-            vm.sendMessage("/stop")
-            advanceUntilIdle()
-            vm.sendMessage("/new")
+            vm.sendMessage("/help")
             advanceUntilIdle()
 
-            // /stop -> Interrupt, /new -> NewSession: neither should RpcDispatch.
-            assertTrue(
-                "client-handled commands must not be forwarded to the backend",
-                seen.isEmpty(),
-            )
+            val last = vm.uiState.value.messages.lastOrNull()
+            assertEquals("⚠️ /help: session busy — /interrupt first", last?.content)
+        }
+
+    @Test
+    fun `registry-miss 4018 on command dispatch falls back to slash_exec and surfaces output`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodSlot = slot<String>()
+            val paramsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+            } answers {
+                val m = methodSlot.captured
+                val d = CompletableDeferred<Any?>()
+                if (m == WsMethods.COMMAND_DISPATCH) {
+                    // Backend rejects /status with the registry-miss 4018 (issue #576).
+                    d.completeExceptionally(
+                        HermesWsClient.HermesRpcException(
+                            "not a quick/plugin/bundle/skill command: status",
+                        ),
+                    )
+                } else {
+                    // slash.exec runs the full COMMAND_REGISTRY and returns output.
+                    d.complete(mapOf("output" to "STATUS: gateway reachable"))
+                }
+                d
+            }
+
+            vm.sendMessage("/status")
+            advanceUntilIdle()
+
+            // The fallback must have hit slash.exec with the full command string.
+            // (methodSlot/paramsSlot hold the LAST call = slash.exec.)
+            assertEquals(WsMethods.SLASH_EXEC, methodSlot.captured)
+            val params = paramsSlot.captured
+            assertEquals("/status", params["command"])
+            assertEquals(sessionId, params["session_id"])
+
+            // And the slash.exec output must be surfaced to the user.
+            val last = vm.uiState.value.messages.lastOrNull()
+            assertEquals("STATUS: gateway reachable", last?.content)
         }
 }

@@ -167,6 +167,10 @@ fun MainNavigation(sessionId: String? = null) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    // Synchronous drawer dismiss hook used by NavigationController.navigateTo
+    // when drilling into a non-gesture sub-page (see NavigationController.closeDrawer).
+    NavigationController.closeDrawer = { scope.launch { drawerState.close() } }
+
     val bottomNavItemsState by AuthManager.bottomNavItemsFlow.collectAsState()
     val bottomNavDisplayMode by AuthManager.bottomNavDisplayModeFlow.collectAsState()
     val bottomNavItems = resolveBottomNavItems(bottomNavItemsState)

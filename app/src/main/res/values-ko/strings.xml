@@ -1,0 +1,796 @@
+<resources>
+    <string name="app_name">헤르메스</string>
+
+    <!-- Chat -->
+    <string name="chat_send_desc">전송</string>
+    <string name="chat_mic_desc">음성 입력</string>
+    <string name="chat_mic_listening">듣는 중…</string>
+    <string name="stt_permission_denied">음성 입력을 위해 마이크 권한이 필요합니다</string>
+    <string name="stt_not_available">이 기기에서 음성 인식을 사용할 수 없습니다</string>
+    <string name="chat_clarify_title">확인 필요</string>
+    <string name="chat_clarify_hint">옵션을 탭하면 입력창에 복사되고, 길게 누르면 바로 전송됩니다.</string>
+    <string name="chat_clarify_response">응답</string>
+    <string name="chat_send">전송</string>
+    <string name="chat_dismiss">닫기</string>
+    <string name="chat_sudo_title">Sudo 비밀번호 필요</string>
+    <string name="chat_sudo_body">에이전트가 계속 진행하려면 sudo 비밀번호가 필요합니다. 화면에 표시되지 않습니다.</string>
+    <string name="chat_sudo_password">비밀번호</string>
+    <string name="chat_secret_title">시크릿 필요</string>
+    <string name="chat_secret_body">에이전트가 계속 진행하려면 시크릿 값(토큰 또는 비밀번호)이 필요합니다. 화면에 표시되지 않습니다.</string>
+    <string name="chat_secret_value">시크릿</string>
+    <string name="chat_search_placeholder">메시지 검색…</string>
+    <string name="chat_clear_search_desc">지우기</string>
+    <string name="chat_prev_match_desc">이전</string>
+    <string name="chat_next_match_desc">다음</string>
+    <string name="chat_close_search_desc">검색 닫기</string>
+
+    <!-- Actions -->
+    <string name="action_retry">재시도</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_clear">지우기</string>
+    <string name="action_ok">확인</string>
+    <string name="action_delete">삭제</string>
+
+    <!-- Content Descriptions -->
+    <string name="content_desc_back">뒤로</string>
+    <string name="content_desc_open_drawer">내비게이션 열기</string>
+    <string name="content_desc_refresh">새로고침</string>
+    <string name="common_save">저장</string>
+    <string name="common_cancel">취소</string>
+    <string name="content_desc_clear_search">검색 지우기</string>
+
+    <!-- General Errors -->
+    <string name="error_unknown">알 수 없는 오류</string>
+
+    <!-- Navigation & Drawer -->
+    <string name="nav_drawer_title">⚡ 헤르메스</string>
+    <string name="nav_drawer_subtitle">AI 에이전트 제어</string>
+    <string name="nav_drawer_section_converse">대화</string>
+    <string name="nav_drawer_section_automate">자동화</string>
+    <string name="nav_drawer_section_configure">설정</string>
+    <string name="nav_drawer_section_inspect">검사</string>
+
+    <!-- Screen Names -->
+    <string name="screen_chat">채팅</string>
+    <string name="screen_skills">스킬</string>
+    <string name="screen_cron">크론</string>
+    <string name="screen_system">시스템</string>
+    <string name="screen_settings">설정</string>
+    <string name="screen_profiles">프로필</string>
+    <string name="screen_webhooks">웹훅</string>
+    <string name="screen_gateway">게이트웨이</string>
+    <string name="screen_toolsets">툴셋</string>
+    <string name="screen_plugins">플러그인</string>
+    <string name="screen_config">설정</string>
+    <string name="screen_mcp_servers">MCP 서버</string>
+    <string name="screen_models">모델</string>
+    <string name="screen_pairing">페어링</string>
+    <string name="screen_keys">키</string>
+    <string name="screen_channels">채널</string>
+    <string name="screen_logs">로그</string>
+    <string name="screen_kanban">칸반</string>
+    <string name="screen_achievements">업적</string>
+    <string name="screen_history">히스토리</string>
+    <string name="screen_processes">프로세스</string>
+    <string name="screen_providers">제공자</string>
+    <string name="screen_analytics">분석</string>
+
+    <!-- Notifications -->
+    <string name="notif_title">헤르메스</string>
+    <string name="notif_waiting_replies">헤르메스 응답 대기 중</string>
+    <string name="notif_new_message">새 메시지</string>
+    <string name="notif_clarification_needed">헤르메스의 확인이 필요합니다</string>
+    <string name="notif_reply_placeholder">답변 입력…</string>
+    <string name="notif_channel_service_name">헤르메스 백그라운드 서비스</string>
+    <string name="notif_channel_service_desc">백그라운드에서 연결 유지</string>
+    <string name="notif_channel_chat_name">헤르메스 채팅 응답</string>
+    <string name="notif_channel_chat_desc">헤르메스의 새 응답 알림</string>
+    <string name="action_reply">답장</string>
+
+    <!-- Chat Screen & Bubble -->
+    <string name="chat_action_search">검색</string>
+    <string name="chat_action_close_search">검색 닫기</string>
+    <string name="chat_action_reconnect">재접속</string>
+    <string name="chat_action_relogin">재로그인</string>
+    <string name="chat_relogin_title">헤르메스 재로그인</string>
+    <string name="chat_relogin_username">사용자명</string>
+    <string name="chat_relogin_password">비밀번호</string>
+    <string name="chat_relogin_submit">로그인</string>
+    <string name="chat_relogin_cancel">취소</string>
+    <string name="chat_relogin_error_empty">사용자명과 비밀번호를 입력해주세요</string>
+    <string name="chat_empty_title">채팅 준비 완료</string>
+    <string name="chat_empty_subtitle">메시지를 보내 대화를 시작하세요</string>
+    <string name="chat_status_connecting">헤르메스에 연결 중…</string>
+    <string name="chat_status_reconnecting">재연결 중…</string>
+    <string name="chat_status_disconnected">연결 끊김</string>
+    <string name="chat_status_no_network">네트워크 없음</string>
+    <string name="chat_status_auth_expired">세션 만료</string>
+    <string name="chat_thinking">생각 중…</string>
+    <string name="chat_thinking_param">생각 중: %1$s…</string>
+    <string name="chat_reasoning">추론</string>
+    <string name="chat_reasoning_expand">추론 펼치기</string>
+    <string name="chat_reasoning_collapse">추론 접기</string>
+    <string name="chat_input_placeholder_not_connected">연결되지 않음…</string>
+    <string name="chat_input_placeholder_waiting">응답 대기 중…</string>
+    <string name="chat_input_placeholder_type_message">메시지 입력…</string>
+    <string name="chat_tool_stderr">오류 출력 (stderr):\n%1$s</string>
+    <string name="chat_tool_execution_error">실행 오류: %1$s</string>
+    <string name="chat_tool_exit_code">종료 코드: %1$d</string>
+    <string name="chat_tool_fallback">도구</string>
+    <string name="chat_tool_show_raw">Raw JSON 보기</string>
+    <string name="chat_tool_show_parsed">파싱된 결과 보기</string>
+    <string name="content_desc_new_chat">새 채팅</string>
+    <string name="content_desc_scroll_to_bottom">맨 아래로</string>
+    <string name="content_desc_copy">복사</string>
+    <string name="content_desc_edit">편집</string>
+
+    <!-- Attachment / File Picker -->
+    <string name="chat_attach_desc">파일 첨부</string>
+    <string name="chat_attach_image_desc">이미지 첨부</string>
+    <string name="chat_attach_remove_desc">첨부 제거</string>
+    <string name="chat_attachment_unknown">알 수 없는 파일</string>
+    <string name="chat_attachment_image">이미지</string>
+    <string name="chat_attachment_file">%1$s</string>
+    <string name="chat_attachment_send_error">첨부 파일 처리 실패</string>
+
+    <!-- Camera -->
+    <string name="chat_camera_desc">카메라</string>
+    <string name="chat_camera_error">사진 촬영 실패</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_tab_connection">연결</string>
+    <string name="settings_tab_appearance">테마</string>
+    <string name="settings_tab_behavior">동작</string>
+    <string name="settings_tab_about">정보</string>
+    <string name="settings_sec_connection">연결</string>
+    <string name="settings_item_profile">연결 프로필</string>
+    <string name="settings_profile_default">독립형 / 기본</string>
+    <string name="settings_action_rename_profile">프로필 이름 변경</string>
+    <string name="settings_field_host">호스트</string>
+    <string name="settings_field_port">포트</string>
+    <string name="settings_field_token">인증 토큰</string>
+    <string name="settings_action_clear_token">토큰 지우기</string>
+    <string name="settings_sec_behavior">동작</string>
+    <string name="settings_item_auto_reconnect">자동 재연결</string>
+    <string name="settings_desc_auto_reconnect">연결 끊김 시 자동 재연결</string>
+    <string name="settings_sec_appearance">테마</string>
+    <string name="settings_item_theme">테마</string>
+    <string name="settings_sec_chat">채팅</string>
+    <string name="settings_item_typing_effect">타이핑 효과</string>
+    <string name="settings_desc_typing_effect">새 메시지를 단어 단위로 애니메이션</string>
+    <string name="settings_item_typing_delay">지연: %1$d ms</string>
+    <string name="settings_delay_10ms">10 ms</string>
+    <string name="settings_delay_100ms">100 ms</string>
+    <string name="settings_sec_nav_bar">내비게이션 바</string>
+    <string name="settings_item_nav_items">하단 바 항목 (%1$d/5)</string>
+    <string name="settings_action_add_item">항목 추가</string>
+    <string name="settings_nav_max_reached">최대 5개 항목</string>
+    <string name="settings_item_bottom_nav_display_mode">하단 바 표시 모드</string>
+    <string name="settings_display_mode_icon_and_text">아이콘 + 텍스트</string>
+    <string name="settings_display_mode_icon_only">아이콘만</string>
+    <string name="settings_display_mode_text_only">텍스트만</string>
+    <string name="settings_save_success">✅ 설정 저장됨</string>
+    <string name="settings_action_test_connection">연결 테스트</string>
+    <string name="settings_sec_about">정보</string>
+    <string name="settings_about_app_name">⚡ 헤르메스 모바일</string>
+    <string name="settings_about_version">버전</string>
+    <string name="settings_about_build">빌드</string>
+    <string name="settings_about_debug">디버그</string>
+    <string name="settings_about_release">릴리즈</string>
+    <string name="settings_about_commit">커밋</string>
+    <string name="action_rename">이름 변경</string>
+    <string name="action_save">저장</string>
+    <string name="settings_action_add_profile">프로필 추가</string>
+    <string name="settings_action_edit_profile">프로필 편집</string>
+    <string name="settings_title_add_profile">연결 프로필 추가</string>
+    <string name="settings_title_edit_profile">연결 프로필 편집</string>
+    <string name="settings_field_profile_name">프로필 이름</string>
+    <string name="settings_delete_confirm_title">프로필 삭제?</string>
+    <string name="settings_delete_confirm_message">정말 \"%1$s\"을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.</string>
+    <string name="content_desc_delete_profile">프로필 삭제</string>
+    <string name="content_desc_hide_token">토큰 숨기기</string>
+    <string name="content_desc_show_token">토큰 보기</string>
+    <string name="content_desc_move_up">위로</string>
+    <string name="content_desc_move_down">아래로</string>
+    <string name="content_desc_remove_item">%1$s 제거</string>
+    <string name="theme_system">시스템</string>
+    <string name="theme_light">라이트</string>
+    <string name="theme_dark">다크</string>
+    <string name="settings_item_use_dynamic_colors">다이나믹 컬러</string>
+    <string name="settings_desc_use_dynamic_colors">배경화면에서 색상 추출 (Android 12+)</string>
+    <string name="settings_item_theme_preset">프리셋 테마</string>
+    <string name="theme_preset_default">기본 (볼티지 퍼플)</string>
+    <string name="theme_preset_monochrome">모노크롬</string>
+    <string name="theme_preset_gruvbox">Gruvbox</string>
+    <string name="theme_preset_catppuccin">Catppuccin</string>
+    <string name="theme_preset_amoled">AMOLED 블랙 (다크 전용)</string>
+    <string name="theme_preset_neon_noir">네온 느와르</string>
+
+    <!-- Connect Screen -->
+    <string name="connect_selected_profile">프로필: %1$s</string>
+    <string name="connect_action_select_profile">저장된 프로필 선택</string>
+
+    <!-- Connect Error Messages -->
+    <string name="connect_error_token_required">토큰이 필요합니다</string>
+    <string name="connect_error_host_required">호스트가 필요합니다</string>
+    <string name="connect_error_port_invalid">포트는 1~65535 사이여야 합니다</string>
+    <string name="connect_error_401">잘못된 토큰 (401 Unauthorized)</string>
+    <string name="connect_error_403">접근 거부 (403 Forbidden)</string>
+    <string name="connect_error_http_code">서버가 HTTP %1$d 반환</string>
+    <string name="connect_error_timeout">연결 시간 초과</string>
+    <string name="connect_error_refused">연결 거부됨 – Hermes가 실행 중인가요?</string>
+    <string name="connect_error_resolve">호스트를 찾을 수 없음</string>
+    <string name="connect_error_connection_failed">연결 실패: %1$s</string>
+    <string name="connect_error_missing_fields">잘못된 페어링 문자열 — host, port 또는 token 누락</string>
+    <string name="connect_error_malformed">잘못된 페어링 문자열 — URL 또는 Base64 JSON이어야 함</string>
+    <string name="connect_error_parse_failed">페어링 문자열 파싱 실패: %1$s</string>
+
+    <string name="connect_pairing_string">페어링 문자열</string>
+    <string name="connect_placeholder_pairing">hermes://… 또는 Base64 설정 붙여넣기</string>
+    <string name="connect_save_profile">연결 프로필 저장</string>
+    <string name="connect_profile_name">프로필 이름</string>
+    <string name="connect_placeholder_profile_name">예: 집 헤르메스, 사무실 서버</string>
+    <string name="connect_action_hide_manual">수동 입력 숨기기</string>
+    <string name="connect_action_show_manual">수동으로 입력</string>
+    <string name="connect_placeholder_token">API 토큰</string>
+    <string name="connect_placeholder_host">127.0.0.1</string>
+    <string name="connect_placeholder_port">9119</string>
+    <string name="action_connect">연결</string>
+
+    <!-- Kanban Screen -->
+    <string name="kanban_board_title">칸반 보드</string>
+    <string name="kanban_no_boards">보드가 없습니다.</string>
+    <string name="kanban_no_columns">이 보드에 컬럼이 없습니다.</string>
+    <string name="kanban_add_new_task">새 작업 추가</string>
+    <string name="kanban_task_title">작업 제목</string>
+    <string name="kanban_task_desc">작업 설명</string>
+    <string name="action_add">추가</string>
+    <string name="content_desc_move_left">왼쪽으로</string>
+    <string name="content_desc_move_right">오른쪽으로</string>
+
+    <!-- Skills Screen -->
+    <string name="skills_status_all">모든 상태</string>
+    <string name="skills_status_enabled">활성</string>
+    <string name="skills_status_disabled">비활성</string>
+    <string name="skills_category_all">전체</string>
+    <string name="skills_no_skills">스킬이 없습니다</string>
+    <string name="skills_no_skills_desc">Hermes에서 로드된 스킬이 여기에 표시됩니다.</string>
+    <string name="skills_screen_title">스킬</string>
+    <string name="skills_search_placeholder">스킬 검색…</string>
+    <string name="skills_filter_status">상태</string>
+    <string name="skills_filter_category">카테고리</string>
+    <string name="skills_no_matching">일치하는 스킬 없음</string>
+    <string name="skills_no_matching_desc">검색어나 필터를 조정해보세요.</string>
+    <string name="skills_edit_title">편집: %1$s</string>
+    <string name="skills_preview_title">미리보기: %1$s</string>
+    <string name="skills_preview_empty">미리볼 내용이 없습니다</string>
+    <string name="skills_hub_search_placeholder">스킬 허브 검색…</string>
+    <string name="skills_hub_search_button">허브 검색</string>
+    <string name="skills_hub_empty_results">허브에서 스킬을 찾을 수 없음</string>
+    <string name="skills_hub_search_hint">검색어를 입력해 스킬 허브를 탐색하세요</string>
+    <string name="skills_hub_install">설치</string>
+    <string name="skills_content_placeholder">스킬 내용 입력…</string>
+    <string name="skills_empty_message">스킬이 없습니다</string>
+    <string name="skills_discard_title">변경사항을 취소할까요?</string>
+    <string name="skills_discard_message">저장되지 않은 변경사항이 있습니다. 정말 취소하시겠습니까?</string>
+    <string name="skills_mode_installed">설치됨</string>
+    <string name="skills_mode_hub">허브 찾기</string>
+    <string name="skills_source_all">모든 출처</string>
+    <string name="skills_install_success">설치됨: %1$s</string>
+    <string name="skills_install_failure">%1$s 설치 실패: %2$s</string>
+    <string name="skills_uninstall_success">제거됨: %1$s</string>
+    <string name="skills_uninstall_failure">%1$s 제거 실패: %2$s</string>
+    <string name="skills_preview_failure">미리보기 로드 실패: %1$s</string>
+    <string name="skills_load_failure">스킬 로드 실패: %1$s</string>
+    <string name="skills_search_failure">검색 실패: %1$s</string>
+    <string name="skills_toggle_failure">스킬 전환 실패: %1$s</string>
+    <string name="skills_toggle_success">%1$s 전환됨</string>
+    <string name="action_discard">취소</string>
+
+    <string name="content_desc_edit_skill">스킬 파일 편집</string>
+    <string name="content_desc_preview_skill">스킬 파일 미리보기</string>
+    <string name="content_desc_uninstall_skill">스킬 제거</string>
+    <string name="content_desc_update_skills_hub">허브에서 스킬 업데이트</string>
+    <string name="content_desc_save_changes">변경사항 저장</string>
+
+    <!-- Logs Screen -->
+    <string name="logs_empty_title">로그 없음</string>
+    <string name="logs_empty_desc">Hermes의 로그 출력이 여기에 표시됩니다.</string>
+    <string name="logs_action_pause">일시정지</string>
+    <string name="logs_action_resume">재개</string>
+    <string name="logs_action_export">공유</string>
+    <string name="logs_content_desc_jump_bottom">맨 아래로</string>
+    <string name="logs_filter_all">전체</string>
+    <string name="logs_filter_error">에러</string>
+    <string name="logs_filter_warn">경고</string>
+    <string name="logs_filter_info">정보</string>
+    <string name="logs_filter_debug">디버그</string>
+
+    <!-- System Screen -->
+    <string name="system_empty_title">시스템 데이터 없음</string>
+    <string name="system_empty_desc">새로고침을 눌러 시스템 진단 정보를 불러오세요.</string>
+
+    <!-- Host section -->
+    <string name="system_sec_host">호스트</string>
+    <string name="system_label_os">OS</string>
+    <string name="system_label_arch">아키텍처</string>
+    <string name="system_label_hostname">호스트명</string>
+    <string name="system_label_python">파이썬</string>
+    <string name="system_label_hermes_version">헤르메스</string>
+    <string name="system_label_cpu">CPU</string>
+    <string name="system_label_memory">메모리</string>
+    <string name="system_label_disk">디스크</string>
+    <string name="system_label_uptime">가동 시간</string>
+    <string name="system_label_load_avg">부하 평균</string>
+    <string name="system_label_cores">코어</string>
+    <string name="system_label_used_total">%1$s / %2$s</string>
+    <string name="system_label_used_total_percent">%1$s / %2$s (%3$s%%)</string>
+    <string name="system_psutil_warning">CPU/메모리/디스크 정보를 보려면 psutil을 설치하세요.</string>
+    <string name="system_version_latest">최신</string>
+    <string name="system_version_update_available">업데이트 있음</string>
+    <string name="system_version_behind">%1$d 버전 뒤짐</string>
+    <string name="system_action_check_updates">업데이트 확인</string>
+    <string name="system_action_update_now">지금 업데이트</string>
+    <string name="system_update_confirm_title">Hermes 업데이트?</string>
+    <string name="system_update_confirm_desc">Hermes 업데이트를 실행하고 게이트웨이를 재시작합니다. 다음 재시작 시 적용됩니다.</string>
+    <string name="system_hooks_modal_title">새 셸 훅</string>
+    <string name="system_hooks_field_event">이벤트</string>
+    <string name="system_hooks_field_command">명령어 (절대 경로)</string>
+    <string name="system_hooks_field_matcher">매처 (선택사항)</string>
+    <string name="system_hooks_field_timeout">타임아웃 (초)</string>
+    <string name="system_hooks_field_approve">지금 승인 (실행 허용; 설정만 해두고 비활성 상태로 두려면 체크 해제)</string>
+    <string name="system_hooks_warning">셸 훅은 이 호스트에서任意 명령을 실행합니다. 신뢰하는 스크립트만 추가하세요. 다음 게이트웨이/세션 재시작부터 적용됩니다.</string>
+    <string name="system_hooks_create">훅 생성</string>
+    <string name="system_hooks_creating">생성 중</string>
+
+    <!-- Action log viewer -->
+    <string name="system_action_log_title">액션 로그</string>
+    <string name="system_action_log_running">실행 중</string>
+    <string name="system_action_log_done">완료</string>
+    <string name="system_action_log_exit">종료 %1$d</string>
+    <string name="system_action_log_starting">시작 중…</string>
+
+    <!-- Confirmation dialog -->
+    <string name="system_confirm_cancel">취소</string>
+    <string name="system_confirm_restore">복원</string>
+    <string name="system_confirm_update_now">지금 업데이트</string>
+
+    <!-- Model Screen -->
+    <string name="model_empty_title">모델 제공자가 없습니다</string>
+    <string name="model_empty_desc">설정을 확인하거나 다시 시도하세요</string>
+    <string name="model_label_slug">슬러그: %1$s</string>
+    <string name="model_status_current">현재</string>
+    <string name="model_label_available">사용 가능한 모델:</string>
+    <string name="model_no_models">보고된 모델이 없거나 인증이 필요합니다.</string>
+    <string name="content_desc_active_model">활성 모델</string>
+    <string name="model_section_pinned">고정된 모델</string>
+    <string name="content_desc_pin_model">모델 고정</string>
+    <string name="content_desc_unpin_model">모델 고정 해제</string>
+    <string name="content_desc_pinned_section_toggle">고정 섹션 표시 전환</string>
+
+    <!-- Sessions (History) Screen -->
+    <string name="history_empty_title">히스토리 없음</string>
+    <string name="history_empty_desc">이전 채팅 세션이 여기에 표시됩니다.</string>
+    <string name="history_untitled">제목 없음</string>
+    <string name="history_message_count">%1$d개 메시지</string>
+    <string name="history_load_more">더 불러오기…</string>
+
+    <!-- Sessions Stats -->
+    <string name="sessions_search_placeholder">세션 검색…</string>
+    <string name="sessions_stat_total">전체</string>
+    <string name="sessions_stat_active">활성</string>
+    <string name="sessions_action_prune">정리</string>
+    <string name="sessions_prune_title">오래된 세션 정리</string>
+    <string name="sessions_prune_desc">지정된 일수보다 오래된 세션을 삭제합니다.</string>
+    <string name="sessions_prune_days_label">일수 기준</string>
+    <string name="sessions_prune_confirm">정리</string>
+    <string name="sessions_delete_title">세션 삭제?</string>
+    <string name="sessions_delete_message">정말 \"%1$s\"을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.</string>
+    <string name="sessions_bulk_delete_title">세션 삭제?</string>
+    <string name="sessions_bulk_delete_message">정말 %1$d개 세션을 삭제하시겠습니까? 되돌릴 수 없습니다.</string>
+    <string name="sessions_action_select_all">전체 선택</string>
+    <string name="sessions_action_deselect_all">선택 해제</string>
+    <string name="sessions_action_delete_n">%1$d개 삭제</string>
+    <string name="sessions_action_copy_prompt">프롬프트 복사</string>
+    <string name="sessions_rename_placeholder">새 제목…</string>
+    <string name="content_desc_enter_selection">세션 선택</string>
+    <string name="content_desc_exit_selection">선택 종료</string>
+
+    <!-- Toolsets Screen -->
+    <string name="toolsets_empty_title">툴셋이 없습니다</string>
+    <string name="toolsets_empty_desc">설정을 확인하거나 다시 시도하세요</string>
+
+    <!-- Webhooks Screen -->
+    <string name="webhooks_sec_status">전체 웹훅 상태</string>
+    <string name="webhooks_sec_subscriptions">구독</string>
+    <string name="webhooks_empty_desc">설정된 웹훅 구독이 없습니다.</string>
+    <string name="webhooks_search_placeholder">구독 검색…</string>
+    <string name="webhooks_label_target">대상 URL:</string>
+    <string name="webhooks_label_events">구독 이벤트:</string>
+    <string name="webhooks_action_add">구독 추가</string>
+    <string name="webhooks_action_create">생성</string>
+    <string name="webhooks_action_delete">삭제</string>
+    <string name="webhooks_dialog_create_title">구독 생성</string>
+    <string name="webhooks_dialog_delete_title">구독 삭제</string>
+    <string name="webhooks_dialog_delete_message">정말 \"%1$s\"을(를) 삭제하시겠습니까? 되돌릴 수 없습니다. 이 URL로 전송되는 모든 이벤트가 거부됩니다.</string>
+    <string name="webhooks_field_name">이름 *</string>
+    <string name="webhooks_field_description">설명</string>
+    <string name="webhooks_field_events">이벤트</string>
+    <string name="webhooks_field_deliver">전달 대상</string>
+    <string name="webhooks_field_secret">시크릿</string>
+    <string name="webhooks_hint_name">예: github-push</string>
+    <string name="webhooks_hint_events">쉼표로 구분 (예: push, pull_request)</string>
+    <string name="webhooks_hint_deliver">log, telegram, discord, origin, all…</string>
+    <string name="webhooks_hint_secret">비워두면 자동 생성</string>
+    <string name="webhooks_error_name_required">이름은 필수입니다</string>
+    <string name="webhooks_no_matching">일치하는 구독 없음</string>
+    <string name="webhooks_no_matching_desc">검색어를 조정해보세요.</string>
+
+    <!-- Pairing Screen -->
+    <string name="pairing_screen_title">기기 페어링</string>
+    <string name="pairing_sec_pending">승인 대기</string>
+    <string name="pairing_action_clear_all">전체 지우기</string>
+    <string name="pairing_action_approve">승인</string>
+    <string name="pairing_sec_approved">승인된 기기</string>
+    <string name="pairing_empty_approved">승인된 기기가 없습니다.</string>
+    <string name="pairing_label_user_id">사용자 ID: %1$s</string>
+    <string name="pairing_action_revoke">철회</string>
+
+    <!-- Config Screen -->
+    <string name="config_screen_title">설정</string>
+    <string name="config_placeholder_yaml">YAML 설정…</string>
+    <string name="config_action_reset">초기화</string>
+    <string name="config_action_save">저장</string>
+    <string name="config_action_save_yaml">YAML 저장</string>
+
+    <!-- Profiles Screen -->
+    <string name="profiles_empty_title">프로필이 없습니다</string>
+    <string name="profiles_empty_desc">Hermes의 연결 프로필이 여기에 표시됩니다.</string>
+    <string name="profiles_label_model">모델: %1$s</string>
+    <string name="profiles_label_provider">제공자: %1$s</string>
+    <string name="profiles_label_skills">%1$d개 스킬</string>
+    <string name="profiles_label_path">경로: %1$s</string>
+    <string name="profiles_badge_auto_generated">자동 생성</string>
+    <string name="profiles_action_activate">활성화</string>
+    <string name="profiles_action_edit_soul">소울 편집</string>
+    <string name="profiles_action_set_model">모델 설정</string>
+    <string name="profiles_action_clone">복제</string>
+    <string name="profiles_action_edit_description">설명 편집</string>
+    <string name="profiles_content_desc_active">활성 프로필</string>
+    <string name="profiles_title_edit_soul">소울 프로필 편집: %1$s</string>
+    <string name="profiles_title_set_model">모델 설정: %1$s</string>
+    <string name="profiles_title_clone">프로필 복제: %1$s</string>
+    <string name="profiles_title_edit_description">설명 편집: %1$s</string>
+    <string name="profiles_label_provider_input">제공자</string>
+    <string name="profiles_label_model_input">모델명</string>
+    <string name="profiles_label_new_name_input">새 프로필명</string>
+    <string name="profiles_label_description_input">설명</string>
+    <string name="profiles_description_placeholder">설명이 없습니다. 이 프로필의 역할을 설명해주세요.</string>
+    <string name="profiles_builder_step_indicator">%1$d / 5 단계</string>
+    <string name="profiles_builder_step_identity">아이덴티티</string>
+    <string name="profiles_builder_step_model">모델 설정</string>
+    <string name="profiles_builder_step_skills">스킬 선택</string>
+    <string name="profiles_builder_step_mcp">MCP 서버</string>
+    <string name="profiles_builder_step_review">검토 및 생성</string>
+    <string name="profiles_builder_action_back">뒤로</string>
+    <string name="profiles_builder_action_next">다음</string>
+    <string name="profiles_builder_action_create">프로필 생성</string>
+    <string name="profiles_builder_label_profile_name">프로필명</string>
+    <string name="profiles_builder_label_description">설명</string>
+    <string name="profiles_builder_title_provider">제공자 선택 (선택사항)</string>
+    <string name="profiles_builder_title_model">모델 선택</string>
+    <string name="profiles_builder_skills_default">기본 스킬 번들 포함</string>
+    <string name="profiles_builder_skills_default_desc">공통 시스템 도구 자동 포함</string>
+    <string name="profiles_builder_skills_local">로컬 스킬 선택</string>
+    <string name="profiles_builder_skills_search_hub">허브 검색</string>
+    <string name="profiles_builder_skills_hub_title">Hermes 허브에서 스킬 추가</string>
+    <string name="profiles_builder_skills_added">추가된 스킬:</string>
+    <string name="profiles_builder_skills_search_results">검색 결과:</string>
+    <string name="profiles_builder_mcp_title">설정된 MCP 서버</string>
+    <string name="profiles_builder_mcp_add">서버 추가</string>
+    <string name="profiles_builder_mcp_name">서버명</string>
+    <string name="profiles_builder_mcp_transport">전송 프로토콜</string>
+    <string name="profiles_builder_mcp_dialog_title">MCP 서버 추가</string>
+    <string name="profiles_builder_mcp_transport_stdio">Stdio 명령어</string>
+    <string name="profiles_builder_mcp_transport_sse">SSE 서버 URL</string>
+    <string name="profiles_builder_mcp_command">명령어</string>
+    <string name="profiles_builder_mcp_args">인자 (쉼표 구분)</string>
+    <string name="profiles_builder_mcp_sse_url">SSE URL</string>
+    <string name="profiles_builder_mcp_env">환경 변수 (KEY=VALUE, 한 줄에 하나씩)</string>
+    <string name="profiles_builder_review_title">프로필 세부정보 검토</string>
+    <string name="profiles_builder_review_name">프로필명</string>
+    <string name="profiles_builder_review_description">설명</string>
+    <string name="profiles_builder_review_provider">제공자: %1$s</string>
+    <string name="profiles_builder_review_model">모델: %1$s</string>
+    <string name="profiles_builder_review_model_settings">모델 설정</string>
+    <string name="profiles_builder_review_system_defaults">시스템 기본값 사용</string>
+    <string name="profiles_builder_review_skills_title">스킬 설정</string>
+    <string name="profiles_builder_review_skills_default">전체 기본 번들</string>
+    <string name="profiles_builder_review_skills_local">%1$d개 로컬 스킬 선택됨</string>
+    <string name="profiles_builder_review_skills_hub">%1$d개 허브 스킬 추가됨</string>
+    <string name="profiles_builder_review_mcp_title">MCP 서버</string>
+    <string name="profiles_builder_review_mcp_none">설정된 MCP 서버 없음</string>
+    <string name="profiles_builder_mcp_none">아직 설정된 MCP 서버가 없습니다</string>
+    <string name="profiles_builder_action_add">추가</string>
+
+    <!-- Plugins Screen -->
+    <string name="plugins_empty_title">플러그인이 없습니다</string>
+    <string name="plugins_empty_desc">설정을 확인하거나 다시 시도하세요</string>
+    <string name="plugins_no_desc">설명이 없습니다.</string>
+    <string name="plugins_action_update">업데이트</string>
+    <string name="plugins_action_uninstall">제거</string>
+    <string name="plugins_action_install">설치</string>
+    <string name="plugins_action_remove">제거</string>
+    <string name="plugins_action_rescan">재검색</string>
+    <string name="plugins_install_heading">플러그인 설치</string>
+    <string name="plugins_install_hint">git/URL 소스에서 플러그인 설치</string>
+    <string name="plugins_force_reinstall">강제 재설치</string>
+    <string name="plugins_enable_after_install">설치 후 활성화</string>
+    <string name="plugins_providers_heading">플러그인 제공자</string>
+    <string name="plugins_providers_hint">활성 메모리 및 컨텍스트 제공자 선택</string>
+    <string name="plugins_memory_provider_label">메모리 제공자</string>
+    <string name="plugins_context_engine_label">컨텍스트 엔진</string>
+    <string name="plugins_provider_defaults">(설정 기본값)</string>
+    <string name="plugins_remove_confirm_title">플러그인 제거</string>
+    <string name="plugins_remove_confirm_text">\"%1$s\" 플러그인을 에이전트에서 제거합니다.</string>
+    <string name="plugins_auth_required">인증 필요</string>
+    <string name="plugins_auth_command_hint">인증 명령어: %1$s</string>
+    <string name="plugins_dashboard_slots">대시보드 슬롯: %1$s</string>
+    <string name="plugins_orphan_heading">고립된 대시보드 플러그인</string>
+    <string name="plugins_show_in_sidebar">사이드바에 표시</string>
+    <string name="plugins_hide_from_sidebar">사이드바에서 숨김</string>
+
+    <!-- Shared detail dialog -->
+    <string name="detail_dialog_no_info">추가 정보가 없습니다.</string>
+    <string name="detail_dialog_category">카테고리</string>
+    <string name="detail_dialog_source">출처</string>
+    <string name="detail_dialog_version">버전</string>
+    <string name="detail_dialog_status">상태</string>
+    <string name="detail_dialog_description">설명</string>
+    <string name="detail_dialog_tags">태그</string>
+    <string name="detail_dialog_transport">전송</string>
+    <string name="detail_dialog_label">레이블</string>
+    <string name="detail_dialog_url">URL</string>
+    <string name="detail_dialog_command">명령어</string>
+    <string name="detail_dialog_args">인자</string>
+    <string name="detail_dialog_env_vars">환경 변수</string>
+    <string name="detail_dialog_tools">도구</string>
+    <string name="detail_dialog_events">이벤트</string>
+    <string name="detail_dialog_deliver">전달 대상</string>
+    <string name="detail_dialog_prompt">프롬프트</string>
+    <string name="detail_dialog_skills">스킬</string>
+    <string name="detail_dialog_created_at">생성일</string>
+    <string name="detail_dialog_error">오류</string>
+    <string name="detail_dialog_status_enabled">활성</string>
+    <string name="detail_dialog_status_disabled">비활성</string>
+    <string name="detail_dialog_trust_level">신뢰 수준</string>
+
+    <!-- McpServers Screen -->
+    <string name="mcp_servers_label_transport">전송: %1$s</string>
+    <string name="mcp_servers_label_command">명령어:</string>
+    <string name="mcp_servers_action_test">테스트</string>
+    <string name="mcp_servers_add_server">서버 추가</string>
+    <string name="mcp_servers_add_http">HTTP URL</string>
+    <string name="mcp_servers_add_stdio">Stdio 명령어</string>
+    <string name="mcp_servers_field_name">서버명</string>
+    <string name="mcp_servers_field_url">URL (예: http://localhost:8000/sse)</string>
+    <string name="mcp_servers_field_command">명령어 (예: npx)</string>
+    <string name="mcp_servers_field_args">인자</string>
+    <string name="mcp_servers_action_submit">서버 추가</string>
+    <string name="mcp_servers_action_adding">추가 중…</string>
+    <string name="mcp_servers_status_running">실행 중</string>
+    <string name="mcp_servers_status_stopped">중지됨</string>
+    <string name="mcp_servers_status_error">오류</string>
+    <string name="mcp_servers_status_unconfigured">설정 안 됨</string>
+    <string name="mcp_servers_action_restart">재시작</string>
+    <string name="mcp_servers_env_vars">환경 변수</string>
+    <string name="mcp_servers_env_add">환경 변수 추가</string>
+    <string name="mcp_servers_env_key">키</string>
+    <string name="mcp_servers_env_value">값</string>
+    <string name="mcp_servers_env_no_vars">설정된 환경 변수가 없습니다.</string>
+    <string name="mcp_servers_section_catalog">카탈로그</string>
+    <string name="mcp_servers_catalog_search">카탈로그 검색…</string>
+    <string name="mcp_servers_catalog_loading">카탈로그 로딩 중…</string>
+    <string name="mcp_servers_catalog_empty">검색 결과가 없습니다.</string>
+    <string name="mcp_servers_catalog_install">설치</string>
+    <string name="mcp_servers_catalog_installing">설치 중…</string>
+    <string name="mcp_servers_catalog_source">출처: %1$s</string>
+    <string name="mcp_servers_catalog_required_env">필수 환경 변수</string>
+
+    <!-- Gateway Screen -->
+    <string name="gateway_status_running">게이트웨이 실행 중</string>
+    <string name="gateway_status_stopped">게이트웨이 중지됨</string>
+    <string name="gateway_label_version">버전: %1$s</string>
+    <string name="gateway_sec_controls">제어</string>
+    <string name="gateway_action_start">시작</string>
+    <string name="gateway_action_stop">중지</string>
+    <string name="gateway_action_restart">재시작</string>
+    <string name="gateway_sec_active_platforms">활성 플랫폼</string>
+
+    <!-- CronJobs Screen -->
+    <string name="cron_empty_title">크론 작업 없음</string>
+    <string name="cron_empty_desc">예약된 작업이 여기에 표시됩니다.</string>
+    <string name="cron_status_active">활성</string>
+    <string name="cron_status_paused">일시정지</string>
+    <string name="cron_action_pause">일시정지</string>
+    <string name="cron_action_resume">재개</string>
+    <string name="cron_action_run">실행</string>
+    <string name="cron_action_edit">편집</string>
+    <string name="cron_action_add">크론 작업 추가</string>
+    <string name="cron_edit_title">크론 작업 편집</string>
+    <string name="cron_edit_title_new">새 크론 작업</string>
+    <string name="cron_edit_field_name">이름</string>
+    <string name="cron_edit_field_schedule">스케줄</string>
+    <string name="cron_edit_field_prompt">프롬프트</string>
+    <string name="cron_edit_field_deliver">전달</string>
+    <string name="cron_edit_field_skills">스킬</string>
+    <string name="cron_edit_field_model">모델</string>
+    <string name="cron_edit_field_provider">제공자</string>
+    <string name="cron_edit_field_base_url">Base URL</string>
+    <string name="cron_edit_field_script">스크립트</string>
+    <string name="cron_edit_field_workdir">작업 디렉토리</string>
+    <string name="cron_edit_field_no_agent">에이전트 없음 (스크립트 전용)</string>
+    <string name="cron_edit_hint_schedule">예: 0 9 * * * 또는 every 2h</string>
+    <string name="cron_edit_hint_deliver">예: origin, local, all, 또는 telegram:chat_id</string>
+    <string name="cron_edit_hint_skills">한 줄에 하나씩</string>
+    <string name="cron_edit_action_save">저장</string>
+    <string name="cron_edit_error_schedule_required">스케줄은 필수입니다</string>
+    <string name="cron_discard_title">변경사항을 취소할까요?</string>
+    <string name="cron_discard_message">저장되지 않은 변경사항이 있습니다. 취소하시겠습니까?</string>
+
+    <!-- Achievements Screen -->
+    <string name="achievements_empty_title">아직 업적이 없습니다</string>
+    <string name="achievements_empty_desc">작업을 완료하여 업적을 해제하세요.</string>
+    <string name="achievements_label_progress">진행: %1$d / %2$d</string>
+    <string name="achievements_search_hint">업적 검색…</string>
+    <string name="achievements_stat_unlocked">해제됨</string>
+    <string name="achievements_stat_discovered">발견됨</string>
+    <string name="achievements_stat_secret">시크릿</string>
+    <string name="achievements_stat_total">전체</string>
+    <string name="achievements_scan_idle">대기</string>
+    <string name="achievements_scan_running">스캔 중…</string>
+    <string name="achievements_scan_scanning">재스캔 중…</string>
+    <string name="achievements_scan_error">오류</string>
+    <string name="achievements_scan_count">%1$d회 스캔</string>
+    <string name="achievements_stale">캐시됨</string>
+    <string name="achievements_filter_all">전체</string>
+    <string name="achievements_state_unlocked">해제됨</string>
+    <string name="achievements_state_discovered">발견됨</string>
+    <string name="achievements_state_secret">시크릿</string>
+    <string name="achievements_recent_title">최근 해제</string>
+    <string name="achievements_count_label">%1$d / %2$d 업적</string>
+    <string name="achievements_criteria_show">조건 보기</string>
+    <string name="achievements_criteria_hide">조건 숨기기</string>
+    <string name="achievements_unlocked_at">%1$s에 해제</string>
+    <string name="achievements_menu_desc">업적 메뉴</string>
+    <string name="achievements_action_rescan">전체 세션 재스캔</string>
+    <string name="achievements_action_reset">모든 업적 데이터 초기화</string>
+    <string name="achievements_reset_title">업적 초기화?</string>
+    <string name="achievements_reset_desc">모든 해제 및 발견 데이터가 지워집니다. 다음 스캔 시 처음부터 다시 스캔됩니다. 되돌릴 수 없습니다.</string>
+
+    <!-- Keys Screen -->
+    <string name="keys_empty_title">환경 변수 키가 없습니다</string>
+    <string name="keys_empty_desc">Hermes의 환경 변수 키가 여기에 표시됩니다.</string>
+    <string name="keys_label_not_configured">설정 안 됨</string>
+    <string name="keys_action_toggle_visibility">표시 전환</string>
+    <string name="keys_search_placeholder">키 검색…</string>
+    <string name="keys_add_header">새 키 추가</string>
+    <string name="keys_add_key_label">키</string>
+    <string name="keys_add_value_label">값</string>
+    <string name="keys_add_action">키 추가</string>
+    <string name="keys_restart_title">게이트웨이 재시작 필요</string>
+    <string name="keys_restart_desc">환경 변수 변경사항은 게이트웨이 재시작 후 적용됩니다.</string>
+    <string name="keys_restart_action">게이트웨이 재시작</string>
+    <string name="content_desc_delete_key">키 삭제</string>
+
+    <!-- Channels Screen -->
+    <string name="channels_empty_title">설정된 채널이 없습니다</string>
+    <string name="channels_empty_desc">Hermes에서 메시징 플랫폼을 추가하면 여기에 표시됩니다.</string>
+    <string name="channels_status_active">활성</string>
+    <string name="channels_status_disabled">비활성</string>
+    <string name="channels_action_configure">설정</string>
+    <string name="channels_sec_settings">설정</string>
+    <string name="channels_placeholder_configured">******** (이미 설정됨)</string>
+    <string name="channels_action_save_settings">설정 저장</string>
+    <string name="channels_sec_keys">설정된 키:</string>
+    <string name="channels_status_configured">설정됨</string>
+    <string name="channels_status_not_set">설정 안 됨</string>
+    <string name="channels_action_test">테스트</string>
+    <string name="channels_action_restart_now">지금 재시작</string>
+    <string name="channels_restart_banner">변경사항이 저장되었습니다. 게이트웨이를 재시작하면 적용됩니다.</string>
+    <string name="channels_gateway_offline">게이트웨이가 실행 중이 아닙니다. 여기서 채널을 설정한 후 재시작하세요.</string>
+
+    <!-- Settings -->
+    <string name="settings_action_delete_profile">삭제</string>
+    <string name="settings_saved_profiles">저장된 프로필 (%1$d)</string>
+    <string name="settings_logout">로그아웃</string>
+
+    <!-- Auth Login Screen -->
+    <string name="auth_login_title">인증 로그인</string>
+    <string name="auth_login_desc">Hermes 대시보드에 연결</string>
+    <string name="auth_login_host_label">호스트</string>
+    <string name="auth_login_port_label">포트</string>
+    <string name="auth_login_token_label">세션 토큰</string>
+    <string name="auth_login_username_label">사용자명</string>
+    <string name="auth_login_password_label">비밀번호</string>
+    <string name="auth_login_action_connect">연결</string>
+    <string name="auth_login_action_probing">대시보드 확인 중…</string>
+    <string name="auth_login_probing_dashboard">대시보드 설정 확인 중…</string>
+    <string name="auth_login_error_host_required">호스트가 필요합니다</string>
+    <string name="auth_login_error_port_invalid">잘못된 포트 (1~65535)</string>
+    <string name="auth_login_error_token_required">세션 토큰이 필요합니다</string>
+    <string name="auth_login_error_username_required">사용자명이 필요합니다</string>
+    <string name="auth_login_error_password_required">비밀번호가 필요합니다</string>
+    <string name="auth_login_error_unreachable">대시보드에 연결할 수 없음 — IP와 포트 확인</string>
+    <string name="auth_login_success">연결됨!</string>
+    <string name="auth_login_existing_profiles_title">기존 로그인 프로필 사용:</string>
+    <string name="auth_login_use_profile">%1$s(으)로 접속</string>
+
+    <!-- Landing Screen -->
+    <string name="landing_title">헤르메스 모바일</string>
+    <string name="landing_subtitle">Hermes Agent 제어판</string>
+    <string name="landing_action_auth_login">인증 로그인</string>
+    <string name="landing_action_pairing_login">페어링 로그인</string>
+
+    <!-- Pairing Code Entry Screen -->
+    <string name="pairing_code_entry_title">페어링 로그인</string>
+    <string name="pairing_code_entry_manual_desc">아래에 Hermes 대시보드의 페어링 문자열을 붙여넣으세요.</string>
+    <string name="pairing_code_entry_code_label">페어링 코드</string>
+
+    <!-- Loading State -->
+    <string name="loading_state_subtitle_default">로딩 중…</string>
+    <string name="loading_state_subtitle_models">모델 제공자 확인 중…</string>
+    <string name="loading_state_subtitle_channels">채널 로딩 중…</string>
+    <string name="loading_state_subtitle_providers">OAuth 제공자 로딩 중…</string>
+
+    <!-- Providers Screen -->
+    <string name="providers_empty_title">OAuth 제공자가 없습니다</string>
+    <string name="providers_empty_desc">설정된 OAuth 제공자가 여기에 표시됩니다. 계정을 연결하면 앱에서 사용할 수 있습니다.</string>
+    <string name="providers_action_connect">연결</string>
+    <string name="providers_action_how_to_connect">연결 방법</string>
+    <string name="providers_action_disconnect">연결 해제</string>
+    <string name="providers_action_in_progress">진행 중…</string>
+    <string name="providers_action_submit_code">코드 제출</string>
+    <string name="providers_action_open_browser">브라우저에서 인증</string>
+    <string name="providers_external_hint">이 제공자는 외부 CLI로 관리됩니다. 호스트에서 아래 명령어를 실행한 후 이 목록을 새로고침하세요.</string>
+    <string name="providers_pkce_paste_hint">브라우저에서 인증한 후, 인증 코드(# 구분자 전 부분)를 아래에 붙여넣으세요.</string>
+    <string name="providers_code_label">인증 코드</string>
+    <string name="providers_device_code_hint">다른 기기에서 인증 URL에 이 코드를 입력하고 기다리세요 — 이 화면이 자동으로 폴링합니다.</string>
+    <string name="providers_expires_in">%1$s 후 만료</string>
+    <string name="providers_flow_success">OAuth 연결 성공.</string>
+    <string name="providers_action_fix">수정</string>
+    <string name="action_dismiss">닫기</string>
+    <string name="action_done">완료</string>
+    <string name="action_close">닫기</string>
+
+    <!-- Processes Screen -->
+    <string name="processes_empty_title">실행 중인 프로세스 없음</string>
+    <string name="processes_empty_desc">이 세션의 백그라운드 프로세스가 여기에 표시됩니다.</string>
+    <string name="processes_no_session_title">활성 채팅 세션 없음</string>
+    <string name="processes_no_session_desc">먼저 채팅 세션을 여세요 — 프로세스 목록은 세션별로 표시됩니다.</string>
+    <string name="processes_running_hint">실행 중</string>
+    <string name="processes_kill_title">프로세스 종료?</string>
+    <string name="processes_kill_desc">"%1$s"을(를) 중지하시겠습니까? 되돌릴 수 없습니다.</string>
+
+    <!-- Analytics Screen -->
+    <string name="analytics_empty_title">아직 분석 데이터가 없습니다</string>
+    <string name="analytics_empty_desc">에이전트가 활성화되면 사용 통계가 여기에 표시됩니다.</string>
+    <string name="analytics_days">%1$d일</string>
+    <string name="analytics_estimated_cost">예상 비용</string>
+    <string name="analytics_actual_cost">실제 비용</string>
+    <string name="analytics_sessions">세션</string>
+    <string name="analytics_api_calls">API 호출</string>
+    <string name="analytics_input_tokens">입력</string>
+    <string name="analytics_output_tokens">출력</string>
+    <string name="analytics_cache_read">캐시 읽기</string>
+    <string name="analytics_reasoning">추론</string>
+    <string name="analytics_daily_cost">일일 예상 비용</string>
+    <string name="analytics_per_model">모델별 분석</string>
+    <string name="analytics_top_skills">상위 스킬</string>
+    <string name="analytics_no_cost_data">이 기간에 기록된 비용이 없습니다.</string>
+    <string name="analytics_skill_uses">%1$d회 사용 • 전체의 %2$d%%</string>
+    <string name="analytics_top_tools">상위 도구</string>
+    <string name="analytics_tool_uses">%1$d회 호출 • 전체의 %2$d%%</string>
+    <string name="processes_kill_confirm">종료</string>
+    <string name="processes_kill_cd">프로세스 종료</string>
+</resources>

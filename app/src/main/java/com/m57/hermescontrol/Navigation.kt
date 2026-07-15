@@ -33,8 +33,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -185,6 +187,18 @@ fun MainNavigation(sessionId: String? = null) {
             currentScreen != AuthLoginScreen &&
             currentScreen != PairingCodeEntryScreen
     val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
+    var drawerGesturesEnabled by remember { mutableStateOf(false) }
+
+    LaunchedEffect(gesturesEnabled) {
+        if (gesturesEnabled) {
+            // Delay enabling gestures slightly to prevent residual swipe-to-open from back button taps
+            kotlinx.coroutines.delay(200)
+            drawerGesturesEnabled = true
+        } else {
+            drawerGesturesEnabled = false
+        }
+    }
+
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     // B7 (Jun 30 2026, kanban t_424): close drawer if gestures are disabled to dismiss scrim.
@@ -192,17 +206,17 @@ fun MainNavigation(sessionId: String? = null) {
     // surface cannot intercept the first back-button tap (e.g. settings sub-pages drilled
     // down from the gesture-enabled Settings root). snapTo(Closed) is a safe no-op when
     // already closed.
-    LaunchedEffect(gesturesEnabled) {
-        if (!gesturesEnabled) {
+    LaunchedEffect(drawerGesturesEnabled) {
+        if (!drawerGesturesEnabled) {
             drawerState.snapTo(DrawerValue.Closed)
         }
     }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = gesturesEnabled,
+        gesturesEnabled = drawerGesturesEnabled,
         drawerContent = {
-            if (gesturesEnabled) {
+            if (drawerGesturesEnabled) {
                 ModalDrawerSheet(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 ) {

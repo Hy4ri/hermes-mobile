@@ -346,7 +346,7 @@ fun MarkdownText(
                             },
                         color = textColor,
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     )
                 }
             }

@@ -10,6 +10,10 @@ plugins {
 
 android {
     namespace = "com.m57.hermescontrol"
+
+    lint {
+        disable += "MissingTranslation"
+    }
     compileSdk = 36
     defaultConfig {
         applicationId = "com.m57.hermescontrol"

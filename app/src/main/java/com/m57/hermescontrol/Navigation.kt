@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -51,6 +52,13 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.settings.SettingsAboutPage
+import com.m57.hermescontrol.ui.settings.SettingsAppearancePage
+import com.m57.hermescontrol.ui.settings.SettingsBehaviorPage
+import com.m57.hermescontrol.ui.settings.SettingsChatPage
+import com.m57.hermescontrol.ui.settings.SettingsConnectionPage
+import com.m57.hermescontrol.ui.settings.SettingsNavBarPage
+import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
@@ -103,6 +111,46 @@ private fun appEntryProvider(
         addEntryProvider(clazz = screen.key::class) {
             screen.content(sessionId, openDrawer)
         }
+    }
+
+    // ── Settings drill-down sub-pages ───────────────────────────────────
+    entry<SettingsConnection> {
+        SettingsConnectionPage(
+            onBack = { NavigationController.goBack() },
+            onLogout = { /* handled by caller via goBack fallback */ },
+            viewModel = viewModel { SettingsViewModel() },
+        )
+    }
+    entry<SettingsAppearance> {
+        SettingsAppearancePage(
+            onBack = { NavigationController.goBack() },
+            viewModel = viewModel { SettingsViewModel() },
+        )
+    }
+    entry<SettingsChat> {
+        SettingsChatPage(
+            onBack = { NavigationController.goBack() },
+            viewModel = viewModel { SettingsViewModel() },
+        )
+    }
+    entry<SettingsNavBar> {
+        SettingsNavBarPage(
+            onBack = { NavigationController.goBack() },
+            viewModel = viewModel { SettingsViewModel() },
+        )
+    }
+    entry<SettingsBehavior> {
+        SettingsBehaviorPage(
+            onBack = { NavigationController.goBack() },
+            viewModel = viewModel { SettingsViewModel() },
+        )
+    }
+    entry<SettingsAbout> {
+        SettingsAboutPage(
+            onBack = { NavigationController.goBack() },
+            onLogout = { /* handled by caller via goBack fallback */ },
+            viewModel = viewModel { SettingsViewModel() },
+        )
     }
 }
 

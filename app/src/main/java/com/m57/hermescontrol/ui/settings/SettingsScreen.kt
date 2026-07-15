@@ -1,59 +1,50 @@
 package com.m57.hermescontrol.ui.settings
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ListAlt
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.m57.hermescontrol.BuildConfig
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.SettingsAbout
+import com.m57.hermescontrol.SettingsAppearance
+import com.m57.hermescontrol.SettingsBehavior
+import com.m57.hermescontrol.SettingsChat
+import com.m57.hermescontrol.SettingsConnection
+import com.m57.hermescontrol.SettingsNavBar
+import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.settings.components.AppearanceSection
-import com.m57.hermescontrol.ui.settings.components.BehaviorSection
-import com.m57.hermescontrol.ui.settings.components.ChatSection
-import com.m57.hermescontrol.ui.settings.components.ConnectionSection
-import com.m57.hermescontrol.ui.settings.components.NavBarSection
-import com.m57.hermescontrol.ui.settings.components.TestConnectionButton
-import com.m57.hermescontrol.ui.settings.components.TestResultCard
 
-enum class SettingsTab {
-    CONNECTION,
-    APPEARANCE,
-    BEHAVIOR,
-    ABOUT,
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -64,178 +55,153 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(state.navigateToLogin) {
-        if (state.navigateToLogin) {
-            onNavigateToLogin()
-            viewModel.clearNavigateToLogin()
-        }
-    }
-
-    var passwordVisible by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(SettingsTab.CONNECTION) }
-
-    BackHandler(onBack = onBack)
-
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
         navigationIcon = NavIcon.Back(onBack),
     ) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxSize(),
+                modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            PrimaryScrollableTabRow(
-                selectedTabIndex = selectedTab.ordinal,
-                modifier = Modifier.fillMaxWidth(),
-                edgePadding = 0.dp,
-            ) {
-                SettingsTab.entries.forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = {
-                            Text(
-                                when (tab) {
-                                    SettingsTab.CONNECTION -> stringResource(R.string.settings_tab_connection)
-                                    SettingsTab.APPEARANCE -> stringResource(R.string.settings_tab_appearance)
-                                    SettingsTab.BEHAVIOR -> stringResource(R.string.settings_tab_behavior)
-                                    SettingsTab.ABOUT -> stringResource(R.string.settings_tab_about)
+            SettingsCategoryCard(
+                items =
+                    listOf(
+                        SettingsRow(
+                            icon = Icons.AutoMirrored.Filled.ListAlt,
+                            label = stringResource(R.string.settings_sec_connection),
+                            summary =
+                                if (state.profiles.isNotEmpty()) {
+                                    stringResource(
+                                        R.string.settings_summary_profiles,
+                                        state.profiles.size,
+                                    )
+                                } else {
+                                    null
                                 },
-                            )
-                        },
-                    )
-                }
-            }
+                            onClick = { NavigationController.navigateTo(SettingsConnection) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.Palette,
+                            label = stringResource(R.string.settings_sec_appearance),
+                            summary = appearanceSummary(state),
+                            onClick = { NavigationController.navigateTo(SettingsAppearance) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.ChatBubbleOutline,
+                            label = stringResource(R.string.settings_sec_chat),
+                            summary =
+                                if (state.typingEffectEnabled) {
+                                    stringResource(R.string.settings_summary_typing_on)
+                                } else {
+                                    stringResource(R.string.settings_summary_typing_off)
+                                },
+                            onClick = { NavigationController.navigateTo(SettingsChat) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.Dashboard,
+                            label = stringResource(R.string.settings_sec_nav_bar),
+                            onClick = { NavigationController.navigateTo(SettingsNavBar) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.Tune,
+                            label = stringResource(R.string.settings_sec_behavior),
+                            summary =
+                                if (state.autoReconnect) {
+                                    stringResource(R.string.settings_summary_on)
+                                } else {
+                                    stringResource(R.string.settings_summary_off)
+                                },
+                            onClick = { NavigationController.navigateTo(SettingsBehavior) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.Info,
+                            label = stringResource(R.string.settings_sec_about),
+                            onClick = { NavigationController.navigateTo(SettingsAbout) },
+                        ),
+                    ),
+            )
+        }
+    }
+}
 
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                when (selectedTab) {
-                    SettingsTab.CONNECTION -> {
-                        ConnectionSection(
-                            state = state,
-                            viewModel = viewModel,
-                            passwordVisible = passwordVisible,
-                            onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
+@Composable
+private fun appearanceSummary(state: SettingsUiState): String {
+    val theme =
+        when (state.themePreference) {
+            ThemePreference.SYSTEM -> stringResource(R.string.settings_summary_theme_system)
+            ThemePreference.LIGHT -> stringResource(R.string.settings_summary_theme_light)
+            ThemePreference.DARK -> stringResource(R.string.settings_summary_theme_dark)
+        }
+    val lang =
+        when (state.appLanguage) {
+            "system" -> stringResource(R.string.language_system)
+            "ko" -> stringResource(R.string.language_korean)
+            else -> stringResource(R.string.language_english)
+        }
+    return "$theme · $lang"
+}
+
+private data class SettingsRow(
+    val icon: ImageVector,
+    val label: String,
+    val summary: String? = null,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun SettingsCategoryCard(items: List<SettingsRow>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(1.dp),
+    ) {
+        Column {
+            items.forEachIndexed { index, row ->
+                ListItem(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = row.onClick),
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    leadingContent = {
+                        Icon(
+                            imageVector = row.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
                         )
-
-                        TestResultCard(testResult = state.testResult)
-                        TestConnectionButton(
-                            isTesting = state.isTesting,
-                            onTest = viewModel::testConnection,
+                    },
+                    headlineContent = {
+                        Text(
+                            text = row.label,
+                            style = MaterialTheme.typography.bodyLarge,
                         )
-
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        Button(
-                            onClick = {
-                                viewModel.logout()
-                                onLogout()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors =
-                                ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                ),
-                        ) {
-                            Text(stringResource(R.string.settings_logout))
-                        }
-                    }
-
-                    SettingsTab.BEHAVIOR -> {
-                        BehaviorSection(
-                            autoReconnect = state.autoReconnect,
-                            onAutoReconnectChange = viewModel::onAutoReconnectChange,
-                        )
-                    }
-
-                    SettingsTab.APPEARANCE -> {
-                        AppearanceSection(
-                            themePreference = state.themePreference,
-                            onThemeChange = viewModel::onThemeChange,
-                            useDynamicColors = state.useDynamicColors,
-                            onUseDynamicColorsChange = viewModel::onUseDynamicColorsChange,
-                            themePreset = state.themePreset,
-                            onThemePresetChange = viewModel::onThemePresetChange,
-                            appLanguage = state.appLanguage,
-                            onAppLanguageChange = viewModel::onAppLanguageChange,
-                        )
-
-                        ChatSection(
-                            typingEffectEnabled = state.typingEffectEnabled,
-                            onTypingEffectEnabledChange = viewModel::onTypingEffectEnabledChange,
-                            typingEffectDelayMs = state.typingEffectDelayMs,
-                            onTypingEffectDelayMsChange = viewModel::onTypingEffectDelayMsChange,
-                        )
-
-                        NavBarSection(
-                            bottomNavDisplayMode = state.bottomNavDisplayMode,
-                            onBottomNavDisplayModeChange = viewModel::onBottomNavDisplayModeChange,
-                            selectedNavItems = state.selectedNavItems,
-                            availableNavItems = viewModel.availableNavItems,
-                            onReorderNavItems = viewModel::reorderNavItems,
-                            onRemoveNavItem = viewModel::removeNavItem,
-                            onAddNavItem = viewModel::addNavItem,
-                        )
-                    }
-
-                    SettingsTab.ABOUT -> {
-                        // ── About section ─────────────────────────────────────────
-                        SectionCard(title = stringResource(R.string.settings_sec_about)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                    },
+                    supportingContent =
+                        row.summary?.let { summary ->
+                            {
                                 Text(
-                                    text = stringResource(R.string.settings_about_app_name),
-                                    style =
-                                        MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                        ),
+                                    text = summary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            InfoRow(
-                                label = stringResource(R.string.settings_about_version),
-                                value = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                            )
-                            InfoRow(
-                                label = stringResource(R.string.settings_about_build),
-                                value =
-                                    if (BuildConfig.DEBUG) {
-                                        stringResource(R.string.settings_about_debug)
-                                    } else {
-                                        stringResource(R.string.settings_about_release)
-                                    },
-                            )
-                            if (BuildConfig.GIT_SHA.isNotBlank()) {
-                                InfoRow(
-                                    label = stringResource(R.string.settings_about_commit),
-                                    value = BuildConfig.GIT_SHA,
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "https://github.com/Hy4ri/hermes-mobile",
-                                style =
-                                    MaterialTheme.typography.bodySmall.copy(
-                                        color = MaterialTheme.colorScheme.primary,
-                                    ),
-                            )
-
-                            Spacer(modifier = Modifier.height(24.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                    }
+                        },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                )
+                if (index < items.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp, end = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
                 }
             }
         }
@@ -247,11 +213,7 @@ internal fun InfoRow(
     label: String,
     value: String,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,

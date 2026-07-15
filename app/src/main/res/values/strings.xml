@@ -179,6 +179,16 @@
     <string name="settings_about_debug">Debug</string>
     <string name="settings_about_release">Release</string>
     <string name="settings_about_commit">Commit</string>
+
+    <!-- Settings list summaries (drill-down) -->
+    <string name="settings_summary_profiles">%1$d saved</string>
+    <string name="settings_summary_typing_on">Typing effect on</string>
+    <string name="settings_summary_typing_off">Typing effect off</string>
+    <string name="settings_summary_on">On</string>
+    <string name="settings_summary_off">Off</string>
+    <string name="settings_summary_theme_system">System</string>
+    <string name="settings_summary_theme_light">Light</string>
+    <string name="settings_summary_theme_dark">Dark</string>
     <string name="action_rename">Rename</string>
     <string name="action_save">Save</string>
     <string name="settings_action_add_profile">Add Profile</string>

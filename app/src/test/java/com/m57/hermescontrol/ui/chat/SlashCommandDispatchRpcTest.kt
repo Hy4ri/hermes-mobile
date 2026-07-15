@@ -261,4 +261,72 @@ class SlashCommandDispatchRpcTest {
             )
             assertEquals("no RPC should fire for a blocklisted command", 0, rpcCalls)
         }
+
+    @Test
+    fun `slash_exec double-fault surfaces the secondary error`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(any(), any(), any())
+            } answers {
+                val m = arg<String>(0)
+                val d = CompletableDeferred<Any?>()
+                if (m == WsMethods.COMMAND_DISPATCH) {
+                    // Registry miss -> triggers the slash.exec fallback.
+                    d.completeExceptionally(
+                        HermesWsClient.HermesRpcException(
+                            "not a quick/plugin/bundle/skill command: status",
+                        ),
+                    )
+                } else {
+                    // slash.exec ALSO fails (e.g. worker can't start).
+                    d.completeExceptionally(
+                        HermesWsClient.HermesRpcException("slash worker start failed: boom"),
+                    )
+                }
+                d
+            }
+
+            vm.sendMessage("/status")
+            advanceUntilIdle()
+
+            // Both RPCs fail -> the secondary slash.exec error must surface.
+            val last = vm.uiState.value.messages.lastOrNull()
+            assertEquals("⚠️ /status: slash worker start failed: boom", last?.content)
+        }
+
+    @Test
+    fun `slash_exec blank output appends no assistant message`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(any(), any(), any())
+            } answers {
+                val m = arg<String>(0)
+                val d = CompletableDeferred<Any?>()
+                if (m == WsMethods.COMMAND_DISPATCH) {
+                    d.completeExceptionally(
+                        HermesWsClient.HermesRpcException(
+                            "not a quick/plugin/bundle/skill command: status",
+                        ),
+                    )
+                } else {
+                    // slash.exec succeeded but returned no/empty output.
+                    d.complete(mapOf("output" to ""))
+                }
+                d
+            }
+
+            val before = vm.uiState.value.messages.size
+            vm.sendMessage("/status")
+            advanceUntilIdle()
+
+            // The user's "/status" message is added, but blank slash.exec output
+            // must NOT append an assistant bubble — so the last message is still
+            // the user's own command, and only one message was added.
+            assertEquals(before + 1, vm.uiState.value.messages.size)
+            assertEquals("/status", vm.uiState.value.messages.lastOrNull()?.content)
+        }
 }

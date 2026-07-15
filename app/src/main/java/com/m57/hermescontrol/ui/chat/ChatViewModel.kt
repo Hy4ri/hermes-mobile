@@ -937,7 +937,11 @@ class ChatViewModel(
                 ).await()
             } catch (e: HermesWsClient.HermesRpcException) {
                 val msg = e.message.orEmpty()
-                if (msg.contains("not a") && msg.contains("command")) {
+                // Registry miss on command.dispatch: the backend emits exactly
+                // "not a quick/plugin/bundle/skill command: <name>" (tui_gateway
+                // server.py L12408). Match that precise phrase so unrelated
+                // errors can't accidentally trigger the slash.exec fallback.
+                if (msg.contains("not a quick/plugin/bundle/skill command")) {
                     // Registry miss on command.dispatch -> retry via slash.exec,
                     // which routes the full CLI command set through the worker.
                     try {

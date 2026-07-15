@@ -743,7 +743,10 @@ private fun ChatInputBar(
                 // Single source of truth: CommandBlocklist.UNSUPPORTED, which is
                 // also enforced at dispatch time (issue #576, deliverable #3).
                 val hiddenSlashDisplay = CommandBlocklist.UNSUPPORTED
-                val commandNames = commandCatalog.pairs.map { it[0] }.filter { it !in hiddenSlashDisplay }
+                val commandNames =
+                    commandCatalog.pairs
+                        .map { it[0] }
+                        .filter { it.lowercase() !in hiddenSlashDisplay }
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = inputFieldValue.text.startsWith("/") && !inputFieldValue.text.contains(" "),

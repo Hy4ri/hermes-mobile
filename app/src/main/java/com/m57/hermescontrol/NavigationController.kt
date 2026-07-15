@@ -18,6 +18,11 @@ object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
     var pendingSessionId: String? = null
 
+    // Set by MainNavigation so navigation can synchronously dismiss the drawer
+    // (e.g. when drilling into a non-gesture sub-page) before a recomposition,
+    // preventing the drawer's gesture surface from intercepting the first tap.
+    var closeDrawer: (() -> Unit)? = null
+
     // Bottom-nav primary screens — dynamic, updated by Navigation.kt via
     // updatePrimaryScreens() when the user customises the bottom nav bar.
     // Default matches the default 5 bottom-nav items.
@@ -46,6 +51,10 @@ object NavigationController {
 
         if (isPrimaryScreen(key)) {
             stack.clear()
+        } else {
+            // Drilling into a sub-page (non-primary): dismiss the drawer
+            // synchronously so its gesture surface can't eat the next tap.
+            closeDrawer?.invoke()
         }
         stack.add(key)
     }

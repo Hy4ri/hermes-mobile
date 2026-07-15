@@ -179,22 +179,15 @@ class ChatViewModelTest {
     fun testSlashCommand_help_addsHelpMessage() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
-            var dispatchReqId = "dispatch-help"
 
-            every { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) } answers {
-                arg<((String) -> Unit)?>(2)?.invoke(dispatchReqId)
-                dispatchReqId
-            }
+            every {
+                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
+            } returns
+                CompletableDeferred(
+                    mapOf("type" to "exec", "output" to "**Available Commands:**\n\u2022 `/status`\n\u2022 `/new`"),
+                )
 
             viewModel.sendMessage("/help")
-            advanceUntilIdle()
-
-            mockEventsFlow.emit(
-                WsEvent.RpcResult(
-                    dispatchReqId,
-                    mapOf("type" to "exec", "output" to "**Available Commands:**\n\u2022 `/status`\n\u2022 `/new`"),
-                ),
-            )
             advanceUntilIdle()
 
             assertTrue(

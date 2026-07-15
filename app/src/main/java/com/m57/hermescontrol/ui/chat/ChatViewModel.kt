@@ -931,10 +931,12 @@ class ChatViewModel(
                 // slash worker (the 29 commands that 4018'd on mobile — issue
                 // #576). For those we fall back to slash.exec, which runs the
                 // full COMMAND_REGISTRY through the worker.
-                wsClient.request(
-                    WsMethods.COMMAND_DISPATCH,
-                    mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
-                ).await()
+                val result =
+                    wsClient.request(
+                        WsMethods.COMMAND_DISPATCH,
+                        mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
+                    ).await()
+                handleDispatchResult(result)
             } catch (e: HermesWsClient.HermesRpcException) {
                 val msg = e.message.orEmpty()
                 // Registry miss on command.dispatch: the backend emits exactly

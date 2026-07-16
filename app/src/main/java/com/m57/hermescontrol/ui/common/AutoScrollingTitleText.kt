@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.common
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -60,23 +62,26 @@ fun AutoScrollingTitleText(
     style: TextStyle = LocalTextStyle.current,
 ) {
     val scrollState = rememberScrollState()
-    var layoutWidth by remember { mutableStateOf(0) }
-    var textWidth by remember { mutableStateOf(0) }
-    var hasLaidOut by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
+    // Real available width (px) of the title slot — captured from the outer
+    // container, NOT from inside horizontalScroll (which would report Infinity).
+    var availableWidthPx by remember { mutableStateOf(0) }
+    var textWidthPx by remember { mutableStateOf(0) }
+    var hasLaidOut by remember { mutableStateOf(false) }
+
     // True only when the text actually overflows its container.
-    val overflows = layoutWidth > 0 && textWidth > layoutWidth
+    val overflows = availableWidthPx > 0 && textWidthPx > availableWidthPx
 
     fun triggerScroll() {
         if (!overflows) return
-        val maxScroll = textWidth - layoutWidth
+        val maxScroll = textWidthPx - availableWidthPx
         coroutineScope.launch {
             // Restart from the beginning so each trigger reads left-to-right.
             scrollState.scrollTo(0)
             delay(400)
             scrollState.animateScrollTo(maxScroll)
-            delay(600)
+            delay(700)
             // Snap back so the start of the title is always visible at rest.
             scrollState.scrollTo(0)
         }
@@ -85,46 +90,50 @@ fun AutoScrollingTitleText(
     // Auto-scroll once when the title first lays out and overflows.
     LaunchedEffect(hasLaidOut, overflows) {
         if (hasLaidOut && overflows) {
-            delay(500)
+            delay(600)
             triggerScroll()
         }
     }
 
-    Row(
+    Box(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clipToBounds(),
-        verticalAlignment = Alignment.CenterVertically,
+                .clipToBounds()
+                .onSizeChanged { availableWidthPx = it.width },
     ) {
-        Text(
-            text = text,
-            modifier =
-                Modifier
-                    .horizontalScroll(scrollState, enabled = false)
-                    .fillMaxWidth()
-                    .clickable {
-                        triggerScroll()
-                        onClick?.invoke()
-                    },
-            color = color,
-            fontSize = fontSize,
-            fontStyle = fontStyle,
-            fontWeight = fontWeight,
-            fontFamily = fontFamily,
-            letterSpacing = letterSpacing,
-            textDecoration = textDecoration,
-            textAlign = textAlign,
-            lineHeight = lineHeight,
-            overflow = TextOverflow.Visible,
-            softWrap = false,
-            maxLines = 1,
-            style = style,
-            onTextLayout = { result: TextLayoutResult ->
-                textWidth = result.size.width
-                layoutWidth = result.layoutInput.constraints.maxWidth
-                hasLaidOut = true
-            },
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = text,
+                modifier =
+                    Modifier
+                        .horizontalScroll(scrollState, enabled = true)
+                        .fillMaxWidth()
+                        .clickable {
+                            triggerScroll()
+                            onClick?.invoke()
+                        },
+                color = color,
+                fontSize = fontSize,
+                fontStyle = fontStyle,
+                fontWeight = fontWeight,
+                fontFamily = fontFamily,
+                letterSpacing = letterSpacing,
+                textDecoration = textDecoration,
+                textAlign = textAlign,
+                lineHeight = lineHeight,
+                overflow = TextOverflow.Visible,
+                softWrap = false,
+                maxLines = 1,
+                style = style,
+                onTextLayout = { result: TextLayoutResult ->
+                    textWidthPx = result.size.width
+                    hasLaidOut = true
+                },
+            )
+        }
     }
 }

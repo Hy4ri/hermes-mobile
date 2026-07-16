@@ -133,6 +133,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -346,14 +347,13 @@ fun ChatScreen(
         pinTopBar = true,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
+                AutoScrollingTitleText(
                     text = state.chatTitle,
+                    modifier = Modifier.weight(1f),
                     style =
                         MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                         ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 // Connection status dot — red when offline, hidden when connected
                 if (!state.isConnected) {

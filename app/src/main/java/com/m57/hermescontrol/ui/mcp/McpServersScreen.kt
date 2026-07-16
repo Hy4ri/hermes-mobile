@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +29,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -256,6 +259,45 @@ private fun AddServerSection(
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     )
+                    Spacer(modifier = Modifier.height(spacing.sm))
+                    Text(
+                        text = stringResource(R.string.mcp_servers_auth_mode),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(spacing.xs))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                    ) {
+                        FilterChip(
+                            selected = state.addServerAuth == "none",
+                            onClick = { viewModel.updateAddServerAuth("none") },
+                            label = { Text(stringResource(R.string.mcp_servers_auth_none)) },
+                        )
+                        FilterChip(
+                            selected = state.addServerAuth == "header",
+                            onClick = { viewModel.updateAddServerAuth("header") },
+                            label = { Text(stringResource(R.string.mcp_servers_auth_header)) },
+                        )
+                        FilterChip(
+                            selected = state.addServerAuth == "oauth",
+                            onClick = { viewModel.updateAddServerAuth("oauth") },
+                            label = { Text(stringResource(R.string.mcp_servers_auth_oauth)) },
+                        )
+                    }
+                    if (state.addServerAuth == "header") {
+                        Spacer(modifier = Modifier.height(spacing.sm))
+                        OutlinedTextField(
+                            value = state.addServerBearerToken,
+                            onValueChange = viewModel::updateAddServerBearerToken,
+                            label = { Text(stringResource(R.string.mcp_servers_field_bearer_token)) },
+                            singleLine = true,
+                            visualTransformation = remember { PasswordVisualTransformation() },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 } else {
                     OutlinedTextField(
                         value = state.addServerCommand,

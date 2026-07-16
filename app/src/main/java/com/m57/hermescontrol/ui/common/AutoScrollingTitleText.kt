@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -71,6 +72,10 @@ fun AutoScrollingTitleText(
     var availableWidthPx by remember { mutableStateOf(0) }
     var textWidthPx by remember { mutableStateOf(0) }
     var hasLaidOut by remember { mutableStateOf(false) }
+    // Guards the on-first-load auto-scroll so it fires exactly once.
+    var hasAutoScrolled by remember { mutableStateOf(false) }
+    // Tracks the active scroll animation so rapid taps can't overlap.
+    var scrollJob by remember { mutableStateOf<Job?>(null) }
 
     // True only when the text actually overflows its container.
     val overflows = availableWidthPx > 0 && textWidthPx > availableWidthPx
@@ -81,20 +86,31 @@ fun AutoScrollingTitleText(
         // Eased reveal + eased return so the motion glides instead of snapping.
         val revealSpec = tween<Float>(durationMillis = 2600, easing = FastOutSlowInEasing)
         val returnSpec = tween<Float>(durationMillis = 700, easing = FastOutSlowInEasing)
-        coroutineScope.launch {
-            // Restart from the beginning so each trigger reads left-to-right.
-            scrollState.scrollTo(0)
-            delay(350)
-            scrollState.animateScrollTo(maxScroll, animationSpec = revealSpec)
-            delay(900)
-            // Glide back to the start so the title rests at its beginning.
-            scrollState.animateScrollTo(0, animationSpec = returnSpec)
-        }
+        // Cancel any in-flight animation so taps can't stack on the same state.
+        scrollJob?.cancel()
+        scrollJob =
+            coroutineScope.launch {
+                // Restart from the beginning so each trigger reads left-to-right.
+                scrollState.scrollTo(0)
+                delay(350)
+                scrollState.animateScrollTo(maxScroll, animationSpec = revealSpec)
+                delay(900)
+                // Glide back to the start so the title rests at its beginning.
+                scrollState.animateScrollTo(0, animationSpec = returnSpec)
+            }
+    }
+
+    // Reset position whenever the title text itself changes (e.g. session rename),
+    // so a fresh title starts clean and can re-measure.
+    LaunchedEffect(text) {
+        scrollState.scrollTo(0)
+        hasAutoScrolled = false
     }
 
     // Auto-scroll once when the title first lays out and overflows.
     LaunchedEffect(hasLaidOut, overflows) {
-        if (hasLaidOut && overflows) {
+        if (hasLaidOut && overflows && !hasAutoScrolled) {
+            hasAutoScrolled = true
             delay(600)
             triggerScroll()
         }
@@ -105,7 +121,11 @@ fun AutoScrollingTitleText(
             modifier
                 .fillMaxWidth()
                 .clipToBounds()
-                .onSizeChanged { availableWidthPx = it.width },
+                .onSizeChanged { availableWidthPx = it.width }
+                .clickable {
+                    triggerScroll()
+                    onClick?.invoke()
+                },
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -116,11 +136,7 @@ fun AutoScrollingTitleText(
                 modifier =
                     Modifier
                         .horizontalScroll(scrollState, enabled = true)
-                        .fillMaxWidth()
-                        .clickable {
-                            triggerScroll()
-                            onClick?.invoke()
-                        },
+                        .fillMaxWidth(),
                 color = color,
                 fontSize = fontSize,
                 fontStyle = fontStyle,

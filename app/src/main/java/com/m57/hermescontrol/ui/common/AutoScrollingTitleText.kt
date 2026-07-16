@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.common
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -76,14 +78,17 @@ fun AutoScrollingTitleText(
     fun triggerScroll() {
         if (!overflows) return
         val maxScroll = textWidthPx - availableWidthPx
+        // Eased reveal + eased return so the motion glides instead of snapping.
+        val revealSpec = tween<Float>(durationMillis = 2600, easing = FastOutSlowInEasing)
+        val returnSpec = tween<Float>(durationMillis = 700, easing = FastOutSlowInEasing)
         coroutineScope.launch {
             // Restart from the beginning so each trigger reads left-to-right.
             scrollState.scrollTo(0)
-            delay(400)
-            scrollState.animateScrollTo(maxScroll)
-            delay(700)
-            // Snap back so the start of the title is always visible at rest.
-            scrollState.scrollTo(0)
+            delay(350)
+            scrollState.animateScrollTo(maxScroll, animationSpec = revealSpec)
+            delay(900)
+            // Glide back to the start so the title rests at its beginning.
+            scrollState.animateScrollTo(0, animationSpec = returnSpec)
         }
     }
 

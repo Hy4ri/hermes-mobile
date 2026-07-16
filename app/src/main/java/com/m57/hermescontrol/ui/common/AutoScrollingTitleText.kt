@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.common
 
-import androidx.compose.animation.core.animate
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
@@ -10,9 +9,11 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -74,11 +75,7 @@ fun AutoScrollingTitleText(
             // Restart from the beginning so each trigger reads left-to-right.
             scrollState.scrollTo(0)
             delay(400)
-            animate(
-                initialValue = 0f,
-                targetValue = maxScroll,
-                block = { value, _ -> scrollState.scrollTo(value.toInt()) },
-            )
+            scrollState.animateScrollTo(maxScroll)
             delay(600)
             // Snap back so the start of the title is always visible at rest.
             scrollState.scrollTo(0)

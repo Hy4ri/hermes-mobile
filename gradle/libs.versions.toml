@@ -12,7 +12,7 @@ coroutines = "1.11.0"
 junit = "4.13.2"
 junit5 = "6.1.2"
 junitPlatform = "6.1.2"
-kotlin = "2.4.0"
+kotlin = "2.4.10"
 # standalone per KSP 2.0+ guidance — NOT kotlinVersion-kspVersion; easy
 # to miss during Kotlin upgrades since it no longer tracks the Kotlin version.
 ksp = "2.3.9"

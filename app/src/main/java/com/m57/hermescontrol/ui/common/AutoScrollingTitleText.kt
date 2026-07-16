@@ -70,7 +70,7 @@ fun AutoScrollingTitleText(
 
     fun triggerScroll() {
         if (!overflows) return
-        val maxScroll = (textWidth - layoutWidth).toFloat()
+        val maxScroll = textWidth - layoutWidth
         coroutineScope.launch {
             // Restart from the beginning so each trigger reads left-to-right.
             scrollState.scrollTo(0)

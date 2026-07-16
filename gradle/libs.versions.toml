@@ -15,7 +15,7 @@ junitPlatform = "6.1.1"
 kotlin = "2.4.0"
 # standalone per KSP 2.0+ guidance — NOT kotlinVersion-kspVersion; easy
 # to miss during Kotlin upgrades since it no longer tracks the Kotlin version.
-ksp = "2.3.9"
+ksp = "2.3.10"
 nav3Core = "1.0.1"
 lifecycleViewmodelNav3 = "2.10.0"
 leakcanary = "2.14"

@@ -3,6 +3,8 @@ package com.m57.hermescontrol.ui.common
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -16,13 +18,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import com.m57.hermescontrol.R
+import kotlin.math.roundToInt
 
 /** Sealed interface for navigation icon types — eliminates boolean-flag anti-pattern. */
 sealed interface NavIcon {
@@ -125,12 +132,17 @@ fun HermesScaffold(
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { paddingValues ->
+        val layoutDirection = LocalLayoutDirection.current
         val refreshContent: @Composable () -> Unit = {
             Box(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
+                        .padding(
+                            start = paddingValues.calculateStartPadding(layoutDirection),
+                            end = paddingValues.calculateEndPadding(layoutDirection),
+                            bottom = paddingValues.calculateBottomPadding(),
+                        ).dynamicTopBarPadding(scrollBehavior, paddingValues.calculateTopPadding()),
             ) {
                 content(paddingValues)
             }
@@ -149,3 +161,26 @@ fun HermesScaffold(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+private fun Modifier.dynamicTopBarPadding(
+    scrollBehavior: TopAppBarScrollBehavior,
+    baseTopPadding: Dp,
+): Modifier =
+    this.layout { measurable, constraints ->
+        val baseTopPaddingPx = baseTopPadding.roundToPx()
+        val heightOffset = scrollBehavior.state.heightOffset.roundToInt()
+        val activeTopPadding = (baseTopPaddingPx + heightOffset).coerceAtLeast(0)
+
+        val placeable =
+            measurable.measure(
+                constraints.copy(
+                    maxHeight = (constraints.maxHeight - activeTopPadding).coerceAtLeast(0),
+                    minHeight = (constraints.minHeight - activeTopPadding).coerceAtLeast(0),
+                ),
+            )
+
+        layout(placeable.width, placeable.height + activeTopPadding) {
+            placeable.placeRelative(0, activeTopPadding)
+        }
+    }

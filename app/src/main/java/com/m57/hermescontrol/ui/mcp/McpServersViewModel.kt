@@ -34,6 +34,8 @@ data class McpServersUiState(
     val addServerUrl: String = "",
     val addServerCommand: String = "",
     val addServerArgs: String = "",
+    val addServerAuth: String = "none", // "none" | "header" | "oauth"
+    val addServerBearerToken: String = "",
     val addingServer: Boolean = false,
     // Env vars for editing
     val editingEnvFor: String? = null,
@@ -204,6 +206,14 @@ class McpServersViewModel :
         _uiState.update { it.copy(addServerArgs = v) }
     }
 
+    fun updateAddServerAuth(v: String) {
+        _uiState.update { it.copy(addServerAuth = v) }
+    }
+
+    fun updateAddServerBearerToken(v: String) {
+        _uiState.update { it.copy(addServerBearerToken = v) }
+    }
+
     fun submitAddServer() {
         val state = _uiState.value
         if (state.addServerName.isBlank()) {
@@ -231,6 +241,18 @@ class McpServersViewModel :
                         } else {
                             null
                         },
+                    auth =
+                        if (state.addMode == AddServerMode.HTTP && state.addServerAuth != "none") {
+                            state.addServerAuth
+                        } else {
+                            null
+                        },
+                    bearerToken =
+                        if (state.addMode == AddServerMode.HTTP && state.addServerAuth == "header") {
+                            state.addServerBearerToken.trim().ifBlank { null }
+                        } else {
+                            null
+                        },
                 )
             val result =
                 withContext(Dispatchers.IO) {
@@ -246,6 +268,8 @@ class McpServersViewModel :
                             addServerUrl = "",
                             addServerCommand = "",
                             addServerArgs = "",
+                            addServerAuth = "none",
+                            addServerBearerToken = "",
                             toastMessage = "Server '${request.name}' added",
                         )
                     }

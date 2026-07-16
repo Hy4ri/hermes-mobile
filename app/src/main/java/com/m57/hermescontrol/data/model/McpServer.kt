@@ -31,6 +31,8 @@ data class AddMcpServerRequest(
     val command: String? = null,
     val args: List<String>? = null,
     val env: Map<String, String>? = null,
+    val auth: String? = null, // "none" | "header" | "oauth"
+    val bearerToken: String? = null, // sent only when auth == "header"
 )
 
 @Serializable

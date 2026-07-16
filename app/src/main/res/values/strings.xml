@@ -727,6 +727,11 @@
     <string name="mcp_servers_catalog_installing">Installing…</string>
     <string name="mcp_servers_catalog_source">source: %1$s</string>
     <string name="mcp_servers_catalog_required_env">Required env vars</string>
+    <string name="mcp_servers_auth_mode">Authentication</string>
+    <string name="mcp_servers_auth_none">None</string>
+    <string name="mcp_servers_auth_header">Header</string>
+    <string name="mcp_servers_auth_oauth">OAuth</string>
+    <string name="mcp_servers_field_bearer_token">Bearer token</string>
  
      <!-- Gateway Screen -->
     <string name="gateway_status_running">GATEWAY RUNNING</string>

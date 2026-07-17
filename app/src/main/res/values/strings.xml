@@ -114,7 +114,6 @@
     <string name="chat_input_placeholder_waiting">Waiting for response\u2026</string>
     <string name="chat_input_placeholder_queue">Queued \u2014 sends when agent is free\u2026</string>
     <string name="chat_input_placeholder_type_message">Type a message\u2026</string>
-    <string name="chat_tool_stderr">Error Output (stderr):\n%1$s</string>
     <string name="chat_tool_execution_error">Execution Error: %1$s</string>
     <string name="chat_tool_exit_code">Exit Code: %1$d</string>
     <string name="chat_tool_fallback">Tool</string>
@@ -127,30 +126,16 @@
 
     <!-- Attachment / File Picker -->
     <string name="chat_attach_desc">Attach file</string>
-    <string name="chat_attach_image_desc">Attach image</string>
     <string name="chat_attach_remove_desc">Remove attachment</string>
-    <string name="chat_attachment_unknown">Unknown file</string>
-    <string name="chat_attachment_image">Image</string>
-    <string name="chat_attachment_file">%1$s</string>
-    <string name="chat_attachment_send_error">Failed to process attachment</string>
 
     <!-- Camera -->
-    <string name="chat_camera_desc">Camera</string>
     <string name="chat_camera_error">Failed to capture photo</string>
 
     <!-- Settings Screen -->
-    <string name="settings_tab_connection">Connection</string>
-    <string name="settings_tab_appearance">Appearance</string>
-    <string name="settings_tab_behavior">Behavior</string>
-    <string name="settings_tab_about">About</string>
     <string name="settings_sec_connection">Connection</string>
-    <string name="settings_item_profile">Connection Profile</string>
-    <string name="settings_profile_default">Standalone / Default</string>
-    <string name="settings_action_rename_profile">Rename Profile</string>
     <string name="settings_field_host">Host</string>
     <string name="settings_field_port">Port</string>
     <string name="settings_field_token">Auth Token</string>
-    <string name="settings_action_clear_token">Clear Token</string>
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>
@@ -170,7 +155,6 @@
     <string name="settings_display_mode_icon_and_text">Icon &amp; Text</string>
     <string name="settings_display_mode_icon_only">Icons Only</string>
     <string name="settings_display_mode_text_only">Text Only</string>
-    <string name="settings_save_success">✅ Settings saved</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
     <string name="settings_about_app_name">⚡ Hermes Mobile</string>
@@ -189,7 +173,6 @@
     <string name="settings_summary_theme_system">System</string>
     <string name="settings_summary_theme_light">Light</string>
     <string name="settings_summary_theme_dark">Dark</string>
-    <string name="action_rename">Rename</string>
     <string name="action_save">Save</string>
     <string name="settings_action_add_profile">Add Profile</string>
     <string name="settings_action_edit_profile">Edit Profile</string>
@@ -270,14 +253,8 @@
     <string name="skills_status_enabled">Enabled</string>
     <string name="skills_status_disabled">Disabled</string>
     <string name="skills_category_all">All</string>
-    <string name="skills_no_skills">No skills found</string>
-    <string name="skills_no_skills_desc">Skills loaded from Hermes will appear here.</string>
     <string name="skills_screen_title">Skills</string>
     <string name="skills_search_placeholder">Search skills\u2026</string>
-    <string name="skills_filter_status">Status</string>
-    <string name="skills_filter_category">Category</string>
-    <string name="skills_no_matching">No matching skills</string>
-    <string name="skills_no_matching_desc">Try adjusting your search or filters.</string>
     <string name="skills_edit_title">Edit: %1$s</string>
     <string name="skills_preview_title">Preview: %1$s</string>
     <string name="skills_preview_empty">No content to preview</string>
@@ -293,19 +270,9 @@
     <string name="skills_mode_installed">Installed</string>
     <string name="skills_mode_hub">Browse Hub</string>
     <string name="skills_source_all">All sources</string>
-    <string name="skills_install_success">Installed: %1$s</string>
-    <string name="skills_install_failure">Failed to install %1$s: %2$s</string>
-    <string name="skills_uninstall_success">Uninstalled: %1$s</string>
-    <string name="skills_uninstall_failure">Failed to uninstall %1$s: %2$s</string>
-    <string name="skills_preview_failure">Failed to load preview: %1$s</string>
-    <string name="skills_load_failure">Failed to load skills: %1$s</string>
-    <string name="skills_search_failure">Search failed: %1$s</string>
-    <string name="skills_toggle_failure">Failed to toggle skill: %1$s</string>
-    <string name="skills_toggle_success">Toggled %1$s</string>
     <string name="action_discard">Discard</string>
 
     <string name="content_desc_edit_skill">Edit Skill File</string>
-    <string name="content_desc_preview_skill">Preview Skill File</string>
     <string name="content_desc_uninstall_skill">Uninstall Skill</string>
     <string name="content_desc_update_skills_hub">Update Skills from Hub</string>
     <string name="content_desc_save_changes">Save Changes</string>
@@ -340,7 +307,6 @@
     <string name="system_label_uptime">Uptime</string>
     <string name="system_label_load_avg">Load avg</string>
     <string name="system_label_cores">cores</string>
-    <string name="system_label_used_total">%1$s / %2$s</string>
     <string name="system_label_used_total_percent">%1$s / %2$s (%3$s%%)</string>
     <string name="system_psutil_warning">Install the psutil extra for CPU / memory / disk metrics.</string>
     <string name="system_version_latest">latest</string>
@@ -385,7 +351,6 @@
     <string name="system_memory_external">External provider: %1$s</string>
     <string name="system_memory_builtin">built-in only</string>
     <string name="system_memory_change_plugins">Change in Plugins</string>
-    <string name="system_memory_new_creds">New credentials: hermes memory setup</string>
     <string name="system_memory_builtin_label">Built-in files — MEMORY.md: %1$s · USER.md: %2$s</string>
     <string name="system_memory_reset_memory">Reset MEMORY.md</string>
     <string name="system_memory_reset_user">Reset USER.md</string>
@@ -413,15 +378,11 @@
     <string name="system_op_config_migrate">Migrate config</string>
     <string name="system_op_backup_create">Create backup</string>
     <string name="system_op_backup_download">Download backup</string>
-    <string name="system_op_backup_restore_upload">Restore from backup upload</string>
     <string name="system_sec_backup">Backup</string>
     <string name="system_sec_restore">Restore from upload</string>
-    <string name="system_op_choose_zip">Choose restore zip</string>
     <string name="system_op_restore_upload">Restore upload</string>
     <string name="system_op_restore_path_label">Restore from backups path</string>
     <string name="system_op_restore_path">Restore path</string>
-    <string name="system_op_no_backup">No backup created yet</string>
-    <string name="system_op_no_archive">No backup archive selected</string>
     <string name="system_op_import_confirm_title">Restore full Hermes backup?</string>
     <string name="system_op_import_confirm_desc">This will overwrite your current Hermes configuration, skills, sessions, and data. This cannot be undone.</string>
 
@@ -453,8 +414,6 @@
     <string name="system_hooks_not_executable">not executable</string>
     <string name="system_hooks_allowed">allowed</string>
     <string name="system_hooks_not_approved">not approved</string>
-    <string name="system_hooks_remove_confirm_title">Remove shell hook</string>
-    <string name="system_hooks_remove_confirm_desc">Remove this hook from config and revoke its consent? It stops firing on the next restart.</string>
     <string name="system_hooks_modal_title">New shell hook</string>
     <string name="system_hooks_field_event">Event</string>
     <string name="system_hooks_field_command">Command (absolute path)</string>
@@ -463,7 +422,6 @@
     <string name="system_hooks_field_approve">Approve now (grant consent so it fires; otherwise it stays configured but inactive)</string>
     <string name="system_hooks_warning">Shell hooks run arbitrary commands on this host. Only add scripts you trust. Takes effect on the next gateway/session restart.</string>
     <string name="system_hooks_create">Create hook</string>
-    <string name="system_hooks_creating">Creating</string>
 
     <!-- Action log viewer -->
     <string name="system_action_log_title">Action log</string>
@@ -486,7 +444,6 @@
     <string name="model_no_models">No models reported or provider needs authentication.</string>
     <string name="content_desc_active_model">Active Model</string>
     <string name="model_section_pinned">Pinned Models</string>
-    <string name="content_desc_pin_model">Pin model</string>
     <string name="content_desc_unpin_model">Unpin model</string>
     <string name="content_desc_pinned_section_toggle">Toggle pinned section visibility</string>
 
@@ -505,9 +462,6 @@
     <string name="sessions_search_played_at">Played %1$s</string>
     <string name="sessions_search_match_label">Match</string>
     <string name="sessions_search_model_label">Model</string>
-    <string name="sessions_search_unknown_model">Unknown model</string>
-    <string name="sessions_search_source_label">Source</string>
-    <string name="sessions_search_open_hint">Tap to open this conversation</string>
     <string name="sessions_stat_total">Total</string>
     <string name="sessions_stat_active">Active</string>
     <string name="sessions_action_prune">Prune</string>
@@ -522,8 +476,6 @@
     <string name="sessions_action_select_all">Select All</string>
     <string name="sessions_action_deselect_all">Deselect</string>
     <string name="sessions_action_delete_n">Delete %1$d</string>
-    <string name="sessions_action_copy_prompt">Copy prompt</string>
-    <string name="sessions_rename_placeholder">New title…</string>
     <string name="content_desc_enter_selection">Select sessions</string>
     <string name="content_desc_exit_selection">Exit selection</string>
 
@@ -536,8 +488,6 @@
     <string name="webhooks_sec_subscriptions">Subscriptions</string>
     <string name="webhooks_empty_desc">No webhook subscriptions configured.</string>
     <string name="webhooks_search_placeholder">Search subscriptions…</string>
-    <string name="webhooks_label_target">Target URL:</string>
-    <string name="webhooks_label_events">Events Subscribed:</string>
     <string name="webhooks_action_add">Add subscription</string>
     <string name="webhooks_action_create">Create</string>
     <string name="webhooks_action_delete">Delete</string>
@@ -553,7 +503,6 @@
     <string name="webhooks_hint_events">comma separated (e.g. push, pull_request)</string>
     <string name="webhooks_hint_deliver">log, telegram, discord, origin, all…</string>
     <string name="webhooks_hint_secret">auto-generated if empty</string>
-    <string name="webhooks_error_name_required">Name is required</string>
     <string name="webhooks_no_matching">No matching subscriptions</string>
     <string name="webhooks_no_matching_desc">Try adjusting your search.</string>
 
@@ -569,7 +518,6 @@
 
     <!-- Config Screen -->
     <string name="config_screen_title">Configuration</string>
-    <string name="config_placeholder_yaml">YAML Config...</string>
     <string name="config_action_reset">Reset</string>
     <string name="config_action_save">Save</string>
     <string name="config_action_save_yaml">Save YAML</string>
@@ -627,8 +575,6 @@
     <string name="profiles_builder_mcp_command">Command</string>
     <string name="profiles_builder_mcp_args">Arguments (comma-separated)</string>
     <string name="profiles_builder_mcp_sse_url">SSE URL</string>
-    <string name="profiles_builder_mcp_env">Environment Variables (KEY=VALUE, one per line)</string>
-    <string name="profiles_builder_review_title">Review Profile Details</string>
     <string name="profiles_builder_review_name">Profile Name</string>
     <string name="profiles_builder_review_description">Description</string>
     <string name="profiles_builder_review_provider">Provider: %1$s</string>
@@ -652,7 +598,6 @@
     <string name="plugins_action_uninstall">Uninstall</string>
     <string name="plugins_action_install">Install</string>
     <string name="plugins_action_remove">Remove</string>
-    <string name="plugins_action_rescan">Rescan</string>
     <string name="plugins_install_heading">Install Plugin</string>
     <string name="plugins_install_hint">Install a plugin from a git/URL source</string>
     <string name="plugins_force_reinstall">Force reinstall</string>
@@ -672,7 +617,6 @@
     <string name="plugins_hide_from_sidebar">Hide from sidebar</string>
 
     <!-- Shared detail dialog (issue #500) -->
-    <string name="detail_dialog_no_info">No additional details available.</string>
     <string name="detail_dialog_category">Category</string>
     <string name="detail_dialog_source">Source</string>
     <string name="detail_dialog_version">Version</string>
@@ -683,7 +627,6 @@
     <string name="detail_dialog_label">Label</string>
     <string name="detail_dialog_url">URL</string>
     <string name="detail_dialog_command">Command</string>
-    <string name="detail_dialog_args">Arguments</string>
     <string name="detail_dialog_env_vars">Environment Variables</string>
     <string name="detail_dialog_tools">Tools</string>
     <string name="detail_dialog_events">Events</string>
@@ -709,10 +652,6 @@
     <string name="mcp_servers_field_args">Arguments</string>
     <string name="mcp_servers_action_submit">Add server</string>
     <string name="mcp_servers_action_adding">Adding…</string>
-    <string name="mcp_servers_status_running">running</string>
-    <string name="mcp_servers_status_stopped">stopped</string>
-    <string name="mcp_servers_status_error">error</string>
-    <string name="mcp_servers_status_unconfigured">unconfigured</string>
     <string name="mcp_servers_action_restart">Restart</string>
     <string name="mcp_servers_env_vars">Env vars</string>
     <string name="mcp_servers_env_add">Add env var</string>
@@ -721,7 +660,6 @@
     <string name="mcp_servers_env_no_vars">No environment variables configured.</string>
     <string name="mcp_servers_section_catalog">Catalog</string>
     <string name="mcp_servers_catalog_search">Search catalog…</string>
-    <string name="mcp_servers_catalog_loading">Loading catalog…</string>
     <string name="mcp_servers_catalog_empty">No catalog entries match your search.</string>
     <string name="mcp_servers_catalog_install">Install</string>
     <string name="mcp_servers_catalog_installing">Installing…</string>
@@ -770,7 +708,6 @@
     <string name="cron_edit_hint_deliver">e.g. origin, local, all, or telegram:chat_id</string>
     <string name="cron_edit_hint_skills">One per line</string>
     <string name="cron_edit_action_save">Save</string>
-    <string name="cron_edit_error_schedule_required">Schedule is required</string>
     <string name="cron_discard_title">Discard changes?</string>
     <string name="cron_discard_message">You have unsaved changes. Discard them?</string>
 
@@ -822,22 +759,14 @@
     <!-- Channels Screen -->
     <string name="channels_empty_title">No channels configured</string>
     <string name="channels_empty_desc">Add messaging platforms in Hermes to see them here.</string>
-    <string name="channels_status_active">Active</string>
-    <string name="channels_status_disabled">Disabled</string>
     <string name="channels_action_configure">Configure</string>
     <string name="channels_sec_settings">Configuration Settings</string>
-    <string name="channels_placeholder_configured">******** (Already Configured)</string>
     <string name="channels_action_save_settings">Save Settings</string>
-    <string name="channels_sec_keys">Configured Keys:</string>
-    <string name="channels_status_configured">Configured</string>
-    <string name="channels_status_not_set">Not set</string>
     <string name="channels_action_test">Test</string>
     <string name="channels_action_restart_now">Restart now</string>
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
-    <string name="channels_gateway_offline">The gateway is not running. Configure channels here, then restart it.</string>
 
     <!-- Settings -->
-    <string name="settings_action_delete_profile">Delete</string>
     <string name="settings_saved_profiles">Saved Profiles (%1$d)</string>
     <string name="settings_logout">Logout</string>
 
@@ -858,7 +787,6 @@
     <string name="auth_login_error_username_required">Username is required</string>
     <string name="auth_login_error_password_required">Password is required</string>
     <string name="auth_login_error_unreachable">Dashboard unreachable — check IP and port</string>
-    <string name="auth_login_success">Connected!</string>
     <string name="auth_login_existing_profiles_title">Use existing logged-in profile:</string>
     <string name="auth_login_use_profile">Enter as %1$s</string>
 
@@ -874,7 +802,6 @@
     <string name="pairing_code_entry_code_label">Pairing Code</string>
 
     <!-- Loading State -->
-    <string name="loading_state_subtitle_default">Loading…</string>
     <string name="loading_state_subtitle_models">Fetching model providers…</string>
     <string name="loading_state_subtitle_channels">Loading channels…</string>
     <string name="loading_state_subtitle_providers">Loading OAuth providers…</string>
@@ -913,7 +840,6 @@
     <string name="analytics_empty_desc">Usage stats will appear here once the agent has been active.</string>
     <string name="analytics_days">%1$d days</string>
     <string name="analytics_estimated_cost">Est. cost</string>
-    <string name="analytics_actual_cost">Actual cost</string>
     <string name="analytics_sessions">Sessions</string>
     <string name="analytics_api_calls">API calls</string>
     <string name="analytics_input_tokens">Input</string>
@@ -921,11 +847,8 @@
     <string name="analytics_cache_read">Cache read</string>
     <string name="analytics_reasoning">Reasoning</string>
     <string name="analytics_daily_cost">Daily estimated cost</string>
-    <string name="analytics_per_model">Per-model breakdown</string>
-    <string name="analytics_top_skills">Top skills</string>
     <string name="analytics_no_cost_data">No cost recorded in this period.</string>
     <string name="analytics_skill_uses">%1$d uses \u2022 %2$d%% of total</string>
-    <string name="analytics_top_tools">Top tools</string>
     <string name="analytics_tool_uses">%1$d calls \u2022 %2$d%% of total</string>
     <string name="processes_kill_confirm">Kill</string>
     <string name="processes_kill_cd">Kill process</string>

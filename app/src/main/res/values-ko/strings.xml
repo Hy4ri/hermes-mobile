@@ -113,7 +113,6 @@
     <string name="chat_input_placeholder_not_connected">연결되지 않음…</string>
     <string name="chat_input_placeholder_waiting">응답 대기 중…</string>
     <string name="chat_input_placeholder_type_message">메시지 입력…</string>
-    <string name="chat_tool_stderr">오류 출력 (stderr):\n%1$s</string>
     <string name="chat_tool_execution_error">실행 오류: %1$s</string>
     <string name="chat_tool_exit_code">종료 코드: %1$d</string>
     <string name="chat_tool_fallback">도구</string>
@@ -126,30 +125,16 @@
 
     <!-- Attachment / File Picker -->
     <string name="chat_attach_desc">파일 첨부</string>
-    <string name="chat_attach_image_desc">이미지 첨부</string>
     <string name="chat_attach_remove_desc">첨부 제거</string>
-    <string name="chat_attachment_unknown">알 수 없는 파일</string>
-    <string name="chat_attachment_image">이미지</string>
-    <string name="chat_attachment_file">%1$s</string>
-    <string name="chat_attachment_send_error">첨부 파일 처리 실패</string>
 
     <!-- Camera -->
-    <string name="chat_camera_desc">카메라</string>
     <string name="chat_camera_error">사진 촬영 실패</string>
 
     <!-- Settings Screen -->
-    <string name="settings_tab_connection">연결</string>
-    <string name="settings_tab_appearance">테마</string>
-    <string name="settings_tab_behavior">동작</string>
-    <string name="settings_tab_about">정보</string>
     <string name="settings_sec_connection">연결</string>
-    <string name="settings_item_profile">연결 프로필</string>
-    <string name="settings_profile_default">독립형 / 기본</string>
-    <string name="settings_action_rename_profile">프로필 이름 변경</string>
     <string name="settings_field_host">호스트</string>
     <string name="settings_field_port">포트</string>
     <string name="settings_field_token">인증 토큰</string>
-    <string name="settings_action_clear_token">토큰 지우기</string>
     <string name="settings_sec_behavior">동작</string>
     <string name="settings_item_auto_reconnect">자동 재연결</string>
     <string name="settings_desc_auto_reconnect">연결 끊김 시 자동 재연결</string>
@@ -169,7 +154,6 @@
     <string name="settings_display_mode_icon_and_text">아이콘 + 텍스트</string>
     <string name="settings_display_mode_icon_only">아이콘만</string>
     <string name="settings_display_mode_text_only">텍스트만</string>
-    <string name="settings_save_success">✅ 설정 저장됨</string>
     <string name="settings_action_test_connection">연결 테스트</string>
     <string name="settings_sec_about">정보</string>
     <string name="settings_about_app_name">⚡ 헤르메스 모바일</string>
@@ -178,7 +162,6 @@
     <string name="settings_about_debug">디버그</string>
     <string name="settings_about_release">릴리즈</string>
     <string name="settings_about_commit">커밋</string>
-    <string name="action_rename">이름 변경</string>
     <string name="action_save">저장</string>
     <string name="settings_action_add_profile">프로필 추가</string>
     <string name="settings_action_edit_profile">프로필 편집</string>
@@ -253,14 +236,8 @@
     <string name="skills_status_enabled">활성</string>
     <string name="skills_status_disabled">비활성</string>
     <string name="skills_category_all">전체</string>
-    <string name="skills_no_skills">스킬이 없습니다</string>
-    <string name="skills_no_skills_desc">Hermes에서 로드된 스킬이 여기에 표시됩니다.</string>
     <string name="skills_screen_title">스킬</string>
     <string name="skills_search_placeholder">스킬 검색…</string>
-    <string name="skills_filter_status">상태</string>
-    <string name="skills_filter_category">카테고리</string>
-    <string name="skills_no_matching">일치하는 스킬 없음</string>
-    <string name="skills_no_matching_desc">검색어나 필터를 조정해보세요.</string>
     <string name="skills_edit_title">편집: %1$s</string>
     <string name="skills_preview_title">미리보기: %1$s</string>
     <string name="skills_preview_empty">미리볼 내용이 없습니다</string>
@@ -276,19 +253,9 @@
     <string name="skills_mode_installed">설치됨</string>
     <string name="skills_mode_hub">허브 찾기</string>
     <string name="skills_source_all">모든 출처</string>
-    <string name="skills_install_success">설치됨: %1$s</string>
-    <string name="skills_install_failure">%1$s 설치 실패: %2$s</string>
-    <string name="skills_uninstall_success">제거됨: %1$s</string>
-    <string name="skills_uninstall_failure">%1$s 제거 실패: %2$s</string>
-    <string name="skills_preview_failure">미리보기 로드 실패: %1$s</string>
-    <string name="skills_load_failure">스킬 로드 실패: %1$s</string>
-    <string name="skills_search_failure">검색 실패: %1$s</string>
-    <string name="skills_toggle_failure">스킬 전환 실패: %1$s</string>
-    <string name="skills_toggle_success">%1$s 전환됨</string>
     <string name="action_discard">취소</string>
 
     <string name="content_desc_edit_skill">스킬 파일 편집</string>
-    <string name="content_desc_preview_skill">스킬 파일 미리보기</string>
     <string name="content_desc_uninstall_skill">스킬 제거</string>
     <string name="content_desc_update_skills_hub">허브에서 스킬 업데이트</string>
     <string name="content_desc_save_changes">변경사항 저장</string>
@@ -323,7 +290,6 @@
     <string name="system_label_uptime">가동 시간</string>
     <string name="system_label_load_avg">부하 평균</string>
     <string name="system_label_cores">코어</string>
-    <string name="system_label_used_total">%1$s / %2$s</string>
     <string name="system_label_used_total_percent">%1$s / %2$s (%3$s%%)</string>
     <string name="system_psutil_warning">CPU/메모리/디스크 정보를 보려면 psutil을 설치하세요.</string>
     <string name="system_version_latest">최신</string>
@@ -341,7 +307,6 @@
     <string name="system_hooks_field_approve">지금 승인 (실행 허용; 설정만 해두고 비활성 상태로 두려면 체크 해제)</string>
     <string name="system_hooks_warning">셸 훅은 이 호스트에서任意 명령을 실행합니다. 신뢰하는 스크립트만 추가하세요. 다음 게이트웨이/세션 재시작부터 적용됩니다.</string>
     <string name="system_hooks_create">훅 생성</string>
-    <string name="system_hooks_creating">생성 중</string>
 
     <!-- Action log viewer -->
     <string name="system_action_log_title">액션 로그</string>
@@ -364,7 +329,6 @@
     <string name="model_no_models">보고된 모델이 없거나 인증이 필요합니다.</string>
     <string name="content_desc_active_model">활성 모델</string>
     <string name="model_section_pinned">고정된 모델</string>
-    <string name="content_desc_pin_model">모델 고정</string>
     <string name="content_desc_unpin_model">모델 고정 해제</string>
     <string name="content_desc_pinned_section_toggle">고정 섹션 표시 전환</string>
 
@@ -391,8 +355,6 @@
     <string name="sessions_action_select_all">전체 선택</string>
     <string name="sessions_action_deselect_all">선택 해제</string>
     <string name="sessions_action_delete_n">%1$d개 삭제</string>
-    <string name="sessions_action_copy_prompt">프롬프트 복사</string>
-    <string name="sessions_rename_placeholder">새 제목…</string>
     <string name="content_desc_enter_selection">세션 선택</string>
     <string name="content_desc_exit_selection">선택 종료</string>
 
@@ -405,8 +367,6 @@
     <string name="webhooks_sec_subscriptions">구독</string>
     <string name="webhooks_empty_desc">설정된 웹훅 구독이 없습니다.</string>
     <string name="webhooks_search_placeholder">구독 검색…</string>
-    <string name="webhooks_label_target">대상 URL:</string>
-    <string name="webhooks_label_events">구독 이벤트:</string>
     <string name="webhooks_action_add">구독 추가</string>
     <string name="webhooks_action_create">생성</string>
     <string name="webhooks_action_delete">삭제</string>
@@ -422,7 +382,6 @@
     <string name="webhooks_hint_events">쉼표로 구분 (예: push, pull_request)</string>
     <string name="webhooks_hint_deliver">log, telegram, discord, origin, all…</string>
     <string name="webhooks_hint_secret">비워두면 자동 생성</string>
-    <string name="webhooks_error_name_required">이름은 필수입니다</string>
     <string name="webhooks_no_matching">일치하는 구독 없음</string>
     <string name="webhooks_no_matching_desc">검색어를 조정해보세요.</string>
 
@@ -438,7 +397,6 @@
 
     <!-- Config Screen -->
     <string name="config_screen_title">설정</string>
-    <string name="config_placeholder_yaml">YAML 설정…</string>
     <string name="config_action_reset">초기화</string>
     <string name="config_action_save">저장</string>
     <string name="config_action_save_yaml">YAML 저장</string>
@@ -496,8 +454,6 @@
     <string name="profiles_builder_mcp_command">명령어</string>
     <string name="profiles_builder_mcp_args">인자 (쉼표 구분)</string>
     <string name="profiles_builder_mcp_sse_url">SSE URL</string>
-    <string name="profiles_builder_mcp_env">환경 변수 (KEY=VALUE, 한 줄에 하나씩)</string>
-    <string name="profiles_builder_review_title">프로필 세부정보 검토</string>
     <string name="profiles_builder_review_name">프로필명</string>
     <string name="profiles_builder_review_description">설명</string>
     <string name="profiles_builder_review_provider">제공자: %1$s</string>
@@ -521,7 +477,6 @@
     <string name="plugins_action_uninstall">제거</string>
     <string name="plugins_action_install">설치</string>
     <string name="plugins_action_remove">제거</string>
-    <string name="plugins_action_rescan">재검색</string>
     <string name="plugins_install_heading">플러그인 설치</string>
     <string name="plugins_install_hint">git/URL 소스에서 플러그인 설치</string>
     <string name="plugins_force_reinstall">강제 재설치</string>
@@ -541,7 +496,6 @@
     <string name="plugins_hide_from_sidebar">사이드바에서 숨김</string>
 
     <!-- Shared detail dialog -->
-    <string name="detail_dialog_no_info">추가 정보가 없습니다.</string>
     <string name="detail_dialog_category">카테고리</string>
     <string name="detail_dialog_source">출처</string>
     <string name="detail_dialog_version">버전</string>
@@ -552,7 +506,6 @@
     <string name="detail_dialog_label">레이블</string>
     <string name="detail_dialog_url">URL</string>
     <string name="detail_dialog_command">명령어</string>
-    <string name="detail_dialog_args">인자</string>
     <string name="detail_dialog_env_vars">환경 변수</string>
     <string name="detail_dialog_tools">도구</string>
     <string name="detail_dialog_events">이벤트</string>
@@ -578,10 +531,6 @@
     <string name="mcp_servers_field_args">인자</string>
     <string name="mcp_servers_action_submit">서버 추가</string>
     <string name="mcp_servers_action_adding">추가 중…</string>
-    <string name="mcp_servers_status_running">실행 중</string>
-    <string name="mcp_servers_status_stopped">중지됨</string>
-    <string name="mcp_servers_status_error">오류</string>
-    <string name="mcp_servers_status_unconfigured">설정 안 됨</string>
     <string name="mcp_servers_action_restart">재시작</string>
     <string name="mcp_servers_env_vars">환경 변수</string>
     <string name="mcp_servers_env_add">환경 변수 추가</string>
@@ -590,7 +539,6 @@
     <string name="mcp_servers_env_no_vars">설정된 환경 변수가 없습니다.</string>
     <string name="mcp_servers_section_catalog">카탈로그</string>
     <string name="mcp_servers_catalog_search">카탈로그 검색…</string>
-    <string name="mcp_servers_catalog_loading">카탈로그 로딩 중…</string>
     <string name="mcp_servers_catalog_empty">검색 결과가 없습니다.</string>
     <string name="mcp_servers_catalog_install">설치</string>
     <string name="mcp_servers_catalog_installing">설치 중…</string>
@@ -634,7 +582,6 @@
     <string name="cron_edit_hint_deliver">예: origin, local, all, 또는 telegram:chat_id</string>
     <string name="cron_edit_hint_skills">한 줄에 하나씩</string>
     <string name="cron_edit_action_save">저장</string>
-    <string name="cron_edit_error_schedule_required">스케줄은 필수입니다</string>
     <string name="cron_discard_title">변경사항을 취소할까요?</string>
     <string name="cron_discard_message">저장되지 않은 변경사항이 있습니다. 취소하시겠습니까?</string>
 
@@ -686,22 +633,14 @@
     <!-- Channels Screen -->
     <string name="channels_empty_title">설정된 채널이 없습니다</string>
     <string name="channels_empty_desc">Hermes에서 메시징 플랫폼을 추가하면 여기에 표시됩니다.</string>
-    <string name="channels_status_active">활성</string>
-    <string name="channels_status_disabled">비활성</string>
     <string name="channels_action_configure">설정</string>
     <string name="channels_sec_settings">설정</string>
-    <string name="channels_placeholder_configured">******** (이미 설정됨)</string>
     <string name="channels_action_save_settings">설정 저장</string>
-    <string name="channels_sec_keys">설정된 키:</string>
-    <string name="channels_status_configured">설정됨</string>
-    <string name="channels_status_not_set">설정 안 됨</string>
     <string name="channels_action_test">테스트</string>
     <string name="channels_action_restart_now">지금 재시작</string>
     <string name="channels_restart_banner">변경사항이 저장되었습니다. 게이트웨이를 재시작하면 적용됩니다.</string>
-    <string name="channels_gateway_offline">게이트웨이가 실행 중이 아닙니다. 여기서 채널을 설정한 후 재시작하세요.</string>
 
     <!-- Settings -->
-    <string name="settings_action_delete_profile">삭제</string>
     <string name="settings_saved_profiles">저장된 프로필 (%1$d)</string>
     <string name="settings_logout">로그아웃</string>
 
@@ -722,7 +661,6 @@
     <string name="auth_login_error_username_required">사용자명이 필요합니다</string>
     <string name="auth_login_error_password_required">비밀번호가 필요합니다</string>
     <string name="auth_login_error_unreachable">대시보드에 연결할 수 없음 — IP와 포트 확인</string>
-    <string name="auth_login_success">연결됨!</string>
     <string name="auth_login_existing_profiles_title">기존 로그인 프로필 사용:</string>
     <string name="auth_login_use_profile">%1$s(으)로 접속</string>
 
@@ -738,7 +676,6 @@
     <string name="pairing_code_entry_code_label">페어링 코드</string>
 
     <!-- Loading State -->
-    <string name="loading_state_subtitle_default">로딩 중…</string>
     <string name="loading_state_subtitle_models">모델 제공자 확인 중…</string>
     <string name="loading_state_subtitle_channels">채널 로딩 중…</string>
     <string name="loading_state_subtitle_providers">OAuth 제공자 로딩 중…</string>
@@ -777,7 +714,6 @@
     <string name="analytics_empty_desc">에이전트가 활성화되면 사용 통계가 여기에 표시됩니다.</string>
     <string name="analytics_days">%1$d일</string>
     <string name="analytics_estimated_cost">예상 비용</string>
-    <string name="analytics_actual_cost">실제 비용</string>
     <string name="analytics_sessions">세션</string>
     <string name="analytics_api_calls">API 호출</string>
     <string name="analytics_input_tokens">입력</string>
@@ -785,11 +721,8 @@
     <string name="analytics_cache_read">캐시 읽기</string>
     <string name="analytics_reasoning">추론</string>
     <string name="analytics_daily_cost">일일 예상 비용</string>
-    <string name="analytics_per_model">모델별 분석</string>
-    <string name="analytics_top_skills">상위 스킬</string>
     <string name="analytics_no_cost_data">이 기간에 기록된 비용이 없습니다.</string>
     <string name="analytics_skill_uses">%1$d회 사용 • 전체의 %2$d%%</string>
-    <string name="analytics_top_tools">상위 도구</string>
     <string name="analytics_tool_uses">%1$d회 호출 • 전체의 %2$d%%</string>
     <string name="processes_kill_confirm">종료</string>
     <string name="processes_kill_cd">프로세스 종료</string>

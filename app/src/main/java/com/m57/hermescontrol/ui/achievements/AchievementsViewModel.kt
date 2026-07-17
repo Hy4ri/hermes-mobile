@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.Achievement
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +39,7 @@ data class AchievementsUiState(
     val toastMessage: String? = null,
 )
 
-class AchievementsViewModel : ViewModel() {
+class AchievementsViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(AchievementsUiState())
     val uiState: StateFlow<AchievementsUiState> = _uiState.asStateFlow()
 
@@ -191,7 +192,7 @@ class AchievementsViewModel : ViewModel() {
         _uiState.update { it.copy(activeState = state) }
     }
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

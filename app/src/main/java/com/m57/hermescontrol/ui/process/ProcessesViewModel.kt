@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.model.ProcessInfo
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +24,7 @@ data class ProcessesUiState(
     val sessionId: String? = null,
 )
 
-class ProcessesViewModel : ViewModel() {
+class ProcessesViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(ProcessesUiState())
     val uiState: StateFlow<ProcessesUiState> = _uiState.asStateFlow()
 
@@ -123,7 +124,7 @@ class ProcessesViewModel : ViewModel() {
         }
     }
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 

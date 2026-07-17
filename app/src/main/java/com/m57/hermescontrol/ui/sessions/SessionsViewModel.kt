@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -52,7 +53,7 @@ data class SessionsUiState(
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 }
 
-class SessionsViewModel : ViewModel() {
+class SessionsViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(SessionsUiState())
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
 
@@ -471,7 +472,7 @@ class SessionsViewModel : ViewModel() {
 
     // ── Toast ────────────────────────────────────────────────────────────
 
-    fun clearToast() {
+    override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
 }

@@ -65,6 +65,9 @@ jobs:
       - name: Run ktlintCheck
         run: ./gradlew ktlintCheck
 
+      - name: Run checkColorLiterals (hardcoded Color guard, issue #622)
+        run: ./gradlew checkColorLiterals
+
       - name: Upload ktlint reports
         if: always()
         uses: actions/upload-artifact@v7

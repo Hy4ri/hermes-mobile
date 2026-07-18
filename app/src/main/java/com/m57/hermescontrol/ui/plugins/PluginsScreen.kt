@@ -57,9 +57,9 @@ import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -131,7 +131,7 @@ fun PluginsScreen(
         ) {
             when {
                 state.isLoading && state.plugins.isEmpty() -> {
-                    LoadingState(modifier = Modifier.padding(paddingValues))
+                    SkeletonListState(modifier = Modifier.padding(paddingValues))
                 }
 
                 state.errorMessage != null -> {

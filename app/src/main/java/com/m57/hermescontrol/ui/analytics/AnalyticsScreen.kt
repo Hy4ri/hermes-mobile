@@ -46,8 +46,8 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 
@@ -74,7 +74,7 @@ fun AnalyticsScreen(
     ) {
         when {
             state.isLoading && state.usage == null -> {
-                LoadingState()
+                SkeletonListState()
             }
 
             state.errorMessage != null && state.usage == null -> {

@@ -57,6 +57,7 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -96,7 +97,7 @@ fun CronJobsScreen(
     ) {
         when {
             state.isLoading && state.jobs.isEmpty() -> {
-                LoadingState()
+                SkeletonListState()
             }
 
             state.errorMessage != null -> {

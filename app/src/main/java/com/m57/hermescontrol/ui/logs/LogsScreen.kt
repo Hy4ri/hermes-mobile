@@ -54,9 +54,9 @@ import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import kotlinx.coroutines.launch
 
@@ -191,7 +191,7 @@ fun LogsScreen(
     ) {
         when {
             state.isLoading && state.logs.isEmpty() -> {
-                LoadingState()
+                SkeletonListState()
             }
 
             state.errorMessage != null -> {

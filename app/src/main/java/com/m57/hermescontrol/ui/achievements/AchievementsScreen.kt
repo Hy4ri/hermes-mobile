@@ -57,10 +57,10 @@ import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SectionHeader
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
@@ -169,7 +169,7 @@ fun AchievementsScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.achievements.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null && state.achievements.isEmpty() -> {

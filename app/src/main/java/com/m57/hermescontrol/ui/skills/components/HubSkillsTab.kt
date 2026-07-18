@@ -48,7 +48,7 @@ import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.DetailRow
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
-import com.m57.hermescontrol.ui.common.LoadingState
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.skills.SkillsUiState
@@ -117,7 +117,7 @@ internal fun HubBrowseView(
 
         when {
             state.isHubSearching -> {
-                LoadingState()
+                SkeletonListState()
             }
 
             state.hubSearchError != null -> {

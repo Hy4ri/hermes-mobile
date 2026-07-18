@@ -50,9 +50,9 @@ import com.m57.hermescontrol.ui.channels.components.TelegramOnboardingDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -132,10 +132,7 @@ fun ChannelsScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.platforms.isEmpty() -> {
-                LoadingState(
-                    subtitle = stringResource(R.string.loading_state_subtitle_channels),
-                    modifier = Modifier.padding(paddingValues),
-                )
+                SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null && state.platforms.isEmpty() -> {

@@ -52,8 +52,8 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
@@ -102,10 +102,7 @@ fun ProvidersScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.providers.isEmpty() -> {
-                LoadingState(
-                    subtitle = stringResource(R.string.loading_state_subtitle_providers),
-                    modifier = Modifier.padding(paddingValues),
-                )
+                SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null && state.providers.isEmpty() -> {

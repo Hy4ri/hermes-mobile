@@ -38,8 +38,8 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +66,7 @@ fun GatewayScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.status == null -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null -> {

@@ -46,9 +46,9 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 
 private const val DEFAULT_COLUMN = "todo"
@@ -94,7 +94,7 @@ fun KanbanScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.boards.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null -> {

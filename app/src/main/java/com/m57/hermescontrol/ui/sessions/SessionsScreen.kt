@@ -90,9 +90,9 @@ import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
@@ -491,7 +491,7 @@ fun SessionsScreen(
                         Column(modifier = Modifier.fillMaxSize()) {
                             when {
                                 state.isSearching && state.searchResults.isEmpty() -> {
-                                    LoadingState()
+                                    SkeletonListState()
                                 }
 
                                 state.searchError != null -> {
@@ -579,7 +579,7 @@ fun SessionsScreen(
                     }
 
                     state.isLoading && state.sessions.isEmpty() -> {
-                        LoadingState()
+                        SkeletonListState()
                     }
 
                     state.errorMessage != null -> {

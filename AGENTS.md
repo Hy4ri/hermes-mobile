@@ -77,17 +77,25 @@ Uses `androidx.navigation3` (`NavKey`, `NavBackStack`, `NavDisplay`, `entry<T>`)
 deduplication guard. Bypassing it stacks duplicate screen entries that compete for
 touch events and become unresponsive.
 
-**⚠ Drawer scrim gets stuck when navigating to a non-gesture screen.** Screens
-not in `DRAWER_GESTURE_SCREENS` disable drawer gestures. If the drawer is open
-when this happens, the scrim stays visible and blocks touch. Always pair gesture
-transitions with a `LaunchedEffect`:
-```kotlin
-LaunchedEffect(gesturesEnabled) {
-    if (!gesturesEnabled && drawerState.isOpen) {
-        drawerState.snapTo(DrawerValue.Closed)
-    }
-}
-```
+**Drawer gesture state is screen-owned (issue #619).** Each screen declares whether
+the modal drawer's swipe gestures should be active while it is visible, via a single
+source of truth — no global gesture set, no defensive `LaunchedEffect(snapTo(Closed))`,
+no `closeDrawer` callback on `NavigationController`.
+
+- `HermesScaffold(drawerGesturesEnabled = true)` — default; primary screens and
+  most list screens. The scaffold reconciles this preference into the
+  `DrawerGestureController` via a `SideEffect`.
+- `HermesScaffold(drawerGesturesEnabled = false)` — drill-down sub-pages (e.g.
+  `SettingsConnectionPage`, `SettingsAppearancePage`, …). The controller closes
+  the drawer itself if it was open when the screen composed, so the scrim can't
+  stick around and intercept the next tap.
+- `DisableDrawerGestures()` — for entry screens that don't use `HermesScaffold`
+  (Landing, AuthLogin, PairingCodeEntry).
+
+`ModalNavigationDrawer` in `Navigation.kt` reads `gestureController.enabled`
+(provided via `LocalDrawerGestureController`) and passes it to Material's
+`gesturesEnabled` parameter. To change a screen's gesture behavior, edit the
+screen — not `Navigation.kt`.
 
 ### Activity-Scoped ViewModels
 

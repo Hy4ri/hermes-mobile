@@ -39,6 +39,10 @@ import com.m57.hermescontrol.ui.settings.components.TestResultCard
  * Drill-down sub-pages for Settings. Each is its own NavKey destination
  * (see Navigation.kt) so the native back stack handles navigation — no
  * manual routing. The SettingsViewModel stays the single source of truth.
+ *
+ * All sub-pages pass `drawerGesturesEnabled = false` to [HermesScaffold] so the
+ * modal drawer's swipe gestures are disabled and the drawer auto-closes when a
+ * sub-page is entered — the single source of truth introduced in issue #619.
  */
 
 @Composable
@@ -53,6 +57,9 @@ internal fun SettingsConnectionPage(
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_connection)) },
         navigationIcon = NavIcon.Back(onBack),
+        // Non-primary drill-down: opt out of drawer gestures so the scrim can't
+        // get stuck open (issue #619). DrawerGestureController handles the close.
+        drawerGesturesEnabled = false,
     ) {
         Column(
             modifier =
@@ -104,6 +111,7 @@ internal fun SettingsAppearancePage(
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_appearance)) },
         navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
     ) {
         Column(
             modifier =
@@ -137,6 +145,7 @@ internal fun SettingsChatPage(
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_chat)) },
         navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
     ) {
         Column(
             modifier =
@@ -166,6 +175,7 @@ internal fun SettingsNavBarPage(
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_nav_bar)) },
         navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
     ) {
         Column(
             modifier =
@@ -198,6 +208,7 @@ internal fun SettingsBehaviorPage(
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_behavior)) },
         navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
     ) {
         Column(
             modifier =
@@ -224,6 +235,7 @@ internal fun SettingsAboutPage(
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_about)) },
         navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
     ) {
         Column(
             modifier =

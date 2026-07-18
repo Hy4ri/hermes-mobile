@@ -30,13 +30,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +53,9 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.common.DisableDrawerGestures
+import com.m57.hermescontrol.ui.common.DrawerGestureController
+import com.m57.hermescontrol.ui.common.LocalDrawerGestureController
 import com.m57.hermescontrol.ui.settings.SettingsAboutPage
 import com.m57.hermescontrol.ui.settings.SettingsAppearancePage
 import com.m57.hermescontrol.ui.settings.SettingsBehaviorPage
@@ -69,8 +71,6 @@ import com.m57.hermescontrol.ui.pairing.PairingCodeEntryScreen as PairingCodeEnt
 private fun resolveBottomNavItems(names: List<String>): List<ScreenDefinition> =
     names.mapNotNull { name -> ScreenRegistry.ALL_SCREENS.firstOrNull { it.key::class.simpleName == name } }
 
-private val DRAWER_GESTURE_SCREENS: Set<NavKey> = ScreenRegistry.ALL_SCREENS.mapTo(mutableSetOf()) { it.key }
-
 private fun appEntryProvider(
     sessionId: String?,
     openDrawer: () -> Unit,
@@ -85,6 +85,8 @@ private fun appEntryProvider(
                 NavigationController.navigateTo(PairingCodeEntryScreen)
             },
         )
+        // Landing doesn't use HermesScaffold — opt out of drawer gestures explicitly (issue #619).
+        DisableDrawerGestures()
     }
 
     entry<AuthLoginScreen> {
@@ -96,6 +98,7 @@ private fun appEntryProvider(
                 NavigationController.goBack()
             },
         )
+        DisableDrawerGestures()
     }
 
     entry<PairingCodeEntryScreen> {
@@ -107,6 +110,7 @@ private fun appEntryProvider(
                 NavigationController.goBack()
             },
         )
+        DisableDrawerGestures()
     }
 
     ScreenRegistry.ALL_SCREENS.forEach { screen ->
@@ -116,6 +120,10 @@ private fun appEntryProvider(
     }
 
     // ── Settings drill-down sub-pages ───────────────────────────────────
+    // Each passes drawerGesturesEnabled = false to HermesScaffold — this is the
+    // single source of truth that prevents the drawer-scrim stuck-open bug
+    // (issue #619). No global gesture set, no closeDrawer callback, no
+    // LaunchedEffect(snapTo(Closed)) — the scaffold reconciles automatically.
     entry<SettingsConnection> {
         SettingsConnectionPage(
             onBack = { NavigationController.goBack() },
@@ -169,9 +177,16 @@ fun MainNavigation(sessionId: String? = null) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Synchronous drawer dismiss hook used by NavigationController.navigateTo
-    // when drilling into a non-gesture sub-page (see NavigationController.closeDrawer).
-    NavigationController.closeDrawer = { scope.launch { drawerState.close() } }
+    // Single source of truth for drawer gestures (issue #619).
+    // HermesScaffold / DisableDrawerGestures reconcile each screen's preference
+    // into this controller via SideEffect; ModalNavigationDrawer reads .enabled
+    // below. No DRAWER_GESTURE_SCREENS set, no LaunchedEffect(snapTo(Closed)),
+    // no closeDrawer callback — the controller closes the drawer itself when a
+    // screen opts out.
+    val gestureController =
+        remember(drawerState, scope) {
+            DrawerGestureController(drawerState, scope)
+        }
 
     val bottomNavItemsState by AuthManager.bottomNavItemsFlow.collectAsState()
     val bottomNavDisplayMode by AuthManager.bottomNavDisplayModeFlow.collectAsState()
@@ -186,194 +201,175 @@ fun MainNavigation(sessionId: String? = null) {
         currentScreen != LandingScreen &&
             currentScreen != AuthLoginScreen &&
             currentScreen != PairingCodeEntryScreen
-    val gesturesEnabled = currentScreen in DRAWER_GESTURE_SCREENS
-    var drawerGesturesEnabled by remember { mutableStateOf(false) }
-
-    LaunchedEffect(gesturesEnabled) {
-        if (gesturesEnabled) {
-            // Delay enabling gestures slightly to prevent residual swipe-to-open from back button taps
-            kotlinx.coroutines.delay(200)
-            drawerGesturesEnabled = true
-        } else {
-            drawerGesturesEnabled = false
-        }
-    }
 
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
-    // B7 (Jun 30 2026, kanban t_424): close drawer if gestures are disabled to dismiss scrim.
-    // Also force-close on transition into a non-gesture screen so the drawer's scrim
-    // surface cannot intercept the first back-button tap (e.g. settings sub-pages drilled
-    // down from the gesture-enabled Settings root). snapTo(Closed) is a safe no-op when
-    // already closed.
-    LaunchedEffect(drawerGesturesEnabled) {
-        if (!drawerGesturesEnabled) {
-            drawerState.snapTo(DrawerValue.Closed)
-        }
-    }
-
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerGesturesEnabled,
-        drawerContent = {
-            ModalDrawerSheet(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-            ) {
-                val connectionStatus by HermesWsClient.connectionStatus.collectAsState()
-                val statusColor =
-                    when (connectionStatus) {
-                        ConnectionStatus.CONNECTED -> LocalHermesStatusColors.current.success
-
-                        ConnectionStatus.CONNECTING,
-                        ConnectionStatus.RECONNECTING,
-                        -> LocalHermesStatusColors.current.warning
-
-                        ConnectionStatus.DISCONNECTED,
-                        ConnectionStatus.NO_NETWORK,
-                        ConnectionStatus.AUTH_EXPIRED,
-                        -> LocalHermesStatusColors.current.error
-                    }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 2.dp),
+    CompositionLocalProvider(LocalDrawerGestureController provides gestureController) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = gestureController.enabled,
+            drawerContent = {
+                ModalDrawerSheet(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
                 ) {
-                    Text(
-                        text = stringResource(R.string.nav_drawer_title),
-                        style =
-                            MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                            ),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(10.dp)
-                                .background(color = statusColor, shape = CircleShape),
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.nav_drawer_subtitle),
-                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, end = 16.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    val connectionStatus by HermesWsClient.connectionStatus.collectAsState()
+                    val statusColor =
+                        when (connectionStatus) {
+                            ConnectionStatus.CONNECTED -> LocalHermesStatusColors.current.success
 
-                for (section in DrawerSection.entries) {
-                    Text(
-                        text = stringResource(section.titleRes).uppercase(),
-                        modifier =
-                            Modifier.padding(
-                                start = 16.dp,
-                                top = 8.dp,
-                                bottom = 4.dp,
-                                end = 16.dp,
-                            ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    ScreenRegistry.ALL_SCREENS
-                        .filter { it.drawerSection == section }
-                        .forEach { entry ->
-                            NavigationDrawerItem(
-                                icon = { Icon(entry.icon, contentDescription = null) },
-                                label = { Text(stringResource(entry.labelRes)) },
-                                selected = currentScreen == entry.key,
-                                onClick = {
-                                    scope.launch { drawerState.close() }
-                                    NavigationController.navigateTo(entry.key)
-                                },
-                                colors =
-                                    NavigationDrawerItemDefaults.colors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    ),
-                            )
-                        }
-                }
+                            ConnectionStatus.CONNECTING,
+                            ConnectionStatus.RECONNECTING,
+                            -> LocalHermesStatusColors.current.warning
 
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        },
-    ) {
-        Scaffold(
-            contentWindowInsets = WindowInsets.navigationBars,
-            bottomBar = {
-                if (showBottomBar) {
-                    val barHeight =
-                        when (bottomNavDisplayMode) {
-                            BottomNavDisplayMode.ICON_ONLY -> 56.dp
-                            BottomNavDisplayMode.TEXT_ONLY -> 44.dp
-                            BottomNavDisplayMode.ICON_AND_TEXT -> 80.dp
+                            ConnectionStatus.DISCONNECTED,
+                            ConnectionStatus.NO_NETWORK,
+                            ConnectionStatus.AUTH_EXPIRED,
+                            -> LocalHermesStatusColors.current.error
                         }
-                    NavigationBar(
-                        modifier = Modifier.height(barHeight),
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 2.dp),
                     ) {
-                        bottomNavItems.forEach { item ->
-                            val showIcon =
-                                bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
-                                    bottomNavDisplayMode == BottomNavDisplayMode.ICON_ONLY
-                            val showLabel =
-                                bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
-                                    bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY
-
-                            val isSelected = currentScreen == item.key
-
-                            NavigationBarItem(
-                                selected = isSelected,
-                                onClick = { NavigationController.navigateTo(item.key) },
-                                colors =
-                                    if (bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY) {
-                                        NavigationBarItemDefaults.colors(
-                                            indicatorColor = Color.Transparent,
-                                        )
-                                    } else {
-                                        NavigationBarItemDefaults.colors()
-                                    },
-                                icon = {
-                                    if (showIcon) {
-                                        Icon(item.icon, contentDescription = stringResource(item.labelRes))
-                                    } else {
-                                        Text(
-                                            text = stringResource(item.labelRes),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        )
-                                    }
-                                },
-                                label =
-                                    if (showLabel && showIcon) {
-                                        { Text(stringResource(item.labelRes)) }
-                                    } else {
-                                        null
-                                    },
-                                modifier =
-                                    Modifier.testTag(
-                                        "nav_${item.key::class.simpleName?.lowercase()?.removeSuffix("screen") ?: ""}",
-                                    ),
-                            )
-                        }
+                        Text(
+                            text = stringResource(R.string.nav_drawer_title),
+                            style =
+                                MaterialTheme.typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier =
+                                Modifier
+                                    .size(10.dp)
+                                    .background(color = statusColor, shape = CircleShape),
+                        )
                     }
+                    Text(
+                        text = stringResource(R.string.nav_drawer_subtitle),
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp, end = 16.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    for (section in DrawerSection.entries) {
+                        Text(
+                            text = stringResource(section.titleRes).uppercase(),
+                            modifier =
+                                Modifier.padding(
+                                    start = 16.dp,
+                                    top = 8.dp,
+                                    bottom = 4.dp,
+                                    end = 16.dp,
+                                ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        ScreenRegistry.ALL_SCREENS
+                            .filter { it.drawerSection == section }
+                            .forEach { entry ->
+                                NavigationDrawerItem(
+                                    icon = { Icon(entry.icon, contentDescription = null) },
+                                    label = { Text(stringResource(entry.labelRes)) },
+                                    selected = currentScreen == entry.key,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        NavigationController.navigateTo(entry.key)
+                                    },
+                                    colors =
+                                        NavigationDrawerItemDefaults.colors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        ),
+                                )
+                            }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             },
-        ) { paddingValues ->
-            NavDisplay(
-                backStack = backStack,
-                onBack = { NavigationController.goBack() },
-                entryProvider =
-                    appEntryProvider(sessionId, openDrawer),
-                modifier =
-                    Modifier
-                        .padding(paddingValues)
-                        .consumeWindowInsets(paddingValues)
-                        .fillMaxSize(),
-            )
+        ) {
+            Scaffold(
+                contentWindowInsets = WindowInsets.navigationBars,
+                bottomBar = {
+                    if (showBottomBar) {
+                        val barHeight =
+                            when (bottomNavDisplayMode) {
+                                BottomNavDisplayMode.ICON_ONLY -> 56.dp
+                                BottomNavDisplayMode.TEXT_ONLY -> 44.dp
+                                BottomNavDisplayMode.ICON_AND_TEXT -> 80.dp
+                            }
+                        NavigationBar(
+                            modifier = Modifier.height(barHeight),
+                        ) {
+                            bottomNavItems.forEach { item ->
+                                val showIcon =
+                                    bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
+                                        bottomNavDisplayMode == BottomNavDisplayMode.ICON_ONLY
+                                val showLabel =
+                                    bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
+                                        bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY
+
+                                val isSelected = currentScreen == item.key
+
+                                NavigationBarItem(
+                                    selected = isSelected,
+                                    onClick = { NavigationController.navigateTo(item.key) },
+                                    colors =
+                                        if (bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY) {
+                                            NavigationBarItemDefaults.colors(
+                                                indicatorColor = Color.Transparent,
+                                            )
+                                        } else {
+                                            NavigationBarItemDefaults.colors()
+                                        },
+                                    icon = {
+                                        if (showIcon) {
+                                            Icon(item.icon, contentDescription = stringResource(item.labelRes))
+                                        } else {
+                                            Text(
+                                                text = stringResource(item.labelRes),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            )
+                                        }
+                                    },
+                                    label =
+                                        if (showLabel && showIcon) {
+                                            { Text(stringResource(item.labelRes)) }
+                                        } else {
+                                            null
+                                        },
+                                    modifier =
+                                        Modifier.testTag(
+                                            "nav_${item.key::class.simpleName?.lowercase()?.removeSuffix(
+                                                "screen",
+                                            ) ?: ""}",
+                                        ),
+                                )
+                            }
+                        }
+                    }
+                },
+            ) { paddingValues ->
+                NavDisplay(
+                    backStack = backStack,
+                    onBack = { NavigationController.goBack() },
+                    entryProvider =
+                        appEntryProvider(sessionId, openDrawer),
+                    modifier =
+                        Modifier
+                            .padding(paddingValues)
+                            .consumeWindowInsets(paddingValues)
+                            .fillMaxSize(),
+                )
+            }
         }
     }
 }

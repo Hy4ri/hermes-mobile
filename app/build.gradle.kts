@@ -209,6 +209,75 @@ tasks.register<Exec>("ktlintFormat") {
     commandLine("sh", "-c", "ktlint -F \"app/src/**/*.kt\"")
 }
 
+// ── Hardcoded Color Guard (issue #622) ────────────────────────────────────
+//
+// Fails the build if a hardcoded Color literal (Color(0x...) or named
+// Color.White/Black/Red/Green/Gray/etc.) is introduced outside the theme
+// module, *Preview.kt files, and _test sources. Pairing/Auth screens are
+// exempt via the per-path overlay list below.
+//
+// Acceptable replacements (see docs/color-hardcoded-audit.md):
+//   - MaterialTheme.colorScheme.<token>
+//   - LocalHermesStatusColors.current.<semantic>
+//   - Color.Transparent / Color.Unspecified (intentional)
+
+// Resolve paths at configuration time (config-cache compatible).
+val colorGuardSrcDir = layout.projectDirectory
+    .dir("src/main/java/com/m57/hermescontrol")
+val colorGuardExemptions = listOf(
+    "/theme/",
+    "PairingScreen.kt",
+    "AuthLoginScreen.kt",
+    "Preview.kt",
+)
+val colorGuardHexPattern = Regex("""Color\(\s*0x[0-9A-Fa-f]{6,8}\s*\)""")
+val colorGuardNamedPattern = Regex("""Color\.(White|Black|Red|Green|Gray|LightGray|DarkGray|Yellow|Blue|Cyan|Magenta)\b""")
+
+tasks.register("checkColorLiterals") {
+    group = "verification"
+    description = "Fails if hardcoded Color(...) literals appear outside theme/, *Preview.kt, and _test."
+
+    val srcDir = colorGuardSrcDir
+    val exemptions = colorGuardExemptions
+    val hexPattern = colorGuardHexPattern
+    val namedPattern = colorGuardNamedPattern
+
+    doLast {
+        val offenders = mutableListOf<Pair<String, Int>>()
+        srcDir.asFile.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+            if (exemptions.any { file.absolutePath.contains(it) }) return@forEach
+            file.useLines { lines ->
+                lines.forEachIndexed { idx, raw ->
+                    val line = raw.trim()
+                    if (line.startsWith("import ")) return@forEachIndexed
+                    if (line.startsWith("//") || line.startsWith("*")) return@forEachIndexed
+                    if (hexPattern.containsMatchIn(line) || namedPattern.containsMatchIn(line)) {
+                        offenders.add(file.absolutePath to (idx + 1))
+                    }
+                }
+            }
+        }
+
+        if (offenders.isNotEmpty()) {
+            val report = offenders.joinToString("\n") { (path, line) ->
+                "  - $path:$line"
+            }
+            throw GradleException(
+                "Hardcoded Color literals found outside theme/ + *Preview.kt + _test:\n$report\n\n" +
+                    "Replace with MaterialTheme.colorScheme.<token>, " +
+                    "LocalHermesStatusColors.current.<semantic>, or " +
+                    "Color.Transparent / Color.Unspecified (intentional).\n" +
+                    "See docs/color-hardcoded-audit.md.",
+            )
+        }
+        logger.lifecycle("checkColorLiterals: no hardcoded Color literals found. ✅")
+    }
+}
+
+tasks.named("check") {
+    dependsOn("checkColorLiterals")
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
 }

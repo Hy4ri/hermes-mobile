@@ -1886,7 +1886,7 @@ private fun ToolBubble(
     var expanded by remember { mutableStateOf(false) }
     var showRawJson by remember { mutableStateOf(false) }
     val chipColor = if (isDarkTheme) ToolChipColor else ToolChipColorLight
-    val contentColor = if (isDarkTheme) Color.White else Color.Black
+    val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
     val statusColors = LocalHermesStatusColors.current
 
     val parsed =

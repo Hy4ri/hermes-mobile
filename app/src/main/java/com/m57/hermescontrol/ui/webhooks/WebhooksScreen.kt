@@ -341,7 +341,7 @@ fun WebhooksScreen(
                             EmptyState(
                                 title =
                                     if (state.subscriptions.isEmpty()) {
-                                        "No subscriptions"
+                                        stringResource(R.string.webhooks_empty_title)
                                     } else {
                                         stringResource(R.string.webhooks_no_matching)
                                     },
@@ -350,6 +350,18 @@ fun WebhooksScreen(
                                         stringResource(R.string.webhooks_empty_desc)
                                     } else {
                                         stringResource(R.string.webhooks_no_matching_desc)
+                                    },
+                                actionLabel =
+                                    if (state.subscriptions.isEmpty()) {
+                                        stringResource(R.string.webhooks_action_add)
+                                    } else {
+                                        null
+                                    },
+                                onAction =
+                                    if (state.subscriptions.isEmpty()) {
+                                        { viewModel.showCreateDialog() }
+                                    } else {
+                                        null
                                     },
                             )
                         }

@@ -147,6 +147,8 @@ fun ChannelsScreen(
                 EmptyState(
                     title = stringResource(R.string.channels_empty_title),
                     subtitle = stringResource(R.string.channels_empty_desc),
+                    actionLabel = stringResource(R.string.empty_action_connect_telegram),
+                    onAction = { viewModel.startTelegramOnboarding() },
                     modifier = Modifier.padding(paddingValues),
                 )
             }

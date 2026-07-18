@@ -112,6 +112,8 @@ fun CronJobsScreen(
                     icon = Icons.Filled.Schedule,
                     title = stringResource(R.string.cron_empty_title),
                     subtitle = stringResource(R.string.cron_empty_desc),
+                    actionLabel = stringResource(R.string.empty_action_create_job),
+                    onAction = { viewModel.openNewJobDialog() },
                 )
             }
 

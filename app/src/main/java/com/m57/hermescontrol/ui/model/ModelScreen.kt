@@ -54,7 +54,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.SettingsConnection
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -116,8 +118,8 @@ fun ModelScreen(
                 EmptyState(
                     title = stringResource(R.string.model_empty_title),
                     subtitle = stringResource(R.string.model_empty_desc),
-                    onAction = { viewModel.loadAll() },
-                    actionLabel = stringResource(R.string.content_desc_refresh),
+                    actionLabel = stringResource(R.string.empty_action_configure_model),
+                    onAction = { NavigationController.navigateTo(SettingsConnection) },
                     modifier = Modifier.padding(paddingValues),
                 )
             }

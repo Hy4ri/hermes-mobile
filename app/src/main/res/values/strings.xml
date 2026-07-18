@@ -36,6 +36,19 @@
     <string name="content_desc_open_drawer">Open navigation drawer</string>
     <string name="content_desc_refresh">Refresh</string>
     <string name="common_save">Save</string>
+
+    <!-- Empty-state CTAs (issue #618) -->
+    <string name="empty_action_browse_hub">Browse skill hub</string>
+    <string name="empty_action_retry_search">Retry search</string>
+    <string name="empty_action_create_job">Create your first job</string>
+    <string name="empty_action_add_server">Add a server</string>
+    <string name="empty_action_create_subscription">Create subscription</string>
+    <string name="empty_action_connect_telegram">Connect a Telegram channel</string>
+    <string name="empty_action_configure_model">Configure model</string>
+    <string name="empty_action_start_chat">Start a new chat</string>
+    <string name="empty_action_install_plugin">Install from URL</string>
+    <string name="empty_action_explore">Explore Skills or Cron jobs</string>
+    <string name="empty_action_clear_search">Clear search</string>
     <string name="common_cancel">Cancel</string>
     <string name="content_desc_clear_search">Clear search</string>
 
@@ -487,6 +500,7 @@
     <string name="webhooks_sec_status">Global Webhooks Status</string>
     <string name="webhooks_sec_subscriptions">Subscriptions</string>
     <string name="webhooks_empty_desc">No webhook subscriptions configured.</string>
+    <string name="webhooks_empty_title">No subscriptions</string>
     <string name="webhooks_search_placeholder">Search subscriptions…</string>
     <string name="webhooks_action_add">Add subscription</string>
     <string name="webhooks_action_create">Create</string>
@@ -645,6 +659,8 @@
     <string name="mcp_servers_action_test">Test</string>
     <string name="mcp_servers_add_server">Add server</string>
     <string name="mcp_servers_add_http">HTTP URL</string>
+    <string name="mcp_servers_empty_title">No MCP servers</string>
+    <string name="mcp_servers_empty_desc">Add a server above or from the catalog.</string>
     <string name="mcp_servers_add_stdio">Stdio command</string>
     <string name="mcp_servers_field_name">Server name</string>
     <string name="mcp_servers_field_url">URL (e.g. http://localhost:8000/sse)</string>
@@ -747,6 +763,8 @@
     <string name="keys_label_not_configured">Not configured</string>
     <string name="keys_action_toggle_visibility">Toggle Visibility</string>
     <string name="keys_search_placeholder">Search keys…</string>
+    <string name="keys_no_matching_title">No matching keys</string>
+    <string name="keys_no_matching_desc">Try a different search term.</string>
     <string name="keys_add_header">Add new key</string>
     <string name="keys_add_key_label">Key</string>
     <string name="keys_add_value_label">Value</string>

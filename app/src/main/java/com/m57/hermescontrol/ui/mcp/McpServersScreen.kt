@@ -155,8 +155,10 @@ fun McpServersScreen(
                     if (filteredServers.isEmpty() && query.isEmpty()) {
                         item(key = "empty") {
                             EmptyState(
-                                title = "No MCP servers",
-                                subtitle = "Add a server above or from the catalog.",
+                                title = stringResource(R.string.mcp_servers_empty_title),
+                                subtitle = stringResource(R.string.mcp_servers_empty_desc),
+                                actionLabel = stringResource(R.string.empty_action_add_server),
+                                onAction = { viewModel.toggleAddForm() },
                             )
                         }
                     } else if (filteredServers.isEmpty()) {

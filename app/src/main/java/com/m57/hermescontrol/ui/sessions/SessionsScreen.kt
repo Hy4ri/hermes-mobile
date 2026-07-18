@@ -595,6 +595,8 @@ fun SessionsScreen(
                             title = stringResource(R.string.history_empty_title),
                             subtitle = stringResource(R.string.history_empty_desc),
                             icon = Icons.Filled.History,
+                            actionLabel = stringResource(R.string.empty_action_start_chat),
+                            onAction = { NavigationController.navigateTo(ChatScreen) },
                         )
                     }
 

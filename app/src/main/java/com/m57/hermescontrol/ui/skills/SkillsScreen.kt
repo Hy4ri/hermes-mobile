@@ -150,6 +150,7 @@ fun SkillsScreen(
                         isUninstalling = state.isUninstalling,
                         uninstallingSkillName = state.uninstallingSkillName,
                         onRefresh = viewModel::loadSkills,
+                        onBrowseHub = { viewModel.setViewMode(SkillsViewMode.HUB) },
                     )
                 }
 
@@ -219,6 +220,7 @@ private fun InstalledSkillsView(
     isUninstalling: Boolean,
     uninstallingSkillName: String?,
     onRefresh: () -> Unit,
+    onBrowseHub: () -> Unit,
 ) {
     var showDetail by remember { mutableStateOf<Skill?>(null) }
 
@@ -332,6 +334,8 @@ private fun InstalledSkillsView(
                 EmptyState(
                     icon = Icons.Filled.Extension,
                     title = stringResource(R.string.skills_empty_message),
+                    actionLabel = stringResource(R.string.empty_action_browse_hub),
+                    onAction = onBrowseHub,
                 )
             }
 

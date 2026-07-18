@@ -39,7 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.SkillsScreen
 import com.m57.hermescontrol.data.model.AnalyticsDailyEntry
 import com.m57.hermescontrol.data.model.ModelsAnalyticsModelEntry
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -89,6 +91,8 @@ fun AnalyticsScreen(
                     title = stringResource(R.string.analytics_empty_title),
                     subtitle = stringResource(R.string.analytics_empty_desc),
                     icon = Icons.Filled.BarChart,
+                    actionLabel = stringResource(R.string.empty_action_explore),
+                    onAction = { NavigationController.navigateTo(SkillsScreen) },
                 )
             }
 

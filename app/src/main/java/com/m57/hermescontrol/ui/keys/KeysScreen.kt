@@ -158,8 +158,10 @@ fun KeysScreen(
                     if (filteredCategories.isEmpty() && query.isNotBlank()) {
                         item(key = "no-results") {
                             EmptyState(
-                                title = "No matching keys",
-                                subtitle = "Try a different search term.",
+                                title = stringResource(R.string.keys_no_matching_title),
+                                subtitle = stringResource(R.string.keys_no_matching_desc),
+                                actionLabel = stringResource(R.string.empty_action_clear_search),
+                                onAction = { query = "" },
                                 modifier = Modifier.padding(paddingValues),
                             )
                         }

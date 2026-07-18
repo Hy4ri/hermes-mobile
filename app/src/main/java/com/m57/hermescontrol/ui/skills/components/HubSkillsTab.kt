@@ -131,6 +131,8 @@ internal fun HubBrowseView(
                 EmptyState(
                     icon = Icons.Filled.Extension,
                     title = stringResource(R.string.skills_hub_empty_results),
+                    actionLabel = stringResource(R.string.empty_action_retry_search),
+                    onAction = { onSearch(hubQuery) },
                 )
             }
 

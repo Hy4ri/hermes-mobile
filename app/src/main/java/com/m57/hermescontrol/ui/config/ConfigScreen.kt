@@ -58,9 +58,9 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SchemaField
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -101,7 +101,7 @@ fun ConfigScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.config == null -> {
-                LoadingState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
             state.errorMessage != null && state.config == null -> {
@@ -281,7 +281,7 @@ private fun YAMLEditor(
     onSave: () -> Unit,
 ) {
     if (isLoading) {
-        LoadingState()
+        SkeletonListState()
         return
     }
 

@@ -54,6 +54,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.common.toDetailRows
@@ -177,7 +178,7 @@ internal fun InstalledSkillsView(
 
         when {
             state.isLoading -> {
-                LoadingState()
+                SkeletonListState()
             }
 
             state.errorMessage != null -> {

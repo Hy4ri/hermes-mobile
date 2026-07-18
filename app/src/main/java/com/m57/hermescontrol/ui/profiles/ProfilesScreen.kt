@@ -54,8 +54,8 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.profiles.components.ProfileBuilderView
 import com.m57.hermescontrol.ui.profiles.components.validateProfileName
@@ -134,7 +134,7 @@ fun ProfilesScreen(
         } else {
             when {
                 state.isLoading && state.profiles.isEmpty() -> {
-                    LoadingState(modifier = Modifier.padding(paddingValues))
+                    SkeletonListState(modifier = Modifier.padding(paddingValues))
                 }
 
                 state.errorMessage != null -> {

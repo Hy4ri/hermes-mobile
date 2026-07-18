@@ -78,9 +78,9 @@ import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.InfoRow
-import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SectionHeader
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatCard
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
@@ -252,7 +252,7 @@ fun SystemScreen(
         when {
             state.isLoading && state.stats == null && state.doctorReport == null &&
                 state.status == null -> {
-                LoadingState()
+                SkeletonListState()
             }
 
             state.errorMessage != null -> {

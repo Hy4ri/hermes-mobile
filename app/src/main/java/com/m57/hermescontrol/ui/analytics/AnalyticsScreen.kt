@@ -114,7 +114,7 @@ private fun AnalyticsContent(
     state: AnalyticsUiState,
     onDaysSelected: (Int) -> Unit,
 ) {
-    val usage = state.usage ?: return
+    val usage = state.usage
     val models = state.models
 
     var selectedSectionTab by remember { mutableStateOf(0) }
@@ -131,9 +131,16 @@ private fun AnalyticsContent(
             )
         }
 
-        item { TotalsCard(usage.totals) }
-
-        if (state.usageLoading) {
+        // TotalsCard + daily chart come from the slow /usage call. While it
+        // loads (usageLoading) show a slim placeholder instead of blanking the
+        // whole tab — the fast /models half already rendered above.
+        if (usage != null) {
+            item { TotalsCard(usage.totals) }
+            if (usage.daily.isNotEmpty()) {
+                item { SectionTitle(stringResource(R.string.analytics_daily_cost)) }
+                item { DailyCostChart(entries = usage.daily) }
+            }
+        } else if (state.usageLoading) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -154,9 +161,6 @@ private fun AnalyticsContent(
                     }
                 }
             }
-        } else if (usage.daily.isNotEmpty()) {
-            item { SectionTitle(stringResource(R.string.analytics_daily_cost)) }
-            item { DailyCostChart(entries = usage.daily) }
         }
 
         item {
@@ -205,8 +209,13 @@ private fun AnalyticsContent(
                 itemsIndexed(models.models, key = { index, it -> "model_${it.model}_$index" }) { _, model ->
                     ModelRow(model = model)
                 }
-            } else if (usage.by_model.isNotEmpty()) {
-                itemsIndexed(usage.by_model, key = { index, it -> "usage_${it.model}_$index" }) { _, entry ->
+            } else if ((usage?.by_model ?: emptyList()).isNotEmpty()) {
+                itemsIndexed(usage?.by_model ?: emptyList(), key = {
+                        index,
+                        it,
+                    ->
+                    "usage_${it.model}_$index"
+                }) { _, entry ->
                     ModelEntryRow(entry = entry)
                 }
             } else {
@@ -222,8 +231,13 @@ private fun AnalyticsContent(
         }
 
         if (selectedSectionTab == 1) {
-            if (usage.skills.top_skills.isNotEmpty()) {
-                itemsIndexed(usage.skills.top_skills, key = { index, it -> "skill_${it.skill}_$index" }) { _, skill ->
+            if ((usage?.skills?.top_skills ?: emptyList()).isNotEmpty()) {
+                itemsIndexed(usage?.skills?.top_skills ?: emptyList(), key = {
+                        index,
+                        it,
+                    ->
+                    "skill_${it.skill}_$index"
+                }) { _, skill ->
                     SkillRow(skill = skill)
                 }
             } else {
@@ -239,8 +253,8 @@ private fun AnalyticsContent(
         }
 
         if (selectedSectionTab == 2) {
-            if (usage.tools.isNotEmpty()) {
-                itemsIndexed(usage.tools, key = { index, it -> "tool_${it.tool}_$index" }) { _, tool ->
+            if ((usage?.tools ?: emptyList()).isNotEmpty()) {
+                itemsIndexed(usage?.tools ?: emptyList(), key = { index, it -> "tool_${it.tool}_$index" }) { _, tool ->
                     ToolRow(tool = tool)
                 }
             } else {

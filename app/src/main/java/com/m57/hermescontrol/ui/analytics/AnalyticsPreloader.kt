@@ -35,7 +35,7 @@ object AnalyticsPreloader {
         scope.launch {
             for (days in daysOptions) {
                 // Skip windows already cached on disk — don't refetch what we have.
-                if (store.load(days) != null) continue
+                if (store.load(days, null) != null) continue
                 val usage =
                     safeApiCall<com.m57.hermescontrol.data.model.AnalyticsResponse> {
                         ApiClient.hermesApi.getAnalytics(days, null)
@@ -46,7 +46,7 @@ object AnalyticsPreloader {
                     }
                 val usageData = (usage as? NetworkResult.Success)?.data ?: continue
                 val modelsData = (models as? NetworkResult.Success)?.data
-                store.save(days, usageData, modelsData)
+                store.save(days, null, usageData, modelsData)
             }
         }
     }

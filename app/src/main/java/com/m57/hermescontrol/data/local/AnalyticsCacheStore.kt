@@ -6,12 +6,11 @@ import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.m57.hermescontrol.data.model.AnalyticsResponse
 import com.m57.hermescontrol.data.model.ModelsAnalyticsResponse
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -25,8 +24,8 @@ import java.io.OutputStream
  * app launch can render *something* instantly and refresh in the background —
  * the user never stares at a spinner for a query we already answered recently.
  *
- * Keyed by trailing window (`days`) so the 7/30/90 tabs each keep their own
- * last-known-good payload.
+ * Keyed by trailing window (`days`) AND profile id, so switching profiles
+ * never leaks one profile's data into another (issue #537 follow-up).
  */
 @Serializable
 private data class CachedWindow(
@@ -36,7 +35,7 @@ private data class CachedWindow(
 
 @Serializable
 private data class AnalyticsCacheState(
-    // Map key = days (as string, since @Serializable maps need string keys here).
+    // Map key = "$days:$profile" so multi-profile installs stay isolated.
     val windows: Map<String, CachedWindow> = emptyMap(),
 )
 
@@ -45,7 +44,9 @@ private object AnalyticsCacheSerializer : Serializer<AnalyticsCacheState> {
 
     override suspend fun readFrom(input: InputStream): AnalyticsCacheState =
         try {
-            Json.decodeFromString(
+            // Use the app's wire Json (ignoreUnknownKeys=true) so a backend
+            // adding a field can't break our on-disk cache decode.
+            OkHttpProvider.json.decodeFromString(
                 AnalyticsCacheState.serializer(),
                 input.readBytes().decodeToString(),
             )
@@ -57,7 +58,11 @@ private object AnalyticsCacheSerializer : Serializer<AnalyticsCacheState> {
         t: AnalyticsCacheState,
         output: OutputStream,
     ) {
-        output.write(Json.encodeToString(AnalyticsCacheState.serializer(), t).toByteArray())
+        output.write(
+            OkHttpProvider.json
+                .encodeToString(AnalyticsCacheState.serializer(), t)
+                .toByteArray(),
+        )
     }
 }
 
@@ -69,19 +74,28 @@ private val Context.analyticsCacheDataStore: DataStore<AnalyticsCacheState> by d
 class AnalyticsCacheStore(
     private val context: Context,
 ) {
+    /** Stable cache key covering both window and profile. */
+    private fun key(
+        days: Int,
+        profile: String?,
+    ): String = "$days:${profile ?: "default"}"
+
     /** Load a previously cached window, or null if absent/corrupt. */
-    fun load(days: Int): Pair<AnalyticsResponse, ModelsAnalyticsResponse?>? =
-        runBlocking(Dispatchers.IO) {
+    suspend fun load(
+        days: Int,
+        profile: String?,
+    ): Pair<AnalyticsResponse, ModelsAnalyticsResponse?>? =
+        withContext(Dispatchers.IO) {
             try {
                 val win =
                     context.analyticsCacheDataStore.data
                         .first()
-                        .windows[days.toString()] ?: return@runBlocking null
-                val usage = Json.decodeFromString<AnalyticsResponse>(win.usageJson)
+                        .windows[key(days, profile)] ?: return@withContext null
+                val usage = OkHttpProvider.json.decodeFromString<AnalyticsResponse>(win.usageJson)
                 val models =
                     win.modelsJson
                         .takeIf { it.isNotBlank() }
-                        ?.let { Json.decodeFromString<ModelsAnalyticsResponse>(it) }
+                        ?.let { OkHttpProvider.json.decodeFromString<ModelsAnalyticsResponse>(it) }
                 usage to models
             } catch (e: Exception) {
                 null
@@ -91,6 +105,7 @@ class AnalyticsCacheStore(
     /** Persist a successful window response. Best-effort; never throws. */
     suspend fun save(
         days: Int,
+        profile: String?,
         usage: AnalyticsResponse,
         models: ModelsAnalyticsResponse?,
     ) = withContext(Dispatchers.IO) {
@@ -98,10 +113,10 @@ class AnalyticsCacheStore(
             context.analyticsCacheDataStore.updateData { state ->
                 val win =
                     CachedWindow(
-                        usageJson = Json.encodeToString(usage),
-                        modelsJson = models?.let { Json.encodeToString(it) } ?: "",
+                        usageJson = OkHttpProvider.json.encodeToString(usage),
+                        modelsJson = models?.let { OkHttpProvider.json.encodeToString(it) } ?: "",
                     )
-                state.copy(windows = state.windows + (days.toString() to win))
+                state.copy(windows = state.windows + (key(days, profile) to win))
             }
         } catch (e: Exception) {
             // Fail-safe: a cache miss is preferable to a crash on launch.

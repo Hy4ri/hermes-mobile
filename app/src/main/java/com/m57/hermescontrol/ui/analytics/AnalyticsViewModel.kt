@@ -65,9 +65,14 @@ class AnalyticsViewModel(
     init {
         // Issue #537 follow-up (C): seed the in-memory cache from disk so a cold
         // app launch renders last session's analytics instantly, then refreshes.
-        DAY_OPTIONS.forEach { days ->
-            cacheStore.load(days)?.let { (usage, models) ->
-                cache[days] = CacheEntry(usage, models)
+        // Disk read is async (viewModelScope) so we never block the UI thread
+        // on startup — the first load() call falls back to on-demand fetch if
+        // the seed hasn't landed yet.
+        viewModelScope.launch {
+            DAY_OPTIONS.forEach { days ->
+                cacheStore.load(days, _uiState.value.profile)?.let { (usage, models) ->
+                    cache[days] = CacheEntry(usage, models)
+                }
             }
         }
     }
@@ -143,7 +148,7 @@ class AnalyticsViewModel(
                     val finalModels = models ?: _uiState.value.models
                     cache[days] = CacheEntry(usage, finalModels)
                     // Write-through to disk so a cold app launch stays instant (C).
-                    cacheStore.save(days, usage, finalModels)
+                    cacheStore.save(days, profile, usage, finalModels)
                 }
 
                 // Surface the REAL failure (HTTP code / connection / parse error)

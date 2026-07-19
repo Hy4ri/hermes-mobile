@@ -53,6 +53,14 @@ class BillingViewModel : ViewModel() {
                 var error: String? = null
                 try {
                     sub = BillingRepository.getSubscriptionState()
+                    // The live gateway returns an `ok:false` *result* (with
+                    // `error`/`message`) rather than an RPC-level error when the
+                    // backend feature is missing or the user isn't portal-authed.
+                    // Catch that here so the screen degrades gracefully.
+                    if (sub?.ok == false) {
+                        unavailable = true
+                        error = sub.error ?: "Billing unavailable"
+                    }
                 } catch (e: HermesWsClient.HermesRpcException) {
                     unavailable = true
                     error = e.message
@@ -62,6 +70,10 @@ class BillingViewModel : ViewModel() {
                 }
                 try {
                     bars = BillingRepository.getUsageBars()
+                    if (bars?.ok == false) {
+                        // usage unavailable is non-fatal — the plan card still renders
+                        if (error == null) error = bars.toString()
+                    }
                 } catch (e: HermesWsClient.HermesRpcException) {
                     unavailable = true
                 } catch (e: Exception) {
@@ -85,7 +97,16 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.previewSubscription(subscriptionTypeId) }
                 .onSuccess { preview ->
-                    _uiState.update { it.copy(isActionInFlight = false, preview = preview) }
+                    if (preview.ok == false) {
+                        _uiState.update {
+                            it.copy(
+                                isActionInFlight = false,
+                                errorMessage = preview.error ?: preview.message ?: "Preview unavailable",
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isActionInFlight = false, preview = preview) }
+                    }
                 }.onFailure { e ->
                     _uiState.update {
                         it.copy(
@@ -102,6 +123,15 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.upgradeSubscription(subscriptionTypeId) }
                 .onSuccess { resp ->
+                    if (resp.ok == false) {
+                        _uiState.update {
+                            it.copy(
+                                isActionInFlight = false,
+                                errorMessage = resp.error ?: resp.message ?: "Upgrade unavailable",
+                            )
+                        }
+                        return@onSuccess
+                    }
                     val msg =
                         when {
                             resp.requires_action == true && resp.recovery_url != null ->
@@ -131,6 +161,15 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.changeSubscription(SubscriptionChangeRequest(subscriptionTypeId, cancel)) }
                 .onSuccess { resp ->
+                    if (resp.ok == false) {
+                        _uiState.update {
+                            it.copy(
+                                isActionInFlight = false,
+                                errorMessage = resp.error ?: resp.message ?: "Plan change unavailable",
+                            )
+                        }
+                        return@onSuccess
+                    }
                     _uiState.update {
                         it.copy(
                             isActionInFlight = false,
@@ -155,6 +194,15 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.resumeSubscription() }
                 .onSuccess { resp ->
+                    if (resp.ok == false) {
+                        _uiState.update {
+                            it.copy(
+                                isActionInFlight = false,
+                                errorMessage = resp.error ?: resp.message ?: "Resume unavailable",
+                            )
+                        }
+                        return@onSuccess
+                    }
                     _uiState.update {
                         it.copy(
                             isActionInFlight = false,

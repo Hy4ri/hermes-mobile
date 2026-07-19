@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.SubscriptionCurrent
 import com.m57.hermescontrol.data.model.SubscriptionStateResponse
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -104,14 +105,16 @@ private fun BillingContent(
         contentPadding = listContentPadding,
         verticalArrangement = listItemSpacing,
     ) {
-        if (subscription != null) {
-            item { PlanCard(subscription) }
+        val sub = subscription
+        if (sub != null && sub.logged_in == true && sub.current != null) {
+            item { PlanCard(sub.current) }
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (subscription.status == "cancelled" || subscription.status == "paused") {
+                    val status = sub.current.status
+                    if (status == "cancelled" || status == "paused") {
                         Button(
                             onClick = onResume,
                             enabled = !state.isActionInFlight,
@@ -130,19 +133,22 @@ private fun BillingContent(
                     }
                 }
             }
-            if (state.actionMessage != null) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Text(
-                            text = state.actionMessage ?: "",
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
+        } else if (sub != null) {
+            item { NoActivePlanCard(sub) }
+        }
+
+        if (state.actionMessage != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(
+                        text = state.actionMessage ?: "",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
         }
@@ -157,7 +163,7 @@ private fun BillingContent(
 }
 
 @Composable
-private fun PlanCard(subscription: SubscriptionStateResponse) {
+private fun PlanCard(subscription: SubscriptionCurrent) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -189,6 +195,34 @@ private fun PlanCard(subscription: SubscriptionStateResponse) {
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun NoActivePlanCard(subscription: SubscriptionStateResponse) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.billing_free_plan),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text =
+                    if (subscription.logged_in == true) {
+                        stringResource(R.string.billing_no_active_plan)
+                    } else {
+                        stringResource(R.string.billing_login_required)
+                    },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

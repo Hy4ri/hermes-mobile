@@ -137,6 +137,23 @@ private fun BillingContent(
             item { NoActivePlanCard(sub) }
         }
 
+        if (state.errorMessage != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(
+                        text = state.errorMessage ?: "",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+        }
+
         if (state.actionMessage != null) {
             item {
                 Card(
@@ -287,7 +304,12 @@ private fun FeatureUnavailableState(onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        androidx.compose.material.icons.Icons.Filled.AccountBalanceWallet
+        androidx.compose.material3.Icon(
+            imageVector = androidx.compose.material.icons.Icons.Filled.AccountBalanceWallet,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.padding(bottom = 16.dp).size(48.dp),
+        )
         ErrorState(
             message = stringResource(R.string.billing_feature_unavailable),
             onRetry = onRetry,

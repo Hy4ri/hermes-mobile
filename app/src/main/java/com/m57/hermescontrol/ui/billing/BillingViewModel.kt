@@ -72,10 +72,11 @@ class BillingViewModel : ViewModel() {
                     bars = BillingRepository.getUsageBars()
                     if (bars?.ok == false) {
                         // usage unavailable is non-fatal — the plan card still renders
-                        if (error == null) error = bars.toString()
+                        if (error == null) error = "Usage data unavailable"
                     }
                 } catch (e: HermesWsClient.HermesRpcException) {
-                    unavailable = true
+                    // usage unavailable is non-fatal — do NOT mark the whole
+                    // feature unavailable; the plan card still renders.
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     if (error == null) error = e.message ?: "Failed to load usage"
@@ -86,7 +87,9 @@ class BillingViewModel : ViewModel() {
                         subscription = sub,
                         usage = bars,
                         featureUnavailable = unavailable,
-                        errorMessage = if (sub == null && bars == null) error else null,
+                        // A failed primary subscription load is fatal — surface it
+                        // even if usage bars happened to load.
+                        errorMessage = if (sub == null) error else null,
                     )
                 }
             }

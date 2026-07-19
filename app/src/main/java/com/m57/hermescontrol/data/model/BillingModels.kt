@@ -15,8 +15,10 @@ import kotlinx.serialization.Serializable
  * RPC-level error when unauthenticated. These models track the live shape.
  *
  * All models are decoded with [com.m57.hermescontrol.data.remote.OkHttpProvider.json]
- * (kotlinx `Json { ignoreUnknownKeys = true; SnakeCase }`), so snake_case wire
- * names map to camelCase properties and unknown backend fields are tolerated.
+ * (kotlinx `Json { ignoreUnknownKeys = true; SnakeCase }`). The `SnakeCase`
+ * naming strategy maps snake_case wire keys directly onto snake_case Kotlin
+ * properties (e.g. `logged_in`), so the property names below mirror the backend
+ * JSON exactly and unknown backend fields are tolerated.
  */
 
 @Serializable

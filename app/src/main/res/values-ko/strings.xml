@@ -737,6 +737,7 @@
     <string name="analytics_cache_read">캐시 읽기</string>
     <string name="analytics_reasoning">추론</string>
     <string name="analytics_daily_cost">일일 예상 비용</string>
+    <string name="analytics_loading_usage">사용 분석 불러오는 중…</string>
     <string name="analytics_no_cost_data">이 기간에 기록된 비용이 없습니다.</string>
     <string name="analytics_skill_uses">%1$d회 사용 • 전체의 %2$d%%</string>
     <string name="analytics_tool_uses">%1$d회 호출 • 전체의 %2$d%%</string>

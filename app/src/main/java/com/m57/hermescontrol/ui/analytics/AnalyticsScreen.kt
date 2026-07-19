@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.analytics
 
+import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,8 +61,9 @@ private val DAY_OPTIONS = listOf(7, 30, 90)
 fun AnalyticsScreen(
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
-    viewModel: AnalyticsViewModel = viewModel { AnalyticsViewModel() },
 ) {
+    val application = LocalContext.current as Application
+    val viewModel: AnalyticsViewModel = viewModel { AnalyticsViewModel(application) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
@@ -75,18 +78,18 @@ fun AnalyticsScreen(
         modifier = modifier,
     ) {
         when {
-            state.isLoading && state.usage == null -> {
+            state.isLoading && state.usage == null && state.models == null -> {
                 SkeletonListState()
             }
 
-            state.errorMessage != null && state.usage == null -> {
+            state.errorMessage != null && state.usage == null && state.models == null -> {
                 ErrorState(
                     message = state.errorMessage ?: stringResource(R.string.error_unknown),
                     onRetry = { viewModel.load() },
                 )
             }
 
-            state.usage == null -> {
+            state.usage == null && state.models == null -> {
                 EmptyState(
                     title = stringResource(R.string.analytics_empty_title),
                     subtitle = stringResource(R.string.analytics_empty_desc),
@@ -130,7 +133,28 @@ private fun AnalyticsContent(
 
         item { TotalsCard(usage.totals) }
 
-        if (usage.daily.isNotEmpty()) {
+        if (state.usageLoading) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(140.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.analytics_loading_usage),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        } else if (usage.daily.isNotEmpty()) {
             item { SectionTitle(stringResource(R.string.analytics_daily_cost)) }
             item { DailyCostChart(entries = usage.daily) }
         }

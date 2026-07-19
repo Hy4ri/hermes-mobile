@@ -881,6 +881,7 @@
     <string name="analytics_cache_read">Cache read</string>
     <string name="analytics_reasoning">Reasoning</string>
     <string name="analytics_daily_cost">Daily estimated cost</string>
+    <string name="analytics_loading_usage">Loading usage analytics…</string>
     <string name="analytics_no_cost_data">No cost recorded in this period.</string>
     <string name="analytics_skill_uses">%1$d uses \u2022 %2$d%% of total</string>
     <string name="analytics_tool_uses">%1$d calls \u2022 %2$d%% of total</string>

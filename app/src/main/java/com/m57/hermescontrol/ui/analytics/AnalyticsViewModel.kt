@@ -1,7 +1,9 @@
 package com.m57.hermescontrol.ui.analytics
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AnalyticsCacheStore
 import com.m57.hermescontrol.data.model.AnalyticsResponse
 import com.m57.hermescontrol.data.model.ModelsAnalyticsResponse
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -31,12 +33,22 @@ data class AnalyticsUiState(
     val profile: String? = null,
     val usage: AnalyticsResponse? = null,
     val models: ModelsAnalyticsResponse? = null,
+    // Issue #537 follow-up (B): the two endpoints have very different latencies —
+    // /models is fast (~0.1s) while /usage runs the insights engine and can take
+    // tens of seconds on a cold backend. Split the render so the fast half
+    // (models + totals) shows immediately and the slow half (usage charts) streams
+    // in behind a slim placeholder instead of holding the whole tab hostage.
+    val usageLoading: Boolean = false,
     val errorMessage: String? = null,
 )
 
-class AnalyticsViewModel : ViewModel() {
+class AnalyticsViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(AnalyticsUiState())
     val uiState: StateFlow<AnalyticsUiState> = _uiState.asStateFlow()
+
+    private val cacheStore = AnalyticsCacheStore(application)
 
     private val api get() = ApiClient.hermesApi
 
@@ -49,6 +61,16 @@ class AnalyticsViewModel : ViewModel() {
     )
 
     private val cache = mutableMapOf<Int, CacheEntry>()
+
+    init {
+        // Issue #537 follow-up (C): seed the in-memory cache from disk so a cold
+        // app launch renders last session's analytics instantly, then refreshes.
+        DAY_OPTIONS.forEach { days ->
+            cacheStore.load(days)?.let { (usage, models) ->
+                cache[days] = CacheEntry(usage, models)
+            }
+        }
+    }
 
     /** Reload both analytics endpoints for the current [days]/[profile]. */
     fun load() {
@@ -63,6 +85,7 @@ class AnalyticsViewModel : ViewModel() {
                     isLoading = false,
                     usage = cached.usage,
                     models = cached.models,
+                    usageLoading = false,
                     errorMessage = null,
                 )
             }
@@ -71,7 +94,7 @@ class AnalyticsViewModel : ViewModel() {
             return
         }
 
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { it.copy(isLoading = true, usageLoading = true, errorMessage = null) }
         fetchAndCache(days, profile, showLoading = true)
     }
 
@@ -82,19 +105,47 @@ class AnalyticsViewModel : ViewModel() {
     ) {
         loadJob =
             viewModelScope.launch {
-                val usageDeferred =
-                    async { safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) } }
+                // Issue #537 follow-up (B): fetch the two endpoints independently and
+                // surface the fast one (/models, ~0.1s, carries the totals card) the
+                // instant it lands, while /usage streams in behind a placeholder. The
+                // usage call is what's slow on a cold backend, so we must not let it
+                // block the models/totals render.
                 val modelsDeferred =
                     async { safeApiCall<ModelsAnalyticsResponse> { api.getModelsAnalytics(days, profile) } }
-                val usageResult = usageDeferred.await()
+
+                // Surface models immediately when it arrives (before usage finishes).
                 val modelsResult = modelsDeferred.await()
-                // On failure keep previously-loaded data visible instead of wiping it.
-                val usage = (usageResult as? NetworkResult.Success)?.data ?: _uiState.value.usage
-                val models = (modelsResult as? NetworkResult.Success)?.data ?: _uiState.value.models
-                // Cache successful results.
-                if (usage != null) {
-                    cache[days] = CacheEntry(usage, models)
+                val models = (modelsResult as? NetworkResult.Success)?.data
+                if (models != null) {
+                    // Surface models now; only fold it into the cache entry if we
+                    // already have usage (otherwise the usage block below creates
+                    // the full entry). Never bail the coroutine on a missing usage.
+                    cache[days]?.let { existing -> cache[days] = existing.copy(models = models) }
+                    if (_uiState.value.days == days) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                models = models,
+                                usageLoading = it.usage == null,
+                                errorMessage = null,
+                            )
+                        }
+                    }
                 }
+
+                // Now the slow usage call.
+                val usageDeferred =
+                    async { safeApiCall<AnalyticsResponse> { api.getAnalytics(days, profile) } }
+                val usageResult = usageDeferred.await()
+                val usage = (usageResult as? NetworkResult.Success)?.data ?: _uiState.value.usage
+
+                if (usage != null) {
+                    val finalModels = models ?: _uiState.value.models
+                    cache[days] = CacheEntry(usage, finalModels)
+                    // Write-through to disk so a cold app launch stays instant (C).
+                    cacheStore.save(days, usage, finalModels)
+                }
+
                 // Surface the REAL failure (HTTP code / connection / parse error)
                 // instead of a generic string so the root cause is never hidden.
                 val failure =
@@ -127,7 +178,8 @@ class AnalyticsViewModel : ViewModel() {
                         it.copy(
                             isLoading = false,
                             usage = usage,
-                            models = models,
+                            models = models ?: it.models,
+                            usageLoading = false,
                             errorMessage = error,
                         )
                     }

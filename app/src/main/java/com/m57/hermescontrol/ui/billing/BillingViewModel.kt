@@ -60,6 +60,10 @@ class BillingViewModel : ViewModel() {
                     if (sub?.ok == false) {
                         unavailable = true
                         error = sub.error ?: "Billing unavailable"
+                    } else if (sub == null) {
+                        // Backend returned no result payload (null result / unmapped
+                        // response). Treat as a non-fatal load miss, not a crash.
+                        if (error == null) error = "No billing data returned"
                     }
                 } catch (e: HermesWsClient.HermesRpcException) {
                     unavailable = true
@@ -100,6 +104,12 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.previewSubscription(subscriptionTypeId) }
                 .onSuccess { preview ->
+                    if (preview == null) {
+                        _uiState.update {
+                            it.copy(isActionInFlight = false, errorMessage = "No billing data returned")
+                        }
+                        return@onSuccess
+                    }
                     if (preview.ok == false) {
                         _uiState.update {
                             it.copy(
@@ -126,6 +136,12 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.upgradeSubscription(subscriptionTypeId) }
                 .onSuccess { resp ->
+                    if (resp == null) {
+                        _uiState.update {
+                            it.copy(isActionInFlight = false, errorMessage = "No billing data returned")
+                        }
+                        return@onSuccess
+                    }
                     if (resp.ok == false) {
                         _uiState.update {
                             it.copy(
@@ -164,6 +180,12 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.changeSubscription(SubscriptionChangeRequest(subscriptionTypeId, cancel)) }
                 .onSuccess { resp ->
+                    if (resp == null) {
+                        _uiState.update {
+                            it.copy(isActionInFlight = false, errorMessage = "No billing data returned")
+                        }
+                        return@onSuccess
+                    }
                     if (resp.ok == false) {
                         _uiState.update {
                             it.copy(
@@ -197,6 +219,12 @@ class BillingViewModel : ViewModel() {
             _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
             runCatching { BillingRepository.resumeSubscription() }
                 .onSuccess { resp ->
+                    if (resp == null) {
+                        _uiState.update {
+                            it.copy(isActionInFlight = false, errorMessage = "No billing data returned")
+                        }
+                        return@onSuccess
+                    }
                     if (resp.ok == false) {
                         _uiState.update {
                             it.copy(

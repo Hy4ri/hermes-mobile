@@ -6,19 +6,23 @@ import kotlinx.serialization.Serializable
  * Request/response models for the billing/subscription WebSocket RPC surface
  * adopted in issue #628 (backend release audit 0bf44d557..614dc194e).
  *
- * Verified against the LIVE gateway (probe on :9119, 2026-07-19): all six
- * methods resolve (no -32601). The real wire shapes differ from the
- * source-described contracts — notably `subscription.state` returns
- * `logged_in` / `current` / `tiers` / `usage` (not the legacy
- * `subscription_type_id` / `renews_at` fields), and the mutating RPCs return
- * an `ok:false` *result* (with `error` / `message` / `payload`) rather than an
- * RPC-level error when unauthenticated. These models track the live shape.
+ * VERIFIED against the LIVE gateway with a logged-in Nous Portal session
+ * (probe on :9119, 2026-07-19). Real shapes captured:
+ *  - `subscription.state` -> ok/logged_in/is_admin/can_change_plan/org_name/
+ *    role/context + `current` {tier_id, tier_name, monthly_credits,
+ *    credits_remaining, cycle_ends_at, pending_downgrade_*} + `tiers`.
+ *  - `usage.bars` -> ok/available/status/plan_name/renews_at +
+ *    `plan_bar` {kind, remaining_display, total_display, spent_display,
+ *    pct_used, fill_fraction} + `topup_bar` (nullable).
+ *  - Mutating RPCs (preview/change/resume/upgrade) -> `ok:false` *result*
+ *    with `error`/`message`/`payload`; when the Portal token lacks the
+ *    `billing:manage` scope they return error:"insufficient_scope".
  *
- * All models are decoded with [com.m57.hermescontrol.data.remote.OkHttpProvider.json]
+ * All models decode with [com.m57.hermescontrol.data.remote.OkHttpProvider.json]
  * (kotlinx `Json { ignoreUnknownKeys = true; SnakeCase }`). The `SnakeCase`
  * naming strategy maps snake_case wire keys directly onto snake_case Kotlin
- * properties (e.g. `logged_in`), so the property names below mirror the backend
- * JSON exactly and unknown backend fields are tolerated.
+ * properties, so the property names below mirror the backend JSON exactly and
+ * unknown backend fields are tolerated.
  */
 
 @Serializable
@@ -30,51 +34,38 @@ data class SubscriptionStateResponse(
     val org_name: String? = null,
     val org_id: String? = null,
     val role: String? = null,
-    /**
-     * "personal" for a direct Nous Portal login, "org" when acting under an
-     * organization. Drives which plan/cancel affordances the screen shows.
-     */
+    /** "personal" for a direct Nous Portal login, "org" when under an org. */
     val context: String? = null,
-    /**
-     * The active plan summary when [logged_in] is true. Null when logged out
-     * or on the free tier — the screen renders the "no active plan" state then.
-     */
+    /** Active plan summary when [logged_in] is true; null when logged out. */
     val current: SubscriptionCurrent? = null,
-    /**
-     * Available plan tiers the user can switch between. Empty when logged out.
-     */
+    /** Available plan tiers the user can switch between (empty when logged out). */
     val tiers: List<SubscriptionTier> = emptyList(),
     val portal_url: String? = null,
     val error: String? = null,
-    /**
-     * Nested usage availability gate returned by the live backend. The actual
-     * usage bars come from the separate `usage.bars` RPC.
-     */
-    val usage: SubscriptionStateUsage? = null,
 )
 
 @Serializable
 data class SubscriptionCurrent(
-    val subscription_type_id: String? = null,
-    val subscription_type_name: String? = null,
-    val status: String? = null,
-    val renews_at: String? = null,
-    val cancel_at_period_end: Boolean? = null,
-    val payment_method: String? = null,
+    val tier_id: String? = null,
+    val tier_name: String? = null,
+    /** Monthly credit grant, as a string decimal (e.g. "0.1"). */
+    val monthly_credits: String? = null,
+    /** Credits remaining this cycle, as a string decimal. */
+    val credits_remaining: String? = null,
+    /** ISO timestamp when the current cycle ends. */
+    val cycle_ends_at: String? = null,
+    val pending_downgrade_tier_name: String? = null,
+    val pending_downgrade_at: String? = null,
+    val pending_downgrade_display: String? = null,
 )
 
 @Serializable
 data class SubscriptionTier(
-    val subscription_type_id: String? = null,
-    val subscription_type_name: String? = null,
+    val tier_id: String? = null,
+    val tier_name: String? = null,
     val price: String? = null,
     val currency: String? = null,
     val interval: String? = null,
-)
-
-@Serializable
-data class SubscriptionStateUsage(
-    val available: Boolean? = null,
 )
 
 // ── usage.bars ────────────────────────────────────────────────────────────
@@ -83,17 +74,29 @@ data class SubscriptionStateUsage(
 data class UsageBarsResponse(
     val ok: Boolean? = null,
     val available: Boolean? = null,
-    val period_start: String? = null,
-    val period_end: String? = null,
-    val bars: List<UsageBar> = emptyList(),
+    /** e.g. "depleted" / "active" — high-level usage status. */
+    val status: String? = null,
+    val plan_name: String? = null,
+    val renews_at: String? = null,
+    val renews_display: String? = null,
+    val subscription_remaining_display: String? = null,
+    val topup_remaining_display: String? = null,
+    val total_spendable_display: String? = null,
+    val has_topup: Boolean? = null,
+    val plan_bar: UsageBar? = null,
+    val topup_bar: UsageBar? = null,
 )
 
 @Serializable
 data class UsageBar(
-    val label: String? = null,
-    val used: Double? = null,
-    val limit: Double? = null,
-    val unit: String? = null,
+    val kind: String? = null,
+    val remaining_display: String? = null,
+    val total_display: String? = null,
+    val spent_display: String? = null,
+    /** 0..100 percentage used (not a fraction). */
+    val pct_used: Double? = null,
+    /** 0.0..1.0 fill fraction for a progress indicator. */
+    val fill_fraction: Double? = null,
 )
 
 // ── subscription.preview ──────────────────────────────────────────────────
@@ -121,6 +124,8 @@ data class SubscriptionPreviewResponse(
 
 @Serializable
 data class SubscriptionPreviewPayload(
+    val error: String? = null,
+    val error_description: String? = null,
     val actor: String? = null,
     val code: String? = null,
     val recovery: String? = null,

@@ -26,23 +26,22 @@ import kotlinx.serialization.serializer
 object BillingRepository {
     private val json get() = OkHttpProvider.json
 
-    private inline fun <reified T> decode(result: Any?): T {
-        val element = result as? JsonElement
-        requireNotNull(element) { "Billing RPC returned no result payload" }
+    private inline fun <reified T> decode(result: Any?): T? {
+        val element = result as? JsonElement ?: return null
         return json.decodeFromJsonElement(serializer<T>(), element)
     }
 
-    suspend fun getSubscriptionState(): SubscriptionStateResponse {
+    suspend fun getSubscriptionState(): SubscriptionStateResponse? {
         val result = HermesWsClient.request(WsMethods.SUBSCRIPTION_STATE).await()
         return decode(result)
     }
 
-    suspend fun getUsageBars(): UsageBarsResponse {
+    suspend fun getUsageBars(): UsageBarsResponse? {
         val result = HermesWsClient.request(WsMethods.USAGE_BARS).await()
         return decode(result)
     }
 
-    suspend fun previewSubscription(subscriptionTypeId: String): SubscriptionPreviewResponse {
+    suspend fun previewSubscription(subscriptionTypeId: String): SubscriptionPreviewResponse? {
         val result =
             HermesWsClient
                 .request(
@@ -52,7 +51,7 @@ object BillingRepository {
         return decode(result)
     }
 
-    suspend fun changeSubscription(request: SubscriptionChangeRequest): SubscriptionChangeResponse {
+    suspend fun changeSubscription(request: SubscriptionChangeRequest): SubscriptionChangeResponse? {
         val result =
             HermesWsClient
                 .request(
@@ -65,12 +64,12 @@ object BillingRepository {
         return decode(result)
     }
 
-    suspend fun resumeSubscription(): SubscriptionResumeResponse {
+    suspend fun resumeSubscription(): SubscriptionResumeResponse? {
         val result = HermesWsClient.request(WsMethods.SUBSCRIPTION_RESUME).await()
         return decode(result)
     }
 
-    suspend fun upgradeSubscription(subscriptionTypeId: String): SubscriptionUpgradeResponse {
+    suspend fun upgradeSubscription(subscriptionTypeId: String): SubscriptionUpgradeResponse? {
         val result =
             HermesWsClient
                 .request(

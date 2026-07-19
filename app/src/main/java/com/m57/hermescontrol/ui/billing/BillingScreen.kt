@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -108,21 +107,12 @@ private fun BillingContent(
         val sub = subscription
         if (sub != null && sub.logged_in == true && sub.current != null) {
             item { PlanCard(sub.current) }
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val status = sub.current.status
-                    if (status == "cancelled" || status == "paused") {
-                        Button(
-                            onClick = onResume,
-                            enabled = !state.isActionInFlight,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(stringResource(R.string.billing_resume))
-                        }
-                    } else {
+            if (sub.can_change_plan == true) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         OutlinedButton(
                             onClick = { onChange(null, true) },
                             enabled = !state.isActionInFlight,
@@ -170,10 +160,13 @@ private fun BillingContent(
             }
         }
 
-        if (usage != null && usage.bars.isNotEmpty()) {
+        if (usage != null && usage.available == true && (usage.plan_bar != null || usage.topup_bar != null)) {
             item { SectionTitle(stringResource(R.string.billing_usage)) }
-            items(usage.bars.size, key = { "bar_$it" }) { index ->
-                UsageBarRow(bar = usage.bars[index])
+            usage.plan_bar?.let { bar ->
+                item { UsageBarRow(label = stringResource(R.string.billing_plan), bar = bar) }
+            }
+            usage.topup_bar?.let { bar ->
+                item { UsageBarRow(label = stringResource(R.string.billing_topup), bar = bar) }
             }
         }
     }
@@ -188,25 +181,33 @@ private fun PlanCard(subscription: SubscriptionCurrent) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = subscription.subscription_type_name ?: stringResource(R.string.billing_free_plan),
+                text = subscription.tier_name ?: stringResource(R.string.billing_free_plan),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
-            Text(
-                text =
-                    when (subscription.status) {
-                        null -> stringResource(R.string.billing_status_unknown)
-                        "active" -> stringResource(R.string.billing_status_active)
-                        "cancelled" -> stringResource(R.string.billing_status_cancelled)
-                        "paused" -> stringResource(R.string.billing_status_paused)
-                        else -> subscription.status ?: ""
-                    },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (subscription.renews_at != null) {
+            if (subscription.credits_remaining != null) {
                 Text(
-                    text = stringResource(R.string.billing_renews, subscription.renews_at),
+                    text =
+                        stringResource(
+                            R.string.billing_credits_remaining,
+                            subscription.credits_remaining,
+                        ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (subscription.cycle_ends_at != null) {
+                Text(
+                    text = stringResource(R.string.billing_renews, subscription.cycle_ends_at),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (subscription.pending_downgrade_display != null) {
+                Text(
+                    text = subscription.pending_downgrade_display ?: "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
@@ -245,15 +246,12 @@ private fun NoActivePlanCard(subscription: SubscriptionStateResponse) {
 }
 
 @Composable
-private fun UsageBarRow(bar: com.m57.hermescontrol.data.model.UsageBar) {
-    val used = bar.used ?: 0.0
-    val limit = bar.limit ?: 0.0
-    val fraction =
-        if (limit > 0.0) {
-            (used / limit).toFloat().coerceIn(0f, 1f)
-        } else {
-            0f
-        }
+private fun UsageBarRow(
+    label: String,
+    bar: com.m57.hermescontrol.data.model.UsageBar,
+) {
+    val fraction = (bar.fill_fraction ?: 0.0).toFloat().coerceIn(0f, 1f)
+    val summary = bar.remaining_display ?: bar.total_display ?: ""
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -261,27 +259,25 @@ private fun UsageBarRow(bar: com.m57.hermescontrol.data.model.UsageBar) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = bar.label ?: "",
+                    text = label,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "$used / $limit ${bar.unit ?: ""}",
+                    text = summary,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (limit > 0.0) {
-                LinearProgressIndicator(
-                    progress = { fraction },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                )
-            }
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+            )
         }
     }
 }

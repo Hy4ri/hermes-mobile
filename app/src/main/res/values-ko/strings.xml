@@ -53,6 +53,9 @@
     <string name="billing_feature_unavailable">이 서버에서는 결제를 사용할 수 없습니다 (지원되지 않는 메서드)</string>
     <string name="billing_no_active_plan">활성 요금제 없음 — 무료 등급입니다.</string>
     <string name="billing_login_required">요금제를 보려면 Nous Portal에 로그인하세요.</string>
+    <string name="billing_credits_remaining">남은 크레딧: %1$s</string>
+    <string name="billing_plan">요금제</string>
+    <string name="billing_topup">충전</string>
 
     <!-- Navigation & Drawer -->
     <string name="nav_drawer_title">⚡ 헤르메스</string>

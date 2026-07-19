@@ -66,6 +66,9 @@
     <string name="billing_feature_unavailable">Billing is unavailable on this server (method not supported)</string>
     <string name="billing_no_active_plan">No active plan — you\'re on the free tier.</string>
     <string name="billing_login_required">Log in to Nous Portal to view your plan.</string>
+    <string name="billing_credits_remaining">Credits remaining: %1$s</string>
+    <string name="billing_plan">Plan</string>
+    <string name="billing_topup">Top-up</string>
 
     <!-- Navigation & Drawer -->
     <string name="nav_drawer_title">⚡ Hermes</string>

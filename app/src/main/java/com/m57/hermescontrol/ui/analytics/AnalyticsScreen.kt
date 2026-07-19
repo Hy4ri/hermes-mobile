@@ -62,7 +62,7 @@ fun AnalyticsScreen(
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
 ) {
-    val application = LocalContext.current as Application
+    val application = LocalContext.current.applicationContext as Application
     val viewModel: AnalyticsViewModel = viewModel { AnalyticsViewModel(application) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 

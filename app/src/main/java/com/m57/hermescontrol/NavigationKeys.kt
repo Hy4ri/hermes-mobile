@@ -55,6 +55,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object AnalyticsScreen : NavKey
 
+@Serializable data object BillingScreen : NavKey
+
 // ── Settings drill-down sub-pages ──────────────────────────────────────
 
 @Serializable data object SettingsConnection : NavKey

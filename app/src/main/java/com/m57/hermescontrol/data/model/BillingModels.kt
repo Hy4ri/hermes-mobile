@@ -79,8 +79,9 @@ data class SubscriptionTier(
     val tier_id: String? = null,
     /** Display name (wire key is `name`, not `tier_name`). */
     val name: String? = null,
-    /** Sort order within the catalog. */
-    val tier_order: Int? = null,
+    /** Sort order within the catalog. Backend may serialize this as a float
+     *  (e.g. `5.0`) on some NAS responses, so model as Double, not Int. */
+    val tier_order: Double? = null,
     /** Pre-formatted monthly price, e.g. "$20" / "$20.00". */
     val dollars_per_month_display: String? = null,
     /** Monthly credit grant as a string decimal (e.g. "0.1"). */

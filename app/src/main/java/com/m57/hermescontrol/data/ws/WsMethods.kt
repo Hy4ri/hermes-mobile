@@ -43,4 +43,27 @@ object WsMethods {
 
     /** Kill a single background process (scoped to the active session). */
     const val PROCESS_KILL = "process.kill"
+
+    // ── Billing / subscription (issue #628) ─────────────────────────────
+    // Adopted from the backend release audit (hermes-agent 0bf44d557..614dc194e).
+    // `credits.view` was REMOVED upstream; these replace it. `usage.bars`
+    // surfaces the same usage data the legacy credits block rendered.
+
+    /** Current subscription/plan state. Fail-open: logged-out → {logged_in:false}. */
+    const val SUBSCRIPTION_STATE = "subscription.state"
+
+    /** Chargeless effect quote for a target subscription type. */
+    const val SUBSCRIPTION_PREVIEW = "subscription.preview"
+
+    /** Schedule a downgrade or cancellation. */
+    const val SUBSCRIPTION_CHANGE = "subscription.change"
+
+    /** Resume a cancelled/paused subscription. */
+    const val SUBSCRIPTION_RESUME = "subscription.resume"
+
+    /** Upgrade — hits POST /api/billing/subscription/upgrade (prorate + charge). */
+    const val SUBSCRIPTION_UPGRADE = "subscription.upgrade"
+
+    /** Usage bars (token/cost breakdown the legacy credits block rendered). */
+    const val USAGE_BARS = "usage.bars"
 }

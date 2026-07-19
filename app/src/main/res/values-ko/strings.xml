@@ -40,7 +40,22 @@
     <string name="content_desc_clear_search">검색 지우기</string>
 
     <!-- General Errors -->
-    <string name="error_unknown">알 수 없는 오류</string>
+    <string name="error_unknown">문제가 발생했습니다</string>
+    <string name="billing_free_plan">무료</string>
+    <string name="billing_usage">사용량</string>
+    <string name="billing_resume">재개</string>
+    <string name="billing_cancel">취소</string>
+    <string name="billing_renews">갱신: %1$s</string>
+    <string name="billing_status_unknown">알 수 없음</string>
+    <string name="billing_status_active">활성</string>
+    <string name="billing_status_cancelled">취소됨</string>
+    <string name="billing_status_paused">일시중지됨</string>
+    <string name="billing_feature_unavailable">이 서버에서는 결제를 사용할 수 없습니다 (지원되지 않는 메서드)</string>
+    <string name="billing_no_active_plan">활성 요금제 없음 — 무료 등급입니다.</string>
+    <string name="billing_login_required">요금제를 보려면 Nous Portal에 로그인하세요.</string>
+    <string name="billing_credits_remaining">남은 크레딧: %1$s</string>
+    <string name="billing_plan">요금제</string>
+    <string name="billing_topup">충전</string>
 
     <!-- Navigation & Drawer -->
     <string name="nav_drawer_title">⚡ 헤르메스</string>
@@ -74,6 +89,7 @@
     <string name="screen_processes">프로세스</string>
     <string name="screen_providers">제공자</string>
     <string name="screen_analytics">분석</string>
+    <string name="screen_billing">결제</string>
 
     <!-- Notifications -->
     <string name="notif_title">헤르메스</string>

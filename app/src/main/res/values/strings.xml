@@ -54,6 +54,21 @@
 
     <!-- General Errors -->
     <string name="error_unknown">Unknown error</string>
+    <string name="billing_free_plan">Free</string>
+    <string name="billing_usage">Usage</string>
+    <string name="billing_resume">Resume</string>
+    <string name="billing_cancel">Cancel</string>
+    <string name="billing_renews">Renews: %1$s</string>
+    <string name="billing_status_unknown">Unknown</string>
+    <string name="billing_status_active">Active</string>
+    <string name="billing_status_cancelled">Cancelled</string>
+    <string name="billing_status_paused">Paused</string>
+    <string name="billing_feature_unavailable">Billing is unavailable on this server (method not supported)</string>
+    <string name="billing_no_active_plan">No active plan — you\'re on the free tier.</string>
+    <string name="billing_login_required">Log in to Nous Portal to view your plan.</string>
+    <string name="billing_credits_remaining">Credits remaining: %1$s</string>
+    <string name="billing_plan">Plan</string>
+    <string name="billing_topup">Top-up</string>
 
     <!-- Navigation & Drawer -->
     <string name="nav_drawer_title">⚡ Hermes</string>
@@ -87,6 +102,7 @@
     <string name="screen_processes">Processes</string>
     <string name="screen_providers">Providers</string>
     <string name="screen_analytics">Analytics</string>
+    <string name="screen_billing">Billing</string>
 
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>

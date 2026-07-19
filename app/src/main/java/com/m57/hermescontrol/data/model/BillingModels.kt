@@ -7,13 +7,22 @@ import kotlinx.serialization.Serializable
  * adopted in issue #628 (backend release audit 0bf44d557..614dc194e).
  *
  * VERIFIED against the LIVE gateway with a logged-in Nous Portal session
- * (probe on :9119, 2026-07-19). Real shapes captured:
- *  - `subscription.state` -> ok/logged_in/is_admin/can_change_plan/org_name/
- *    role/context + `current` {tier_id, tier_name, monthly_credits,
- *    credits_remaining, cycle_ends_at, pending_downgrade_*} + `tiers`.
+ * (probe on :9119, 2026-07-19) AND cross-checked against backend source at
+ * tip 299e409f15 (tui_gateway/server.py _serialize_usage_model /
+ * _serialize_usage_bar / _serialize_subscription_state). Real wire shapes:
+ *  - `subscription.state.current` -> {tier_id, tier_name, monthly_credits,
+ *    credits_remaining, cycle_ends_at, pending_downgrade_*,
+ *    cancel_at_period_end, cancellation_effective_at,
+ *    cancellation_effective_display}.
+ *  - `subscription.state.tiers[]` -> {tier_id, name, tier_order,
+ *    dollars_per_month_display, monthly_credits, is_current, is_enabled}.
  *  - `usage.bars` -> ok/available/status/plan_name/renews_at +
  *    `plan_bar` {kind, remaining_display, total_display, spent_display,
- *    pct_used, fill_fraction} + `topup_bar` (nullable).
+ *    pct_used, fill_fraction} + `topup_bar` (nullable) + top-level
+ *    `*_remaining_display` / `total_spendable_display` USD strings.
+ *    NOTE: the backend `UsageBar` *dataclass* carries raw `*_usd` floats, but
+ *    `_serialize_usage_bar` converts them to `*_display` strings on the wire —
+ *    so the `*_display` model below is correct; do NOT switch it to `*_usd`.
  *  - Mutating RPCs (preview/change/resume/upgrade) -> `ok:false` *result*
  *    with `error`/`message`/`payload`; when the Portal token lacks the
  *    `billing:manage` scope they return error:"insufficient_scope".
@@ -57,15 +66,29 @@ data class SubscriptionCurrent(
     val pending_downgrade_tier_name: String? = null,
     val pending_downgrade_at: String? = null,
     val pending_downgrade_display: String? = null,
+    /** True when a cancellation is scheduled at the end of the period. */
+    val cancel_at_period_end: Boolean? = null,
+    /** ISO timestamp when the scheduled cancellation takes effect. */
+    val cancellation_effective_at: String? = null,
+    /** Human-formatted effective date (e.g. "Jul 24, 2026"), or null. */
+    val cancellation_effective_display: String? = null,
 )
 
 @Serializable
 data class SubscriptionTier(
     val tier_id: String? = null,
-    val tier_name: String? = null,
-    val price: String? = null,
-    val currency: String? = null,
-    val interval: String? = null,
+    /** Display name (wire key is `name`, not `tier_name`). */
+    val name: String? = null,
+    /** Sort order within the catalog. */
+    val tier_order: Int? = null,
+    /** Pre-formatted monthly price, e.g. "$20" / "$20.00". */
+    val dollars_per_month_display: String? = null,
+    /** Monthly credit grant as a string decimal (e.g. "0.1"). */
+    val monthly_credits: String? = null,
+    /** True when this tier is the user's current plan. */
+    val is_current: Boolean? = null,
+    /** True when the tier is selectable. */
+    val is_enabled: Boolean? = null,
 )
 
 // ── usage.bars ────────────────────────────────────────────────────────────

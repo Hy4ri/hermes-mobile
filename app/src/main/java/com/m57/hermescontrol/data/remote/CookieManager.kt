@@ -9,7 +9,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.Cookie
-import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /**
  * Coordinator for the issue #470 cookie stack.
@@ -22,9 +21,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
  * - [getSessionCookie] / [setSessionCookie] — backward-compatible accessors
  *   used by [com.m57.hermescontrol.data.local.AuthManager] and the login flow.
  *
- * The session cookie is still exposed as a single string because the WS client
- * and a few REST paths reference it directly; internally it is just the
- * `hermes_session_at` cookie from the active scope.
+ * A single-value accessor remains for compatibility with migrated sessions;
+ * internally it resolves the dashboard access cookie from the active scope,
+ * including HTTPS prefix variants.
  */
 object CookieManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -58,37 +57,36 @@ object CookieManager {
         runBlocking(scope.coroutineContext) { j.useStore(serverId) }
     }
 
-    /** Read the current `hermes_session_at` cookie value (or null). */
+    /** Read the current dashboard access-cookie value (or null). */
     fun getSessionCookie(): String? = jar?.getSessionCookieValue()
 
     /**
-     * Set the `hermes_session_at` session cookie for the active scope.
-     * [host] should be the dashboard host so the cookie matches REST requests.
+     * Set the session cookie for the active scope and canonical endpoint.
+     * HTTPS endpoints produce Secure cookies that cannot be sent over HTTP.
      */
     fun setSessionCookie(
         rawValue: String?,
-        host: String,
+        endpoint: ServerEndpoint,
     ) {
         val j = jar ?: return
         if (rawValue.isNullOrBlank()) {
-            // Clearing: drop the session cookie (and any other cookies) for the
-            // active scope — equivalent to the old AuthManager nulling the
-            // session-cookie pref.
             j.clearActive()
             return
         }
-        val cookie =
+        val builder =
             Cookie
                 .Builder()
                 .name(SESSION_COOKIE_NAME)
                 .value(rawValue)
-                .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
-                .hostOnlyDomain(host)
-                .path("/")
+                .expiresAt(
+                    System.currentTimeMillis() +
+                        10L * 365 * 24 * 60 * 60 * 1000,
+                )
+                .hostOnlyDomain(endpoint.baseUrl.host)
+                .path(endpoint.baseUrl.encodedPath)
                 .httpOnly()
-                .build()
-        val url = "http://$host/".toHttpUrl()
-        j.saveFromResponse(url, listOf(cookie))
+        if (endpoint.baseUrl.isHttps) builder.secure()
+        j.saveFromResponse(endpoint.baseUrl, listOf(builder.build()))
     }
 
     /** Evict expired (non-session) cookies for the active scope. */

@@ -254,8 +254,7 @@
     <string name="connect_error_malformed">Malformed pairing string — expected URL or Base64-encoded JSON</string>
     <string name="connect_error_parse_failed">Failed to parse pairing string: %1$s</string>
 
-    <string name="connect_pairing_string">Pairing string</string>
-    <string name="connect_placeholder_pairing">Paste hermes://\u2026 or Base64 config</string>
+    <string name="connect_placeholder_pairing">Paste hermes://… or Base64 config</string>
     <string name="connect_save_profile">Save connection profile</string>
     <string name="connect_profile_name">Profile Name</string>
     <string name="connect_placeholder_profile_name">e.g. Local Hermit, Remote Server</string>
@@ -264,6 +263,9 @@
     <string name="connect_placeholder_token">API token</string>
     <string name="connect_placeholder_host">127.0.0.1</string>
     <string name="connect_placeholder_port">9119</string>
+    <string name="connect_server_url_label">Server URL</string>
+    <string name="connect_placeholder_server_url">https://host:9119/ or http://127.0.0.1:9119/</string>
+    <string name="connect_error_url_invalid">Enter a valid server URL (https:// or http://)</string>
     <string name="action_connect">Connect</string>
 
     <!-- Kanban Screen -->
@@ -807,6 +809,7 @@
     <!-- Auth Login Screen -->
     <string name="auth_login_title">Auth Login</string>
     <string name="auth_login_desc">Connect to your Hermes dashboard</string>
+    <string name="auth_login_base_url_label">Server URL</string>
     <string name="auth_login_host_label">Host</string>
     <string name="auth_login_port_label">Port</string>
     <string name="auth_login_token_label">Session Token</string>
@@ -821,6 +824,8 @@
     <string name="auth_login_error_username_required">Username is required</string>
     <string name="auth_login_error_password_required">Password is required</string>
     <string name="auth_login_error_unreachable">Dashboard unreachable — check IP and port</string>
+    <string name="auth_login_error_oauth_unsupported">OAuth login (Nous Portal) is not supported in this app version yet. Switch the dashboard to basic auth or token mode. (issue #639)</string>
+    <string name="auth_login_oauth_coming_soon">This dashboard uses OAuth (Nous Portal) login, which is coming soon to Hermes Mobile.</string>
     <string name="auth_login_existing_profiles_title">Use existing logged-in profile:</string>
     <string name="auth_login_use_profile">Enter as %1$s</string>
 

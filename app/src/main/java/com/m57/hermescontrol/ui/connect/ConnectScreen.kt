@@ -172,23 +172,6 @@ fun ConnectScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.connect_pairing_string),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                var pairingString by remember { mutableStateOf("") }
-                OutlinedTextField(
-                    value = pairingString,
-                    onValueChange = {
-                        pairingString = it
-                        if (it.isNotBlank()) viewModel.onPairingString(it)
-                    },
-                    placeholder = { Text(stringResource(R.string.connect_placeholder_pairing)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
                 // Error message
                 AnimatedVisibility(
                     visible = state.errorMessage != null,
@@ -276,6 +259,31 @@ fun ConnectScreen(
                     ) {
                         HorizontalDivider()
                         OutlinedTextField(
+                            value = state.baseUrl,
+                            onValueChange = viewModel::onBaseUrlChange,
+                            label = { Text(stringResource(R.string.connect_server_url_label)) },
+                            placeholder = { Text(stringResource(R.string.connect_placeholder_server_url)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        // Cleartext transport warning
+                        AnimatedVisibility(
+                            visible = state.transportWarning != null,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                        ) {
+                            state.transportWarning?.let { warning ->
+                                Text(
+                                    text = warning,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    textAlign = TextAlign.Start,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                        OutlinedTextField(
                             value = state.token,
                             onValueChange = viewModel::onTokenChange,
                             label = { Text(stringResource(R.string.settings_field_token)) },
@@ -305,23 +313,6 @@ fun ConnectScreen(
                                     )
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        OutlinedTextField(
-                            value = state.host,
-                            onValueChange = viewModel::onHostChange,
-                            label = { Text(stringResource(R.string.settings_field_host)) },
-                            placeholder = { Text(stringResource(R.string.connect_placeholder_host)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        OutlinedTextField(
-                            value = state.port,
-                            onValueChange = viewModel::onPortChange,
-                            label = { Text(stringResource(R.string.settings_field_port)) },
-                            placeholder = { Text(stringResource(R.string.connect_placeholder_port)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }

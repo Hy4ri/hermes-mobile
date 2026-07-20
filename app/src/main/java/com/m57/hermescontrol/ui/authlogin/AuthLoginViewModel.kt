@@ -9,6 +9,10 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.AuthPayloads
+import com.m57.hermescontrol.data.remote.CleartextPolicy
+import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.Dispatchers
@@ -18,28 +22,40 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 
 /**
- * What auth the dashboard requires.
+ * What auth the dashboard requires. Derived authoritatively from
+ * `GET /api/status` (`auth_required` + `auth_providers`), not by sniffing
+ * redirects — the status JSON is the source of truth.
  */
 enum class DashboardAuthMode {
-    /** Dashboard has no auth gate — just needs a session token. */
+    /** Dashboard has no auth gate (loopback / `--insecure`) — just needs a session token. */
     TOKEN_ONLY,
 
-    /** Dashboard has basic auth — needs username + password (and possibly a token). */
+    /** Dashboard has basic auth (gated `0.0.0.0` bind) — needs username + password. */
     BASIC_AUTH,
 
     /** Dashboard requires both basic auth credentials and a session token. */
     ALL,
+
+    /**
+     * Dashboard uses OAuth via Nous Portal (gated `0.0.0.0` bind).
+     *
+     * TODO: implement the OAuth browser flow + WS ticket minting. Until then the
+     * UI renders a "coming soon" state and blocks connect. Tracked in issue #639.
+     */
+    OAUTH,
 }
 
 data class AuthLoginUiState(
-    val host: String = "127.0.0.1",
-    val port: String = "9119",
+    val baseUrl: String = ServerEndpoint.DEFAULT_BASE_URL,
+    val transportWarning: String? = null,
     val token: String = "",
     val username: String = "",
     val password: String = "",
@@ -57,8 +73,7 @@ class AuthLoginViewModel(
     private val _uiState =
         MutableStateFlow(
             AuthLoginUiState(
-                host = AuthManager.getHost(),
-                port = AuthManager.getPort().toString(),
+                baseUrl = AuthManager.getBaseUrl(),
             ),
         )
     val uiState: StateFlow<AuthLoginUiState> = _uiState.asStateFlow()
@@ -91,23 +106,18 @@ class AuthLoginViewModel(
     private val probeClient: OkHttpClient =
         com.m57.hermescontrol.data.remote.OkHttpProvider.probe
 
-    fun onHostChange(value: String) {
-        _uiState.update { it.copy(host = value.trim(), errorMessage = null, authMode = null) }
+    fun onBaseUrlChange(value: String) {
+        val trimmed = value.trim()
+        val warning =
+            runCatching {
+                ServerEndpoint.parse(trimmed, CleartextPolicy.ALLOW_WITH_WARNING).securityWarning
+            }.getOrNull()
+        _uiState.update { it.copy(baseUrl = trimmed, transportWarning = warning, errorMessage = null, authMode = null) }
     }
 
     /** Reset ephemeral connection state (called when screen leaves composition). */
     fun clearConnectionState() {
         _uiState.update { it.copy(connectionSuccess = false, errorMessage = null, isLoading = false) }
-    }
-
-    fun onPortChange(value: String) {
-        _uiState.update {
-            it.copy(
-                port = value.filter { c -> c.isDigit() },
-                errorMessage = null,
-                authMode = null,
-            )
-        }
     }
 
     fun onTokenChange(value: String) {
@@ -124,16 +134,18 @@ class AuthLoginViewModel(
 
     /**
      * Step 1: Probe the dashboard to detect what auth it needs.
+     *
+     * Uses the public `GET /api/status` endpoint as the authoritative source:
+     * it reports `auth_required` (gate engaged on non-loopback binds) and
+     * `auth_providers` (e.g. ["basic"], ["oauth"], []). We map that to a
+     * [DashboardAuthMode] instead of sniffing redirects, which is a heuristic.
      */
     fun probe() {
         val state = _uiState.value
-        if (state.host.isBlank()) {
-            _uiState.update { it.copy(errorMessage = app.getString(R.string.auth_login_error_host_required)) }
-            return
-        }
-        val port = state.port.toIntOrNull()
-        if (port == null || port !in 1..65535) {
-            _uiState.update { it.copy(errorMessage = app.getString(R.string.auth_login_error_port_invalid)) }
+        val endpoint =
+            runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
+        if (endpoint == null) {
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_url_invalid)) }
             return
         }
 
@@ -142,7 +154,7 @@ class AuthLoginViewModel(
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    probeDashboardInternal(state.host, port)
+                    probeDashboardInternal(endpoint)
                 }
             _uiState.update {
                 it.copy(
@@ -169,87 +181,99 @@ class AuthLoginViewModel(
     )
 
     /**
-     * Probes the dashboard to determine [DashboardAuthMode].
-     * Returns null if the dashboard is unreachable.
-     * When [ProbeResult.extractedToken] is non-null, the session token
-     * was found embedded in the dashboard SPA HTML and can be auto-populated.
+     * Derives the [DashboardAuthMode] from the authoritative `/api/status` fields.
+     *
+     * - Gate down (loopback / `--insecure`): caller decides TOKEN_ONLY vs ALL
+     *   based on whether the SPA embedded a token, so this returns a sentinel
+     *   [DashboardAuthMode.ALL] placeholder that [probeDashboardInternal] refines.
+     * - Gate up (non-loopback): pick from the provider list (oauth > basic).
+     *
+     * Internal + pure so it is unit-testable without a live server.
      */
-    private fun probeDashboardInternal(
-        host: String,
-        port: Int,
-    ): ProbeResult? {
-        val baseUrl = "http://$host:$port"
+    internal fun deriveAuthMode(
+        authRequired: Boolean,
+        providers: List<String>,
+    ): DashboardAuthMode =
+        if (!authRequired) {
+            // Refined by the caller once it knows whether the SPA embedded a token.
+            DashboardAuthMode.ALL
+        } else {
+            when {
+                providers.contains("oauth") -> DashboardAuthMode.OAUTH
+                providers.contains("basic") -> DashboardAuthMode.BASIC_AUTH
+                else -> DashboardAuthMode.BASIC_AUTH // gate up, unknown provider → basic fallback
+            }
+        }
 
-        // Step 1: Check if dashboard is reachable via /api/status (always public)
-        val statusOk =
+    /**
+     * Probes `GET /api/status` and derives the [DashboardAuthMode] from the
+     * authoritative `auth_required` + `auth_providers` fields.
+     *
+     * Returns null if the dashboard is unreachable. When [ProbeResult.extractedToken]
+     * is non-null, the session token was found embedded in the dashboard SPA HTML
+     * (loopback mode only) and can be auto-populated.
+     */
+    private fun probeDashboardInternal(endpoint: ServerEndpoint): ProbeResult? {
+        // Step 1: reachability + auth mode from the public status endpoint.
+        val statusJson =
             try {
                 val req =
                     Request
                         .Builder()
-                        .url("$baseUrl/api/status")
+                        .url(endpoint.resolve("api/status").toString())
                         .get()
                         .build()
                 val resp = probeClient.newCall(req).execute()
-                resp.isSuccessful
+                if (!resp.isSuccessful) return null
+                resp.body.string()
             } catch (e: Exception) {
                 Log.w(TAG, "Status probe failed: ${e.message}")
                 return null // Dashboard unreachable
             }
 
-        if (!statusOk) return null
+        val authRequired: Boolean
+        val providers: List<String>
+        try {
+            val node = OkHttpProvider.json.parseToJsonElement(statusJson).jsonObject
+            authRequired = node["auth_required"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+            providers =
+                node["auth_providers"]
+                    ?.jsonArray
+                    ?.mapNotNull { it.jsonPrimitive.content }
+                    .orEmpty()
+        } catch (e: Exception) {
+            Log.w(TAG, "Status parse failed: ${e.message}")
+            return null
+        }
 
-        // Step 2: Probe / to see if it redirects to /login (basic auth) or returns SPA
-        val needsBasicAuth =
+        // No gate (loopback / --insecure): token mode. Try to grab the embedded token.
+        if (!authRequired) {
+            var extractedToken: String? = null
             try {
-                val req =
+                val spaReq =
                     Request
                         .Builder()
-                        .url(baseUrl)
+                        .url(endpoint.resolve("").toString())
                         .get()
                         .build()
-                val resp = probeClient.newCall(req).execute()
-                val code = resp.code
-                val location = resp.header("location", "")
-                // 302 to /login means basic auth is active
-                code == 302 && location?.contains("/login", ignoreCase = true) == true
-            } catch (e: Exception) {
-                Log.w(TAG, "SPA probe failed: ${e.message}")
-                false
-            }
-
-        // Step 3: Extract token from SPA HTML (if reachable without redirect)
-        var extractedToken: String? = null
-        if (!needsBasicAuth) {
-            try {
-                val req =
-                    Request
-                        .Builder()
-                        .url(baseUrl)
-                        .get()
-                        .build()
-                val resp = probeClient.newCall(req).execute()
-                val body = resp.body.string()
-                // Extract __HERMES_SESSION_TOKEN__ from the SPA HTML
+                val spaResp = probeClient.newCall(spaReq).execute()
+                val body = spaResp.body.string()
                 val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__\s*=\s*"([^"]+)"""").find(body)
                 extractedToken = tokenMatch?.groupValues?.getOrNull(1)
-                if (extractedToken == null) {
-                    Log.w(TAG, "SPA has no __HERMES_SESSION_TOKEN__ — mode might require both auth")
-                }
             } catch (e: Exception) {
                 Log.w(TAG, "SPA token extraction failed: ${e.message}")
             }
+            val mode =
+                if (extractedToken != null) {
+                    DashboardAuthMode.TOKEN_ONLY
+                } else {
+                    DashboardAuthMode.ALL
+                }
+            return ProbeResult(authMode = mode, extractedToken = extractedToken)
         }
 
-        val authMode =
-            if (needsBasicAuth) {
-                DashboardAuthMode.BASIC_AUTH
-            } else if (extractedToken != null) {
-                DashboardAuthMode.TOKEN_ONLY
-            } else {
-                DashboardAuthMode.ALL
-            }
-
-        return ProbeResult(authMode = authMode, extractedToken = extractedToken)
+        // Gate engaged (non-loopback bind). Derive from the provider list.
+        return ProbeResult(authMode = deriveAuthMode(authRequired, providers))
     }
 
     /**
@@ -265,7 +289,9 @@ class AuthLoginViewModel(
      */
     fun connect() {
         val state = _uiState.value
-        val port = state.port.toIntOrNull() ?: return
+        val endpoint =
+            runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
+                ?: return
 
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
@@ -274,16 +300,27 @@ class AuthLoginViewModel(
                 withContext(Dispatchers.IO) {
                     when (state.authMode) {
                         DashboardAuthMode.TOKEN_ONLY -> {
-                            val token = connectTokenOnly(state.host, port, state.token)
+                            val token = connectTokenOnly(endpoint, state.token)
                             if (token != null) ConnectResult(wsCredential = token) else null
                         }
 
                         DashboardAuthMode.BASIC_AUTH -> {
-                            connectBasicAuth(state.host, port, state.username, state.password)
+                            connectBasicAuth(endpoint, state.username, state.password)
                         }
 
                         DashboardAuthMode.ALL -> {
-                            connectBasicAuth(state.host, port, state.username, state.password)
+                            connectBasicAuth(endpoint, state.username, state.password)
+                        }
+
+                        DashboardAuthMode.OAUTH -> {
+                            // TODO(issue #639): implement OAuth browser flow + WS ticket minting.
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = app.getString(R.string.auth_login_error_oauth_unsupported),
+                                )
+                            }
+                            null
                         }
 
                         null -> {
@@ -293,8 +330,7 @@ class AuthLoginViewModel(
                 }
 
             if (result != null) {
-                AuthManager.setHost(state.host)
-                AuthManager.setPort(port)
+                AuthManager.setBaseUrl(state.baseUrl)
                 AuthManager.setToken(result.wsCredential)
                 if (state.authMode == DashboardAuthMode.TOKEN_ONLY) {
                     // Loopback mode — no session cookie; ensure any stale one
@@ -319,8 +355,7 @@ class AuthLoginViewModel(
      * Validate the token by calling /api/status with it.
      */
     private suspend fun connectTokenOnly(
-        host: String,
-        port: Int,
+        endpoint: ServerEndpoint,
         token: String,
     ): String? {
         if (token.isBlank()) {
@@ -330,7 +365,7 @@ class AuthLoginViewModel(
             return null
         }
 
-        val tempApi = ApiClient.createTempService(host, port, token)
+        val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), token)
         val result = safeApiCall { tempApi.getSessions() }
 
         return when (result) {
@@ -372,8 +407,7 @@ class AuthLoginViewModel(
      * Returns the WS ticket and the session cookie for REST auth.
      */
     private fun connectBasicAuth(
-        host: String,
-        port: Int,
+        endpoint: ServerEndpoint,
         username: String,
         password: String,
     ): ConnectResult? {
@@ -390,26 +424,22 @@ class AuthLoginViewModel(
             return null
         }
 
-        val baseUrl = "http://$host:$port"
-        val jsonBody = """{"provider":"basic","username":"$username","password":"$password","next":""}"""
+        val jsonBody = AuthPayloads.passwordLogin(username, password)
 
         try {
-            // Step 1: Authenticate via the password login endpoint to get a session cookie
-            val loginClient =
-                com.m57.hermescontrol.data.remote.OkHttpProvider.probe
-                    .newBuilder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(10, TimeUnit.SECONDS)
-                    .build()
-
+            // Step 1: Authenticate via the password login endpoint to get a session cookie.
+            // IMPORTANT: use the SHARED OkHttpProvider.probe client (it carries the
+            // persistent CookieManager.cookieJar). Do NOT build a fresh client here —
+            // a separate client would not share the jar, so the Set-Cookie from this
+            // login would never reach the ws-ticket request below and auth would fail.
             val loginReq =
                 Request
                     .Builder()
-                    .url("$baseUrl/auth/password-login")
+                    .url(endpoint.resolve("auth/password-login").toString())
                     .header("Content-Type", "application/json")
                     .post(jsonBody.toRequestBody())
                     .build()
-            val loginResp = loginClient.newCall(loginReq).execute()
+            val loginResp = OkHttpProvider.probe.newCall(loginReq).execute()
 
             if (!loginResp.isSuccessful) {
                 val msg =
@@ -421,27 +451,18 @@ class AuthLoginViewModel(
                 _uiState.update { it.copy(isLoading = false, errorMessage = msg) }
                 return null
             }
-
-            // The session cookie is captured automatically by the shared
-            // CookieJar (issue #470) attached to OkHttpProvider.probe — no
-            // manual Set-Cookie parsing needed. We still mint a WS ticket below
-            // using whatever cookie the jar carries into that request.
+            // The session cookie is now captured in the shared CookieManager.cookieJar
+            // (issue #470). The ws-ticket request below uses the same jar, so the
+            // authenticated session carries over automatically.
 
             // Step 3: Mint a WebSocket ticket using the session cookie
-            val ticketClient =
-                com.m57.hermescontrol.data.remote.OkHttpProvider.base
-                    .newBuilder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(10, TimeUnit.SECONDS)
-                    .build()
-
             val ticketReq =
                 Request
                     .Builder()
-                    .url("$baseUrl/api/auth/ws-ticket")
+                    .url(endpoint.resolve("api/auth/ws-ticket").toString())
                     .post("{}".toRequestBody())
                     .build()
-            val ticketResp = ticketClient.newCall(ticketReq).execute()
+            val ticketResp = OkHttpProvider.probe.newCall(ticketReq).execute()
 
             if (!ticketResp.isSuccessful) {
                 _uiState.update {

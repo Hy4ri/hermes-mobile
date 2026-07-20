@@ -7,6 +7,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -18,11 +19,30 @@ class ServerStoreMigration(
     companion object {
         private const val PREFS_FILE = "hermes_secure_prefs"
         private const val KEY_MIGRATED = "migrated_to_datastore"
+        private val LEGACY_KEYS =
+            setOf(
+                "host",
+                "port",
+                "auto_reconnect",
+                "theme_preference",
+                "use_dynamic_colors",
+                "theme_preset",
+                "bottom_nav_display_mode",
+                "bottom_nav_items",
+                "connection_profiles",
+                "selected_profile_id",
+                "pinned_models",
+                "ws_auth_param",
+                "typing_effect_enabled",
+                "typing_effect_delay_ms",
+                "auth_token",
+            )
     }
 
     override suspend fun shouldMigrate(currentData: ServerStoreState): Boolean {
         val prefs = getPrefs() ?: return false
-        return !prefs.getBoolean(KEY_MIGRATED, false)
+        if (prefs.getBoolean(KEY_MIGRATED, false)) return false
+        return LEGACY_KEYS.any(prefs::contains)
     }
 
     override suspend fun migrate(currentData: ServerStoreState): ServerStoreState {
@@ -92,13 +112,24 @@ class ServerStoreMigration(
         return currentData.copy(
             host = host,
             port = port,
+            baseUrl = ServerEndpoint.fromLegacy(host, port).baseUrl.toString(),
             autoReconnect = autoReconnect,
             themePreference = themePreference,
             useDynamicColors = useDynamicColors,
             themePreset = themePreset,
             bottomNavDisplayMode = bottomNavDisplayMode,
             bottomNavItems = bottomNavItems,
-            connectionProfiles = connectionProfiles,
+            connectionProfiles =
+                connectionProfiles.map { profile ->
+                    profile.copy(
+                        baseUrl =
+                            profile.baseUrl
+                                ?: ServerEndpoint.fromLegacy(
+                                    profile.host,
+                                    profile.port,
+                                ).baseUrl.toString(),
+                    )
+                },
             selectedProfileId = selectedProfileId,
             pinnedModels = pinnedModels,
             wsAuthParam = wsAuthParam,

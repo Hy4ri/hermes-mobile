@@ -8,9 +8,10 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,13 +20,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 data class ConnectUiState(
     val token: String = "",
-    val host: String = "127.0.0.1",
-    val port: String = "9119",
+    val baseUrl: String = ServerEndpoint.DEFAULT_BASE_URL,
+    val transportWarning: String? = null,
     val isConnecting: Boolean = false,
     val connectionSuccess: Boolean = false,
     val errorMessage: String? = null,
@@ -47,16 +46,14 @@ class ConnectViewModel(
 
     fun loadSavedValues() {
         val savedToken = AuthManager.getToken() ?: ""
-        val savedHost = AuthManager.getHost()
-        val savedPort = AuthManager.getPort()
+        val savedBaseUrl = AuthManager.getBaseUrl()
         val profiles = AuthManager.getConnectionProfiles()
         val selectedId = AuthManager.getSelectedProfileId()
         val selectedProfile = profiles.firstOrNull { it.id == selectedId }
         _uiState.update {
             it.copy(
                 token = savedToken,
-                host = selectedProfile?.host ?: savedHost,
-                port = (selectedProfile?.port ?: savedPort).toString(),
+                baseUrl = selectedProfile?.resolvedBaseUrl ?: savedBaseUrl,
                 profiles = profiles,
                 selectedProfile = selectedProfile,
                 profileName = selectedProfile?.name ?: "",
@@ -79,8 +76,7 @@ class ConnectViewModel(
             it.copy(
                 selectedProfile = profile,
                 profileName = profile.name,
-                host = profile.host,
-                port = profile.port.toString(),
+                baseUrl = profile.resolvedBaseUrl,
                 token = token,
             )
         }
@@ -90,12 +86,27 @@ class ConnectViewModel(
         _uiState.update { it.copy(token = value.trim(), errorMessage = null) }
     }
 
+    fun onBaseUrlChange(value: String) {
+        val trimmed = value.trim()
+        val warning =
+            runCatching {
+                ServerEndpoint.parse(trimmed, CleartextPolicy.ALLOW_WITH_WARNING).securityWarning
+            }.getOrNull()
+        _uiState.update { it.copy(baseUrl = trimmed, transportWarning = warning, errorMessage = null) }
+    }
+
     fun onHostChange(value: String) {
-        _uiState.update { it.copy(host = value.trim(), errorMessage = null) }
+        val endpoint = AuthManager.endpoint()
+        val next = endpoint.baseUrl.newBuilder().host(value.trim()).build().toString()
+        onBaseUrlChange(next)
     }
 
     fun onPortChange(value: String) {
-        _uiState.update { it.copy(port = value.filter { c -> c.isDigit() }, errorMessage = null) }
+        val portText = value.filter { c -> c.isDigit() }
+        val port = portText.toIntOrNull() ?: return
+        val endpoint = AuthManager.endpoint()
+        val next = endpoint.baseUrl.newBuilder().port(port).build().toString()
+        onBaseUrlChange(next)
     }
 
     fun connect() {
@@ -104,13 +115,10 @@ class ConnectViewModel(
             _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_token_required)) }
             return
         }
-        if (state.host.isBlank()) {
-            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_host_required)) }
-            return
-        }
-        val port = state.port.toIntOrNull()
-        if (port == null || port !in 1..65535) {
-            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_port_invalid)) }
+        val endpoint =
+            runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
+        if (endpoint == null) {
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_url_invalid)) }
             return
         }
 
@@ -119,17 +127,14 @@ class ConnectViewModel(
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    val tempApi = ApiClient.createTempService(state.host, port, state.token)
+                    val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), state.token)
                     safeApiCall { tempApi.getStatus() }
                 }
             when (result) {
                 is NetworkResult.Success -> {
                     // Persist credentials to the selected (Default) profile upon successful verification.
-                    // setToken/setHost/setPort delegate to the currently-selected profile, which is
-                    // always non-null after issue #478 (never the legacy standalone path).
                     AuthManager.setToken(state.token)
-                    AuthManager.setHost(state.host)
-                    AuthManager.setPort(port)
+                    AuthManager.setBaseUrl(state.baseUrl)
                     ApiClient.rebuild()
 
                     if (state.saveProfile) {
@@ -143,12 +148,11 @@ class ConnectViewModel(
                             }
                         val targetProfile =
                             if (existingIndex >= 0) {
-                                currentProfiles[existingIndex].copy(host = state.host, port = port)
+                                currentProfiles[existingIndex].copy(baseUrl = state.baseUrl)
                             } else {
                                 ConnectionProfile(
                                     name = state.profileName,
-                                    host = state.host,
-                                    port = port,
+                                    baseUrl = state.baseUrl,
                                 )
                             }
                         val updatedProfiles =
@@ -271,99 +275,6 @@ class ConnectViewModel(
                         }
                     _uiState.update { it.copy(isConnecting = false, errorMessage = msg) }
                 }
-            }
-        }
-    }
-
-    fun onPairingString(value: String) {
-        val trimmed = value.trim()
-        if (trimmed.isBlank()) return
-
-        try {
-            if (trimmed.startsWith("hermes://connect?", ignoreCase = true)) {
-                val uri = android.net.Uri.parse(trimmed)
-                val host = uri.getQueryParameter("host")
-                val port = uri.getQueryParameter("port")
-                val token = uri.getQueryParameter("token")
-                if (host != null && port != null && token != null) {
-                    _uiState.update {
-                        it.copy(
-                            host = host,
-                            port = port,
-                            token = token,
-                            errorMessage = null,
-                        )
-                    }
-                    connect()
-                    return
-                }
-            }
-
-            // Try decoding as Base64 JSON
-            try {
-                val decodedBytes = android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
-                val decodedString = String(decodedBytes, Charsets.UTF_8)
-                if (decodedString.startsWith("{") && decodedString.endsWith("}")) {
-                    val json = OkHttpProvider.json.parseToJsonElement(decodedString).jsonObject
-                    val host = json["host"]?.jsonPrimitive?.content
-                    val port = json["port"]?.jsonPrimitive?.content
-                    val token = json["token"]?.jsonPrimitive?.content
-                    if (host != null && port != null && token != null) {
-                        _uiState.update {
-                            it.copy(
-                                host = host,
-                                port = port,
-                                token = token,
-                                errorMessage = null,
-                            )
-                        }
-                        connect()
-                        return
-                    }
-                    // Decoded valid JSON but missing required fields
-                    _uiState.update {
-                        it.copy(
-                            errorMessage = app.getString(R.string.connect_error_missing_fields),
-                        )
-                    }
-                    return
-                }
-                // Decoded to valid string but not JSON shape — not a pairing string
-                _uiState.update {
-                    it.copy(
-                        errorMessage = app.getString(R.string.connect_error_malformed),
-                    )
-                }
-                return
-            } catch (e: IllegalArgumentException) {
-                // Not valid Base64 — check if input looks like a raw token
-                if (trimmed.length >= 32 && trimmed.matches(Regex("[A-Za-z0-9_\\-]+"))) {
-                    _uiState.update { it.copy(token = trimmed, errorMessage = null) }
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            errorMessage = app.getString(R.string.connect_error_malformed),
-                        )
-                    }
-                }
-                return
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        errorMessage =
-                            String.format(
-                                app.getString(R.string.connect_error_parse_failed),
-                                e.message ?: "",
-                            ),
-                    )
-                }
-                return
-            }
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    errorMessage = String.format(app.getString(R.string.connect_error_parse_failed), e.message ?: ""),
-                )
             }
         }
     }

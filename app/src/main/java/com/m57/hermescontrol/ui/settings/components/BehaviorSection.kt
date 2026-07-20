@@ -22,7 +22,7 @@ internal fun BehaviorSection(
     autoReconnect: Boolean,
     onAutoReconnectChange: (Boolean) -> Unit,
 ) {
-    SectionCard(title = stringResource(R.string.settings_sec_behavior)) {
+    SectionCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

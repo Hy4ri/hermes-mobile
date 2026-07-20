@@ -224,7 +224,6 @@
     <string name="connect_error_malformed">잘못된 페어링 문자열 — URL 또는 Base64 JSON이어야 함</string>
     <string name="connect_error_parse_failed">페어링 문자열 파싱 실패: %1$s</string>
 
-    <string name="connect_pairing_string">페어링 문자열</string>
     <string name="connect_placeholder_pairing">hermes://… 또는 Base64 설정 붙여넣기</string>
     <string name="connect_save_profile">연결 프로필 저장</string>
     <string name="connect_profile_name">프로필 이름</string>

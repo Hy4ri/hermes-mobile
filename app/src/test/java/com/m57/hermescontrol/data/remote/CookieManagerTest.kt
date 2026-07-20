@@ -24,6 +24,10 @@ class CookieManagerTest {
         return jar
     }
 
+    private fun ep(host: String): ServerEndpoint {
+        return ServerEndpoint.fromLegacy(host, 9119)
+    }
+
     @After
     fun tearDown() {
         CookieManager.resetForTest()
@@ -32,7 +36,7 @@ class CookieManagerTest {
     @Test
     fun setThenGetSessionCookie_roundTrips() {
         fakeJar()
-        CookieManager.setSessionCookie("sess-xyz", "dashboard.local")
+        CookieManager.setSessionCookie("sess-xyz", ep("dashboard.local"))
 
         assertEquals("sess-xyz", CookieManager.getSessionCookie())
     }
@@ -40,10 +44,10 @@ class CookieManagerTest {
     @Test
     fun setSessionCookie_nullClearsValue() {
         fakeJar()
-        CookieManager.setSessionCookie("sess-xyz", "dashboard.local")
+        CookieManager.setSessionCookie("sess-xyz", ep("dashboard.local"))
         assertEquals("sess-xyz", CookieManager.getSessionCookie())
 
-        CookieManager.setSessionCookie(null, "dashboard.local")
+        CookieManager.setSessionCookie(null, ep("dashboard.local"))
         assertNull(CookieManager.getSessionCookie())
     }
 
@@ -51,7 +55,7 @@ class CookieManagerTest {
     fun setSessionCookie_hostScoped_onlyMatchesThatHost() =
         runTest {
             val jar = fakeJar()
-            CookieManager.setSessionCookie("sess-xyz", "dashboard.local")
+            CookieManager.setSessionCookie("sess-xyz", ep("dashboard.local"))
 
             val onHost =
                 jar.loadForRequest(
@@ -68,7 +72,7 @@ class CookieManagerTest {
     fun pruneServerCache_delegatesToJar() =
         runTest {
             val jar = fakeJar()
-            CookieManager.setSessionCookie("keep-me", "dashboard.local")
+            CookieManager.setSessionCookie("keep-me", ep("dashboard.local"))
             CookieManager.pruneServerCache()
             // Session cookie is preserved by prune.
             assertEquals("keep-me", CookieManager.getSessionCookie())
@@ -78,7 +82,7 @@ class CookieManagerTest {
     fun clearAll_wipesSession() =
         runTest {
             val jar = fakeJar()
-            CookieManager.setSessionCookie("bye", "dashboard.local")
+            CookieManager.setSessionCookie("bye", ep("dashboard.local"))
             CookieManager.clearAll()
             assertNull(CookieManager.getSessionCookie())
         }

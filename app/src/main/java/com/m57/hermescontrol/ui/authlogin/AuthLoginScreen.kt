@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -153,27 +154,35 @@ fun AuthLoginScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Host field
+            // Server URL field
             OutlinedTextField(
-                value = state.host,
-                onValueChange = viewModel::onHostChange,
-                label = { Text(stringResource(R.string.auth_login_host_label)) },
+                value = state.baseUrl,
+                onValueChange = viewModel::onBaseUrlChange,
+                label = { Text(stringResource(R.string.auth_login_base_url_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 enabled = state.authMode == null,
             )
 
-            // Port field
-            OutlinedTextField(
-                value = state.port,
-                onValueChange = viewModel::onPortChange,
-                label = { Text(stringResource(R.string.auth_login_port_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                enabled = state.authMode == null,
-            )
+            // Cleartext transport warning
+            AnimatedVisibility(
+                visible = state.transportWarning != null,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                state.transportWarning?.let { warning ->
+                    Text(
+                        text = warning,
+                        style =
+                            MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.error,
+                            ),
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
 
             // Probe / probing indicator
             if (state.probing) {
@@ -261,6 +270,27 @@ fun AuthLoginScreen(
                 )
             }
 
+            // OAuth "coming soon" notice — shown for OAUTH mode (issue #639)
+            AnimatedVisibility(
+                visible = state.authMode == DashboardAuthMode.OAUTH,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.auth_login_oauth_coming_soon),
+                        style =
+                            MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        textAlign = TextAlign.Start,
+                    )
+                }
+            }
+
             // Error message
             AnimatedVisibility(
                 visible = state.errorMessage != null,
@@ -290,7 +320,7 @@ fun AuthLoginScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !state.isLoading && !state.probing,
+                enabled = !state.isLoading && !state.probing && state.authMode != DashboardAuthMode.OAUTH,
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(

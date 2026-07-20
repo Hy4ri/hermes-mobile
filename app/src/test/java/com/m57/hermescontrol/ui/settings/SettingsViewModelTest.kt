@@ -34,8 +34,8 @@ class SettingsViewModelTest {
 
     private val testProfiles =
         listOf(
-            ConnectionProfile("prof-1", "Work", "10.0.0.1", 9119),
-            ConnectionProfile("prof-2", "Home", "10.0.0.2", 9220),
+            ConnectionProfile(id = "prof-1", name = "Work", baseUrl = "http://10.0.0.1:9119/"),
+            ConnectionProfile(id = "prof-2", name = "Home", baseUrl = "http://10.0.0.2:9220/"),
         )
 
     private fun createViewModel(): SettingsViewModel {
@@ -56,6 +56,8 @@ class SettingsViewModelTest {
 
         every { AuthManager.getHost() } returns "127.0.0.1"
         every { AuthManager.getPort() } returns 9119
+        every { AuthManager.getBaseUrl() } returns "https://127.0.0.1:9119/"
+        every { AuthManager.getAppLanguage() } returns "system"
         every { AuthManager.getToken() } returns ""
         every { AuthManager.isAutoReconnect() } returns true
         every { AuthManager.getThemePreference() } returns ThemePreference.SYSTEM
@@ -70,6 +72,7 @@ class SettingsViewModelTest {
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
         every { AuthManager.setHost(any()) } returns Unit
         every { AuthManager.setPort(any()) } returns Unit
+        every { AuthManager.setBaseUrl(any()) } returns Unit
         every { AuthManager.setToken(any()) } returns Unit
         every { AuthManager.setAutoReconnect(any()) } returns Unit
         every { AuthManager.setThemePreference(any()) } returns Unit
@@ -80,10 +83,11 @@ class SettingsViewModelTest {
         every { AuthManager.setTypingEffectDelayMs(any()) } returns Unit
         every { AuthManager.setSelectedProfileId(any()) } answers {
             storedSelectedProfileId = firstArg()
-            Unit
         }
         every { AuthManager.saveConnectionProfiles(any()) } returns Unit
         every { AuthManager.setProfileToken(any(), any()) } returns Unit
+        every { AuthManager.getProfileToken(any()) } returns null
+        every { AuthManager.ensureDefaultProfile() } returns Unit
 
         // Ensure ApiClient.rebuild() is stubbed (used by selectProfile)
         every { ApiClient.rebuild() } returns Unit
@@ -225,8 +229,7 @@ class SettingsViewModelTest {
 
         viewModel.openAddProfile()
         viewModel.onDialogProfileNameChange("Test Profile")
-        viewModel.onDialogProfileHostChange("192.168.1.100")
-        viewModel.onDialogProfilePortChange("9999")
+        viewModel.onDialogProfileBaseUrlChange("https://192.168.1.100:9999/")
 
         viewModel.saveProfileFromDialog()
         testDispatcher.scheduler.advanceUntilIdle()

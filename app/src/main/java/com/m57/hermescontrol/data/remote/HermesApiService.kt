@@ -53,9 +53,6 @@ import com.m57.hermescontrol.data.model.OAuthProvidersResponse
 import com.m57.hermescontrol.data.model.OAuthStartResponse
 import com.m57.hermescontrol.data.model.OAuthSubmitRequest
 import com.m57.hermescontrol.data.model.OAuthSubmitResponse
-import com.m57.hermescontrol.data.model.PairingApproveRequest
-import com.m57.hermescontrol.data.model.PairingResponse
-import com.m57.hermescontrol.data.model.PairingRevokeRequest
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.PortalResponse
@@ -352,22 +349,6 @@ interface HermesApiService {
 
     @GET("api/plugins/hermes-achievements/recent-unlocks")
     suspend fun getRecentUnlocks(): Response<List<RecentUnlock>>
-
-    @GET("api/pairing")
-    suspend fun getPairing(): Response<PairingResponse>
-
-    @POST("api/pairing/approve")
-    suspend fun approvePairing(
-        @Body body: PairingApproveRequest,
-    ): Response<Unit>
-
-    @POST("api/pairing/revoke")
-    suspend fun revokePairing(
-        @Body body: PairingRevokeRequest,
-    ): Response<Unit>
-
-    @POST("api/pairing/clear-pending")
-    suspend fun clearPendingPairing(): Response<Unit>
 
     @GET("api/config/raw")
     suspend fun getRawConfig(): Response<RawConfigResponse>

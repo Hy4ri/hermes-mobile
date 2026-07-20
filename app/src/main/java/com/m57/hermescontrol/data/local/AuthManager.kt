@@ -454,7 +454,7 @@ object AuthManager {
         }
     }
 
-    /** Compatibility accessors for legacy pairing payloads. */
+    /** Convenience accessors for the resolved host/port (WebSocket + chat). */
     fun getHost(): String = serverStore.getLatestState().resolvedHost
 
     fun getPort(): Int = serverStore.getLatestState().resolvedPort

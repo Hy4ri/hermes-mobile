@@ -167,7 +167,6 @@ fun ConnectScreen(
                 }
             }
 
-            // Pairing (primary path)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

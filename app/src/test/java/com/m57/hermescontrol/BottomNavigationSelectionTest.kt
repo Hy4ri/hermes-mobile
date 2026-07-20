@@ -46,7 +46,6 @@ class BottomNavigationSelectionTest {
                 SkillsScreen,
                 LandingScreen,
                 AuthLoginScreen,
-                PairingCodeEntryScreen,
             )
         for (screen in others) {
             assertEquals(

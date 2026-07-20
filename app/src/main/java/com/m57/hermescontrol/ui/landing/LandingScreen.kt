@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +30,6 @@ import com.m57.hermescontrol.R
 @Composable
 fun LandingScreen(
     onAuthLogin: () -> Unit,
-    onPairingLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -95,16 +93,6 @@ fun LandingScreen(
             ) {
                 Text(
                     text = stringResource(R.string.landing_action_auth_login),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-
-            OutlinedButton(
-                onClick = onPairingLogin,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.landing_action_pairing_login),
                     style = MaterialTheme.typography.titleMedium,
                 )
             }

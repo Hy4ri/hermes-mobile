@@ -542,6 +542,15 @@ class HermesWsClientTest {
             "Gated WS ticket fetch should be attempted even without a bare cookie",
             connectLatch.await(5, TimeUnit.SECONDS),
         )
+        // The server-side onOpen latch fires a hair before the client receives
+        // the 101 handshake and WsListenerImpl sets CONNECTED — await the real
+        // status transition (as every other connect test does) instead of a
+        // racy read that can observe CONNECTING.
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
         assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
 
         ticketServer.shutdown()

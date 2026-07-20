@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.AuthPayloads
 import com.m57.hermescontrol.data.remote.CleartextPolicy
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
@@ -24,7 +25,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 
 /**
  * What auth the dashboard requires.
@@ -381,14 +381,11 @@ class AuthLoginViewModel(
         val jsonBody = AuthPayloads.passwordLogin(username, password)
 
         try {
-            // Step 1: Authenticate via the password login endpoint to get a session cookie
-            val loginClient =
-                com.m57.hermescontrol.data.remote.OkHttpProvider.probe
-                    .newBuilder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(10, TimeUnit.SECONDS)
-                    .build()
-
+            // Step 1: Authenticate via the password login endpoint to get a session cookie.
+            // IMPORTANT: use the SHARED OkHttpProvider.probe client (it carries the
+            // persistent CookieManager.cookieJar). Do NOT build a fresh client here —
+            // a separate client would not share the jar, so the Set-Cookie from this
+            // login would never reach the ws-ticket request below and auth would fail.
             val loginReq =
                 Request
                     .Builder()
@@ -396,7 +393,7 @@ class AuthLoginViewModel(
                     .header("Content-Type", "application/json")
                     .post(jsonBody.toRequestBody())
                     .build()
-            val loginResp = loginClient.newCall(loginReq).execute()
+            val loginResp = OkHttpProvider.probe.newCall(loginReq).execute()
 
             if (!loginResp.isSuccessful) {
                 val msg =
@@ -408,27 +405,18 @@ class AuthLoginViewModel(
                 _uiState.update { it.copy(isLoading = false, errorMessage = msg) }
                 return null
             }
-
-            // The session cookie is captured automatically by the shared
-            // CookieJar (issue #470) attached to OkHttpProvider.probe — no
-            // manual Set-Cookie parsing needed. We still mint a WS ticket below
-            // using whatever cookie the jar carries into that request.
+            // The session cookie is now captured in the shared CookieManager.cookieJar
+            // (issue #470). The ws-ticket request below uses the same jar, so the
+            // authenticated session carries over automatically.
 
             // Step 3: Mint a WebSocket ticket using the session cookie
-            val ticketClient =
-                com.m57.hermescontrol.data.remote.OkHttpProvider.base
-                    .newBuilder()
-                    .connectTimeout(10, TimeUnit.SECONDS)
-                    .readTimeout(10, TimeUnit.SECONDS)
-                    .build()
-
             val ticketReq =
                 Request
                     .Builder()
                     .url(endpoint.resolve("api/auth/ws-ticket").toString())
                     .post("{}".toRequestBody())
                     .build()
-            val ticketResp = ticketClient.newCall(ticketReq).execute()
+            val ticketResp = OkHttpProvider.probe.newCall(ticketReq).execute()
 
             if (!ticketResp.isSuccessful) {
                 _uiState.update {

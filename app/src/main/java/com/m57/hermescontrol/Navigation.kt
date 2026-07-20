@@ -158,7 +158,6 @@ private fun appEntryProvider(
     entry<SettingsAbout> {
         SettingsAboutPage(
             onBack = { NavigationController.goBack() },
-            onLogout = { /* handled by caller via goBack fallback */ },
             viewModel = viewModel { SettingsViewModel() },
         )
     }

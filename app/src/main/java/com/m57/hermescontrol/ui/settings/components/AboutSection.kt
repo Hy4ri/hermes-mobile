@@ -2,16 +2,11 @@ package com.m57.hermescontrol.ui.settings.components
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -23,7 +18,7 @@ import com.m57.hermescontrol.ui.settings.InfoRow
 import com.m57.hermescontrol.ui.settings.SectionCard
 
 @Composable
-internal fun AboutSection(onLogout: () -> Unit) {
+internal fun AboutSection() {
     SectionCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -67,20 +62,5 @@ internal fun AboutSection(onLogout: () -> Unit) {
                     color = MaterialTheme.colorScheme.primary,
                 ),
         )
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                ),
-        ) {
-            Text(stringResource(R.string.settings_logout))
-        }
     }
 }

@@ -1,6 +1,19 @@
 # GitGuardian configuration
-# Ignore test files — they contain fixture tokens, not real secrets
+# Ignore test files — they contain fixture tokens / base64 test payloads, not real secrets.
 paths-ignore:
+  # Full test source trees (unit + instrumented + variant-specific)
   - 'app/src/test/**'
+  - 'app/src/androidTest/**'
+  - 'app/src/testDebug/**'
+  - 'app/src/testRelease/**'
+  - 'app/src/androidTestDebug/**'
+  - 'app/src/androidTestRelease/**'
+  - '**/testFixtures/**'
+  # Kotlin test files by naming convention
   - '**/*Test.kt'
-  - '**/*test*'
+  - '**/*Tests.kt'
+  - '**/*Test*.kt'
+  - '**/*Spec.kt'
+  # AndroidManifest / resources under test
+  - '**/androidTest/**'
+  - '**/test/**'

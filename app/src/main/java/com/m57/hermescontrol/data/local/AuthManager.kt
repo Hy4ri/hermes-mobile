@@ -441,7 +441,16 @@ object AuthManager {
                         profile
                     }
                 }
-            state.copy(connectionProfiles = profiles)
+            // Also cache the login URL at the top level so that getBaseUrl() and
+            // the store-level resolvedBaseUrl (used by the profile list display)
+            // reflect the URL actually authenticated against, never the hardcoded
+            // loopback default. Fixes issue #647: a Default profile whose own
+            // baseUrl was never stamped must still resolve to this URL, not
+            // 127.0.0.1:9119.
+            state.copy(
+                baseUrl = normalized,
+                connectionProfiles = profiles,
+            )
         }
     }
 

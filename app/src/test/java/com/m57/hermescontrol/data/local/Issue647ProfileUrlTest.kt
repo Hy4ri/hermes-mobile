@@ -14,6 +14,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 
@@ -121,7 +122,43 @@ class Issue647ProfileUrlTest {
                 it.id == AuthManager.DEFAULT_PROFILE_ID
             }
         assertEquals(customUrl, default.resolveBaseUrl(null))
+        // Top-level + store-level (the profile-list display) must match too.
         assertEquals(customUrl, AuthManager.getBaseUrl())
+        assertEquals(customUrl, AuthManager.serverStore.getLatestState().resolvedBaseUrl)
+    }
+
+    @Test
+    fun authLogin_connect_sequence_resolvesToLoginUrl_notLoopback() {
+        // Mirror the exact AuthLoginViewModel.connect() sequence the user hits:
+        // the Default profile is seeded (with the loopback default) and the user
+        // logs in via a custom LAN URL. After connect the Default profile, the
+        // top-level base URL, and the store-level display must all reflect the
+        // login URL — never the hardcoded 127.0.0.1:9119 (issue #647).
+        val loginUrl = "http://192.168.1.57:9119/"
+        val loopback = "https://127.0.0.1:9119/"
+
+        // Seed the Default profile the way the app does (host/port -> loopback).
+        AuthManager.ensureDefaultProfile()
+        // Confirm the initial seed really is the loopback default.
+        val seeded =
+            AuthManager.getConnectionProfiles().first {
+                it.id == AuthManager.DEFAULT_PROFILE_ID
+            }
+        assertEquals(loopback, seeded.resolveBaseUrl(null))
+
+        // Replicate AuthLoginViewModel.connect(): select -> setBaseUrl(login) -> token.
+        AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
+        AuthManager.setBaseUrl(loginUrl)
+        AuthManager.setToken("ws-cred")
+
+        val default =
+            AuthManager.getConnectionProfiles().first {
+                it.id == AuthManager.DEFAULT_PROFILE_ID
+            }
+        assertEquals(loginUrl, default.resolveBaseUrl(null))
+        assertEquals(loginUrl, AuthManager.getBaseUrl())
+        assertEquals(loginUrl, AuthManager.serverStore.getLatestState().resolvedBaseUrl)
+        assertNotEquals(loopback, AuthManager.getBaseUrl())
     }
 
     @Test

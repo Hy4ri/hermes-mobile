@@ -37,7 +37,13 @@ fun ServerStoreState.selfHealed(): ServerStoreState {
 val ServerStoreState.resolvedBaseUrl: String
     get() {
         val selected = connectionProfiles.firstOrNull { it.id == selectedProfileId }
-        if (selected != null) return selected.resolvedBaseUrl
+        if (selected != null) {
+            // Prefer the selected profile's own URL, but fall back to the
+            // top-level login URL (and only then to legacy loopback) so a profile
+            // whose baseUrl was never stamped still shows the gateway used to
+            // authenticate, not the hardcoded 127.0.0.1:9119 (issue #647).
+            return selected.resolveBaseUrl(baseUrl)
+        }
         return baseUrl
             ?.let {
                 ServerEndpoint

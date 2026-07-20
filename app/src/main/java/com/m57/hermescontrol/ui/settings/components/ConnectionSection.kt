@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.ui.settings.SectionCard
 import com.m57.hermescontrol.ui.settings.SettingsUiState
 import com.m57.hermescontrol.ui.settings.SettingsViewModel
@@ -85,7 +86,7 @@ internal fun ConnectionSection(
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                             )
                             Text(
-                                text = profile.resolvedBaseUrl,
+                                text = profile.resolveBaseUrl(state.baseUrl),
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,

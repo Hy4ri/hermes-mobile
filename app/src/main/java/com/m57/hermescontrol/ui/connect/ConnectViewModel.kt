@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
+import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
@@ -53,7 +54,7 @@ class ConnectViewModel(
         _uiState.update {
             it.copy(
                 token = savedToken,
-                baseUrl = selectedProfile?.resolvedBaseUrl ?: savedBaseUrl,
+                baseUrl = selectedProfile?.resolveBaseUrl(savedBaseUrl) ?: savedBaseUrl,
                 profiles = profiles,
                 selectedProfile = selectedProfile,
                 profileName = selectedProfile?.name ?: "",
@@ -76,7 +77,7 @@ class ConnectViewModel(
             it.copy(
                 selectedProfile = profile,
                 profileName = profile.name,
-                baseUrl = profile.resolvedBaseUrl,
+                baseUrl = profile.resolveBaseUrl(AuthManager.getBaseUrl()),
                 token = token,
             )
         }

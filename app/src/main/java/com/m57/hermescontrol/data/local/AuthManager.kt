@@ -8,10 +8,14 @@ import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.ServerStore
 import com.m57.hermescontrol.data.config.ServerStoreMigration
 import com.m57.hermescontrol.data.config.ServerStoreSerializer
+import com.m57.hermescontrol.data.config.ServerUrlMigration
+import com.m57.hermescontrol.data.config.resolvedBaseUrl
 import com.m57.hermescontrol.data.config.resolvedHost
 import com.m57.hermescontrol.data.config.resolvedPort
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -87,7 +91,11 @@ object AuthManager {
             val dataStore =
                 androidx.datastore.core.DataStoreFactory.create(
                     serializer = ServerStoreSerializer,
-                    migrations = listOf(ServerStoreMigration(context)),
+                    migrations =
+                        listOf(
+                            ServerStoreMigration(context),
+                            ServerUrlMigration(),
+                        ),
                 ) {
                     context.filesDir.resolve("server_store.json")
                 }
@@ -174,9 +182,7 @@ object AuthManager {
     fun getSessionCookie(): String? = CookieManager.getSessionCookie()
 
     fun setSessionCookie(cookie: String?) {
-        // The session cookie is host-scoped to the current dashboard host so
-        // the CookieJar only attaches it to matching requests.
-        CookieManager.setSessionCookie(cookie, AuthManager.getHost())
+        CookieManager.setSessionCookie(cookie, endpoint())
     }
 
     /**
@@ -237,8 +243,7 @@ object AuthManager {
                             ConnectionProfile(
                                 id = DEFAULT_PROFILE_ID,
                                 name = DEFAULT_PROFILE_NAME,
-                                host = s.host,
-                                port = s.port,
+                                baseUrl = s.resolvedBaseUrl,
                             ),
                         ),
                     selectedProfileId = DEFAULT_PROFILE_ID,
@@ -359,7 +364,7 @@ object AuthManager {
             appScope?.let {
                 try {
                     it.cancel()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                 }
             }
             appScope = null
@@ -400,11 +405,24 @@ object AuthManager {
         }
     }
 
-    // ── Host ─────────────────────────────────────────────────────────────
+    // ── Server endpoint ──────────────────────────────────────────────────
 
-    fun getHost(): String = serverStore.getLatestState().resolvedHost
+    fun getBaseUrl(): String = serverStore.getLatestState().resolvedBaseUrl
 
-    fun setHost(host: String) {
+    fun endpoint(): ServerEndpoint =
+        ServerEndpoint.parse(
+            getBaseUrl(),
+            CleartextPolicy.ALLOW_WITH_WARNING,
+        )
+
+    fun endpointForBuild(): ServerEndpoint = ServerEndpoint.parseForBuild(getBaseUrl())
+
+    fun setBaseUrl(baseUrl: String) {
+        val normalized =
+            ServerEndpoint.parse(
+                baseUrl,
+                CleartextPolicy.ALLOW_WITH_WARNING,
+            ).baseUrl.toString()
         val selectedId =
             getSelectedProfileId() ?: run {
                 ensureDefaultSelected()
@@ -412,30 +430,36 @@ object AuthManager {
             }
         serverStore.update { state ->
             val profiles =
-                state.connectionProfiles.map {
-                    if (it.id == selectedId) it.copy(host = host) else it
+                state.connectionProfiles.map { profile ->
+                    if (profile.id == selectedId) {
+                        profile.copy(
+                            host = "",
+                            port = 0,
+                            baseUrl = normalized,
+                        )
+                    } else {
+                        profile
+                    }
                 }
             state.copy(connectionProfiles = profiles)
         }
     }
 
-    // ── Port ─────────────────────────────────────────────────────────────
+    /** Compatibility accessors for legacy pairing payloads. */
+    fun getHost(): String = serverStore.getLatestState().resolvedHost
 
     fun getPort(): Int = serverStore.getLatestState().resolvedPort
 
+    fun setHost(host: String) {
+        val endpoint = endpoint()
+        val normalizedHost = host.trim().removePrefix("[").removeSuffix("]")
+        setBaseUrl(endpoint.baseUrl.newBuilder().host(normalizedHost).build().toString())
+    }
+
     fun setPort(port: Int) {
-        val selectedId =
-            getSelectedProfileId() ?: run {
-                ensureDefaultSelected()
-                DEFAULT_PROFILE_ID
-            }
-        serverStore.update { state ->
-            val profiles =
-                state.connectionProfiles.map {
-                    if (it.id == selectedId) it.copy(port = port) else it
-                }
-            state.copy(connectionProfiles = profiles)
-        }
+        require(port in 1..65535) { "Port is out of range" }
+        val endpoint = endpoint()
+        setBaseUrl(endpoint.baseUrl.newBuilder().port(port).build().toString())
     }
 
     // ── Auto-reconnect ───────────────────────────────────────────────────
@@ -466,18 +490,17 @@ object AuthManager {
         serverStore.update { it.copy(themePreset = preset) }
     }
 
-    /** Convenience: build the base URL from current host + port.
-     *  NOTE: Uses plain http:// — intended for trusted local network only.
-     *  Exposing the host to a hostile LAN risks token interception. */
-    fun baseUrl(): String = "http://${getHost()}:${getPort()}/"
+    /** Canonical build-allowed Retrofit base URL. */
+    fun baseUrl(): String = endpointForBuild().baseUrl.toString()
 
-    /** Convenience: build the WebSocket URL with token query param.
-     *  NOTE: Token in query string — trusted local network only. */
+    /** Canonical WebSocket URL with an encoded token or short-lived ticket. */
     fun wsUrl(): String {
         val raw = serverStore.getLatestState().wsAuthParam
-        val authParam = if (raw.isNullOrBlank()) "token" else raw
-        val credential = getToken().orEmpty()
-        return "ws://${getHost()}:${getPort()}/api/ws?$authParam=$credential"
+        val authParam = if (raw.isBlank()) "token" else raw
+        return endpointForBuild().webSocketUrl(
+            authParameter = authParam,
+            credential = getToken().orEmpty(),
+        )
     }
 
     // ── Bottom nav bar items ──────────────────────────────────────────────

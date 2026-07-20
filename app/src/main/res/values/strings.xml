@@ -264,6 +264,9 @@
     <string name="connect_placeholder_token">API token</string>
     <string name="connect_placeholder_host">127.0.0.1</string>
     <string name="connect_placeholder_port">9119</string>
+    <string name="connect_server_url_label">Server URL</string>
+    <string name="connect_placeholder_server_url">https://host:9119/ or http://127.0.0.1:9119/</string>
+    <string name="connect_error_url_invalid">Enter a valid server URL (https:// or http://)</string>
     <string name="action_connect">Connect</string>
 
     <!-- Kanban Screen -->
@@ -807,6 +810,7 @@
     <!-- Auth Login Screen -->
     <string name="auth_login_title">Auth Login</string>
     <string name="auth_login_desc">Connect to your Hermes dashboard</string>
+    <string name="auth_login_base_url_label">Server URL</string>
     <string name="auth_login_host_label">Host</string>
     <string name="auth_login_port_label">Port</string>
     <string name="auth_login_token_label">Session Token</string>

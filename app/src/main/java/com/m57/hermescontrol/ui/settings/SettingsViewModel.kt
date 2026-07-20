@@ -6,7 +6,9 @@ import com.m57.hermescontrol.ScreenRegistry
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.BottomNavDisplayMode
@@ -22,8 +24,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class SettingsUiState(
-    val host: String = "127.0.0.1",
-    val port: String = "9119",
+    val baseUrl: String = ServerEndpoint.DEFAULT_BASE_URL,
+    val transportWarning: String? = null,
     val token: String = "",
     val autoReconnect: Boolean = true,
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
@@ -44,9 +46,9 @@ data class SettingsUiState(
     val showProfileDialog: Boolean = false,
     val editingProfileId: String? = null,
     val dialogProfileName: String = "",
-    val dialogProfileHost: String = "",
-    val dialogProfilePort: String = "",
+    val dialogProfileBaseUrl: String = ServerEndpoint.DEFAULT_BASE_URL,
     val dialogProfileToken: String = "",
+    val dialogProfileError: String? = null,
     // Delete confirmation
     val showDeleteConfirm: Boolean = false,
     val profileToDeleteId: String? = null,
@@ -68,8 +70,7 @@ class SettingsViewModel(
 
     private suspend fun loadSettings() {
         val selectedId = AuthManager.getSelectedProfileId()
-        val host = AuthManager.getHost()
-        val port = AuthManager.getPort().toString()
+        val baseUrl = AuthManager.getBaseUrl()
         val token = AuthManager.getToken() ?: ""
         val autoReconnect = AuthManager.isAutoReconnect()
         val themePreference = AuthManager.getThemePreference()
@@ -83,10 +84,14 @@ class SettingsViewModel(
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
             profiles.firstOrNull { p -> p.id == selectedId }?.name ?: ""
+        val transportWarning =
+            runCatching {
+                ServerEndpoint.parse(baseUrl, CleartextPolicy.ALLOW_WITH_WARNING).securityWarning
+            }.getOrNull()
         _uiState.update {
             it.copy(
-                host = host,
-                port = port,
+                baseUrl = baseUrl,
+                transportWarning = transportWarning,
                 token = token,
                 autoReconnect = autoReconnect,
                 themePreference = themePreference,
@@ -150,9 +155,9 @@ class SettingsViewModel(
                 showProfileDialog = true,
                 editingProfileId = null,
                 dialogProfileName = "",
-                dialogProfileHost = "127.0.0.1",
-                dialogProfilePort = "9119",
+                dialogProfileBaseUrl = ServerEndpoint.DEFAULT_BASE_URL,
                 dialogProfileToken = "",
+                dialogProfileError = null,
             )
         }
     }
@@ -165,29 +170,28 @@ class SettingsViewModel(
                 showProfileDialog = true,
                 editingProfileId = profileId,
                 dialogProfileName = profile.name,
-                dialogProfileHost = profile.host,
-                dialogProfilePort = profile.port.toString(),
+                dialogProfileBaseUrl = profile.resolvedBaseUrl,
                 dialogProfileToken = token,
+                dialogProfileError = null,
             )
         }
     }
 
     fun closeProfileDialog() {
-        _uiState.update {
-            it.copy(showProfileDialog = false, editingProfileId = null)
-        }
+        _uiState.update { it.copy(showProfileDialog = false, editingProfileId = null) }
     }
 
     fun onDialogProfileNameChange(value: String) {
         _uiState.update { it.copy(dialogProfileName = value) }
     }
 
-    fun onDialogProfileHostChange(value: String) {
-        _uiState.update { it.copy(dialogProfileHost = value.trim()) }
-    }
-
-    fun onDialogProfilePortChange(value: String) {
-        _uiState.update { it.copy(dialogProfilePort = value.filter { c -> c.isDigit() }) }
+    fun onDialogProfileBaseUrlChange(value: String) {
+        val trimmed = value.trim()
+        val error =
+            runCatching {
+                ServerEndpoint.parse(trimmed, CleartextPolicy.ALLOW_WITH_WARNING)
+            }.exceptionOrNull()?.message
+        _uiState.update { it.copy(dialogProfileBaseUrl = trimmed, dialogProfileError = error) }
     }
 
     fun onDialogProfileTokenChange(value: String) {
@@ -197,11 +201,14 @@ class SettingsViewModel(
     fun saveProfileFromDialog() {
         val state = _uiState.value
         val name = state.dialogProfileName.trim()
-        val host = state.dialogProfileHost.trim()
-        val port = state.dialogProfilePort.toIntOrNull() ?: return
-        val token = state.dialogProfileToken
+        val baseUrl = state.dialogProfileBaseUrl.trim()
 
-        if (name.isBlank() || host.isBlank()) return
+        if (name.isBlank()) return
+        val normalized =
+            runCatching {
+                ServerEndpoint.parse(baseUrl, CleartextPolicy.ALLOW_WITH_WARNING).baseUrl.toString()
+            }.getOrNull() ?: return
+        val token = state.dialogProfileToken
 
         val profiles = AuthManager.getConnectionProfiles().toMutableList()
         val editingId = state.editingProfileId
@@ -211,7 +218,7 @@ class SettingsViewModel(
             val index = profiles.indexOfFirst { it.id == editingId }
             if (index == -1) return
             val oldToken = AuthManager.getProfileToken(editingId)
-            profiles[index] = profiles[index].copy(name = name, host = host, port = port)
+            profiles[index] = profiles[index].copy(name = name, baseUrl = normalized)
             AuthManager.saveConnectionProfiles(profiles)
             if (token != oldToken) {
                 AuthManager.setProfileToken(editingId, token)
@@ -221,8 +228,7 @@ class SettingsViewModel(
             val newProfile =
                 ConnectionProfile(
                     name = name,
-                    host = host,
-                    port = port,
+                    baseUrl = normalized,
                 )
             profiles.add(newProfile)
             AuthManager.saveConnectionProfiles(profiles)
@@ -267,12 +273,13 @@ class SettingsViewModel(
         }
     }
 
-    fun onHostChange(value: String) {
-        _uiState.update { it.copy(host = value.trim(), isSaved = false) }
-    }
-
-    fun onPortChange(value: String) {
-        _uiState.update { it.copy(port = value.filter { c -> c.isDigit() }, isSaved = false) }
+    fun onBaseUrlChange(value: String) {
+        val trimmed = value.trim()
+        val transportWarning =
+            runCatching {
+                ServerEndpoint.parse(trimmed, CleartextPolicy.ALLOW_WITH_WARNING).securityWarning
+            }.getOrNull()
+        _uiState.update { it.copy(baseUrl = trimmed, transportWarning = transportWarning, isSaved = false) }
     }
 
     fun onTokenChange(value: String) {
@@ -358,10 +365,12 @@ class SettingsViewModel(
 
     fun save() {
         val state = _uiState.value
-        val port = state.port.toIntOrNull() ?: 9119
+        val normalized =
+            runCatching {
+                ServerEndpoint.parse(state.baseUrl, CleartextPolicy.ALLOW_WITH_WARNING).baseUrl.toString()
+            }.getOrNull() ?: ServerEndpoint.DEFAULT_BASE_URL
 
-        AuthManager.setHost(state.host)
-        AuthManager.setPort(port)
+        AuthManager.setBaseUrl(normalized)
         AuthManager.setToken(state.token)
         AuthManager.setAutoReconnect(state.autoReconnect)
         // B6 (Jun 18 2026, kanban t_86e9be9b): persist theme choice so it

@@ -71,11 +71,17 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "ALLOW_CLEARTEXT", "true")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs["release"]
+            buildConfigField("boolean", "ALLOW_CLEARTEXT", "true")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
     }
     compileOptions {

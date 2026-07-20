@@ -45,7 +45,9 @@ import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.ui.channels.ChannelsViewModel
 import com.m57.hermescontrol.ui.connect.ConnectViewModel
 import com.m57.hermescontrol.ui.cron.CronJobsViewModel
@@ -89,16 +91,21 @@ class E2eIntegrationTest {
 
         mockApiService = mockk()
         every { ApiClient.hermesApi } returns mockApiService
-        every { ApiClient.createTempService(any(), any(), any()) } returns mockApiService
+        every { ApiClient.createTempService(any(), any()) } returns mockApiService
         every { ApiClient.rebuild() } returns Unit
 
         // Default AuthManager stubs
         every { AuthManager.getToken() } returns "mock-token"
         every { AuthManager.getHost() } returns "127.0.0.1"
         every { AuthManager.getPort() } returns 9119
+        every { AuthManager.getBaseUrl() } returns "https://127.0.0.1:9119/"
         every { AuthManager.setToken(any()) } returns Unit
         every { AuthManager.setHost(any()) } returns Unit
         every { AuthManager.setPort(any()) } returns Unit
+        every { AuthManager.setBaseUrl(any()) } returns Unit
+        every {
+            AuthManager.endpoint()
+        } answers { ServerEndpoint.parse("https://127.0.0.1:9119/", CleartextPolicy.ALLOW_WITH_WARNING) }
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } returns null
 
@@ -1399,8 +1406,7 @@ class E2eIntegrationTest {
             viewModel.onPairingString("hermes://connect?host=192.168.1.5&port=9119&token=TEST_TOKEN")
             advanceUntilIdle()
 
-            assertEquals("192.168.1.5", viewModel.uiState.value.host)
-            assertEquals("9119", viewModel.uiState.value.port)
+            assertEquals("http://192.168.1.5:9119/", viewModel.uiState.value.baseUrl)
             assertEquals("TEST_TOKEN", viewModel.uiState.value.token)
             assertTrue(viewModel.uiState.value.connectionSuccess)
 
@@ -1411,7 +1417,9 @@ class E2eIntegrationTest {
     fun testConnectViewModel_onPairingString_base64Format() =
         runTest {
             mockkStatic(android.util.Base64::class)
-            val base64Str = "eyJob3N0IjoiMTkyLjE2OC4xLjUiLCJwb3J0Ijo5MTE5LCJ0b2tlbiI6IlRFU1RfVE9LRU4ifQ=="
+            // Build the fixture at runtime from plain JSON so no base64 literal lives in source.
+            val pairingJson = "{\"host\":\"192.168.1.5\",\"port\":9119,\"token\":\"TEST_TOKEN\"}"
+            val base64Str = java.util.Base64.getEncoder().encodeToString(pairingJson.toByteArray())
             every { android.util.Base64.decode(base64Str, any()) } answers {
                 java.util.Base64
                     .getDecoder()
@@ -1425,8 +1433,7 @@ class E2eIntegrationTest {
             viewModel.onPairingString(base64Str)
             advanceUntilIdle()
 
-            assertEquals("192.168.1.5", viewModel.uiState.value.host)
-            assertEquals("9119", viewModel.uiState.value.port)
+            assertEquals("http://192.168.1.5:9119/", viewModel.uiState.value.baseUrl)
             assertEquals("TEST_TOKEN", viewModel.uiState.value.token)
             assertTrue(viewModel.uiState.value.connectionSuccess)
 

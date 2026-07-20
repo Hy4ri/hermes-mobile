@@ -46,7 +46,7 @@ internal fun ConnectionSection(
     passwordVisible: Boolean,
     onPasswordVisibilityToggle: () -> Unit,
 ) {
-    SectionCard(title = stringResource(R.string.settings_sec_connection)) {
+    SectionCard {
         // ── Saved profiles list ──────────────────────────────────
         if (state.profiles.isNotEmpty()) {
             Text(
@@ -85,7 +85,7 @@ internal fun ConnectionSection(
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                             )
                             Text(
-                                text = "${profile.host}:${profile.port}",
+                                text = profile.resolvedBaseUrl,
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -139,12 +139,11 @@ internal fun ConnectionSection(
         ProfileEditorDialog(
             isEditing = state.editingProfileId != null,
             name = state.dialogProfileName,
-            host = state.dialogProfileHost,
-            port = state.dialogProfilePort,
+            baseUrl = state.dialogProfileBaseUrl,
             token = state.dialogProfileToken,
+            error = state.dialogProfileError,
             onNameChange = viewModel::onDialogProfileNameChange,
-            onHostChange = viewModel::onDialogProfileHostChange,
-            onPortChange = viewModel::onDialogProfilePortChange,
+            onBaseUrlChange = viewModel::onDialogProfileBaseUrlChange,
             onTokenChange = viewModel::onDialogProfileTokenChange,
             onSave = viewModel::saveProfileFromDialog,
             onDismiss = viewModel::closeProfileDialog,

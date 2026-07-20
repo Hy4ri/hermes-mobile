@@ -39,8 +39,9 @@ class ApiClientTest {
         // can build clients without app context.
         CookieManager.setJarForTest(buildFakePersistentCookieJar())
 
-        // Point AuthManager at our MockWebServer
-        every { AuthManager.baseUrl() } returns mockWebServer.url("/").toString()
+        // Point AuthManager at our MockWebServer (the interceptor reads the
+        // canonical base URL via endpointForBuild() → getBaseUrl()).
+        every { AuthManager.getBaseUrl() } returns mockWebServer.url("/").toString()
         every { AuthManager.getHost() } returns "127.0.0.1"
         every { AuthManager.getPort() } returns 9119
 

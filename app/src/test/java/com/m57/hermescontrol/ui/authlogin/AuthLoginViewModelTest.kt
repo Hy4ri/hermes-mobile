@@ -5,6 +5,7 @@ import android.util.Log
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -29,8 +30,7 @@ class AuthLoginViewModelTest {
     @Before
     fun setup() {
         mockkObject(AuthManager)
-        every { AuthManager.getHost() } returns "localhost"
-        every { AuthManager.getPort() } returns 9119
+        every { AuthManager.getBaseUrl() } returns "https://127.0.0.1:9119/"
         every { AuthManager.getConnectionProfiles() } returns emptyList()
 
         mockkObject(OkHttpProvider)
@@ -51,21 +51,22 @@ class AuthLoginViewModelTest {
     }
 
     @Test
-    fun `onHostChange updates host and clears error and auth mode`() {
-        viewModel.onHostChange(" 192.168.1.100 ")
+    fun `onBaseUrlChange updates baseUrl and clears error and auth mode`() {
+        viewModel.onBaseUrlChange(" https://192.168.1.100:9119/ ")
 
         val state = viewModel.uiState.value
-        assertEquals("192.168.1.100", state.host)
+        assertEquals("https://192.168.1.100:9119/", state.baseUrl)
         assertNull(state.errorMessage)
         assertNull(state.authMode)
     }
 
     @Test
-    fun `onPortChange updates port keeping only digits and clears error and auth mode`() {
-        viewModel.onPortChange("9a1b1c9")
+    fun `onBaseUrlChange with http sets transport warning`() {
+        viewModel.onBaseUrlChange("http://127.0.0.1:9119/")
 
         val state = viewModel.uiState.value
-        assertEquals("9119", state.port)
+        assertEquals("http://127.0.0.1:9119/", state.baseUrl)
+        assertEquals(ServerEndpoint.CLEARTEXT_WARNING, state.transportWarning)
         assertNull(state.errorMessage)
         assertNull(state.authMode)
     }

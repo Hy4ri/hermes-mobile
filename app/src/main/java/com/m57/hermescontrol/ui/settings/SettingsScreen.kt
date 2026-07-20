@@ -227,10 +227,7 @@ internal fun InfoRow(
 }
 
 @Composable
-internal fun SectionCard(
-    title: String,
-    content: @Composable () -> Unit,
-) {
+internal fun SectionCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors =
@@ -240,15 +237,6 @@ internal fun SectionCard(
         elevation = CardDefaults.cardElevation(1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style =
-                    MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                    ),
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
             content()
         }
     }

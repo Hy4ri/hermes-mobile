@@ -25,12 +25,11 @@ import com.m57.hermescontrol.R
 internal fun ProfileEditorDialog(
     isEditing: Boolean,
     name: String,
-    host: String,
-    port: String,
+    baseUrl: String,
     token: String,
+    error: String?,
     onNameChange: (String) -> Unit,
-    onHostChange: (String) -> Unit,
-    onPortChange: (String) -> Unit,
+    onBaseUrlChange: (String) -> Unit,
     onTokenChange: (String) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -55,20 +54,22 @@ internal fun ProfileEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = host,
-                    onValueChange = onHostChange,
-                    label = { Text(stringResource(R.string.settings_field_host)) },
+                    value = baseUrl,
+                    onValueChange = onBaseUrlChange,
+                    label = { Text(stringResource(R.string.connect_server_url_label)) },
+                    placeholder = { Text(stringResource(R.string.connect_placeholder_server_url)) },
                     singleLine = true,
+                    isError = error != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
-                    value = port,
-                    onValueChange = onPortChange,
-                    label = { Text(stringResource(R.string.settings_field_port)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (error != null) {
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 if (isEditing) {
                     OutlinedTextField(
                         value = token,
@@ -87,7 +88,7 @@ internal fun ProfileEditorDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onSave, enabled = name.isNotBlank() && host.isNotBlank()) {
+            Button(onClick = onSave, enabled = name.isNotBlank() && error == null) {
                 Text(stringResource(R.string.action_save))
             }
         },

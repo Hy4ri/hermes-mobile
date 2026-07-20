@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,7 +129,11 @@ class PairingCodeEntryViewModel(
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    val tempApi = ApiClient.createTempService(host, port, token)
+                    val tempApi =
+                        ApiClient.createTempService(
+                            ServerEndpoint.fromLegacy(host, port).baseUrl.toString(),
+                            token,
+                        )
                     safeApiCall { tempApi.getStatus() }
                 }
 

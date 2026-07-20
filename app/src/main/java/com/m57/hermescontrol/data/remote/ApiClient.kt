@@ -2,7 +2,6 @@ package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
-import okhttp3.CertificatePinner
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.logging.HttpLoggingInterceptor
@@ -41,10 +40,10 @@ object ApiClient {
 
     /** Creates a standalone, temporary [HermesApiService] without modifying the global instance. */
     fun createTempService(
-        host: String,
-        port: Int,
+        baseUrl: String,
         token: String,
     ): HermesApiService {
+        val endpoint = ServerEndpoint.parseForBuild(baseUrl)
         val tempAuthInterceptor =
             Interceptor { chain ->
                 val request =
@@ -70,7 +69,7 @@ object ApiClient {
         val tempRetrofit =
             Retrofit
                 .Builder()
-                .baseUrl("http://$host:$port/")
+                .baseUrl(endpoint.baseUrl)
                 .client(tempOkHttp)
                 .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
                 .build()
@@ -85,7 +84,7 @@ object ApiClient {
             HttpLoggingInterceptor().apply {
                 level =
                     if (BuildConfig.DEBUG) {
-                        HttpLoggingInterceptor.Level.BODY
+                        HttpLoggingInterceptor.Level.BASIC
                     } else {
                         HttpLoggingInterceptor.Level.NONE
                     }
@@ -110,8 +109,6 @@ object ApiClient {
                 }
             }
 
-        val certificatePinner = CertificatePinner.Builder().build()
-
         val okHttp =
             OkHttpProvider
                 .base
@@ -120,13 +117,12 @@ object ApiClient {
                 .addInterceptor(ProfileScopeInterceptor)
                 .addInterceptor(logging)
                 .authenticator(TokenRefreshAuthenticator)
-                .certificatePinner(certificatePinner)
                 .build()
 
         val rf =
             Retrofit
                 .Builder()
-                .baseUrl(AuthManager.baseUrl())
+                .baseUrl(AuthManager.endpointForBuild().baseUrl)
                 .client(okHttp)
                 .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
                 .build()

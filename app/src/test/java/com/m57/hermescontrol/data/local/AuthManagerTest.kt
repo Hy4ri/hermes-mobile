@@ -151,7 +151,9 @@ class AuthManagerTest {
     fun testBaseUrl() {
         AuthManager.setHost("hermes.local")
         AuthManager.setPort(1234)
-        assertEquals("http://hermes.local:1234/", AuthManager.baseUrl())
+        // setHost/setPort derive from the canonical base URL (default is https),
+        // so the result keeps the https scheme and swaps host/port.
+        assertEquals("https://hermes.local:1234/", AuthManager.getBaseUrl())
     }
 
     @Test
@@ -181,7 +183,8 @@ class AuthManagerTest {
         AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         AuthManager.setHost("hermes.local")
         AuthManager.setPort(1234)
-        assertEquals("ws://hermes.local:1234/api/ws?token=token123", AuthManager.wsUrl())
+        // Scheme tracks the canonical base URL (default https) → wss.
+        assertEquals("wss://hermes.local:1234/api/ws?token=token123", AuthManager.wsUrl())
     }
 
     @Test
@@ -191,14 +194,14 @@ class AuthManagerTest {
         AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
         AuthManager.setHost("hermes.local")
         AuthManager.setPort(1234)
-        assertEquals("ws://hermes.local:1234/api/ws?token=", AuthManager.wsUrl())
+        assertEquals("wss://hermes.local:1234/api/ws?token=", AuthManager.wsUrl())
     }
 
     // ── TEST-08: Token routing through selected profile ─────────────────
 
     @Test
     fun testGetToken_usesProfileTokenWhenSelected() {
-        val profile1 = ConnectionProfile("prof-1", "Profile 1", "127.0.0.1", 9119)
+        val profile1 = ConnectionProfile(id = "prof-1", name = "Profile 1", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile1))
         every { mockPrefs.getString("token_prof-1", null) } returns "profile-specific-token"
         AuthManager.setSelectedProfileId("prof-1")
@@ -207,7 +210,7 @@ class AuthManagerTest {
 
     @Test
     fun testGetToken_returnsNullWhenProfileHasNoToken() {
-        val profile1 = ConnectionProfile("prof-1", "Profile 1", "127.0.0.1", 9119)
+        val profile1 = ConnectionProfile(id = "prof-1", name = "Profile 1", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile1))
         every { mockPrefs.getString("token_prof-1", null) } returns null
         AuthManager.setSelectedProfileId("prof-1")
@@ -216,7 +219,7 @@ class AuthManagerTest {
 
     @Test
     fun testSetToken_writesToProfileTokenWhenSelected() {
-        val profile1 = ConnectionProfile("prof-1", "Profile 1", "127.0.0.1", 9119)
+        val profile1 = ConnectionProfile(id = "prof-1", name = "Profile 1", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile1))
         AuthManager.setSelectedProfileId("prof-1")
 
@@ -241,7 +244,7 @@ class AuthManagerTest {
 
     @Test
     fun testGetHost_usesProfileHostWhenSelected() {
-        val profile = ConnectionProfile("prof-1", "Work", "10.0.0.1", 9220)
+        val profile = ConnectionProfile(id = "prof-1", name = "Work", baseUrl = "http://10.0.0.1:9220/")
         AuthManager.saveConnectionProfiles(listOf(profile))
         AuthManager.setSelectedProfileId("prof-1")
 
@@ -250,7 +253,7 @@ class AuthManagerTest {
 
     @Test
     fun testGetPort_usesProfilePortWhenSelected() {
-        val profile = ConnectionProfile("prof-1", "Work", "10.0.0.1", 9220)
+        val profile = ConnectionProfile(id = "prof-1", name = "Work", baseUrl = "http://10.0.0.1:9220/")
         AuthManager.saveConnectionProfiles(listOf(profile))
         AuthManager.setSelectedProfileId("prof-1")
 
@@ -269,26 +272,27 @@ class AuthManagerTest {
 
     @Test
     fun testSetHost_updatesProfileWhenSelected() {
-        val profile = ConnectionProfile("prof-1", "Home", "10.0.0.1", 9119)
+        val profile = ConnectionProfile(id = "prof-1", name = "Home", baseUrl = "http://10.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile))
         AuthManager.setSelectedProfileId("prof-1")
 
         AuthManager.setHost("10.0.0.99")
 
         val updated = AuthManager.getConnectionProfiles().first()
-        assertEquals("10.0.0.99", updated.host)
+        // host/port are now canonicalized into the base URL (profile was http)
+        assertEquals("http://10.0.0.99:9119/", updated.resolvedBaseUrl)
     }
 
     @Test
     fun testSetPort_updatesProfileWhenSelected() {
-        val profile = ConnectionProfile("prof-1", "Home", "10.0.0.1", 9119)
+        val profile = ConnectionProfile(id = "prof-1", name = "Home", baseUrl = "http://10.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile))
         AuthManager.setSelectedProfileId("prof-1")
 
         AuthManager.setPort(9999)
 
         val updated = AuthManager.getConnectionProfiles().first()
-        assertEquals(9999, updated.port)
+        assertEquals("http://10.0.0.1:9999/", updated.resolvedBaseUrl)
     }
 
     @Test
@@ -308,23 +312,23 @@ class AuthManagerTest {
     fun testConnectionProfiles_roundTrip() {
         val profiles =
             listOf(
-                ConnectionProfile("a", "A", "10.0.0.1", 9119),
-                ConnectionProfile("b", "B", "10.0.0.2", 9220),
+                ConnectionProfile(id = "a", name = "A", baseUrl = "http://10.0.0.1:9119/"),
+                ConnectionProfile(id = "b", name = "B", baseUrl = "http://10.0.0.2:9220/"),
             )
         AuthManager.saveConnectionProfiles(profiles)
 
         val loaded = AuthManager.getConnectionProfiles()
         assertEquals(2, loaded.size)
         assertEquals("A", loaded[0].name)
-        assertEquals("10.0.0.2", loaded[1].host)
+        assertEquals("http://10.0.0.2:9220/", loaded[1].resolvedBaseUrl)
     }
 
     // ── TEST-11: Multi-profile token scenarios ─────────────────────────
 
     @Test
     fun testGetToken_switchesTokenWhenProfileChanges() {
-        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
-        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
+        val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
+        val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
 
         // Profile A selected → returns token_a
@@ -345,8 +349,8 @@ class AuthManagerTest {
 
     @Test
     fun testGetToken_profileWithNoTokenReturnsNull() {
-        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
-        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
+        val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
+        val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
 
         // Profile A is selected but has no token → null (no global fallback)
@@ -362,9 +366,9 @@ class AuthManagerTest {
 
     @Test
     fun testGetToken_selectiveProfileTokens_someNull() {
-        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
-        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
-        val profileC = ConnectionProfile("prof-c", "Profile C", "127.0.0.1", 9119)
+        val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
+        val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
+        val profileC = ConnectionProfile(id = "prof-c", name = "Profile C", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB, profileC))
 
         // Profile A has a token
@@ -385,8 +389,8 @@ class AuthManagerTest {
 
     @Test
     fun testSetToken_switchingProfiles_maintainsSeparateTokens() {
-        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
-        val profileB = ConnectionProfile("prof-b", "Profile B", "127.0.0.1", 9119)
+        val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
+        val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
 
         // Set a token while Profile A is selected
@@ -406,7 +410,7 @@ class AuthManagerTest {
 
     @Test
     fun testSetToken_toNull_clearsProfileToken() {
-        val profileA = ConnectionProfile("prof-a", "Profile A", "127.0.0.1", 9119)
+        val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA))
 
         AuthManager.setSelectedProfileId("prof-a")
@@ -442,7 +446,7 @@ class AuthManagerTest {
 
     @Test
     fun testEnsureDefaultProfile_doesNotDuplicateExisting() {
-        val existing = ConnectionProfile("prof-1", "Work", "10.0.0.1", 9119)
+        val existing = ConnectionProfile(id = "prof-1", name = "Work", baseUrl = "http://10.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(existing))
         AuthManager.setSelectedProfileId("prof-1")
 

@@ -9,6 +9,9 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.AuthPayloads
+import com.m57.hermescontrol.data.remote.CleartextPolicy
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.Dispatchers
@@ -38,8 +41,8 @@ enum class DashboardAuthMode {
 }
 
 data class AuthLoginUiState(
-    val host: String = "127.0.0.1",
-    val port: String = "9119",
+    val baseUrl: String = ServerEndpoint.DEFAULT_BASE_URL,
+    val transportWarning: String? = null,
     val token: String = "",
     val username: String = "",
     val password: String = "",
@@ -57,8 +60,7 @@ class AuthLoginViewModel(
     private val _uiState =
         MutableStateFlow(
             AuthLoginUiState(
-                host = AuthManager.getHost(),
-                port = AuthManager.getPort().toString(),
+                baseUrl = AuthManager.getBaseUrl(),
             ),
         )
     val uiState: StateFlow<AuthLoginUiState> = _uiState.asStateFlow()
@@ -91,23 +93,18 @@ class AuthLoginViewModel(
     private val probeClient: OkHttpClient =
         com.m57.hermescontrol.data.remote.OkHttpProvider.probe
 
-    fun onHostChange(value: String) {
-        _uiState.update { it.copy(host = value.trim(), errorMessage = null, authMode = null) }
+    fun onBaseUrlChange(value: String) {
+        val trimmed = value.trim()
+        val warning =
+            runCatching {
+                ServerEndpoint.parse(trimmed, CleartextPolicy.ALLOW_WITH_WARNING).securityWarning
+            }.getOrNull()
+        _uiState.update { it.copy(baseUrl = trimmed, transportWarning = warning, errorMessage = null, authMode = null) }
     }
 
     /** Reset ephemeral connection state (called when screen leaves composition). */
     fun clearConnectionState() {
         _uiState.update { it.copy(connectionSuccess = false, errorMessage = null, isLoading = false) }
-    }
-
-    fun onPortChange(value: String) {
-        _uiState.update {
-            it.copy(
-                port = value.filter { c -> c.isDigit() },
-                errorMessage = null,
-                authMode = null,
-            )
-        }
     }
 
     fun onTokenChange(value: String) {
@@ -127,13 +124,10 @@ class AuthLoginViewModel(
      */
     fun probe() {
         val state = _uiState.value
-        if (state.host.isBlank()) {
-            _uiState.update { it.copy(errorMessage = app.getString(R.string.auth_login_error_host_required)) }
-            return
-        }
-        val port = state.port.toIntOrNull()
-        if (port == null || port !in 1..65535) {
-            _uiState.update { it.copy(errorMessage = app.getString(R.string.auth_login_error_port_invalid)) }
+        val endpoint =
+            runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
+        if (endpoint == null) {
+            _uiState.update { it.copy(errorMessage = app.getString(R.string.connect_error_url_invalid)) }
             return
         }
 
@@ -142,7 +136,7 @@ class AuthLoginViewModel(
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    probeDashboardInternal(state.host, port)
+                    probeDashboardInternal(endpoint)
                 }
             _uiState.update {
                 it.copy(
@@ -174,19 +168,14 @@ class AuthLoginViewModel(
      * When [ProbeResult.extractedToken] is non-null, the session token
      * was found embedded in the dashboard SPA HTML and can be auto-populated.
      */
-    private fun probeDashboardInternal(
-        host: String,
-        port: Int,
-    ): ProbeResult? {
-        val baseUrl = "http://$host:$port"
-
+    private fun probeDashboardInternal(endpoint: ServerEndpoint): ProbeResult? {
         // Step 1: Check if dashboard is reachable via /api/status (always public)
         val statusOk =
             try {
                 val req =
                     Request
                         .Builder()
-                        .url("$baseUrl/api/status")
+                        .url(endpoint.resolve("api/status").toString())
                         .get()
                         .build()
                 val resp = probeClient.newCall(req).execute()
@@ -204,7 +193,7 @@ class AuthLoginViewModel(
                 val req =
                     Request
                         .Builder()
-                        .url(baseUrl)
+                        .url(endpoint.resolve("").toString())
                         .get()
                         .build()
                 val resp = probeClient.newCall(req).execute()
@@ -224,7 +213,7 @@ class AuthLoginViewModel(
                 val req =
                     Request
                         .Builder()
-                        .url(baseUrl)
+                        .url(endpoint.resolve("").toString())
                         .get()
                         .build()
                 val resp = probeClient.newCall(req).execute()
@@ -265,7 +254,9 @@ class AuthLoginViewModel(
      */
     fun connect() {
         val state = _uiState.value
-        val port = state.port.toIntOrNull() ?: return
+        val endpoint =
+            runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
+                ?: return
 
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
@@ -274,16 +265,16 @@ class AuthLoginViewModel(
                 withContext(Dispatchers.IO) {
                     when (state.authMode) {
                         DashboardAuthMode.TOKEN_ONLY -> {
-                            val token = connectTokenOnly(state.host, port, state.token)
+                            val token = connectTokenOnly(endpoint, state.token)
                             if (token != null) ConnectResult(wsCredential = token) else null
                         }
 
                         DashboardAuthMode.BASIC_AUTH -> {
-                            connectBasicAuth(state.host, port, state.username, state.password)
+                            connectBasicAuth(endpoint, state.username, state.password)
                         }
 
                         DashboardAuthMode.ALL -> {
-                            connectBasicAuth(state.host, port, state.username, state.password)
+                            connectBasicAuth(endpoint, state.username, state.password)
                         }
 
                         null -> {
@@ -293,8 +284,7 @@ class AuthLoginViewModel(
                 }
 
             if (result != null) {
-                AuthManager.setHost(state.host)
-                AuthManager.setPort(port)
+                AuthManager.setBaseUrl(state.baseUrl)
                 AuthManager.setToken(result.wsCredential)
                 if (state.authMode == DashboardAuthMode.TOKEN_ONLY) {
                     // Loopback mode — no session cookie; ensure any stale one
@@ -319,8 +309,7 @@ class AuthLoginViewModel(
      * Validate the token by calling /api/status with it.
      */
     private suspend fun connectTokenOnly(
-        host: String,
-        port: Int,
+        endpoint: ServerEndpoint,
         token: String,
     ): String? {
         if (token.isBlank()) {
@@ -330,7 +319,7 @@ class AuthLoginViewModel(
             return null
         }
 
-        val tempApi = ApiClient.createTempService(host, port, token)
+        val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), token)
         val result = safeApiCall { tempApi.getSessions() }
 
         return when (result) {
@@ -372,8 +361,7 @@ class AuthLoginViewModel(
      * Returns the WS ticket and the session cookie for REST auth.
      */
     private fun connectBasicAuth(
-        host: String,
-        port: Int,
+        endpoint: ServerEndpoint,
         username: String,
         password: String,
     ): ConnectResult? {
@@ -390,8 +378,7 @@ class AuthLoginViewModel(
             return null
         }
 
-        val baseUrl = "http://$host:$port"
-        val jsonBody = """{"provider":"basic","username":"$username","password":"$password","next":""}"""
+        val jsonBody = AuthPayloads.passwordLogin(username, password)
 
         try {
             // Step 1: Authenticate via the password login endpoint to get a session cookie
@@ -405,7 +392,7 @@ class AuthLoginViewModel(
             val loginReq =
                 Request
                     .Builder()
-                    .url("$baseUrl/auth/password-login")
+                    .url(endpoint.resolve("auth/password-login").toString())
                     .header("Content-Type", "application/json")
                     .post(jsonBody.toRequestBody())
                     .build()
@@ -438,7 +425,7 @@ class AuthLoginViewModel(
             val ticketReq =
                 Request
                     .Builder()
-                    .url("$baseUrl/api/auth/ws-ticket")
+                    .url(endpoint.resolve("api/auth/ws-ticket").toString())
                     .post("{}".toRequestBody())
                     .build()
             val ticketResp = ticketClient.newCall(ticketReq).execute()

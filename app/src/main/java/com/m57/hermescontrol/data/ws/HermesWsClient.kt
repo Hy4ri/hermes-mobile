@@ -265,7 +265,7 @@ object HermesWsClient {
             val request =
                 Request
                     .Builder()
-                    .url("http://${AuthManager.getHost()}:${AuthManager.getPort()}/api/auth/ws-ticket")
+                    .url(AuthManager.endpointForBuild().resolve("api/auth/ws-ticket").toString())
                     .post("{}".toRequestBody())
                     .build()
 

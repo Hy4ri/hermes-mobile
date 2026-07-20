@@ -24,7 +24,7 @@ import com.m57.hermescontrol.ui.settings.SectionCard
 
 @Composable
 internal fun AboutSection(onLogout: () -> Unit) {
-    SectionCard(title = stringResource(R.string.settings_sec_about)) {
+    SectionCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = stringResource(R.string.settings_about_app_name),

@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -153,27 +154,35 @@ fun AuthLoginScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Host field
+            // Server URL field
             OutlinedTextField(
-                value = state.host,
-                onValueChange = viewModel::onHostChange,
-                label = { Text(stringResource(R.string.auth_login_host_label)) },
+                value = state.baseUrl,
+                onValueChange = viewModel::onBaseUrlChange,
+                label = { Text(stringResource(R.string.auth_login_base_url_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 enabled = state.authMode == null,
             )
 
-            // Port field
-            OutlinedTextField(
-                value = state.port,
-                onValueChange = viewModel::onPortChange,
-                label = { Text(stringResource(R.string.auth_login_port_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                enabled = state.authMode == null,
-            )
+            // Cleartext transport warning
+            AnimatedVisibility(
+                visible = state.transportWarning != null,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                state.transportWarning?.let { warning ->
+                    Text(
+                        text = warning,
+                        style =
+                            MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.error,
+                            ),
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
 
             // Probe / probing indicator
             if (state.probing) {

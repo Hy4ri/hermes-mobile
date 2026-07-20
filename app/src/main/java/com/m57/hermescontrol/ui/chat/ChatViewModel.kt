@@ -257,7 +257,19 @@ class ChatViewModel(
     // ── Connection ───────────────────────────────────────────────────────
 
     private fun connectWebSocket(setLoading: Boolean = false) {
-        val token = AuthManager.getToken() ?: return
+        // In loopback (token) mode the session token is the WS credential and
+        // must be present before connecting. In gated (ticket) mode the ticket
+        // is minted fresh by HermesWsClient.refreshWsTicketIfNeeded() from the
+        // persisted session cookie, so getToken() is expected to be empty here
+        // and must NOT block the connect (issue #640: chat showed "reconnect"
+        // immediately after basic-auth login because this guard returned early).
+        val isGated =
+            runCatching { AuthManager.serverStore.getLatestState().wsAuthParam == "ticket" }
+                .getOrNull() ?: false
+        if (!isGated) {
+            val token = AuthManager.getToken() ?: return
+            if (token.isBlank()) return
+        }
 
         // Don't disturb an already-working (or already-recovering) connection.
         // HermesWsClient is a global singleton shared by every tab; the chat tab

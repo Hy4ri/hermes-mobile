@@ -270,6 +270,27 @@ fun AuthLoginScreen(
                 )
             }
 
+            // OAuth "coming soon" notice — shown for OAUTH mode (issue #639)
+            AnimatedVisibility(
+                visible = state.authMode == DashboardAuthMode.OAUTH,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.auth_login_oauth_coming_soon),
+                        style =
+                            MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        textAlign = TextAlign.Start,
+                    )
+                }
+            }
+
             // Error message
             AnimatedVisibility(
                 visible = state.errorMessage != null,
@@ -299,7 +320,7 @@ fun AuthLoginScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                enabled = !state.isLoading && !state.probing,
+                enabled = !state.isLoading && !state.probing && state.authMode != DashboardAuthMode.OAUTH,
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(

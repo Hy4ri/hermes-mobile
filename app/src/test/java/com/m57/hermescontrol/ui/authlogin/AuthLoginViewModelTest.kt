@@ -110,4 +110,46 @@ class AuthLoginViewModelTest {
         assertNull(state.authMode)
         assertEquals("Dashboard unreachable", state.errorMessage)
     }
+
+    // ── deriveAuthMode (authoritative /api/status mapping) ──
+
+    @Test
+    fun `deriveAuthMode gate down returns ALL sentinel`() {
+        assertEquals(
+            DashboardAuthMode.ALL,
+            viewModel.deriveAuthMode(authRequired = false, providers = emptyList()),
+        )
+    }
+
+    @Test
+    fun `deriveAuthMode oauth provider returns OAUTH`() {
+        assertEquals(
+            DashboardAuthMode.OAUTH,
+            viewModel.deriveAuthMode(authRequired = true, providers = listOf("oauth")),
+        )
+    }
+
+    @Test
+    fun `deriveAuthMode basic provider returns BASIC_AUTH`() {
+        assertEquals(
+            DashboardAuthMode.BASIC_AUTH,
+            viewModel.deriveAuthMode(authRequired = true, providers = listOf("basic")),
+        )
+    }
+
+    @Test
+    fun `deriveAuthMode oauth takes precedence over basic`() {
+        assertEquals(
+            DashboardAuthMode.OAUTH,
+            viewModel.deriveAuthMode(authRequired = true, providers = listOf("basic", "oauth")),
+        )
+    }
+
+    @Test
+    fun `deriveAuthMode gate up with unknown provider falls back to BASIC_AUTH`() {
+        assertEquals(
+            DashboardAuthMode.BASIC_AUTH,
+            viewModel.deriveAuthMode(authRequired = true, providers = listOf("weird")),
+        )
+    }
 }

@@ -11,7 +11,6 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import kotlinx.coroutines.Dispatchers
@@ -21,8 +20,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 data class ConnectUiState(
     val token: String = "",
@@ -280,103 +277,6 @@ class ConnectViewModel(
                 }
             }
         }
-    }
-
-    fun onPairingString(value: String) {
-        val trimmed = value.trim()
-        if (trimmed.isBlank()) return
-
-        try {
-            if (trimmed.startsWith("hermes://connect?", ignoreCase = true)) {
-                val uri = android.net.Uri.parse(trimmed)
-                val host = uri.getQueryParameter("host")
-                val port = uri.getQueryParameter("port")
-                val token = uri.getQueryParameter("token")
-                if (host != null && port != null && token != null) {
-                    applyLegacyPairing(host, port.toIntOrNull() ?: 9119, token)
-                    return
-                }
-            }
-
-            // Try decoding as Base64 JSON
-            try {
-                val decodedBytes = android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
-                val decodedString = String(decodedBytes, Charsets.UTF_8)
-                if (decodedString.startsWith("{") && decodedString.endsWith("}")) {
-                    val json = OkHttpProvider.json.parseToJsonElement(decodedString).jsonObject
-                    val host = json["host"]?.jsonPrimitive?.content
-                    val port = json["port"]?.jsonPrimitive?.content
-                    val token = json["token"]?.jsonPrimitive?.content
-                    if (host != null && port != null && token != null) {
-                        applyLegacyPairing(host, port.toIntOrNull() ?: 9119, token)
-                        return
-                    }
-                    // Decoded valid JSON but missing required fields
-                    _uiState.update {
-                        it.copy(
-                            errorMessage = app.getString(R.string.connect_error_missing_fields),
-                        )
-                    }
-                    return
-                }
-                // Decoded to valid string but not JSON shape — not a pairing string
-                _uiState.update {
-                    it.copy(
-                        errorMessage = app.getString(R.string.connect_error_malformed),
-                    )
-                }
-                return
-            } catch (e: IllegalArgumentException) {
-                // Not valid Base64 — check if input looks like a raw token
-                if (trimmed.length >= 32 && trimmed.matches(Regex("[A-Za-z0-9_\\-]+"))) {
-                    _uiState.update { it.copy(token = trimmed, errorMessage = null) }
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            errorMessage = app.getString(R.string.connect_error_malformed),
-                        )
-                    }
-                }
-                return
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        errorMessage =
-                            String.format(
-                                app.getString(R.string.connect_error_parse_failed),
-                                e.message ?: "",
-                            ),
-                    )
-                }
-                return
-            }
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    errorMessage = String.format(app.getString(R.string.connect_error_parse_failed), e.message ?: ""),
-                )
-            }
-        }
-    }
-
-    /**
-     * Pairing codes still carry legacy host/port query params. Build a canonical
-     * base URL from them and populate the single URL field + token.
-     */
-    private fun applyLegacyPairing(
-        host: String,
-        port: Int,
-        token: String,
-    ) {
-        val endpoint = ServerEndpoint.fromLegacy(host, port)
-        _uiState.update {
-            it.copy(
-                baseUrl = endpoint.baseUrl.toString(),
-                token = token,
-                errorMessage = null,
-            )
-        }
-        connect()
     }
 }
 

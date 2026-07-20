@@ -172,23 +172,6 @@ fun ConnectScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.connect_pairing_string),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                var pairingString by remember { mutableStateOf("") }
-                OutlinedTextField(
-                    value = pairingString,
-                    onValueChange = {
-                        pairingString = it
-                        if (it.isNotBlank()) viewModel.onPairingString(it)
-                    },
-                    placeholder = { Text(stringResource(R.string.connect_placeholder_pairing)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
                 // Error message
                 AnimatedVisibility(
                     visible = state.errorMessage != null,

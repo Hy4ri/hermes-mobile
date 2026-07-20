@@ -22,22 +22,35 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * What auth the dashboard requires.
+ * What auth the dashboard requires. Derived authoritatively from
+ * `GET /api/status` (`auth_required` + `auth_providers`), not by sniffing
+ * redirects — the status JSON is the source of truth.
  */
 enum class DashboardAuthMode {
-    /** Dashboard has no auth gate — just needs a session token. */
+    /** Dashboard has no auth gate (loopback / `--insecure`) — just needs a session token. */
     TOKEN_ONLY,
 
-    /** Dashboard has basic auth — needs username + password (and possibly a token). */
+    /** Dashboard has basic auth (gated `0.0.0.0` bind) — needs username + password. */
     BASIC_AUTH,
 
     /** Dashboard requires both basic auth credentials and a session token. */
     ALL,
+
+    /**
+     * Dashboard uses OAuth via Nous Portal (gated `0.0.0.0` bind).
+     *
+     * TODO: implement the OAuth browser flow + WS ticket minting. Until then the
+     * UI renders a "coming soon" state and blocks connect. Tracked in issue #639.
+     */
+    OAUTH,
 }
 
 data class AuthLoginUiState(
@@ -121,6 +134,11 @@ class AuthLoginViewModel(
 
     /**
      * Step 1: Probe the dashboard to detect what auth it needs.
+     *
+     * Uses the public `GET /api/status` endpoint as the authoritative source:
+     * it reports `auth_required` (gate engaged on non-loopback binds) and
+     * `auth_providers` (e.g. ["basic"], ["oauth"], []). We map that to a
+     * [DashboardAuthMode] instead of sniffing redirects, which is a heuristic.
      */
     fun probe() {
         val state = _uiState.value
@@ -163,14 +181,41 @@ class AuthLoginViewModel(
     )
 
     /**
-     * Probes the dashboard to determine [DashboardAuthMode].
-     * Returns null if the dashboard is unreachable.
-     * When [ProbeResult.extractedToken] is non-null, the session token
-     * was found embedded in the dashboard SPA HTML and can be auto-populated.
+     * Derives the [DashboardAuthMode] from the authoritative `/api/status` fields.
+     *
+     * - Gate down (loopback / `--insecure`): caller decides TOKEN_ONLY vs ALL
+     *   based on whether the SPA embedded a token, so this returns a sentinel
+     *   [DashboardAuthMode.ALL] placeholder that [probeDashboardInternal] refines.
+     * - Gate up (non-loopback): pick from the provider list (oauth > basic).
+     *
+     * Internal + pure so it is unit-testable without a live server.
+     */
+    internal fun deriveAuthMode(
+        authRequired: Boolean,
+        providers: List<String>,
+    ): DashboardAuthMode =
+        if (!authRequired) {
+            // Refined by the caller once it knows whether the SPA embedded a token.
+            DashboardAuthMode.ALL
+        } else {
+            when {
+                providers.contains("oauth") -> DashboardAuthMode.OAUTH
+                providers.contains("basic") -> DashboardAuthMode.BASIC_AUTH
+                else -> DashboardAuthMode.BASIC_AUTH // gate up, unknown provider → basic fallback
+            }
+        }
+
+    /**
+     * Probes `GET /api/status` and derives the [DashboardAuthMode] from the
+     * authoritative `auth_required` + `auth_providers` fields.
+     *
+     * Returns null if the dashboard is unreachable. When [ProbeResult.extractedToken]
+     * is non-null, the session token was found embedded in the dashboard SPA HTML
+     * (loopback mode only) and can be auto-populated.
      */
     private fun probeDashboardInternal(endpoint: ServerEndpoint): ProbeResult? {
-        // Step 1: Check if dashboard is reachable via /api/status (always public)
-        val statusOk =
+        // Step 1: reachability + auth mode from the public status endpoint.
+        val statusJson =
             try {
                 val req =
                     Request
@@ -179,66 +224,56 @@ class AuthLoginViewModel(
                         .get()
                         .build()
                 val resp = probeClient.newCall(req).execute()
-                resp.isSuccessful
+                if (!resp.isSuccessful) return null
+                resp.body.string()
             } catch (e: Exception) {
                 Log.w(TAG, "Status probe failed: ${e.message}")
                 return null // Dashboard unreachable
             }
 
-        if (!statusOk) return null
+        val authRequired: Boolean
+        val providers: List<String>
+        try {
+            val node = OkHttpProvider.json.parseToJsonElement(statusJson).jsonObject
+            authRequired = node["auth_required"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+            providers =
+                node["auth_providers"]
+                    ?.jsonArray
+                    ?.mapNotNull { it.jsonPrimitive.content }
+                    .orEmpty()
+        } catch (e: Exception) {
+            Log.w(TAG, "Status parse failed: ${e.message}")
+            return null
+        }
 
-        // Step 2: Probe / to see if it redirects to /login (basic auth) or returns SPA
-        val needsBasicAuth =
+        // No gate (loopback / --insecure): token mode. Try to grab the embedded token.
+        if (!authRequired) {
+            var extractedToken: String? = null
             try {
-                val req =
+                val spaReq =
                     Request
                         .Builder()
                         .url(endpoint.resolve("").toString())
                         .get()
                         .build()
-                val resp = probeClient.newCall(req).execute()
-                val code = resp.code
-                val location = resp.header("location", "")
-                // 302 to /login means basic auth is active
-                code == 302 && location?.contains("/login", ignoreCase = true) == true
-            } catch (e: Exception) {
-                Log.w(TAG, "SPA probe failed: ${e.message}")
-                false
-            }
-
-        // Step 3: Extract token from SPA HTML (if reachable without redirect)
-        var extractedToken: String? = null
-        if (!needsBasicAuth) {
-            try {
-                val req =
-                    Request
-                        .Builder()
-                        .url(endpoint.resolve("").toString())
-                        .get()
-                        .build()
-                val resp = probeClient.newCall(req).execute()
-                val body = resp.body.string()
-                // Extract __HERMES_SESSION_TOKEN__ from the SPA HTML
+                val spaResp = probeClient.newCall(spaReq).execute()
+                val body = spaResp.body.string()
                 val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__\s*=\s*"([^"]+)"""").find(body)
                 extractedToken = tokenMatch?.groupValues?.getOrNull(1)
-                if (extractedToken == null) {
-                    Log.w(TAG, "SPA has no __HERMES_SESSION_TOKEN__ — mode might require both auth")
-                }
             } catch (e: Exception) {
                 Log.w(TAG, "SPA token extraction failed: ${e.message}")
             }
+            val mode =
+                if (extractedToken != null) {
+                    DashboardAuthMode.TOKEN_ONLY
+                } else {
+                    DashboardAuthMode.ALL
+                }
+            return ProbeResult(authMode = mode, extractedToken = extractedToken)
         }
 
-        val authMode =
-            if (needsBasicAuth) {
-                DashboardAuthMode.BASIC_AUTH
-            } else if (extractedToken != null) {
-                DashboardAuthMode.TOKEN_ONLY
-            } else {
-                DashboardAuthMode.ALL
-            }
-
-        return ProbeResult(authMode = authMode, extractedToken = extractedToken)
+        // Gate engaged (non-loopback bind). Derive from the provider list.
+        return ProbeResult(authMode = deriveAuthMode(authRequired, providers))
     }
 
     /**
@@ -275,6 +310,17 @@ class AuthLoginViewModel(
 
                         DashboardAuthMode.ALL -> {
                             connectBasicAuth(endpoint, state.username, state.password)
+                        }
+
+                        DashboardAuthMode.OAUTH -> {
+                            // TODO(issue #639): implement OAuth browser flow + WS ticket minting.
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    errorMessage = app.getString(R.string.auth_login_error_oauth_unsupported),
+                                )
+                            }
+                            null
                         }
 
                         null -> {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -67,6 +68,33 @@ import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingCodeEntryScreen as PairingCodeEntryScreenContent
+
+private val settingsDestinations: Set<NavKey> =
+    setOf(
+        SettingsScreen,
+        SettingsConnection,
+        SettingsAppearance,
+        SettingsChat,
+        SettingsNavBar,
+        SettingsBehavior,
+        SettingsAbout,
+    )
+
+/**
+ * Keep Settings highlighted in the bottom nav while one of its drill-down
+ * sub-pages is visible. Navigation is unaffected — this only maps the
+ * *selection* key back to the Settings parent so the indicator doesn't drop.
+ */
+internal fun selectedBottomNavDestination(currentScreen: NavKey): NavKey =
+    if (currentScreen in settingsDestinations) SettingsScreen else currentScreen
+
+/** Maps a compact bottom-nav display mode to its bar height. */
+internal fun Modifier.bottomNavigationHeight(displayMode: BottomNavDisplayMode): Modifier =
+    when (displayMode) {
+        BottomNavDisplayMode.ICON_ONLY -> height(56.dp)
+        BottomNavDisplayMode.TEXT_ONLY -> height(44.dp)
+        BottomNavDisplayMode.ICON_AND_TEXT -> heightIn(min = 80.dp)
+    }
 
 private fun resolveBottomNavItems(names: List<String>): List<ScreenDefinition> =
     names.mapNotNull { name -> ScreenRegistry.ALL_SCREENS.firstOrNull { it.key::class.simpleName == name } }
@@ -173,6 +201,7 @@ fun MainNavigation(sessionId: String? = null) {
     NavigationController.backStack = backStack
 
     val currentScreen = backStack.lastOrNull() ?: startScreen
+    val selectedDestination = selectedBottomNavDestination(currentScreen)
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -298,14 +327,8 @@ fun MainNavigation(sessionId: String? = null) {
                 contentWindowInsets = WindowInsets.navigationBars,
                 bottomBar = {
                     if (showBottomBar) {
-                        val barHeight =
-                            when (bottomNavDisplayMode) {
-                                BottomNavDisplayMode.ICON_ONLY -> 56.dp
-                                BottomNavDisplayMode.TEXT_ONLY -> 44.dp
-                                BottomNavDisplayMode.ICON_AND_TEXT -> 80.dp
-                            }
                         NavigationBar(
-                            modifier = Modifier.height(barHeight),
+                            modifier = Modifier.bottomNavigationHeight(bottomNavDisplayMode),
                         ) {
                             bottomNavItems.forEach { item ->
                                 val showIcon =
@@ -315,7 +338,7 @@ fun MainNavigation(sessionId: String? = null) {
                                     bottomNavDisplayMode == BottomNavDisplayMode.ICON_AND_TEXT ||
                                         bottomNavDisplayMode == BottomNavDisplayMode.TEXT_ONLY
 
-                                val isSelected = currentScreen == item.key
+                                val isSelected = selectedDestination == item.key
 
                                 NavigationBarItem(
                                     selected = isSelected,

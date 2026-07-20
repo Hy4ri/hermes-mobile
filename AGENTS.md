@@ -5,7 +5,7 @@ This complements [README.md](README.md) (for humans) with agent-focused context.
 
 ## Project Overview
 
-**Hermes Control** is a Jetpack Compose Android app — a mobile control panel for
+**Hermes Mobile** is a Jetpack Compose Android app — a mobile control panel for
 [Hermes Agent](https://hermes-agent.nousresearch.com). It talks to the Hermes
 dashboard's REST API and WebSocket TUI Gateway (JSON-RPC 2.0) over a trusted LAN.
 
@@ -28,6 +28,7 @@ If you have a local Android SDK (`ANDROID_HOME` set), these work:
 ```
 
 **ktlint standalone** (no SDK needed):
+
 ```bash
 # Download the matching binary
 curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.2.1/ktlint
@@ -40,15 +41,15 @@ chmod +x ktlint
 
 ### CI pipeline (`.github/workflows/android.yml`)
 
-| Job | Purpose |
-|-----|---------|
-| `ktlint` | ktlint 1.2.1 style check + `checkColorLiterals` (hardcoded Color guard, issue #622) |
-| `android-lint` | Android Lint |
-| `unit-tests` | JUnit |
-| `build` | assembleDebug (gated by the 3 above) |
-| `release-compile` | compileReleaseKotlin — catches release-variant compilation issues (e.g. debugImplementation-scoped deps referenced in main source) |
-| `instrumented-tests` | Compose UI tests on Android emulator (API 34 ATD) |
-| `ci-summary` | Aggregator (`if: always()`) — branch protection gates on THIS check |
+| Job                  | Purpose                                                                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `ktlint`             | ktlint 1.2.1 style check + `checkColorLiterals` (hardcoded Color guard, issue #622)                                                |
+| `android-lint`       | Android Lint                                                                                                                       |
+| `unit-tests`         | JUnit                                                                                                                              |
+| `build`              | assembleDebug (gated by the 3 above)                                                                                               |
+| `release-compile`    | compileReleaseKotlin — catches release-variant compilation issues (e.g. debugImplementation-scoped deps referenced in main source) |
+| `instrumented-tests` | Compose UI tests on Android emulator (API 34 ATD)                                                                                  |
+| `ci-summary`         | Aggregator (`if: always()`) — branch protection gates on THIS check                                                                |
 
 Also: There is a separate workflow `merge-conflict-detector.yml` that auto-labels PRs with `has-conflicts`.
 
@@ -107,11 +108,13 @@ Some ViewModels (e.g. `AuthLoginViewModel`) are created at the Activity scope vi
 and cached state like `connectionSuccess` persists across screen entries.
 
 Always pair transient state flags with a `DisposableEffect` cleanup:
+
 ```kotlin
 DisposableEffect(Unit) {
     onDispose { viewModel.clearTransientState() }
 }
 ```
+
 The cleanup function should reset self-transitioning flags (`connectionSuccess`,
 `isLoading`, `errorMessage`) so the screen can re-enter cleanly.
 
@@ -120,9 +123,9 @@ The cleanup function should reset self-transitioning flags (`connectionSuccess`,
 `HermesWsClient` is a singleton that outlives individual screens. It must be
 explicitly disconnected on logout and reconnected after login:
 
-| Event | Action |
-|-------|--------|
-| Logout | `HermesWsClient.disconnect()` before clearing tokens |
+| Event         | Action                                                 |
+| ------------- | ------------------------------------------------------ |
+| Logout        | `HermesWsClient.disconnect()` before clearing tokens   |
 | Login success | `HermesWsClient.connect()` after `ApiClient.rebuild()` |
 
 The singleton's `connect()` has a guard (`if connected → skip`) so it's safe to
@@ -227,6 +230,7 @@ gh pr create --title "fix(#N): description" --body "Closes #N"
 ### Commit Conventions — STRICT
 
 **⚠ Agent-authored commits:** Do NOT override git authorship (`--author`) with the agent's identity. Use the default git config. No `Co-Authored-By` or `Generated with` trailers.
+
 - **Short commits:** subject line + max 2 lines of body. Split into atomic commits rather than writing long bodies.
 - **Conventional Commits** types: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`.
 - Bug fixes annotated inline with the tracking issue/regression ID.

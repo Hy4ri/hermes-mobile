@@ -231,7 +231,7 @@
 
     <!-- Language -->
     <string name="settings_item_language">Language</string>
-    <string name="language_system">System default</string>
+    <string name="language_system">System</string>
     <string name="language_english">English</string>
     <string name="language_korean">한국어</string>
 
@@ -704,7 +704,7 @@
     <string name="mcp_servers_auth_header">Header</string>
     <string name="mcp_servers_auth_oauth">OAuth</string>
     <string name="mcp_servers_field_bearer_token">Bearer token</string>
- 
+
      <!-- Gateway Screen -->
     <string name="gateway_status_running">GATEWAY RUNNING</string>
     <string name="gateway_status_stopped">GATEWAY STOPPED</string>

@@ -74,8 +74,14 @@ class PersistentCookieJar(
         return null
     }
 
-    /** Convenience: value of the `hermes_session_at` session cookie. */
-    fun getSessionCookieValue(): String? = getCookie(SESSION_COOKIE_NAME)?.value
+    /**
+     * Convenience: value of the dashboard session cookie.
+     *
+     * Iterates [SESSION_COOKIE_NAMES] (strictest `__Host-` / `__Secure-`
+     * prefix first) and returns the first match. Over HTTPS the server may
+     * store the cookie under a prefixed name the bare-name lookup would miss.
+     */
+    fun getSessionCookieValue(): String? = SESSION_COOKIE_NAMES.firstNotNullOfOrNull { name -> getCookie(name)?.value }
 
     override fun saveFromResponse(
         url: HttpUrl,

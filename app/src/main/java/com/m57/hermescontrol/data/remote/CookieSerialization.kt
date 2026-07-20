@@ -86,8 +86,25 @@ fun sessionCookieFromValue(value: String): Cookie? = wrapSessionCookie(value)
 
 const val SESSION_COOKIE_NAME = "hermes_session_at"
 
+/**
+ * All names the dashboard may use for its session cookie, strictest variant
+ * first. Over HTTPS the server emits a [`__Host-`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#cookie_prefixes)
+ * (root-facing HTTPS) or `__Secure-` (HTTPS reverse-proxy with a path prefix)
+ * prefixed cookie; the bare name is the legacy HTTP form. Ordering matches the
+ * server's own fallback precedence so the most-constrained variant wins.
+ */
+val SESSION_COOKIE_NAMES: List<String> =
+    listOf(
+        "__Host-$SESSION_COOKIE_NAME",
+        "__Secure-$SESSION_COOKIE_NAME",
+        SESSION_COOKIE_NAME,
+    )
+
+/** True when [name] is any recognized dashboard session-cookie name. */
+fun isSessionCookieName(name: String): Boolean = name in SESSION_COOKIE_NAMES
+
 /** True when [cookie] is the dashboard session cookie. */
-fun isSessionCookie(cookie: Cookie): Boolean = cookie.name == SESSION_COOKIE_NAME
+fun isSessionCookie(cookie: Cookie): Boolean = isSessionCookieName(cookie.name)
 
 /** Parse a raw `Set-Cookie` header value (sans the `hermes_session_at=` key). */
 fun Cookie.Companion.parseRaw(

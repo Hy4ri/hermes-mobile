@@ -1,10 +1,12 @@
 package com.m57.hermescontrol.data.remote
 
 import kotlinx.coroutines.test.runTest
+import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -28,10 +30,61 @@ class CookieManagerTest {
         return ServerEndpoint.fromLegacy(host, 9119)
     }
 
+    private fun httpsEp(
+        host: String,
+        path: String = "/",
+    ): ServerEndpoint =
+        ServerEndpoint.parse(
+            "https://$host:9119$path",
+            CleartextPolicy.ALLOW_WITH_WARNING,
+        )
+
     @After
     fun tearDown() {
         CookieManager.resetForTest()
     }
+
+    @Test
+    fun getSessionCookie_recognizesHostPrefixedCookie() =
+        runTest {
+            val jar = buildFakePersistentCookieJar()
+            jar.useStore(PersistentCookieJar.DEFAULT_SERVER_ID)
+            CookieManager.setJarForTest(jar)
+            // Server stored a __Host- prefixed cookie (HTTPS deployment).
+            jar.saveFromResponse(
+                "https://dash.local/".toHttpUrl(),
+                listOf(
+                    Cookie
+                        .Builder()
+                        .name("__Host-hermes_session_at")
+                        .value("prefixed-value")
+                        .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                        .hostOnlyDomain("dash.local")
+                        .path("/")
+                        .secure()
+                        .httpOnly()
+                        .build(),
+                ),
+            )
+
+            assertEquals("prefixed-value", CookieManager.getSessionCookie())
+        }
+
+    @Test
+    fun setSessionCookie_httpsMarksSecureAndHonorsPath() =
+        runTest {
+            val jar = fakeJar()
+            // Proxy-prefixed HTTPS endpoint.
+            CookieManager.setSessionCookie("sess-secure", httpsEp("dash.local", "/hermes/"))
+
+            val cookies =
+                jar.loadForRequest(
+                    "https://dash.local/hermes/api/status".toHttpUrl(),
+                )
+            assertEquals(1, cookies.size)
+            assertTrue("HTTPS session cookie must be Secure", cookies[0].secure)
+            assertEquals("/hermes/", cookies[0].path)
+        }
 
     @Test
     fun setThenGetSessionCookie_roundTrips() {

@@ -2,9 +2,12 @@ package com.m57.hermescontrol.data.ws
 
 import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
+import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
@@ -45,6 +48,13 @@ class HermesWsClientTest {
         every { AuthManager.wsUrl() } returns mockWebServer.url("/").toString().replace("http://", "ws://")
         every { AuthManager.isAutoReconnect() } returns false
         every { AuthManager.getSessionCookie() } returns null
+        // Non-gated by default (token mode) so the gated ticket path is exercised
+        // only by the explicit gated-mode test below.
+        every { AuthManager.serverStore } returns
+            mockk<com.m57.hermescontrol.data.config.ServerStore>().also {
+                every { it.getLatestState() } returns
+                    com.m57.hermescontrol.data.config.ServerStoreState()
+            }
 
         // Issue #470: clients are built through OkHttpProvider, which now
         // resolves the shared CookieManager.cookieJar. Inject a fake jar so
@@ -474,5 +484,66 @@ class HermesWsClientTest {
         HermesWsClient.disconnect()
         assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
         assertFalse(HermesWsClient.isConnected)
+    }
+
+    // ── Issue #635: gated-mode WS ticket fetch must not be blocked by a
+    // missing bare-name session cookie (HTTPS deployments prefix it with
+    // __Host- / __Secure-). ────────────────────────────────────────────────
+
+    @Test
+    fun testGatedMode_attemptsTicketFetchWithoutBareCookie() {
+        // Force gated mode (ws auth via ticket, not loopback token).
+        every { AuthManager.serverStore } returns
+            mockk<com.m57.hermescontrol.data.config.ServerStore>().also {
+                every { it.getLatestState() } returns
+                    com.m57.hermescontrol.data.config.ServerStoreState(wsAuthParam = "ticket")
+            }
+        // No bare-name session cookie present (the prefixed one is server-side).
+        every { AuthManager.getSessionCookie() } returns null
+        // setToken is exercised by the ticket refresh; stub it (AuthManager is
+        // a mocked object, so unstubbed calls throw).
+        every { AuthManager.setToken(any()) } returns Unit
+
+        // Separate server for the ticket endpoint so its queue can't interleave
+        // with the WebSocket upgrade on the main mockWebServer.
+        val ticketServer = MockWebServer()
+        ticketServer.start()
+        every { AuthManager.endpointForBuild() } returns
+            ServerEndpoint.parse(
+                ticketServer.url("/").toString(),
+                CleartextPolicy.ALLOW_WITH_WARNING,
+            )
+        ticketServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"ticket":"refreshed-ticket"}"""),
+        )
+
+        val connectLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        ws: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        connectLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.connect()
+
+        // Before the fix, a null bare cookie short-circuited to AUTH_EXPIRED and
+        // the ticket endpoint was NEVER called. After the fix it is attempted,
+        // so the connection reaches CONNECTED.
+        assertTrue(
+            "Gated WS ticket fetch should be attempted even without a bare cookie",
+            connectLatch.await(5, TimeUnit.SECONDS),
+        )
+        assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
+
+        ticketServer.shutdown()
     }
 }

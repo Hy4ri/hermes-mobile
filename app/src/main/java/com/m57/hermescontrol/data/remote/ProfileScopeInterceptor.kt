@@ -62,7 +62,15 @@ object ProfileScopeInterceptor : Interceptor {
             return chain.proceed(request) // explicit param wins
         }
 
-        if (!isProfileScopedPath(url.encodedPath)) {
+        // Derive the path relative to the endpoint's proxy prefix so profile
+        // scoping works when the dashboard is served behind a reverse proxy
+        // (e.g. `/hermes/api/status` → relative `/api/status`). A transient
+        // DataStore read failure mid-intercept must not crash every request.
+        val relativePath =
+            runCatching { AuthManager.endpoint().relativeRequestPath(url) }
+                .getOrDefault(url.encodedPath)
+
+        if (!isProfileScopedPath(relativePath)) {
             return chain.proceed(request)
         }
 

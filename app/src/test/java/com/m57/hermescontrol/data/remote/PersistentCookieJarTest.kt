@@ -179,4 +179,60 @@ class PersistentCookieJarTest {
         assertTrue(jar.loadForRequest("http://empty.local/".toHttpUrl()).isEmpty())
         assertNull(jar.getSessionCookieValue())
     }
+
+    @Test
+    fun getSessionCookieValue_findsPrefixedHostCookie() =
+        runTest {
+            val jar = makeJar()
+            jar.useStore("prefixed-scope")
+            val url = "https://dash.local/".toHttpUrl()
+            val prefixed =
+                Cookie
+                    .Builder()
+                    .name("__Host-hermes_session_at")
+                    .value("host-prefixed-value")
+                    .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                    .hostOnlyDomain("dash.local")
+                    .path("/")
+                    .secure()
+                    .httpOnly()
+                    .build()
+            jar.saveFromResponse(url, listOf(prefixed))
+
+            assertEquals("host-prefixed-value", jar.getSessionCookieValue())
+        }
+
+    @Test
+    fun getSessionCookieValue_prefersStrictestVariant() =
+        runTest {
+            val jar = makeJar()
+            jar.useStore("multi-scope")
+            val url = "https://dash.local/".toHttpUrl()
+            // Both a bare and a __Secure- prefixed cookie present; the strictest
+            // (__Host- / __Secure- first in SESSION_COOKIE_NAMES) must win.
+            val bare =
+                Cookie
+                    .Builder()
+                    .name(SESSION_COOKIE_NAME)
+                    .value("bare-value")
+                    .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                    .hostOnlyDomain("dash.local")
+                    .path("/")
+                    .httpOnly()
+                    .build()
+            val secure =
+                Cookie
+                    .Builder()
+                    .name("__Secure-hermes_session_at")
+                    .value("secure-value")
+                    .expiresAt(System.currentTimeMillis() + 10L * 365 * 24 * 60 * 60 * 1000)
+                    .hostOnlyDomain("dash.local")
+                    .path("/")
+                    .secure()
+                    .httpOnly()
+                    .build()
+            jar.saveFromResponse(url, listOf(bare, secure))
+
+            assertEquals("secure-value", jar.getSessionCookieValue())
+        }
 }

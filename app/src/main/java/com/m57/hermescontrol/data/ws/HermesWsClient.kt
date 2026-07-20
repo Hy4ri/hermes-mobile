@@ -253,13 +253,6 @@ object HermesWsClient {
             return true
         }
 
-        val sessionCookie = AuthManager.getSessionCookie()
-        if (sessionCookie.isNullOrBlank()) {
-            Log.w(TAG, "WS ticket refresh aborted: no session cookie found in gated mode")
-            _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
-            return false
-        }
-
         try {
             val client = OkHttpProvider.probe
             val request =
@@ -294,7 +287,7 @@ object HermesWsClient {
                 return false
             }
         } catch (e: Exception) {
-            Log.w(TAG, "WS ticket refresh failed: ${e.message}")
+            Log.w(TAG, "WS ticket refresh failed: ${e.javaClass.simpleName}")
             _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
             return false
         }
@@ -539,7 +532,8 @@ object HermesWsClient {
             code: Int,
             reason: String,
         ) {
-            Log.d(TAG, "WebSocket closing: $code $reason")
+            // Do NOT log [reason] — it may carry server-side context.
+            Log.d(TAG, "WebSocket closing: $code")
             webSocket.close(code, reason)
         }
 
@@ -548,7 +542,9 @@ object HermesWsClient {
             code: Int,
             reason: String,
         ) {
-            Log.i(TAG, "WebSocket closed: $code $reason")
+            // Do NOT log [reason] — it may carry server-side context. The
+            // reason is still inspected internally to detect auth failures.
+            Log.i(TAG, "WebSocket closed: $code")
             connected.set(false)
             stopHealthTracking()
             if (code == 4001 || code == 4401 ||
@@ -567,7 +563,10 @@ object HermesWsClient {
             t: Throwable,
             response: Response?,
         ) {
-            Log.e(TAG, "WebSocket failure: ${t.message}", t)
+            // Log the exception class only — [Throwable.message] can leak URLs
+            // or headers. The message is still inspected internally for auth
+            // detection.
+            Log.e(TAG, "WebSocket failure: ${t.javaClass.simpleName}", t)
             connected.set(false)
             stopHealthTracking()
             val code = response?.code ?: 0

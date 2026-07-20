@@ -11,8 +11,8 @@ dashboard's REST API and WebSocket TUI Gateway (JSON-RPC 2.0) over a trusted LAN
 
 - **Package:** `com.m57.hermescontrol`
 - **Min SDK 26 / Target SDK 36 / Compile SDK 36**
-- **Kotlin 2.3.20**, KSP 2.3.9 (standalone versioning, NOT `kotlinVersion-kspVersion`)
-- **Jetpack Compose**, Room 2.7.x, Navigation3, OkHttp WebSocket, Retrofit, Gson
+- **Kotlin 2.4.10**, KSP 2.3.10 (standalone versioning, NOT `kotlinVersion-kspVersion`)
+- **Jetpack Compose**, Room 2.7.x, Navigation3, OkHttp WebSocket, Retrofit, Kotlinx Serialization
 - **Auth:** `EncryptedSharedPreferences` (AES256-GCM), Bearer token (REST) + `?token=` (WS)
 
 ## Build & Test Commands
@@ -42,12 +42,15 @@ chmod +x ktlint
 
 | Job | Purpose |
 |-----|---------|
-| `ktlint` | ktlint 1.2.1 style check |
+| `ktlint` | ktlint 1.2.1 style check + `checkColorLiterals` (hardcoded Color guard, issue #622) |
 | `android-lint` | Android Lint |
 | `unit-tests` | JUnit |
 | `build` | assembleDebug (gated by the 3 above) |
 | `release-compile` | compileReleaseKotlin — catches release-variant compilation issues (e.g. debugImplementation-scoped deps referenced in main source) |
+| `instrumented-tests` | Compose UI tests on Android emulator (API 34 ATD) |
 | `ci-summary` | Aggregator (`if: always()`) — branch protection gates on THIS check |
+
+Also: There is a separate workflow `merge-conflict-detector.yml` that auto-labels PRs with `has-conflicts`.
 
 Every Gradle job validates `gradle-wrapper.jar` and uses the remote build cache
 (`GRADLE_ENCRYPTED_KEY` secret). `concurrency.cancel-in-progress: true`.
@@ -193,10 +196,18 @@ breakdown, edge cases, and timeline of previous occurrences.
 
 ### Theme
 
-`Theme.kt` has `ENABLE_DYNAMIC_COLOR = true` (Material You on API 31+). Semantic
-status colors (success/warning/error/info) are ALWAYS brand-defined via
-`LocalHermesStatusColors`, never dynamic. Access them via
-`LocalHermesStatusColors.current.success`, not `MaterialTheme.colorScheme`.
+`Theme.kt` uses a preset-based theme system with 6 built-in presets: Default,
+Monochrome, Gruvbox, Catppuccin, AMOLED, and Neon Noir. Each preset provides both
+light and dark color schemes plus matching semantic status colors.
+
+Dynamic color (Material You on API 31+) is controlled by a `useDynamicColors`
+parameter on `HermesControlTheme`, not a compile-time constant. When dynamic
+colors are active they override the preset's `ColorScheme`, but semantic status
+colors (success/warning/error/info) are ALWAYS resolved from the active preset
+via `LocalHermesStatusColors` — never from `MaterialTheme.colorScheme`.
+
+Access status colors via `LocalHermesStatusColors.current.success`, not
+`MaterialTheme.colorScheme`.
 
 ## Git Workflow
 
@@ -244,7 +255,7 @@ gh pr create --title "fix(#N): description" --body "Closes #N"
   (`remember {}`, `buildAnnotatedString`, `LaunchedEffect`). Extract to a local
   `val` at the composable scope first.
 - Don't add new screens without checking if an existing one already covers the
-  functionality (19+ screens exist). Extend rather than duplicate.
+  functionality (28+ screens exist). Extend rather than duplicate.
 - **⚠ Never scope a dependency to `debugImplementation` if its import is used in
   `main/` source code.** The CI `release-compile` job catches this, but save the
   cycle. `okhttp3.logging.HttpLoggingInterceptor` is the classic example — it's
@@ -252,22 +263,48 @@ gh pr create --title "fix(#N): description" --body "Closes #N"
   `debugImplementation`. If you want it debug-only, wrap the usage in
   `if (BuildConfig.DEBUG)` or extract it behind an interface.
 
+### Hardcoded Color Guard (issue #622)
+
+A custom Gradle task `checkColorLiterals` fails the build if `Color(0x...)` hex
+literals or named `Color.White`/`Color.Black`/etc. appear outside the allowed
+paths (`theme/`, `*Preview.kt`, `PairingScreen.kt`, `AuthLoginScreen.kt`).
+
+Use `MaterialTheme.colorScheme.<token>`, `LocalHermesStatusColors.current.<semantic>`,
+or `Color.Transparent` / `Color.Unspecified` instead. The guard runs in CI as part
+of the `ktlint` job.
+
 ## Project Layout
 
 ```
 com.m57.hermescontrol/
-├── data/          local (AuthManager), remote (Retrofit), ws (WebSocket), model
-├── notification/  ChatNotificationService (foreground service)
-├── theme/         Color, Theme, Motion, Spacing, Shapes, Type
-├── ui/            chat, settings, common (HermesScaffold, StateViews), + 17 screens
-├── util/          CronExpressionFormatter, etc.
-├── Navigation.kt          Drawer + NavDisplay + entry wiring
-├── NavigationController.kt  Central navigation guard (dedup)
+├── data/
+│   ├── config/     ServerStore, ConnectionProfile, migrations
+│   ├── local/      AuthManager, Room (ChatMessageEntity/Dao, HermesDatabase), AnalyticsCacheStore
+│   ├── model/      40+ data classes for API responses + requests
+│   ├── remote/     ApiClient, Retrofit service, OkHttp provider, cookie management
+│   ├── session/    ActiveSessionHolder
+│   └── ws/         HermesWsClient, JSON-RPC models, WsEvent, BillingRepository
+├── notification/   ChatNotificationService, NotificationReplyReceiver
+├── theme/          Color, Theme, Motion, Spacing, Shapes, Type, HermesStatusColors
+│   └── presets/    Default, Monochrome, Gruvbox, Catppuccin, AMOLED, NeonNoir
+├── ui/
+│   ├── common/     HermesScaffold, StateViews, SharedComponents, DetailDialog, DetailRows
+│   └── 28 feature packages (achievements, analytics, authlogin, billing, channels,
+│       chat, config, connect, cron, gateway, kanban, keys, landing, logs, mcp,
+│       model, pairing, plugins, process, profiles, providers, sessions, settings,
+│       skills, system, toolsets, webhooks)
+├── util/           CronExpressionFormatter, LocaleContextWrapper
+├── HermesControlApp.kt     Application class
+├── Navigation.kt           Drawer + NavDisplay + entry wiring
+├── NavigationController.kt Central navigation guard (dedup)
+├── NavigationKeys.kt       @Serializable NavKey data objects (28 screens + 6 settings sub-pages)
+├── ScreenRegistry.kt       entry<T> registrations for all NavKeys
 └── MainActivity.kt
 ```
 
 ## Further Reading
 
 - [README.md](README.md) — human-facing overview, features, screenshots, tech stack
-- [TEST_INFRA.md](TEST_INFRA.md) / [TEST_READY.md](TEST_READY.md) — test infrastructure notes
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow, PR checklist, code style
 - [.github/workflows/android.yml](.github/workflows/android.yml) — CI pipeline source of truth
+- [.github/workflows/merge-conflict-detector.yml](.github/workflows/merge-conflict-detector.yml) — auto-labels conflicting PRs

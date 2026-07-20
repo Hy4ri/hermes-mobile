@@ -27,12 +27,14 @@
 
 ## Features
 
-- **Real-Time Chat:** Message your agent with Room-backed local database history.
-- **System Config:** Manage active profiles, installed skills, plugins, and LLM model selections.
-- **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, and test webhooks.
-- **Gateway Status:** Monitor WebSocket connection, MCP servers, and messaging channel status.
-- **Productivity:** View and manage tasks via integrated Kanban boards and track agent milestones.
-- **Modern UX:** Native Material You design supporting dynamic color theming, scroll-aware TopBar, and pull-to-refresh.
+- **Real-Time Chat:** Message your agent with Room-backed local database history and inline reply notifications.
+- **System Config:** Manage active profiles, installed skills, plugins, toolsets, and LLM model/provider selections.
+- **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
+- **Gateway Status:** Monitor WebSocket connection, MCP servers, messaging channels, and OAuth providers.
+- **Productivity:** View and manage tasks via integrated Kanban boards, track agent milestones, and browse session history.
+- **Analytics & Billing:** Usage analytics dashboard and billing/subscription management.
+- **Theming:** 6 built-in color presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir) plus Material You dynamic colors on supported devices.
+- **Modern UX:** Native Material 3 design with pull-to-refresh, scroll-aware TopBar, and customizable bottom navigation.
 
 ---
 
@@ -108,23 +110,28 @@ The **Pairing** screen lets you approve or revoke agents and services that are t
 
 ```
 app/src/main/java/com/m57/hermescontrol/
-├── data/          # Local (Room, EncryptedSharedPreferences) & Remote (Retrofit, OkHttp WS)
-├── notification/  # Foreground service for message notifications
-├── theme/         # Material You design system, status colors, spacing, and typography
-└── ui/            # Compose screens (Chat, Settings, Profiles, Kanban, etc.) + Navigation
+├── data/          # Local (Room, AuthManager), Remote (Retrofit, OkHttp), WS (WebSocket), Models
+├── notification/  # Foreground service + inline reply for chat notifications
+├── theme/         # Preset-based design system (6 themes), status colors, spacing, typography
+├── ui/            # 28 Compose feature screens + common components (HermesScaffold, StateViews)
+├── util/          # CronExpressionFormatter, LocaleContextWrapper
+└── Navigation*.kt # Navigation3 wiring, keys, screen registry, controller
 ```
 
 ---
 
 ## Tech Stack
 
-- **Language:** Kotlin 2.4.0 with KSP compiler plugin
+- **Language:** Kotlin 2.4.10 with KSP 2.3.10 compiler plugin
 - **UI & Layout:** Jetpack Compose (BOM 2026.03.01) & Material 3 / Material You
 - **Navigation:** Navigation3 (Compose-first Routing)
-- **Networking:** Retrofit 3.0.0, OkHttp 5.4.0, Gson 2.14.0
-- **Database:** Room 2.7.1 with SQLCipher encryption
-- **Security:** `EncryptedSharedPreferences` (AES256-GCM)
-- **Formatting:** `ktlint` style rules (checked automatically in CI)
+- **Networking:** Retrofit 3.0.0, OkHttp 5.4.0, Kotlinx Serialization 1.11.0
+- **Database:** Room 2.7.1 with SQLCipher 4.17.0 encryption
+- **Security:** `EncryptedSharedPreferences` (AES256-GCM), DataStore
+- **Theming:** 6 built-in presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir) + Material You dynamic colors
+- **Image Loading:** Coil 2.7.0
+- **Testing:** JUnit 5, MockK, Turbine, Espresso, Compose UI testing
+- **Formatting:** `ktlint` 1.2.1 style rules (checked automatically in CI)
 
 ---
 

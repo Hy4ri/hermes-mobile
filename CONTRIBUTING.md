@@ -68,6 +68,13 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 ### Compose Guidelines
 - Standard screen structures must use `HermesScaffold` rather than raw Material3 `Scaffold`.
 - Composable parameters must follow the standard order: `modifier` first, then event callbacks, and finally children content.
+- Do **not** apply `paddingValues` on inner content inside `HermesScaffold` — the scaffold already handles top bar padding. See `AGENTS.md` for the full breakdown of this recurring bug.
+- Every data screen must implement `LoadingState`, `ErrorState`, and `EmptyState` branches in its `when { }` block.
+
+### Color Usage
+- **No hardcoded `Color(0x...)` literals** outside `theme/`, `*Preview.kt`, and auth screens. A Gradle task (`checkColorLiterals`) enforces this in CI.
+- Use `MaterialTheme.colorScheme.<token>` or `LocalHermesStatusColors.current.<semantic>` instead.
+- `Color.Transparent` and `Color.Unspecified` are allowed.
 
 ---
 
@@ -77,7 +84,9 @@ Before submitting your PR, please verify:
 
 - [ ] Your branch is up-to-date with `main`.
 - [ ] Local build and `ktlint` checks pass successfully.
+- [ ] `checkColorLiterals` passes (no hardcoded Color literals outside theme/).
 - [ ] No unused imports, unused parameters, or dead code.
 - [ ] Every `Image` and `Icon` element has a descriptive `contentDescription` for accessibility.
-- [ ] New components match the UI/UX style of similar existing screens.
+- [ ] New screens use `HermesScaffold` and implement Loading/Error/Empty states.
+- [ ] New components match the UI/UX style of similar existing screens (28+ screens for reference).
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are atomic (subject + ≤2 lines body).

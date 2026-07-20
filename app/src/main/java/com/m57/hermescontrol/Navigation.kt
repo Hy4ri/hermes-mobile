@@ -69,6 +69,10 @@ import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenCont
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingCodeEntryScreen as PairingCodeEntryScreenContent
 
+// NOTE: if a new Settings drill-down screen is added, its NavKey MUST be added
+// here too, or the bottom-nav Settings highlight will drop on that sub-page.
+// (Keys are flat data objects, not a sealed hierarchy, so no type-based check
+// is possible without a larger refactor — see issue #637.)
 private val settingsDestinations: Set<NavKey> =
     setOf(
         SettingsScreen,

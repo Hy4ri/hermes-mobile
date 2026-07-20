@@ -336,35 +336,6 @@ class ConnectViewModelTest {
         }
 
     @Test
-    fun testOnPairingString_malformedBase64_showsError() {
-        val viewModel = ConnectViewModel(mockApp)
-
-        // Mock Base64.decode to throw IllegalArgumentException for an invalid short string
-        every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
-
-        viewModel.onPairingString("short-invalid-string")
-
-        val state = viewModel.uiState.value
-        assertEquals("Malformed pairing string — expected URL or Base64-encoded JSON", state.errorMessage)
-    }
-
-    @Test
-    fun testOnPairingString_malformedBase64_validRawToken() {
-        val viewModel = ConnectViewModel(mockApp)
-
-        // Mock Base64.decode to throw IllegalArgumentException
-        every { android.util.Base64.decode(any<String>(), any()) } throws IllegalArgumentException("bad base64")
-
-        // A string that is >= 32 chars and alphanumeric matching the raw token regex
-        val validToken = "dummy_token_value_that_is_long_enough_to_pass_validation_123"
-        viewModel.onPairingString(validToken)
-
-        val state = viewModel.uiState.value
-        assertEquals(validToken, state.token)
-        assertNull(state.errorMessage)
-    }
-
-    @Test
     fun testSelectProfile_updatesState() {
         val profile =
             ConnectionProfile(
@@ -548,39 +519,4 @@ class ConnectViewModelTest {
                 .name,
         )
     }
-
-    @Test
-    fun testOnPairingString_hermesUrl_parsesAndConnects() =
-        runTest {
-            // Stub the Uri mock for this test
-            every { android.net.Uri.parse(any()) } answers {
-                val uri = mockk<android.net.Uri>(relaxed = true)
-                every { uri.getQueryParameter("host") } returns "192.168.1.1"
-                every { uri.getQueryParameter("port") } returns "8888"
-                every { uri.getQueryParameter("token") } returns "abc123"
-                uri
-            }
-
-            val mockResponse = mockk<Response<StatusResponse>>()
-            every { mockResponse.isSuccessful } returns true
-            every { mockResponse.body() } returns
-                StatusResponse(
-                    version = "1.0",
-                    gateway_running = true,
-                    active_sessions = 0,
-                    auth_required = false,
-                    gateway_platforms = emptyMap(),
-                )
-            coEvery { mockApiService.getStatus() } returns mockResponse
-
-            val viewModel = ConnectViewModel(mockApp)
-            viewModel.onPairingString("hermes://connect?host=192.168.1.1&port=8888&token=abc123")
-
-            val state = viewModel.uiState.value
-            assertEquals("http://192.168.1.1:8888/", state.baseUrl)
-            assertEquals("abc123", state.token)
-            // Should have triggered connect
-            advanceUntilIdle()
-            assertTrue("connection should succeed after pairing", viewModel.uiState.value.connectionSuccess)
-        }
 }

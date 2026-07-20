@@ -92,7 +92,6 @@
     <string name="screen_config">Config</string>
     <string name="screen_mcp_servers">MCP Servers</string>
     <string name="screen_models">Models</string>
-    <string name="screen_pairing">Pairing</string>
     <string name="screen_keys">Keys</string>
     <string name="screen_channels">Channels</string>
     <string name="screen_logs">Logs</string>
@@ -538,16 +537,6 @@
     <string name="webhooks_no_matching">No matching subscriptions</string>
     <string name="webhooks_no_matching_desc">Try adjusting your search.</string>
 
-    <!-- Pairing Screen -->
-    <string name="pairing_screen_title">Device Pairing</string>
-    <string name="pairing_sec_pending">Pending Approvals</string>
-    <string name="pairing_action_clear_all">Clear All</string>
-    <string name="pairing_action_approve">Approve</string>
-    <string name="pairing_sec_approved">Approved Devices</string>
-    <string name="pairing_empty_approved">No approved devices paired yet.</string>
-    <string name="pairing_label_user_id">User ID: %1$s</string>
-    <string name="pairing_action_revoke">Revoke</string>
-
     <!-- Config Screen -->
     <string name="config_screen_title">Configuration</string>
     <string name="config_action_reset">Reset</string>
@@ -833,12 +822,6 @@
     <string name="landing_title">Hermes Mobile</string>
     <string name="landing_subtitle">Control panel for Hermes Agent</string>
     <string name="landing_action_auth_login">Auth Login</string>
-    <string name="landing_action_pairing_login">Pairing Login</string>
-
-    <!-- Pairing Code Entry Screen -->
-    <string name="pairing_code_entry_title">Pairing Login</string>
-    <string name="pairing_code_entry_manual_desc">Paste the pairing string from your Hermes dashboard below.</string>
-    <string name="pairing_code_entry_code_label">Pairing Code</string>
 
     <!-- Loading State -->
     <string name="loading_state_subtitle_models">Fetching model providers…</string>

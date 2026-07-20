@@ -67,7 +67,6 @@ import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
-import com.m57.hermescontrol.ui.pairing.PairingCodeEntryScreen as PairingCodeEntryScreenContent
 
 // NOTE: if a new Settings drill-down screen is added, its NavKey MUST be added
 // here too, or the bottom-nav Settings highlight will drop on that sub-page.
@@ -113,9 +112,6 @@ private fun appEntryProvider(
             onAuthLogin = {
                 NavigationController.navigateTo(AuthLoginScreen)
             },
-            onPairingLogin = {
-                NavigationController.navigateTo(PairingCodeEntryScreen)
-            },
         )
         // Landing doesn't use HermesScaffold — opt out of drawer gestures explicitly (issue #619).
         DisableDrawerGestures()
@@ -123,18 +119,6 @@ private fun appEntryProvider(
 
     entry<AuthLoginScreen> {
         AuthLoginScreenContent(
-            onConnected = {
-                NavigationController.resetTo(ChatScreen)
-            },
-            onBack = {
-                NavigationController.goBack()
-            },
-        )
-        DisableDrawerGestures()
-    }
-
-    entry<PairingCodeEntryScreen> {
-        PairingCodeEntryScreenContent(
             onConnected = {
                 NavigationController.resetTo(ChatScreen)
             },
@@ -231,8 +215,7 @@ fun MainNavigation(sessionId: String? = null) {
 
     val showBottomBar =
         currentScreen != LandingScreen &&
-            currentScreen != AuthLoginScreen &&
-            currentScreen != PairingCodeEntryScreen
+            currentScreen != AuthLoginScreen
 
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 

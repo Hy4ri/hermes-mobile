@@ -79,7 +79,6 @@
     <string name="screen_config">설정</string>
     <string name="screen_mcp_servers">MCP 서버</string>
     <string name="screen_models">모델</string>
-    <string name="screen_pairing">페어링</string>
     <string name="screen_keys">키</string>
     <string name="screen_channels">채널</string>
     <string name="screen_logs">로그</string>
@@ -400,16 +399,6 @@
     <string name="webhooks_no_matching">일치하는 구독 없음</string>
     <string name="webhooks_no_matching_desc">검색어를 조정해보세요.</string>
 
-    <!-- Pairing Screen -->
-    <string name="pairing_screen_title">기기 페어링</string>
-    <string name="pairing_sec_pending">승인 대기</string>
-    <string name="pairing_action_clear_all">전체 지우기</string>
-    <string name="pairing_action_approve">승인</string>
-    <string name="pairing_sec_approved">승인된 기기</string>
-    <string name="pairing_empty_approved">승인된 기기가 없습니다.</string>
-    <string name="pairing_label_user_id">사용자 ID: %1$s</string>
-    <string name="pairing_action_revoke">철회</string>
-
     <!-- Config Screen -->
     <string name="config_screen_title">설정</string>
     <string name="config_action_reset">초기화</string>
@@ -683,12 +672,6 @@
     <string name="landing_title">헤르메스 모바일</string>
     <string name="landing_subtitle">Hermes Agent 제어판</string>
     <string name="landing_action_auth_login">인증 로그인</string>
-    <string name="landing_action_pairing_login">페어링 로그인</string>
-
-    <!-- Pairing Code Entry Screen -->
-    <string name="pairing_code_entry_title">페어링 로그인</string>
-    <string name="pairing_code_entry_manual_desc">아래에 Hermes 대시보드의 페어링 문자열을 붙여넣으세요.</string>
-    <string name="pairing_code_entry_code_label">페어링 코드</string>
 
     <!-- Loading State -->
     <string name="loading_state_subtitle_models">모델 제공자 확인 중…</string>

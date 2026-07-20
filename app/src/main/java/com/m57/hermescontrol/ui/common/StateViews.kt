@@ -193,7 +193,7 @@ fun EmptyState(
 // Skeleton loaders for list screens. Replaces bare `CircularProgressIndicator`
 // in list screens to (1) reduce perceived latency (~2× per NN/g research)
 // and (2) eliminate layout shift when real content lands. Pair with
-// `LoadingState()` for centered/one-shot contexts (Pairing flow, dialog
+// `LoadingState()` for centered/one-shot contexts (one-shot flows, dialog
 // interiors) where a spinner is still appropriate.
 
 /**

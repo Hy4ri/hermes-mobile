@@ -102,7 +102,7 @@ val LocalDrawerGestureController =
 /**
  * Opt out of drawer gestures for a screen that does NOT use [HermesScaffold].
  *
- * Used by full-bleed entry screens (Landing, AuthLogin, PairingCodeEntry) that
+ * Used by full-bleed entry screens (Landing, AuthLogin) that
  * render their own layout. Scaffold-based screens should instead pass
  * `drawerGesturesEnabled = false` to [HermesScaffold].
  */

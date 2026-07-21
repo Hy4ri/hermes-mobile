@@ -114,6 +114,8 @@ fun ChatBubble(
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
     onRespondApproval: (String) -> Unit = {},
+    onRespondClarify: ((String) -> Unit)? = null,
+    onDismissClarify: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -147,6 +149,8 @@ fun ChatBubble(
                 SystemBubble(
                     message = message,
                     onRespondApproval = onRespondApproval,
+                    onRespondClarify = onRespondClarify,
+                    onDismissClarify = onDismissClarify,
                     modifier = modifier,
                 )
             }
@@ -390,6 +394,15 @@ private fun AssistantBubble(
                 tonalElevation = 1.dp,
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    // Reasoning card — shown when the message has reasoning text
+                    if (message.reasoningText.isNotBlank()) {
+                        com.m57.hermescontrol.ui.chat.components.ReasoningCard(
+                            reasoningText = message.reasoningText,
+                            stepCount = message.reasoningText.count { it == '\n' } + 1,
+                            isStreaming = message.isStreaming,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
                     SelectionContainer {
                         MarkdownText(
                             text = message.content,
@@ -454,6 +467,8 @@ private fun AssistantBubble(
 private fun SystemBubble(
     message: ChatMessage,
     onRespondApproval: (String) -> Unit = {},
+    onRespondClarify: ((String) -> Unit)? = null,
+    onDismissClarify: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -463,6 +478,17 @@ private fun SystemBubble(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Clarify bubble — show instead of regular text when clarifyInfo is present
+        if (message.clarifyInfo != null) {
+            com.m57.hermescontrol.ui.chat.components.ClarifyBubble(
+                text = message.clarifyInfo.text,
+                options = message.clarifyInfo.options,
+                onOptionSelected = { option -> onRespondClarify?.invoke(option) },
+                onDismiss = { onDismissClarify?.invoke() },
+            )
+            return
+        }
+
         Text(
             text = message.content,
             style =

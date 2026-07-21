@@ -19,7 +19,6 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatBubble
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
-import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.common.EmptyState
 
@@ -89,12 +88,9 @@ fun ChatMessageList(
                         searchMatchIndices[currentSearchMatchIndex] == index
 
                 val isLastMessage = index == messages.lastIndex
-                val isAssistant = message.role == MessageRole.ASSISTANT
+                val isAssistant = message.role == com.m57.hermescontrol.ui.chat.MessageRole.ASSISTANT
 
-                if (isAssistant && message.reasoningText.isNotBlank()) {
-                    ReasoningIndicator(message.reasoningText)
-                }
-
+                // ReasoningCard is now rendered INSIDE AssistantBubble via ChatBubble.kt
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
                     lastAnimatedMessageId != message.id
                 ) {
@@ -113,6 +109,8 @@ fun ChatMessageList(
                         searchQuery = if (isSearchActive) searchQuery else "",
                         isCurrentMatch = isCurrentMatch,
                         onRespondApproval = viewModel::respondToApproval,
+                        onRespondClarify = viewModel::respondToClarify,
+                        onDismissClarify = viewModel::dismissClarify,
                     )
                 }
             }
@@ -120,9 +118,7 @@ fun ChatMessageList(
             // Streaming message
             streamingMessage?.let { streaming ->
                 item(key = "streaming-${streaming.id}") {
-                    if (streaming.reasoningText.isNotBlank()) {
-                        ReasoningIndicator(streaming.reasoningText)
-                    }
+                    // ReasoningCard is now inside AssistantBubble
                     if (typingEffectEnabled && streaming.isStreaming) {
                         StreamingBubbleWithTypingEffect(
                             streaming = streaming,
@@ -135,24 +131,26 @@ fun ChatMessageList(
                             isDarkTheme = isDark,
                             searchQuery = "",
                             isCurrentMatch = false,
+                            onRespondClarify = viewModel::respondToClarify,
+                            onDismissClarify = viewModel::dismissClarify,
                         )
                     }
                 }
             }
 
-            // Thinking indicator
+            // Typing indicator — bouncing dots instead of ThinkingIndicator pill
             if (isThinking) {
-                item(key = "thinking") {
-                    ThinkingIndicator(thinkingText)
+                item(key = "typing_indicator") {
+                    TypingIndicator()
                 }
             }
 
-            // Subagent indicators
+            // Subagent indicators — SubagentCard replaces SubagentIndicatorRow
             items(
                 items = subagentIndicators,
                 key = { indicator -> "subagent-${indicator.subagentId ?: indicator.goal ?: indicator.type}" },
             ) { indicator ->
-                SubagentIndicatorRow(indicator = indicator)
+                SubagentCard(indicator = indicator)
             }
         }
     }

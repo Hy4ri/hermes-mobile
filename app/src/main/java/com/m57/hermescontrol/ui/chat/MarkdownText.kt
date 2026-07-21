@@ -1,10 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
-import android.content.ClipData
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -19,30 +16,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -56,12 +43,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.SearchHighlightColors
 import com.m57.hermescontrol.theme.searchHighlightColors
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"'‘’]+""")
 private val TABLE_COL_WIDTH = 160.dp
@@ -105,7 +89,11 @@ fun MarkdownText(
         for (block in blocks) {
             when (block) {
                 is MdBlock.Code -> {
-                    CodeBlockCard(code = block.code, textColor = textColor)
+                    com.m57.hermescontrol.ui.chat.components.CodeBlockCard(
+                        code = block.code,
+                        language = block.language,
+                        onCopy = { /* clipboard handled internally */ },
+                    )
                 }
 
                 is MdBlock.Hr -> {
@@ -354,73 +342,6 @@ fun MarkdownText(
     }
 }
 
-/**
- * Fenced code block rendered as a card: monospaced text with horizontal scroll and a copy button.
- */
-@Composable
-private fun CodeBlockCard(
-    code: String,
-    textColor: Color,
-) {
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
-
-    // Auto-dismiss the "copied" checkmark after 2s
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(2000)
-            copied = false
-        }
-    }
-
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = textColor.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, textColor.copy(alpha = 0.15f)),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-    ) {
-        Column {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End,
-            ) {
-                IconButton(
-                    onClick = {
-                        scope.launch {
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, code)))
-                        }
-                        copied = true
-                    },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = stringResource(R.string.content_desc_copy),
-                        modifier = Modifier.size(15.dp),
-                        tint = textColor.copy(alpha = 0.7f),
-                    )
-                }
-            }
-            Text(
-                text = code,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
-                color = textColor,
-                softWrap = false,
-                modifier =
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
-    }
-}
-
 @Composable
 private fun MarkdownTable(
     block: MdBlock.Table,
@@ -505,12 +426,23 @@ internal fun parseBlocks(src: String): List<MdBlock> {
 
         when {
             line.startsWith("```") -> {
+                val lang = line.removePrefix("```").trim().ifBlank { null }
                 val end = (i + 1 until lines.size).firstOrNull { lines[it].startsWith("```") }
                 if (end != null) {
-                    blocks.add(MdBlock.Code(lines.subList(i + 1, end).joinToString("\n")))
+                    blocks.add(
+                        MdBlock.Code(
+                            code = lines.subList(i + 1, end).joinToString("\n"),
+                            language = lang,
+                        ),
+                    )
                     i = end + 1
                 } else {
-                    blocks.add(MdBlock.Code(lines.subList(i + 1, lines.size).joinToString("\n")))
+                    blocks.add(
+                        MdBlock.Code(
+                            code = lines.subList(i + 1, lines.size).joinToString("\n"),
+                            language = lang,
+                        ),
+                    )
                     i = lines.size
                 }
             }
@@ -953,6 +885,7 @@ internal fun parseInline(
 internal sealed interface MdBlock {
     data class Code(
         val code: String,
+        val language: String? = null,
     ) : MdBlock
 
     data class Heading(

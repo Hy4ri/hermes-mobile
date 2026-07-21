@@ -390,15 +390,6 @@ private fun AssistantBubble(
                 tonalElevation = 1.dp,
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                    // Reasoning card — shown when the message has reasoning text
-                    if (message.reasoningText.isNotBlank()) {
-                        com.m57.hermescontrol.ui.chat.components.ReasoningCard(
-                            reasoningText = message.reasoningText,
-                            stepCount = message.reasoningText.count { it == '\n' } + 1,
-                            isStreaming = message.isStreaming,
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                    }
                     SelectionContainer {
                         MarkdownText(
                             text = message.content,

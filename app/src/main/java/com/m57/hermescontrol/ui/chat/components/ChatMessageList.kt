@@ -2,8 +2,10 @@ package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,11 +28,6 @@ import com.m57.hermescontrol.ui.common.EmptyState
 
 /**
  * The chat message list.
- *
- * Lay children out vertically so the search bar occupies real layout space
- * ABOVE the message list. Without this container the call site is a Box,
- * which overlays the LazyColumn on top of the search AnimatedVisibility and
- * swallows every tap on the bar (bar visible but not clickable).
  */
 @Composable
 fun ChatMessageList(
@@ -95,7 +92,17 @@ fun ChatMessageList(
                 val isLastMessage = index == messages.lastIndex
                 val isAssistant = message.role == MessageRole.ASSISTANT
 
-                // ReasoningCard is now rendered INSIDE AssistantBubble via ChatBubble.kt
+                // Reasoning card — rendered inline in the same list item so it
+                // stays visible during AND after streaming
+                if (isAssistant && message.reasoningText.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    ReasoningCard(
+                        reasoningText = message.reasoningText,
+                        stepCount = message.reasoningText.count { it == '\n' } + 1,
+                        isStreaming = message.isStreaming,
+                    )
+                }
+
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
                     lastAnimatedMessageId != message.id
                 ) {
@@ -121,7 +128,16 @@ fun ChatMessageList(
             // Streaming message
             streamingMessage?.let { streaming ->
                 item(key = "streaming-${streaming.id}") {
-                    // ReasoningCard is now inside AssistantBubble
+                    // Reasoning card — rendered inline in the same streaming item
+                    if (streaming.reasoningText.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        ReasoningCard(
+                            reasoningText = streaming.reasoningText,
+                            stepCount = streaming.reasoningText.count { it == '\n' } + 1,
+                            isStreaming = streaming.isStreaming,
+                        )
+                    }
+
                     if (typingEffectEnabled && streaming.isStreaming) {
                         StreamingBubbleWithTypingEffect(
                             streaming = streaming,
@@ -139,7 +155,7 @@ fun ChatMessageList(
                 }
             }
 
-            // Typing indicator — bouncing dots instead of ThinkingIndicator pill
+            // Typing indicator — bouncing dots
             if (isThinking) {
                 item(key = "typing_indicator") {
                     TypingIndicator()
@@ -154,8 +170,7 @@ fun ChatMessageList(
                 SubagentCard(indicator = indicator)
             }
 
-            // Clarify bubble — rendered at the very bottom so it appears
-            // after all messages including the streaming message
+            // Clarify bubble — rendered at the very bottom
             if (clarifyRequest != null) {
                 item(key = "clarify_bubble") {
                     ClarifyBubble(

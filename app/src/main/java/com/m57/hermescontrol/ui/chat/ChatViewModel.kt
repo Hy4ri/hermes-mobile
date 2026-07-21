@@ -1121,6 +1121,8 @@ class ChatViewModel(
         }
     }
 
+    private var sessionCreateCounter = 0L
+
     fun createNewSession(setLoading: Boolean = true) {
         _uiState.update {
             it.copy(
@@ -1140,9 +1142,12 @@ class ChatViewModel(
         }
         // B7 safety timeout: clear loading state if RPC response never arrives
         if (setLoading && !isTestEnvironment()) {
+            val generation = ++sessionCreateCounter
             viewModelScope.launch {
                 delay(10_000L)
-                if (_uiState.value.isLoading) {
+                // Only clear if no newer session creation has started — prevents a
+                // stale timeout from wiping the loading flag of a subsequent request.
+                if (generation == sessionCreateCounter && _uiState.value.isLoading) {
                     _uiState.update { it.copy(isLoading = false) }
                 }
             }
@@ -1329,25 +1334,6 @@ class ChatViewModel(
                 onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
             )
         }
-    }
-
-    /**
-     * Cycle the reasoning level for quick-tap UX.
-     *
-     * Cycles through all valid levels:
-     * `null → "none" → "minimal" → "low" → "medium" → "high" → "xhigh" → "max" → "ultra" → null`
-     */
-    fun cycleReasoningLevel() {
-        val allLevels = listOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
-        val current = _uiState.value.reasoningLevel
-        val next =
-            if (current == null) {
-                "none"
-            } else {
-                val idx = allLevels.indexOf(current)
-                if (idx < 0 || idx >= allLevels.lastIndex) null else allLevels[idx + 1]
-            }
-        setReasoningLevel(next)
     }
 
     fun switchSession(sessionId: String) {

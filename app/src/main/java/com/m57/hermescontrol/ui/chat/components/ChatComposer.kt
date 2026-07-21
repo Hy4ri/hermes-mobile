@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +30,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -388,18 +390,27 @@ fun AttachmentChip(
                     contentScale = ContentScale.Crop,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
+            } else {
+                Icon(
+                    imageVector = Icons.Default.InsertDriveFile,
+                    contentDescription = attachment.name,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
             }
             Text(
                 text = attachment.name,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 120.dp),
             )
             Spacer(modifier = Modifier.width(4.dp))
             IconButton(onClick = onRemove, modifier = Modifier.size(18.dp)) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
+                    contentDescription = stringResource(R.string.chat_attach_remove_desc),
                     modifier = Modifier.size(14.dp),
                 )
             }

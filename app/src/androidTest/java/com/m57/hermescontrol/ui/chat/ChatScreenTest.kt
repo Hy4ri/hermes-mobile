@@ -68,9 +68,10 @@ class ChatScreenTest {
         composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
         composeTestRule.onNodeWithTag("send_button").assertDoesNotExist()
 
-        // Verify entering text switches mic button to send button
+        // Verify entering text shows send button in input row
+        // Mic stays visible in toolbar row (new two-row layout)
         composeTestRule.onNodeWithTag("chat_input").performTextInput("Hello Hermes")
         composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("mic_button").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
     }
 }

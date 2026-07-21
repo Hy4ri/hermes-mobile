@@ -536,6 +536,11 @@ fun ChatScreen(
                 onImageTap = { filePickerLauncher.launch("image/*") },
                 onFileTap = { filePickerLauncher.launch("*/*") },
                 onRemoveAttachment = viewModel::removeAttachment,
+                // Composer toolbar wiring (PR 1)
+                currentSessionModel = state.currentSessionModel,
+                reasoningLevel = state.reasoningLevel,
+                onModelTap = { viewModel.openModelPicker() },
+                onReasoningTap = { level -> viewModel.setReasoningLevel(level) },
             )
         }
 

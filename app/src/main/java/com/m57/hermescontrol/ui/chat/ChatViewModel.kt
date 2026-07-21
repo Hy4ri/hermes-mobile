@@ -90,6 +90,8 @@ data class ChatUiState(
     val modelPickerLoading: Boolean = false,
     // Current session's active model label (provider/model), shown in the chip
     val currentSessionModel: String? = null,
+    // Reasoning effort level for the current session
+    val reasoningLevel: String? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     // Reaction animation — set when a reaction WS event arrives, auto-clears
@@ -231,7 +233,12 @@ class ChatViewModel(
         connectWebSocket(setLoading = false)
         viewModelScope.launch {
             wsClient.events.collect { event ->
-                handleWsEvent(event)
+                try {
+                    handleWsEvent(event)
+                } catch (e: Exception) {
+                    android.util.Log.e("ChatVM", "Uncaught in event loop", e)
+                    _uiState.update { it.copy(isLoading = false) }
+                }
             }
         }
         // B7 (Jun 30 2026, kanban t_connection_loading): clear loading state on connection failure or status change
@@ -374,6 +381,33 @@ class ChatViewModel(
         when (event) {
             is WsEvent.GatewayReady -> {
                 handleGatewayReady()
+            }
+
+            is WsEvent.SessionInfo -> {
+                // Session info pushed by backend when config changes
+                // (model switch, reasoning level, etc.)
+                val info = event.data
+                if (info != null) {
+                    val model = info["model"] as? String
+                    val provider = info["provider"] as? String
+                    val reasoningEffort = info["reasoning_effort"] as? String
+                    _uiState.update { state ->
+                        state.copy(
+                            currentSessionModel =
+                                if (model != null && provider != null) {
+                                    "$provider/$model"
+                                } else {
+                                    model ?: state.currentSessionModel
+                                },
+                            reasoningLevel =
+                                if (reasoningEffort.isNullOrEmpty()) {
+                                    null
+                                } else {
+                                    reasoningEffort
+                                },
+                        )
+                    }
+                }
             }
 
             is WsEvent.MessageToken -> {
@@ -559,6 +593,12 @@ class ChatViewModel(
                     (resultMap?.get("resumed") as? String)
                         ?: _uiState.value.currentSessionId
 
+                // Parse session info from backend — model, provider, reasoning_effort
+                val infoMap = resultMap?.get("info") as? Map<String, Any?>
+                val model = infoMap?.get("model") as? String
+                val provider = infoMap?.get("provider") as? String
+                val reasoningEffort = infoMap?.get("reasoning_effort") as? String
+
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
                 // cached messages here — switchSession() already did so before
                 // the WS round-trip. Calling loadCachedMessages() here would
@@ -568,6 +608,18 @@ class ChatViewModel(
                     it.copy(
                         isLoading = false,
                         currentSessionId = sessionId,
+                        currentSessionModel =
+                            if (model != null && provider != null) {
+                                "$provider/$model"
+                            } else {
+                                model ?: it.currentSessionModel
+                            },
+                        reasoningLevel =
+                            if (reasoningEffort.isNullOrEmpty()) {
+                                null
+                            } else {
+                                reasoningEffort
+                            },
                     )
                 }
                 // Mirror the active runtime session id app-wide (issue #532).
@@ -1069,6 +1121,8 @@ class ChatViewModel(
         }
     }
 
+    private var sessionCreateCounter = 0L
+
     fun createNewSession(setLoading: Boolean = true) {
         _uiState.update {
             it.copy(
@@ -1085,6 +1139,18 @@ class ChatViewModel(
                 params = mapOf("source" to "desktop"),
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_CREATE) },
             )
+        }
+        // B7 safety timeout: clear loading state if RPC response never arrives
+        if (setLoading && !isTestEnvironment()) {
+            val generation = ++sessionCreateCounter
+            viewModelScope.launch {
+                delay(10_000L)
+                // Only clear if no newer session creation has started — prevents a
+                // stale timeout from wiping the loading flag of a subsequent request.
+                if (generation == sessionCreateCounter && _uiState.value.isLoading) {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            }
         }
     }
 
@@ -1242,6 +1308,32 @@ class ChatViewModel(
             )
         }
         handleSlashCommand("/model $model --provider $provider --session")
+    }
+
+    /**
+     * Set the reasoning effort level for the current session.
+     *
+     * Updates the UI optimistically and sends a `config.set` RPC to the
+     * backend. The level applies per-session via the runtime session ID.
+     * If [level] is null it resets to the model's default.
+     *
+     * @param level One of "low", "medium", "high", or null for default.
+     */
+    fun setReasoningLevel(level: String?) {
+        _uiState.update { it.copy(reasoningLevel = level) }
+        val sessionId = runtimeSessionId ?: return
+        if (level == null) return // null = model default, no need to send WS
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.CONFIG_SET,
+                mapOf(
+                    "key" to "reasoning",
+                    "value" to level,
+                    "session_id" to sessionId,
+                ),
+                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
+            )
+        }
     }
 
     fun switchSession(sessionId: String) {

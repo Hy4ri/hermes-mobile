@@ -28,12 +28,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -68,8 +65,8 @@ import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 
 /**
- * The chat input bar with attach menu, slash-command dropdown,
- * attachment preview chips, and mic/send/stop button swapping.
+ * The chat input bar with a two-row layout: input+send on top,
+ * and a toolbar with attach/model chip/reasoning chip/mic below.
  */
 @Composable
 fun ChatInputBar(
@@ -86,6 +83,11 @@ fun ChatInputBar(
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
+    // NEW: composer toolbar wiring
+    currentSessionModel: String? = null,
+    reasoningLevel: String? = null,
+    onModelTap: () -> Unit = {},
+    onReasoningTap: (String?) -> Unit = {},
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
@@ -135,7 +137,7 @@ fun ChatInputBar(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             border =
-                                androidx.compose.foundation.BorderStroke(
+                                BorderStroke(
                                     1.dp,
                                     MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                                 ),
@@ -182,6 +184,7 @@ fun ChatInputBar(
                     }
                 }
 
+                // ── TOP ROW: Input field with embedded send button ──
                 Row(
                     modifier =
                         Modifier
@@ -189,66 +192,6 @@ fun ChatInputBar(
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box {
-                        // Single attach button that opens a dropdown menu
-                        IconButton(
-                            onClick = { showAttachmentMenu = true },
-                            enabled = isConnected,
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AttachFile,
-                                contentDescription = stringResource(R.string.chat_attach_desc),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = showAttachmentMenu,
-                            onDismissRequest = { showAttachmentMenu = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Camera") },
-                                onClick = {
-                                    showAttachmentMenu = false
-                                    onCameraTap()
-                                },
-                                leadingIcon = {
-                                    Text(
-                                        text = "📷",
-                                        fontSize = 18.sp,
-                                    )
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Image") },
-                                onClick = {
-                                    showAttachmentMenu = false
-                                    onImageTap()
-                                },
-                                leadingIcon = {
-                                    Text(
-                                        text = "🖼️",
-                                        fontSize = 18.sp,
-                                    )
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("File") },
-                                onClick = {
-                                    showAttachmentMenu = false
-                                    onFileTap()
-                                },
-                                leadingIcon = {
-                                    Text(
-                                        text = "📄",
-                                        fontSize = 18.sp,
-                                    )
-                                },
-                            )
-                        }
-                    }
-
                     val placeholderText =
                         when {
                             !isConnected -> {
@@ -275,7 +218,7 @@ fun ChatInputBar(
                             Modifier
                                 .weight(1f)
                                 .heightIn(min = 42.dp, max = 120.dp)
-                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                                .padding(vertical = 4.dp)
                                 .onFocusChanged { isFocused = it.isFocused }
                                 .testTag("chat_input"),
                         enabled = isConnected,
@@ -302,98 +245,114 @@ fun ChatInputBar(
                                 color = MaterialTheme.colorScheme.surface,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Box(
+                                Row(
                                     modifier =
                                         Modifier
-                                            .padding(horizontal = 12.dp, vertical = 9.dp)
+                                            .padding(start = 12.dp, end = 4.dp, top = 9.dp, bottom = 9.dp)
                                             .fillMaxWidth(),
-                                    contentAlignment = Alignment.CenterStart,
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    if (inputFieldValue.text.isEmpty()) {
-                                        Text(
-                                            text = placeholderText,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        )
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        if (inputFieldValue.text.isEmpty()) {
+                                            Text(
+                                                text = placeholderText,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            )
+                                        }
+                                        innerTextField()
                                     }
-                                    innerTextField()
+
+                                    // Send button INSIDE the field
+                                    AnimatedContent(
+                                        targetState = canSend && inputFieldValue.text.isNotBlank(),
+                                        transitionSpec = {
+                                            (scaleIn(initialScale = 0.8f) + fadeIn())
+                                                .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())
+                                        },
+                                        label = "send_toggle",
+                                    ) { showSend ->
+                                        if (showSend) {
+                                            IconButton(
+                                                onClick = onSend,
+                                                enabled = canSend,
+                                                colors = IconButtonDefaults.filledTonalIconButtonColors(),
+                                                modifier =
+                                                    Modifier
+                                                        .size(36.dp)
+                                                        .testTag("send_button"),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                                    contentDescription = stringResource(R.string.chat_send_desc),
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         },
                     )
+                }
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                // ── BOTTOM ROW: Toolbar ──
+                ComposerToolbar(
+                    isConnected = isConnected,
+                    currentSessionModel = currentSessionModel,
+                    reasoningLevel = reasoningLevel,
+                    isListening = isListening,
+                    onAttachTap = { showAttachmentMenu = true },
+                    onModelTap = onModelTap,
+                    onReasoningSelected = onReasoningTap,
+                    onMicTap = onMicTap,
+                    modifier = Modifier.testTag("chat_composer_toolbar"),
+                )
 
-                    // Mic / Stop / Send button — swaps based on input state
-                    AnimatedContent(
-                        targetState =
-                            when {
-                                isListening -> "listening"
-                                inputFieldValue.text.isBlank() && pendingAttachments.isEmpty() -> "mic"
-                                else -> "send"
-                            },
-                        transitionSpec = {
-                            (scaleIn(initialScale = 0.8f) + fadeIn())
-                                .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())
+                // Attachment dropdown (anchored to the attach button in ComposerToolbar)
+                // Shown overlaid at the toolbar level
+                DropdownMenu(
+                    expanded = showAttachmentMenu,
+                    onDismissRequest = { showAttachmentMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Camera") },
+                        onClick = {
+                            showAttachmentMenu = false
+                            onCameraTap()
                         },
-                        label = "mic_send_toggle",
-                    ) { buttonState ->
-                        when (buttonState) {
-                            "mic" -> {
-                                IconButton(
-                                    onClick = onMicTap,
-                                    enabled = isConnected,
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(),
-                                    modifier =
-                                        Modifier
-                                            .size(36.dp)
-                                            .testTag("mic_button"),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = stringResource(R.string.chat_mic_desc),
-                                    )
-                                }
-                            }
-
-                            "listening" -> {
-                                IconButton(
-                                    onClick = onMicTap,
-                                    modifier =
-                                        Modifier
-                                            .size(36.dp)
-                                            .testTag("mic_stop_button"),
-                                    colors =
-                                        IconButtonDefaults.filledTonalIconButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.error,
-                                            contentColor = MaterialTheme.colorScheme.onError,
-                                        ),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Stop,
-                                        contentDescription = "Stop listening",
-                                    )
-                                }
-                            }
-
-                            else -> {
-                                IconButton(
-                                    onClick = onSend,
-                                    enabled = canSend,
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(),
-                                    modifier =
-                                        Modifier
-                                            .size(36.dp)
-                                            .testTag("send_button"),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Send,
-                                        contentDescription = stringResource(R.string.chat_send_desc),
-                                    )
-                                }
-                            }
-                        }
-                    }
+                        leadingIcon = {
+                            Text(
+                                text = "📷",
+                                fontSize = 18.sp,
+                            )
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Image") },
+                        onClick = {
+                            showAttachmentMenu = false
+                            onImageTap()
+                        },
+                        leadingIcon = {
+                            Text(
+                                text = "🖼️",
+                                fontSize = 18.sp,
+                            )
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("File") },
+                        onClick = {
+                            showAttachmentMenu = false
+                            onFileTap()
+                        },
+                        leadingIcon = {
+                            Text(
+                                text = "📄",
+                                fontSize = 18.sp,
+                            )
+                        },
+                    )
                 }
             }
         }
@@ -401,38 +360,41 @@ fun ChatInputBar(
 }
 
 /**
- * Compact chip showing a pending attachment with a remove button.
+ * Reusable attachment chip composable for showing a pending attachment
+ * with a remove button.
  */
 @Composable
 fun AttachmentChip(
     attachment: Attachment,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val thumbnail = attachment.uri
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        tonalElevation = 2.dp,
     ) {
         Row(
-            modifier = Modifier.padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            modifier = Modifier.padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (attachment.isImage) {
                 AsyncImage(
-                    model = attachment.uri,
+                    model = thumbnail,
                     contentDescription = attachment.name,
                     modifier =
                         Modifier
-                            .size(20.dp)
+                            .size(24.dp)
                             .clip(RoundedCornerShape(4.dp)),
                     contentScale = ContentScale.Crop,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             } else {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    imageVector = Icons.Default.InsertDriveFile,
+                    contentDescription = attachment.name,
+                    modifier = Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -445,15 +407,11 @@ fun AttachmentChip(
                 modifier = Modifier.widthIn(max = 120.dp),
             )
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(
-                onClick = onRemove,
-                modifier = Modifier.size(18.dp),
-            ) {
+            IconButton(onClick = onRemove, modifier = Modifier.size(18.dp)) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.chat_attach_remove_desc),
                     modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

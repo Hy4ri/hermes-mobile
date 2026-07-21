@@ -31,7 +31,6 @@ import com.m57.hermescontrol.ui.settings.components.AppearanceSection
 import com.m57.hermescontrol.ui.settings.components.BehaviorSection
 import com.m57.hermescontrol.ui.settings.components.ChatSection
 import com.m57.hermescontrol.ui.settings.components.ConnectionSection
-import com.m57.hermescontrol.ui.settings.components.NavBarSection
 import com.m57.hermescontrol.ui.settings.components.TestConnectionButton
 import com.m57.hermescontrol.ui.settings.components.TestResultCard
 
@@ -160,39 +159,6 @@ internal fun SettingsChatPage(
                 onTypingEffectEnabledChange = viewModel::onTypingEffectEnabledChange,
                 typingEffectDelayMs = state.typingEffectDelayMs,
                 onTypingEffectDelayMsChange = viewModel::onTypingEffectDelayMsChange,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun SettingsNavBarPage(
-    onBack: () -> Unit,
-    viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
-) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-
-    HermesScaffold(
-        title = { Text(stringResource(R.string.settings_sec_nav_bar)) },
-        navigationIcon = NavIcon.Back(onBack),
-        drawerGesturesEnabled = false,
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            NavBarSection(
-                bottomNavDisplayMode = state.bottomNavDisplayMode,
-                onBottomNavDisplayModeChange = viewModel::onBottomNavDisplayModeChange,
-                selectedNavItems = state.selectedNavItems,
-                availableNavItems = viewModel.availableNavItems,
-                onReorderNavItems = viewModel::reorderNavItems,
-                onRemoveNavItem = viewModel::removeNavItem,
-                onAddNavItem = viewModel::addNavItem,
             )
         }
     }

@@ -93,10 +93,6 @@ fun ChatMessageList(
                 val isLastMessage = index == messages.lastIndex
                 val isAssistant = message.role == MessageRole.ASSISTANT
 
-                if (isAssistant && message.reasoningText.isNotBlank()) {
-                    ReasoningIndicator(message.reasoningText)
-                }
-
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
                     lastAnimatedMessageId != message.id
                 ) {
@@ -122,9 +118,6 @@ fun ChatMessageList(
             // Streaming message
             streamingMessage?.let { streaming ->
                 item(key = "streaming-${streaming.id}") {
-                    if (streaming.reasoningText.isNotBlank()) {
-                        ReasoningIndicator(streaming.reasoningText)
-                    }
                     if (typingEffectEnabled && streaming.isStreaming) {
                         StreamingBubbleWithTypingEffect(
                             streaming = streaming,

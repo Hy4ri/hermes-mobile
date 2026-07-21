@@ -401,6 +401,7 @@ class SessionsViewModel : ViewModel(), ToastHost {
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    val deletedCount = result.data.deleted
                     _uiState.update {
                         it.copy(
                             isDeletingBulk = false,
@@ -408,8 +409,8 @@ class SessionsViewModel : ViewModel(), ToastHost {
                             selectedIds = emptySet(),
                             sessions = it.sessions.filter { s -> s.id !in ids },
                             searchResults = it.searchResults.filter { it.session_id !in ids },
-                            total = (it.total - ids.size).coerceAtLeast(0),
-                            toastMessage = "${ids.size} session(s) deleted",
+                            total = (it.total - deletedCount).coerceAtLeast(0),
+                            toastMessage = "$deletedCount session(s) deleted",
                         )
                     }
                 }

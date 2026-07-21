@@ -9,6 +9,7 @@ import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AnalyticsResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
+import com.m57.hermescontrol.data.model.BulkDeleteResponse
 import com.m57.hermescontrol.data.model.CheckpointsResponse
 import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.ConfigSchemaResponse
@@ -156,10 +157,10 @@ interface HermesApiService {
         @Body body: SessionRenameRequest,
     ): Response<Unit>
 
-    @POST("api/sessions/delete")
+    @POST("api/sessions/bulk-delete")
     suspend fun bulkDeleteSessions(
         @Body body: BulkDeleteRequest,
-    ): Response<Unit>
+    ): Response<BulkDeleteResponse>
 
     @DELETE("api/sessions/{id}")
     suspend fun deleteSession(

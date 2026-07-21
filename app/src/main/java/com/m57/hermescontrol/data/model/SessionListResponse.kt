@@ -42,6 +42,12 @@ data class BulkDeleteRequest(
 )
 
 @Serializable
+data class BulkDeleteResponse(
+    val ok: Boolean = false,
+    val deleted: Int = 0,
+)
+
+@Serializable
 data class PruneRequest(
     val days: Int,
 )

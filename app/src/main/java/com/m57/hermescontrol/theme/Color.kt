@@ -90,8 +90,8 @@ val SkeletonHighlightLight = Color(0xFFEFEDF4)
 
 // ── Syntax highlighting tokens (code blocks — VS Code Dark+ palette) ───────
 
-val CodeKeyword = Color(0xFF569CD6)    // blue — for val, fun, class, etc.
-val CodeString = Color(0xFFCE9178)     // orange — for "string literals"
-val CodeComment = Color(0xFF6A9955)    // green — for // comments
-val CodeNumber = Color(0xFFB5CEA8)     // light green — for 42, 0xFF
+val CodeKeyword = Color(0xFF569CD6) // blue — for val, fun, class, etc.
+val CodeString = Color(0xFFCE9178) // orange — for "string literals"
+val CodeComment = Color(0xFF6A9955) // green — for // comments
+val CodeNumber = Color(0xFFB5CEA8) // light green — for 42, 0xFF
 val CodePunctuation = Color(0xFFD4D4D4) // gray — for {, (, ;, etc.

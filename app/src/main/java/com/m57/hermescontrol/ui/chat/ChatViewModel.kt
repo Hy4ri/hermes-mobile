@@ -561,6 +561,12 @@ class ChatViewModel(
                     (resultMap?.get("resumed") as? String)
                         ?: _uiState.value.currentSessionId
 
+                // Parse session info from backend — model, provider, reasoning_effort
+                val infoMap = resultMap?.get("info") as? Map<String, Any?>
+                val model = infoMap?.get("model") as? String
+                val provider = infoMap?.get("provider") as? String
+                val reasoningEffort = infoMap?.get("reasoning_effort") as? String
+
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
                 // cached messages here — switchSession() already did so before
                 // the WS round-trip. Calling loadCachedMessages() here would
@@ -570,6 +576,18 @@ class ChatViewModel(
                     it.copy(
                         isLoading = false,
                         currentSessionId = sessionId,
+                        currentSessionModel =
+                            if (model != null && provider != null) {
+                                "$provider/$model"
+                            } else {
+                                model ?: it.currentSessionModel
+                            },
+                        reasoningLevel =
+                            if (reasoningEffort.isNullOrEmpty()) {
+                                it.reasoningLevel
+                            } else {
+                                reasoningEffort
+                            },
                     )
                 }
                 // Mirror the active runtime session id app-wide (issue #532).

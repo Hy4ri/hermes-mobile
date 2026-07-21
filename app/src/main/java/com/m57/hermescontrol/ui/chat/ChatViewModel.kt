@@ -233,7 +233,12 @@ class ChatViewModel(
         connectWebSocket(setLoading = false)
         viewModelScope.launch {
             wsClient.events.collect { event ->
-                handleWsEvent(event)
+                try {
+                    handleWsEvent(event)
+                } catch (e: Exception) {
+                    android.util.Log.e("ChatVM", "Uncaught in event loop", e)
+                    _uiState.update { it.copy(isLoading = false) }
+                }
             }
         }
         // B7 (Jun 30 2026, kanban t_connection_loading): clear loading state on connection failure or status change
@@ -1132,6 +1137,15 @@ class ChatViewModel(
                 params = mapOf("source" to "desktop"),
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_CREATE) },
             )
+        }
+        // B7 safety timeout: clear loading state if RPC response never arrives
+        if (setLoading && !isTestEnvironment()) {
+            viewModelScope.launch {
+                delay(10_000L)
+                if (_uiState.value.isLoading) {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            }
         }
     }
 

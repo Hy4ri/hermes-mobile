@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -55,9 +56,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -92,7 +98,12 @@ fun ReasoningCard(
             modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
-                .clickable { expanded = !expanded }
+                .clickable(
+                    onClickLabel = if (expanded) "Collapse reasoning" else "Expand reasoning",
+                ) { expanded = !expanded }
+                .semantics {
+                    stateDescription = if (expanded) "Expanded" else "Collapsed"
+                }
                 .animateContentSize(),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         shape = RoundedCornerShape(8.dp),
@@ -162,9 +173,10 @@ private fun ReasoningPulsingDots() {
                 modifier =
                     Modifier
                         .size(4.dp)
+                        .graphicsLayer { this.alpha = alpha }
                         .background(
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
-                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            shape = CircleShape,
                         ),
             )
             if (it < 2) Spacer(modifier = Modifier.width(3.dp))
@@ -257,15 +269,11 @@ internal fun highlightSyntax(code: String): AnnotatedString =
                 regions.add(Region(m.range.first, m.range.last + 1, CodeKeyword))
             }
         }
-        // Punctuation (check per-character to avoid partial overlap)
+        // Punctuation
         PUNCTUATION_RE.findAll(code).forEach { m ->
-            val chars = m.value.toList()
-            val uncovered =
-                chars.filter { c ->
-                    regions.none { r -> c.code in r.start until r.end }
-                }
-            if (uncovered.isNotEmpty()) {
-                regions.add(Region(m.range.first, m.range.last + 1, CodePunctuation))
+            val index = m.range.first
+            if (regions.none { r -> index in r.start until r.end }) {
+                regions.add(Region(index, index + 1, CodePunctuation))
             }
         }
 
@@ -315,7 +323,7 @@ fun CodeBlockCard(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.inverseSurface,
+        color = Color(0xFF1E1E1E),
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 0.dp,
     ) {
@@ -479,7 +487,10 @@ fun SubagentCard(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .semantics {
+                    stateDescription = if (isComplete) "Complete" else "In progress"
+                },
         shape = RoundedCornerShape(8.dp),
         color = containerColor,
         tonalElevation = 0.dp,
@@ -535,7 +546,8 @@ fun TypingIndicator(modifier: Modifier = Modifier) {
     Row(
         modifier =
             modifier
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .clearAndSetSemantics { contentDescription = "Assistant is typing" },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         repeat(3) { index ->
@@ -570,10 +582,15 @@ private fun TypingDot(
     Box(
         modifier =
             Modifier
-                .size(size * scale)
+                .size(size)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    alpha = 0.6f + 0.4f * scale
+                }
                 .background(
-                    color = color.copy(alpha = 0.6f + 0.4f * scale),
-                    shape = RoundedCornerShape(50),
+                    color = color,
+                    shape = CircleShape,
                 ),
     )
 }

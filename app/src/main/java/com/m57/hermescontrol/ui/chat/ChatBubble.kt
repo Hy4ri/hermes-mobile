@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -293,7 +294,7 @@ private fun UserBubble(
                         .offset(x = 8.dp, y = (-8).dp),
             ) {
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     shadowElevation = 6.dp,
                 ) {
@@ -393,9 +394,17 @@ private fun AssistantBubble(
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                     // Reasoning card — shown before content when reasoning is present
                     if (message.reasoningText.isNotBlank()) {
+                        val stepCount =
+                            remember(message.reasoningText) {
+                                if (message.reasoningText.isBlank()) {
+                                    0
+                                } else {
+                                    message.reasoningText.split("\n\n").size
+                                }
+                            }
                         ReasoningCard(
                             reasoningText = message.reasoningText,
-                            stepCount = message.reasoningText.split("\n\n").size,
+                            stepCount = stepCount,
                             isStreaming = message.isStreaming,
                             modifier = Modifier.padding(bottom = 6.dp),
                         )
@@ -434,7 +443,7 @@ private fun AssistantBubble(
                         .offset(x = (-8).dp, y = (-8).dp),
             ) {
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    shape = CircleShape,
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     shadowElevation = 6.dp,
                 ) {
@@ -2203,7 +2212,7 @@ private fun CopyButton(
         modifier = modifier,
     ) {
         Surface(
-            shape = RoundedCornerShape(50),
+            shape = CircleShape,
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
             shadowElevation = 6.dp,
         ) {

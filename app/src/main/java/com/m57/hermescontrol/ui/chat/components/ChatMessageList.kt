@@ -1,13 +1,6 @@
 package com.m57.hermescontrol.ui.chat.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,47 +53,20 @@ fun ChatMessageList(
     viewModel: ChatViewModel,
     subagentIndicators: List<SubagentIndicator> = emptyList(),
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Search bar
-        AnimatedVisibility(
-            visible = isSearchActive,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
+    if (messages.isEmpty() && !isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
         ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                tonalElevation = 2.dp,
-                border =
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
-                    ),
-            ) {
-                Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    SearchBarRow(
-                        searchQuery = searchQuery,
-                        onQueryChange = { viewModel.setSearchQuery(it) },
-                        searchMatchCount = searchMatchIndices.size,
-                        currentMatchIndex = currentSearchMatchIndex,
-                        onNavigateUp = { viewModel.navigateSearchMatch(-1) },
-                        onNavigateDown = { viewModel.navigateSearchMatch(1) },
-                        onClose = { viewModel.clearSearch() },
-                    )
-                }
-            }
-        }
-
-        if (messages.isEmpty() && !isLoading) {
             EmptyState(
                 title = stringResource(R.string.chat_empty_title),
                 subtitle = stringResource(R.string.chat_empty_subtitle),
             )
         }
-
+    } else {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
             if (isLoadingOlder) {

@@ -11,6 +11,12 @@ import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -35,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -72,6 +79,7 @@ import com.m57.hermescontrol.ui.chat.components.ChatMessageList
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
+import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.scrollToBottom
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
@@ -373,6 +381,35 @@ fun ChatScreen(
                     onFix = { NavigationController.navigateTo(com.m57.hermescontrol.ProvidersScreen) },
                     onDismiss = { HermesWsClient.clearCredentialWarning() },
                 )
+            }
+
+            AnimatedVisibility(
+                visible = state.isSearchActive,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 2.dp,
+                    border =
+                        BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                        ),
+                ) {
+                    Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                        SearchBarRow(
+                            searchQuery = state.searchQuery,
+                            onQueryChange = { viewModel.setSearchQuery(it) },
+                            searchMatchCount = state.searchMatchIndices.size,
+                            currentMatchIndex = state.currentSearchMatchIndex,
+                            onNavigateUp = { viewModel.navigateSearchMatch(-1) },
+                            onNavigateDown = { viewModel.navigateSearchMatch(1) },
+                            onClose = { viewModel.clearSearch() },
+                        )
+                    }
+                }
             }
 
             Box(

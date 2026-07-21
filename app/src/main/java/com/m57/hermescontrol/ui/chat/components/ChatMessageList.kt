@@ -19,6 +19,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatBubble
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
+import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -51,6 +52,7 @@ fun ChatMessageList(
     onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
     subagentIndicators: List<SubagentIndicator> = emptyList(),
+    clarifyRequest: ClarifyUi? = null,
 ) {
     if (messages.isEmpty() && !isLoading) {
         Box(
@@ -140,6 +142,18 @@ fun ChatMessageList(
                 }
             }
 
+            // Clarify request as inline bubble
+            if (clarifyRequest != null) {
+                item(key = "clarify") {
+                    ClarifyBubble(
+                        text = clarifyRequest.text,
+                        options = clarifyRequest.options,
+                        onOptionSelected = viewModel::respondToClarify,
+                        onDismiss = viewModel::dismissClarify,
+                    )
+                }
+            }
+
             // Thinking indicator
             if (isThinking) {
                 item(key = "thinking") {
@@ -152,7 +166,14 @@ fun ChatMessageList(
                 items = subagentIndicators,
                 key = { indicator -> "subagent-${indicator.subagentId ?: indicator.goal ?: indicator.type}" },
             ) { indicator ->
-                SubagentIndicatorRow(indicator = indicator)
+                SubagentCard(indicator = indicator)
+            }
+
+            // Typing indicator when assistant is still streaming
+            if (streamingMessage?.isStreaming == true) {
+                item(key = "typing") {
+                    TypingIndicator()
+                }
             }
         }
     }

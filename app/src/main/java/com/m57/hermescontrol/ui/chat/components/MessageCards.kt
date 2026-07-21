@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import android.content.ClipData
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -44,15 +45,19 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -68,6 +73,8 @@ import com.m57.hermescontrol.theme.CodeNumber
 import com.m57.hermescontrol.theme.CodePunctuation
 import com.m57.hermescontrol.theme.CodeString
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // ── 1. ReasoningCard ──────────────────────────────────────────────────────
 
@@ -289,12 +296,22 @@ private fun textColorOnInverse(): Color {
 fun CodeBlockCard(
     code: String,
     language: String?,
-    onCopy: (String) -> Unit,
+    onCopy: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val highlighted = remember(code) { highlightSyntax(code) }
     val scrollState = rememberScrollState()
     val onInverse = textColorOnInverse()
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    var copied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(2000)
+            copied = false
+        }
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -323,15 +340,33 @@ fun CodeBlockCard(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(
-                    onClick = { onCopy(code) },
+                    onClick = {
+                        (
+                            onCopy ?: { text ->
+                                scope.launch {
+                                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, text)))
+                                }
+                            }
+                        )(code)
+                        copied = true
+                    },
                     modifier = Modifier.size(28.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy code",
-                        tint = onInverse.copy(alpha = 0.6f),
-                        modifier = Modifier.size(16.dp),
-                    )
+                    if (copied) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Copied",
+                            tint = onInverse.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy code",
+                            tint = onInverse.copy(alpha = 0.6f),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
 

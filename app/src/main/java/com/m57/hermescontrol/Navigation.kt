@@ -46,11 +46,9 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
-import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.common.DisableDrawerGestures
 import com.m57.hermescontrol.ui.common.DrawerGestureController
 import com.m57.hermescontrol.ui.common.LocalDrawerGestureController
-import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsAboutPage
 import com.m57.hermescontrol.ui.settings.SettingsAppearancePage
 import com.m57.hermescontrol.ui.settings.SettingsBehaviorPage
@@ -58,6 +56,8 @@ import com.m57.hermescontrol.ui.settings.SettingsChatPage
 import com.m57.hermescontrol.ui.settings.SettingsConnectionPage
 import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
+import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
+import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
 
 private fun appEntryProvider(
     sessionId: String?,

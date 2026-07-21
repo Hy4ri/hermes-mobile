@@ -251,13 +251,24 @@ fun ChatInputBar(
                         }
                     }
 
-                    val placeholderText = when {
-                        !isConnected -> stringResource(R.string.chat_input_placeholder_not_connected)
-                        ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping) ->
-                            stringResource(R.string.chat_input_placeholder_queue)
-                        isAgentTyping -> stringResource(R.string.chat_input_placeholder_waiting)
-                        else -> stringResource(R.string.chat_input_placeholder_type_message)
-                    }
+                    val placeholderText =
+                        when {
+                            !isConnected -> {
+                                stringResource(R.string.chat_input_placeholder_not_connected)
+                            }
+
+                            ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping) -> {
+                                stringResource(R.string.chat_input_placeholder_queue)
+                            }
+
+                            isAgentTyping -> {
+                                stringResource(R.string.chat_input_placeholder_waiting)
+                            }
+
+                            else -> {
+                                stringResource(R.string.chat_input_placeholder_type_message)
+                            }
+                        }
 
                     BasicTextField(
                         value = inputFieldValue,
@@ -270,9 +281,10 @@ fun ChatInputBar(
                                 .onFocusChanged { isFocused = it.isFocused }
                                 .testTag("chat_input"),
                         enabled = isConnected,
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
+                        textStyle =
+                            MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
                         singleLine = false,
                         maxLines = 4,
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),

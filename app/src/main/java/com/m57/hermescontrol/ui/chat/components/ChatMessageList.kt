@@ -19,6 +19,8 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatBubble
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
+import com.m57.hermescontrol.ui.chat.ClarifyUi
+import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.common.EmptyState
 
@@ -50,6 +52,9 @@ fun ChatMessageList(
     onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
     subagentIndicators: List<SubagentIndicator> = emptyList(),
+    clarifyRequest: ClarifyUi? = null,
+    onRespondClarify: ((String) -> Unit)? = null,
+    onDismissClarify: (() -> Unit)? = null,
 ) {
     if (messages.isEmpty() && !isLoading) {
         Box(
@@ -88,7 +93,7 @@ fun ChatMessageList(
                         searchMatchIndices[currentSearchMatchIndex] == index
 
                 val isLastMessage = index == messages.lastIndex
-                val isAssistant = message.role == com.m57.hermescontrol.ui.chat.MessageRole.ASSISTANT
+                val isAssistant = message.role == MessageRole.ASSISTANT
 
                 // ReasoningCard is now rendered INSIDE AssistantBubble via ChatBubble.kt
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
@@ -109,8 +114,6 @@ fun ChatMessageList(
                         searchQuery = if (isSearchActive) searchQuery else "",
                         isCurrentMatch = isCurrentMatch,
                         onRespondApproval = viewModel::respondToApproval,
-                        onRespondClarify = viewModel::respondToClarify,
-                        onDismissClarify = viewModel::dismissClarify,
                     )
                 }
             }
@@ -131,8 +134,6 @@ fun ChatMessageList(
                             isDarkTheme = isDark,
                             searchQuery = "",
                             isCurrentMatch = false,
-                            onRespondClarify = viewModel::respondToClarify,
-                            onDismissClarify = viewModel::dismissClarify,
                         )
                     }
                 }
@@ -151,6 +152,19 @@ fun ChatMessageList(
                 key = { indicator -> "subagent-${indicator.subagentId ?: indicator.goal ?: indicator.type}" },
             ) { indicator ->
                 SubagentCard(indicator = indicator)
+            }
+
+            // Clarify bubble — rendered at the very bottom so it appears
+            // after all messages including the streaming message
+            if (clarifyRequest != null) {
+                item(key = "clarify_bubble") {
+                    ClarifyBubble(
+                        text = clarifyRequest.text,
+                        options = clarifyRequest.options,
+                        onOptionSelected = { option -> onRespondClarify?.invoke(option) },
+                        onDismiss = { onDismissClarify?.invoke() },
+                    )
+                }
             }
         }
     }

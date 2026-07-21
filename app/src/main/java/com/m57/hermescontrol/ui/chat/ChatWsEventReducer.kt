@@ -418,28 +418,19 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.ClarifyRequest,
-    ): ReducerResult {
-        val clarifyInfo =
-            ClarifyUi(
-                text = event.text.orEmpty(),
-                options = event.options.orEmpty(),
-                clarifyId = event.clarifyId,
-            )
-        val clarifyMessage =
-            ChatMessage(
-                role = MessageRole.SYSTEM,
-                content = event.text.orEmpty(),
-                clarifyInfo = clarifyInfo,
-            )
-        return ReducerResult(
+    ): ReducerResult =
+        ReducerResult(
             state =
                 state.copy(
-                    messages = state.messages + clarifyMessage,
-                    clarifyRequest = clarifyInfo,
+                    clarifyRequest =
+                        ClarifyUi(
+                            text = event.text.orEmpty(),
+                            options = event.options.orEmpty(),
+                            clarifyId = event.clarifyId,
+                        ),
                     isAgentTyping = false,
                 ),
         )
-    }
 
     // ── RpcError ──────────────────────────────────────────────────────
 

@@ -114,8 +114,6 @@ fun ChatBubble(
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
     onRespondApproval: (String) -> Unit = {},
-    onRespondClarify: ((String) -> Unit)? = null,
-    onDismissClarify: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -149,8 +147,6 @@ fun ChatBubble(
                 SystemBubble(
                     message = message,
                     onRespondApproval = onRespondApproval,
-                    onRespondClarify = onRespondClarify,
-                    onDismissClarify = onDismissClarify,
                     modifier = modifier,
                 )
             }
@@ -467,8 +463,6 @@ private fun AssistantBubble(
 private fun SystemBubble(
     message: ChatMessage,
     onRespondApproval: (String) -> Unit = {},
-    onRespondClarify: ((String) -> Unit)? = null,
-    onDismissClarify: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -478,17 +472,6 @@ private fun SystemBubble(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Clarify bubble — show instead of regular text when clarifyInfo is present
-        if (message.clarifyInfo != null) {
-            com.m57.hermescontrol.ui.chat.components.ClarifyBubble(
-                text = message.clarifyInfo.text,
-                options = message.clarifyInfo.options,
-                onOptionSelected = { option -> onRespondClarify?.invoke(option) },
-                onDismiss = { onDismissClarify?.invoke() },
-            )
-            return
-        }
-
         Text(
             text = message.content,
             style =

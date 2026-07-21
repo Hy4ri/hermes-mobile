@@ -36,8 +36,6 @@ import com.m57.hermescontrol.ui.common.EmptyState
 fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingMessage: ChatMessage?,
-    isThinking: Boolean,
-    thinkingText: String,
     isSearchActive: Boolean,
     searchQuery: String,
     currentSearchMatchIndex: Int,
@@ -144,13 +142,6 @@ fun ChatMessageList(
                         onOptionSelected = viewModel::respondToClarify,
                         onDismiss = viewModel::dismissClarify,
                     )
-                }
-            }
-
-            // Thinking indicator
-            if (isThinking) {
-                item(key = "thinking") {
-                    ThinkingIndicator(thinkingText)
                 }
             }
 

@@ -438,6 +438,9 @@ fun ChatScreen(
                     onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
                     viewModel = viewModel,
                     subagentIndicators = state.subagentIndicators,
+                    clarifyRequest = state.clarifyRequest,
+                    onRespondClarify = viewModel::respondToClarify,
+                    onDismissClarify = viewModel::dismissClarify,
                 )
 
                 // Loading overlay

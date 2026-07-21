@@ -168,15 +168,6 @@ fun ChatLifecycleEffects(
         }
     }
 
-    // Clarify dialog
-    clarifyRequest?.let { clarify ->
-        ClarifyDialog(
-            clarify = clarify,
-            onOptionSelected = viewModel::respondToClarify,
-            onDismiss = viewModel::dismissClarify,
-        )
-    }
-
     // Sudo / secret prompt dialogs (issue #524)
     sudoPrompt?.let { prompt ->
         SudoPromptDialog(

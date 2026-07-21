@@ -1,23 +1,16 @@
 package com.m57.hermescontrol.ui.chat.components
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,111 +19,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
-import com.m57.hermescontrol.ui.chat.ClarifyUi
-
-/** Dialog shown when the agent asks the user to clarify between options. */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun ClarifyDialog(
-    clarify: ClarifyUi,
-    onOptionSelected: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var typedText by rememberSaveable(clarify.text) { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.chat_clarify_title)) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier =
-                        Modifier
-                            .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(text = clarify.text)
-
-                    if (clarify.options.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = stringResource(R.string.chat_clarify_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        clarify.options.forEach { option ->
-                            Surface(
-                                onClick = { typedText = option },
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .testTag("clarify_option"),
-                                shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                            ) {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .combinedClickable(
-                                                role = Role.Button,
-                                                onClick = { typedText = option },
-                                                onLongClick = { onOptionSelected(option) },
-                                            ).padding(horizontal = 24.dp, vertical = 10.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = option,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        style = MaterialTheme.typography.labelLarge,
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = typedText,
-                    onValueChange = { typedText = it },
-                    label = { Text(stringResource(R.string.chat_clarify_response)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (typedText.isNotBlank()) {
-                        onOptionSelected(typedText)
-                    }
-                },
-                enabled = typedText.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.chat_send))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.chat_dismiss))
-            }
-        },
-    )
-}
 
 /**
  * Secure password dialog for a pending `sudo.request` (issue #524).

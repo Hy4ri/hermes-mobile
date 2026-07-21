@@ -35,6 +35,8 @@ data class ChatMessage(
     val toolName: String? = null,
     val toolStatus: ToolStatus? = null,
     val approvalInfo: ApprovalInfo? = null,
+    /** Transient clarify request data — when present, renders [ClarifyBubble] inline. */
+    val clarifyInfo: ClarifyUi? = null,
     /** Files attached to this message — shown inline in the bubble. */
     val attachments: List<Attachment>? = null,
     /**

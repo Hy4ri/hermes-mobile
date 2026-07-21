@@ -2,8 +2,10 @@ package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,17 +21,13 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatBubble
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
+import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.common.EmptyState
 
 /**
  * The chat message list.
- *
- * Lay children out vertically so the search bar occupies real layout space
- * ABOVE the message list. Without this container the call site is a Box,
- * which overlays the LazyColumn on top of the search AnimatedVisibility and
- * swallows every tap on the bar (bar visible but not clickable).
  */
 @Composable
 fun ChatMessageList(
@@ -51,6 +49,9 @@ fun ChatMessageList(
     onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
     subagentIndicators: List<SubagentIndicator> = emptyList(),
+    clarifyRequest: ClarifyUi? = null,
+    onRespondClarify: ((String) -> Unit)? = null,
+    onDismissClarify: (() -> Unit)? = null,
 ) {
     if (messages.isEmpty() && !isLoading) {
         Box(
@@ -91,8 +92,14 @@ fun ChatMessageList(
                 val isLastMessage = index == messages.lastIndex
                 val isAssistant = message.role == MessageRole.ASSISTANT
 
+                // Reasoning card — rendered inline in the same list item so it
+                // stays visible during AND after streaming
                 if (isAssistant && message.reasoningText.isNotBlank()) {
-                    ReasoningIndicator(message.reasoningText)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    ReasoningCard(
+                        reasoningText = message.reasoningText,
+                        isStreaming = message.isStreaming,
+                    )
                 }
 
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
@@ -120,9 +127,15 @@ fun ChatMessageList(
             // Streaming message
             streamingMessage?.let { streaming ->
                 item(key = "streaming-${streaming.id}") {
+                    // Reasoning card — rendered inline in the same streaming item
                     if (streaming.reasoningText.isNotBlank()) {
-                        ReasoningIndicator(streaming.reasoningText)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        ReasoningCard(
+                            reasoningText = streaming.reasoningText,
+                            isStreaming = streaming.isStreaming,
+                        )
                     }
+
                     if (typingEffectEnabled && streaming.isStreaming) {
                         StreamingBubbleWithTypingEffect(
                             streaming = streaming,
@@ -140,19 +153,31 @@ fun ChatMessageList(
                 }
             }
 
-            // Thinking indicator
+            // Typing indicator — bouncing dots
             if (isThinking) {
-                item(key = "thinking") {
-                    ThinkingIndicator(thinkingText)
+                item(key = "typing_indicator") {
+                    TypingIndicator()
                 }
             }
 
-            // Subagent indicators
+            // Subagent indicators — SubagentCard replaces SubagentIndicatorRow
             items(
                 items = subagentIndicators,
                 key = { indicator -> "subagent-${indicator.subagentId ?: indicator.goal ?: indicator.type}" },
             ) { indicator ->
-                SubagentIndicatorRow(indicator = indicator)
+                SubagentCard(indicator = indicator)
+            }
+
+            // Clarify bubble — rendered at the very bottom
+            if (clarifyRequest != null) {
+                item(key = "clarify_bubble") {
+                    ClarifyBubble(
+                        text = clarifyRequest.text,
+                        options = clarifyRequest.options,
+                        onOptionSelected = { option -> onRespondClarify?.invoke(option) },
+                        onDismiss = { onDismissClarify?.invoke() },
+                    )
+                }
             }
         }
     }

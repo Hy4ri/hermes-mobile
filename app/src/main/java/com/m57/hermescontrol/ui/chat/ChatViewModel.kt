@@ -1274,17 +1274,18 @@ class ChatViewModel(
     /**
      * Cycle the reasoning level for quick-tap UX.
      *
-     * Cycles through `null → "low" → "medium" → "high" → null`.
-     * A follow-up commit will wire this to the reasoning chip in the
-     * composer toolbar.
+     * Cycles through all valid levels:
+     * `null → "none" → "minimal" → "low" → "medium" → "high" → "xhigh" → "max" → "ultra" → null`
      */
     fun cycleReasoningLevel() {
+        val allLevels = listOf("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
+        val current = _uiState.value.reasoningLevel
         val next =
-            when (_uiState.value.reasoningLevel) {
-                null -> "low"
-                "low" -> "medium"
-                "medium" -> "high"
-                else -> null
+            if (current == null) {
+                "none"
+            } else {
+                val idx = allLevels.indexOf(current)
+                if (idx < 0 || idx >= allLevels.lastIndex) null else allLevels[idx + 1]
             }
         setReasoningLevel(next)
     }

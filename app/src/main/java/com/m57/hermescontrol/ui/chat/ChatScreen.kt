@@ -540,7 +540,7 @@ fun ChatScreen(
                 currentSessionModel = state.currentSessionModel,
                 reasoningLevel = state.reasoningLevel,
                 onModelTap = { viewModel.openModelPicker() },
-                onReasoningTap = { viewModel.cycleReasoningLevel() },
+                onReasoningTap = { level -> viewModel.setReasoningLevel(level) },
             )
         }
 

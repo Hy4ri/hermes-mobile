@@ -85,7 +85,7 @@ fun ChatInputBar(
     currentSessionModel: String? = null,
     reasoningLevel: String? = null,
     onModelTap: () -> Unit = {},
-    onReasoningTap: () -> Unit = {},
+    onReasoningTap: (String?) -> Unit = {},
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
@@ -301,7 +301,7 @@ fun ChatInputBar(
                     isListening = isListening,
                     onAttachTap = { showAttachmentMenu = true },
                     onModelTap = onModelTap,
-                    onReasoningTap = onReasoningTap,
+                    onReasoningSelected = onReasoningTap,
                     onMicTap = onMicTap,
                     modifier = Modifier.testTag("chat_composer_toolbar"),
                 )

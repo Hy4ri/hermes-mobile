@@ -119,7 +119,6 @@ fun ComposerToolbar(
             ) {
                 val allLevels =
                     listOf(
-                        null to "🧠 Auto",
                         "none" to "🧠 None",
                         "minimal" to "🧠 Minimal",
                         "low" to "🧠 Low",
@@ -194,7 +193,7 @@ fun ComposerToolbar(
  */
 private fun buildReasoningLabel(level: String?): String {
     return when (level) {
-        null -> "🧠 Auto"
+        null -> "🧠 Med"
         "none" -> "🧠 None"
         "minimal" -> "🧠 Minimal"
         "low" -> "🧠 Low"

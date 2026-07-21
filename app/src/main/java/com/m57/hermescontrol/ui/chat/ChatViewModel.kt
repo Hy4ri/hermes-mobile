@@ -90,6 +90,8 @@ data class ChatUiState(
     val modelPickerLoading: Boolean = false,
     // Current session's active model label (provider/model), shown in the chip
     val currentSessionModel: String? = null,
+    // Reasoning effort level for the current session
+    val reasoningLevel: String? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     // Reaction animation — set when a reaction WS event arrives, auto-clears
@@ -1242,6 +1244,49 @@ class ChatViewModel(
             )
         }
         handleSlashCommand("/model $model --provider $provider --session")
+    }
+
+    /**
+     * Set the reasoning effort level for the current session.
+     *
+     * Updates the UI optimistically and sends a `config.set` RPC to the
+     * backend. The level applies per-session via the runtime session ID.
+     * If [level] is null it resets to the model's default.
+     *
+     * @param level One of "low", "medium", "high", or null for default.
+     */
+    fun setReasoningLevel(level: String?) {
+        _uiState.update { it.copy(reasoningLevel = level) }
+        val sessionId = runtimeSessionId ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            wsClient.send(
+                WsMethods.CONFIG_SET,
+                mapOf(
+                    "key" to "reasoning",
+                    "value" to (level ?: ""),
+                    "session_id" to sessionId,
+                ),
+                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
+            )
+        }
+    }
+
+    /**
+     * Cycle the reasoning level for quick-tap UX.
+     *
+     * Cycles through `null → "low" → "medium" → "high" → null`.
+     * A follow-up commit will wire this to the reasoning chip in the
+     * composer toolbar.
+     */
+    fun cycleReasoningLevel() {
+        val next =
+            when (_uiState.value.reasoningLevel) {
+                null -> "low"
+                "low" -> "medium"
+                "medium" -> "high"
+                else -> null
+            }
+        setReasoningLevel(next)
     }
 
     fun switchSession(sessionId: String) {

@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -35,17 +36,12 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -99,28 +97,18 @@ fun ChatInputBar(
 
     // Attachment menu state
     var showAttachmentMenu by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(false) }
 
     AnimatedVisibility(
         visible = true,
         enter = slideInVertically(initialOffsetY = { it }),
         exit = slideOutVertically(targetOffsetY = { it }),
     ) {
-        Card(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                ),
-            border =
-                BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 3.dp,
+            shadowElevation = 0.dp,
         ) {
             Column {
                 // Commands hidden from the suggestion menu — desktop/CLI-only and
@@ -200,7 +188,7 @@ fun ChatInputBar(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box {
@@ -263,39 +251,65 @@ fun ChatInputBar(
                         }
                     }
 
-                    OutlinedTextField(
+                    val placeholderText = when {
+                        !isConnected -> stringResource(R.string.chat_input_placeholder_not_connected)
+                        ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping) ->
+                            stringResource(R.string.chat_input_placeholder_queue)
+                        isAgentTyping -> stringResource(R.string.chat_input_placeholder_waiting)
+                        else -> stringResource(R.string.chat_input_placeholder_type_message)
+                    }
+
+                    BasicTextField(
                         value = inputFieldValue,
                         onValueChange = onInputChange,
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .heightIn(min = 36.dp, max = 120.dp)
-                                .padding(horizontal = 4.dp, vertical = 8.dp)
+                                .heightIn(min = 42.dp, max = 120.dp)
+                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                                .onFocusChanged { isFocused = it.isFocused }
                                 .testTag("chat_input"),
-                        placeholder = {
-                            Text(
-                                if (!isConnected) {
-                                    stringResource(R.string.chat_input_placeholder_not_connected)
-                                } else if (ChatInputPolicy.showQueuePlaceholder(inputFieldValue.text, isAgentTyping)) {
-                                    stringResource(R.string.chat_input_placeholder_queue)
-                                } else if (isAgentTyping) {
-                                    stringResource(R.string.chat_input_placeholder_waiting)
-                                } else {
-                                    stringResource(R.string.chat_input_placeholder_type_message)
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        },
                         enabled = isConnected,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
                         singleLine = false,
                         maxLines = 4,
-                        shape = RoundedCornerShape(20.dp),
-                        colors =
-                            OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                cursorColor = MaterialTheme.colorScheme.primary,
-                            ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        decorationBox = { innerTextField ->
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                border =
+                                    BorderStroke(
+                                        width = if (isFocused) 2.dp else 1.dp,
+                                        color =
+                                            if (isFocused) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                            },
+                                    ),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .padding(horizontal = 12.dp, vertical = 9.dp)
+                                            .fillMaxWidth(),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    if (inputFieldValue.text.isEmpty()) {
+                                        Text(
+                                            text = placeholderText,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        },
                     )
 
                     Spacer(modifier = Modifier.width(4.dp))
@@ -316,15 +330,14 @@ fun ChatInputBar(
                     ) { buttonState ->
                         when (buttonState) {
                             "mic" -> {
-                                FilledTonalButton(
+                                IconButton(
                                     onClick = onMicTap,
                                     enabled = isConnected,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(),
                                     modifier =
                                         Modifier
-                                            .size(40.dp)
+                                            .size(36.dp)
                                             .testTag("mic_button"),
-                                    shape = CircleShape,
-                                    contentPadding = PaddingValues(0.dp),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Mic,
@@ -334,37 +347,34 @@ fun ChatInputBar(
                             }
 
                             "listening" -> {
-                                FilledTonalButton(
+                                IconButton(
                                     onClick = onMicTap,
                                     modifier =
                                         Modifier
-                                            .size(40.dp)
+                                            .size(36.dp)
                                             .testTag("mic_stop_button"),
-                                    shape = CircleShape,
-                                    contentPadding = PaddingValues(0.dp),
                                     colors =
-                                        ButtonDefaults.filledTonalButtonColors(
+                                        IconButtonDefaults.filledTonalIconButtonColors(
                                             containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError,
                                         ),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Stop,
                                         contentDescription = "Stop listening",
-                                        tint = MaterialTheme.colorScheme.onError,
                                     )
                                 }
                             }
 
                             else -> {
-                                FilledTonalButton(
+                                IconButton(
                                     onClick = onSend,
                                     enabled = canSend,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(),
                                     modifier =
                                         Modifier
-                                            .size(40.dp)
+                                            .size(36.dp)
                                             .testTag("send_button"),
-                                    shape = CircleShape,
-                                    contentPadding = PaddingValues(0.dp),
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.Send,

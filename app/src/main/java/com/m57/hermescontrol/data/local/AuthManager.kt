@@ -16,7 +16,6 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.ServerEndpoint
-import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.CoroutineScope
@@ -72,9 +71,6 @@ object AuthManager {
 
     private val _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)
     val themePresetFlow: StateFlow<ThemePreset> = _themePresetFlow.asStateFlow()
-
-    private val _bottomNavDisplayModeFlow = MutableStateFlow<BottomNavDisplayMode>(BottomNavDisplayMode.ICON_AND_TEXT)
-    val bottomNavDisplayModeFlow: StateFlow<BottomNavDisplayMode> = _bottomNavDisplayModeFlow.asStateFlow()
 
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
@@ -137,7 +133,6 @@ object AuthManager {
                     _themePreferenceFlow.value = state.themePreference
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
-                    _bottomNavDisplayModeFlow.value = state.bottomNavDisplayMode
                     // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
                     syncCookieStoreForProfile(state.selectedProfileId)
                 }
@@ -543,13 +538,5 @@ object AuthManager {
 
     fun setTypingEffectDelayMs(delayMs: Int) {
         serverStore.update { it.copy(typingEffectDelayMs = delayMs) }
-    }
-
-    // ── Bottom Nav Display Mode ──────────────────────────────────────────
-
-    fun getBottomNavDisplayMode(): BottomNavDisplayMode = serverStore.getLatestState().bottomNavDisplayMode
-
-    fun setBottomNavDisplayMode(mode: BottomNavDisplayMode) {
-        serverStore.update { it.copy(bottomNavDisplayMode = mode) }
     }
 }

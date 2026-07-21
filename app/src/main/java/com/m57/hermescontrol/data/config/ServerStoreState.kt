@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.data.config
 
 import com.m57.hermescontrol.data.model.PinnedModel
-import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.serialization.Serializable
@@ -16,7 +15,6 @@ data class ServerStoreState(
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val useDynamicColors: Boolean = true,
     val themePreset: ThemePreset = ThemePreset.DEFAULT,
-    val bottomNavDisplayMode: BottomNavDisplayMode = BottomNavDisplayMode.ICON_AND_TEXT,
     val bottomNavItems: List<String> =
         listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen"),
     val connectionProfiles: List<ConnectionProfile> = emptyList(),

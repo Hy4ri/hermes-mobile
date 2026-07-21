@@ -2,7 +2,6 @@ package com.m57.hermescontrol.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.m57.hermescontrol.ScreenRegistry
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
@@ -12,7 +11,6 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.CoroutineDispatcher
@@ -35,13 +33,11 @@ data class SettingsUiState(
     val isTesting: Boolean = false,
     val testResult: String? = null,
     val isSaved: Boolean = false,
-    val selectedNavItems: List<String> = emptyList(),
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
-    val bottomNavDisplayMode: BottomNavDisplayMode = BottomNavDisplayMode.ICON_AND_TEXT,
     val appLanguage: String = "system",
     // Profile add/edit dialog
     val showProfileDialog: Boolean = false,
@@ -77,11 +73,9 @@ class SettingsViewModel(
         val themePreference = AuthManager.getThemePreference()
         val useDynamicColors = AuthManager.isUseDynamicColors()
         val themePreset = AuthManager.getThemePreset()
-        val selectedNavItems = AuthManager.getBottomNavItems()
         val typingEffectEnabled = AuthManager.isTypingEffectEnabled()
         val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
         val profiles = AuthManager.getConnectionProfiles()
-        val bottomNavDisplayMode = AuthManager.getBottomNavDisplayMode()
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
             profiles.firstOrNull { p -> p.id == selectedId }?.name ?: ""
@@ -98,13 +92,11 @@ class SettingsViewModel(
                 themePreference = themePreference,
                 useDynamicColors = useDynamicColors,
                 themePreset = themePreset,
-                selectedNavItems = selectedNavItems,
                 typingEffectEnabled = typingEffectEnabled,
                 typingEffectDelayMs = typingEffectDelayMs,
                 profiles = profiles,
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
-                bottomNavDisplayMode = bottomNavDisplayMode,
                 appLanguage = appLanguage,
             )
         }
@@ -312,11 +304,6 @@ class SettingsViewModel(
         AuthManager.setAppLanguage(code)
     }
 
-    fun onBottomNavDisplayModeChange(mode: BottomNavDisplayMode) {
-        _uiState.update { it.copy(bottomNavDisplayMode = mode, isSaved = false) }
-        AuthManager.setBottomNavDisplayMode(mode)
-    }
-
     fun onTypingEffectEnabledChange(enabled: Boolean) {
         _uiState.update { it.copy(typingEffectEnabled = enabled, isSaved = false) }
         AuthManager.setTypingEffectEnabled(enabled)
@@ -336,34 +323,6 @@ class SettingsViewModel(
         // Don't rebuild ApiClient here — let the navigation complete first
     }
 
-    /** All screens available for bottom-nav selection (name → display label). */
-    val availableNavItems: List<Pair<String, Int>> =
-        ScreenRegistry.ALL_SCREENS.map { screen ->
-            screen.key::class.simpleName!! to screen.labelRes
-        }
-
-    /** Add a nav item to the bottom bar (max 5). Auto-saves. */
-    fun addNavItem(name: String) {
-        val current = _uiState.value.selectedNavItems
-        if (name in current || current.size >= 5) return
-        val updated = current + name
-        _uiState.update { it.copy(selectedNavItems = updated) }
-        AuthManager.setBottomNavItems(updated)
-    }
-
-    /** Remove a nav item from the bottom bar. Auto-saves. */
-    fun removeNavItem(name: String) {
-        val updated = _uiState.value.selectedNavItems - name
-        _uiState.update { it.copy(selectedNavItems = updated) }
-        AuthManager.setBottomNavItems(updated)
-    }
-
-    /** Reorder the selected nav items. Auto-saves. */
-    fun reorderNavItems(items: List<String>) {
-        _uiState.update { it.copy(selectedNavItems = items) }
-        AuthManager.setBottomNavItems(items)
-    }
-
     fun save() {
         val state = _uiState.value
         val normalized =
@@ -379,7 +338,6 @@ class SettingsViewModel(
         AuthManager.setThemePreference(state.themePreference)
         AuthManager.setUseDynamicColors(state.useDynamicColors)
         AuthManager.setThemePreset(state.themePreset)
-        AuthManager.setBottomNavDisplayMode(state.bottomNavDisplayMode)
         AuthManager.setTypingEffectEnabled(state.typingEffectEnabled)
         AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
         ApiClient.rebuild()

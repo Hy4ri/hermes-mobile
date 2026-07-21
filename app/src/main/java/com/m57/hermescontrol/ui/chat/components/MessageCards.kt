@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.InfiniteRepeatableSpec
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -88,17 +89,17 @@ import com.m57.hermescontrol.ui.chat.SubagentIndicator
 @Composable
 fun ReasoningCard(
     reasoningText: String,
-    stepCount: Int,
     isStreaming: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val stepCount = remember(reasoningText) { reasoningText.count { it == '\n' } + 1 }
 
     Card(
         modifier =
             modifier
                 .fillMaxWidth()
-                .animateContentSize()
+                .then(if (!isStreaming) Modifier.animateContentSize() else Modifier)
                 .testTag("reasoning_card"),
         colors =
             CardDefaults.cardColors(
@@ -150,14 +151,17 @@ fun ReasoningCard(
 @Composable
 private fun ReasoningPulsingDot(modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "reasoning_pulse")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec =
+    val pulseSpec: InfiniteRepeatableSpec<Float> =
+        remember {
             infiniteRepeatable(
                 animation = tween(600, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
-            ),
+            )
+        }
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = pulseSpec,
         label = "reasoning_dot_alpha",
     )
     Box(
@@ -234,7 +238,7 @@ fun CodeBlockCard(
                 ) {
                     Icon(
                         imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = "Copy code",
+                        contentDescription = if (copied) "Copied" else "Copy code",
                         tint = Color(0xFF808080),
                         modifier = Modifier.size(14.dp),
                     )
@@ -257,6 +261,30 @@ fun CodeBlockCard(
     }
 }
 
+// Hoisted token patterns for syntax highlighting — compiled once.
+private val HIGHLIGHT_TOKENS =
+    listOf(
+        TokenPattern(Regex("""//[^\n]*"""), CodeComment),
+        TokenPattern(Regex("""/\*[\s\S]*?\*/"""), CodeComment),
+        TokenPattern(Regex(""""[^"\\]*(\\.[^"\\]*)*""""), CodeString),
+        TokenPattern(Regex("""'[^'\\]*(\\.[^'\\]*)*'"""), CodeString),
+        TokenPattern(Regex("""`[^`\\]*(\\.[^`\\]*)*`"""), CodeString),
+        TokenPattern(Regex("""\b0[xX][0-9a-fA-F]+\b"""), CodeNumber),
+        TokenPattern(Regex("""\b\d+\.?\d*(?:[eE][+-]?\d+)?\b"""), CodeNumber),
+        TokenPattern(
+            Regex(
+                """\b(?:val|var|fun|class|object|interface|enum|data|sealed|open|abstract|""" +
+                    """override|private|protected|public|internal|import|package|""" +
+                    """if|else|when|for|while|do|return|throw|try|catch|finally|""" +
+                    """true|false|null|this|super|is|in|as|typealias|companion|""" +
+                    """init|constructor|by|get|set|field|value|suspend|inline|""" +
+                    """infix|operator|tailrec|external|annotation)\b""",
+            ),
+            CodeKeyword,
+        ),
+        TokenPattern(Regex("""[{}()\[\];,.]"""), CodePunctuation),
+    )
+
 /**
  * Builds an [AnnotatedString] from [code] with syntax highlighting colours
  * applied via token regexes. Covers keywords, strings, comments, numbers,
@@ -264,37 +292,7 @@ fun CodeBlockCard(
  */
 internal fun highlightSyntax(code: String): AnnotatedString =
     buildAnnotatedString {
-        // Combine all token patterns — match longest first to avoid overlap
-        val tokens =
-            listOf(
-                // Single-line comment: // ...
-                TokenPattern(Regex("""//[^\n]*"""), CodeComment),
-                // Multi-line comment: /* ... */
-                TokenPattern(Regex("""/\*[\s\S]*?\*/"""), CodeComment),
-                // String literals: "..." or '...'
-                TokenPattern(Regex(""""[^"\\]*(\\.[^"\\]*)*""""), CodeString),
-                TokenPattern(Regex("""'[^'\\]*(\\.[^'\\]*)*'"""), CodeString),
-                // Template string: `...`
-                TokenPattern(Regex("""`[^`\\]*(\\.[^`\\]*)*`"""), CodeString),
-                // Numbers: integer, float, hex
-                TokenPattern(Regex("""\b0[xX][0-9a-fA-F]+\b"""), CodeNumber),
-                TokenPattern(Regex("""\b\d+\.?\d*(?:[eE][+-]?\d+)?\b"""), CodeNumber),
-                // Keywords (common across Kotlin, Python, JS, etc.)
-                TokenPattern(
-                    Regex(
-                        """\b(?:val|var|fun|class|object|interface|enum|data|sealed|open|abstract|""" +
-                            """override|private|protected|public|internal|import|package|""" +
-                            """if|else|when|for|while|do|return|throw|try|catch|finally|""" +
-                            """true|false|null|this|super|is|in|as|typealias|companion|""" +
-                            """init|constructor|by|get|set|field|value|suspend|inline|""" +
-                            """infix|operator|tailrec|external|annotation)\b""",
-                    ),
-                    CodeKeyword,
-                ),
-                // Brackets and punctuation
-                TokenPattern(Regex("""[{}()\[\];,.]"""), CodePunctuation),
-            )
-
+        val tokens = HIGHLIGHT_TOKENS
         var lastIndex = 0
         val matches = mutableListOf<Pair<IntRange, Color>>()
 
@@ -524,24 +522,23 @@ fun TypingIndicator(modifier: Modifier = Modifier) {
 @Composable
 private fun TypingDot(delayMs: Int) {
     val infiniteTransition = rememberInfiniteTransition(label = "typing_dot_$delayMs")
-    val offset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -6f,
-        animationSpec =
+    val typingSpec: InfiniteRepeatableSpec<Float> =
+        remember(delayMs) {
             infiniteRepeatable(
                 animation = tween(400, delayMillis = delayMs, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse,
-            ),
+            )
+        }
+    val offset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -6f,
+        animationSpec = typingSpec,
         label = "typing_dot_offset_$delayMs",
     )
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
         targetValue = 1f,
-        animationSpec =
-            infiniteRepeatable(
-                animation = tween(400, delayMillis = delayMs, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
+        animationSpec = typingSpec,
         label = "typing_dot_alpha_$delayMs",
     )
     Box(

@@ -98,7 +98,6 @@ fun ChatMessageList(
                     Spacer(modifier = Modifier.height(2.dp))
                     ReasoningCard(
                         reasoningText = message.reasoningText,
-                        stepCount = message.reasoningText.count { it == '\n' } + 1,
                         isStreaming = message.isStreaming,
                     )
                 }
@@ -133,7 +132,6 @@ fun ChatMessageList(
                         Spacer(modifier = Modifier.height(2.dp))
                         ReasoningCard(
                             reasoningText = streaming.reasoningText,
-                            stepCount = streaming.reasoningText.count { it == '\n' } + 1,
                             isStreaming = streaming.isStreaming,
                         )
                     }

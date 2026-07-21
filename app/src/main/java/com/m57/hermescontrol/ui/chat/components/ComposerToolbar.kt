@@ -1,11 +1,14 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Mic
@@ -67,19 +70,25 @@ fun ComposerToolbar(
             )
         }
 
-        // Model chip
+        // Model chip — fixed width, text scrolls if too long
         FilterChip(
             selected = currentSessionModel != null,
             onClick = onModelTap,
             label = {
-                Text(
-                    text = currentSessionModel ?: "Model",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        text = currentSessionModel ?: "Model",
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                    )
+                }
             },
-            modifier = Modifier.testTag("model_chip"),
+            modifier =
+                Modifier
+                    .width(120.dp)
+                    .testTag("model_chip"),
         )
 
         // Reasoning chip

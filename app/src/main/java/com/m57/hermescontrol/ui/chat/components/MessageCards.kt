@@ -36,9 +36,11 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
@@ -371,6 +373,8 @@ fun ClarifyBubble(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var typedText by remember { mutableStateOf("") }
+
     Surface(
         modifier =
             modifier
@@ -414,9 +418,33 @@ fun ClarifyBubble(
                     }
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = typedText,
+                onValueChange = { typedText = it },
+                label = { Text("Your response") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onDismiss) {
-                Text("Dismiss")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            ) {
+                FilledTonalButton(
+                    onClick = {
+                        if (typedText.isNotBlank()) {
+                            onOptionSelected(typedText)
+                            typedText = ""
+                        }
+                    },
+                    enabled = typedText.isNotBlank(),
+                ) {
+                    Text("Send")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Dismiss")
+                }
             }
         }
     }

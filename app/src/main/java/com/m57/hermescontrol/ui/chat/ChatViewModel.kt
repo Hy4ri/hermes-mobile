@@ -378,6 +378,33 @@ class ChatViewModel(
                 handleGatewayReady()
             }
 
+            is WsEvent.SessionInfo -> {
+                // Session info pushed by backend when config changes
+                // (model switch, reasoning level, etc.)
+                val info = event.data
+                if (info != null) {
+                    val model = info["model"] as? String
+                    val provider = info["provider"] as? String
+                    val reasoningEffort = info["reasoning_effort"] as? String
+                    _uiState.update { state ->
+                        state.copy(
+                            currentSessionModel =
+                                if (model != null && provider != null) {
+                                    "$provider/$model"
+                                } else {
+                                    model ?: state.currentSessionModel
+                                },
+                            reasoningLevel =
+                                if (reasoningEffort.isNullOrEmpty()) {
+                                    null
+                                } else {
+                                    reasoningEffort
+                                },
+                        )
+                    }
+                }
+            }
+
             is WsEvent.MessageToken -> {
                 streamingController.handleMessageToken(event)
             }
@@ -584,7 +611,7 @@ class ChatViewModel(
                             },
                         reasoningLevel =
                             if (reasoningEffort.isNullOrEmpty()) {
-                                it.reasoningLevel
+                                null
                             } else {
                                 reasoningEffort
                             },
@@ -1276,12 +1303,13 @@ class ChatViewModel(
     fun setReasoningLevel(level: String?) {
         _uiState.update { it.copy(reasoningLevel = level) }
         val sessionId = runtimeSessionId ?: return
+        if (level == null) return // null = model default, no need to send WS
         viewModelScope.launch(Dispatchers.IO) {
             wsClient.send(
                 WsMethods.CONFIG_SET,
                 mapOf(
                     "key" to "reasoning",
-                    "value" to (level ?: ""),
+                    "value" to level,
                     "session_id" to sessionId,
                 ),
                 onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },

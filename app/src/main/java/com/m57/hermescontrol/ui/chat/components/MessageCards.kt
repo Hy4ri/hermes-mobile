@@ -74,6 +74,10 @@ import com.m57.hermescontrol.theme.CodeKeyword
 import com.m57.hermescontrol.theme.CodeNumber
 import com.m57.hermescontrol.theme.CodePunctuation
 import com.m57.hermescontrol.theme.CodeString
+import com.m57.hermescontrol.theme.CodeTerminalBg
+import com.m57.hermescontrol.theme.CodeTerminalBorder
+import com.m57.hermescontrol.theme.CodeTerminalMuted
+import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 
 // ── ReasoningCard ─────────────────────────────────────────────────────────
@@ -201,8 +205,8 @@ fun CodeBlockCard(
                 .fillMaxWidth()
                 .testTag("code_block"),
         shape = RoundedCornerShape(8.dp),
-        color = Color(0xFF1E1E1E), // VS Code–style dark background
-        border = BorderStroke(1.dp, Color(0xFF333333)),
+        color = CodeTerminalBg,
+        border = BorderStroke(1.dp, CodeTerminalBorder),
     ) {
         Column {
             // Header row: language badge (left) + copy button (right)
@@ -216,7 +220,7 @@ fun CodeBlockCard(
                         style =
                             MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF808080),
+                                color = CodeTerminalMuted,
                             ),
                     )
                 }
@@ -239,7 +243,7 @@ fun CodeBlockCard(
                     Icon(
                         imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
                         contentDescription = if (copied) "Copied" else "Copy code",
-                        tint = Color(0xFF808080),
+                        tint = CodeTerminalMuted,
                         modifier = Modifier.size(14.dp),
                     )
                 }
@@ -250,7 +254,7 @@ fun CodeBlockCard(
                 text = highlighted,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp,
-                color = Color(0xFFD4D4D4),
+                color = CodeTerminalText,
                 softWrap = false,
                 modifier =
                     Modifier

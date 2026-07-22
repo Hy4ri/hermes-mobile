@@ -73,20 +73,11 @@ val StatusGreyLight = Color(0xFFF5F5F5)
 
 // ── Chat-specific colours (always brand-defined for consistency) ───────
 
-val UserBubble = HermesPurple
-val UserBubbleDark = HermesPurpleDark
 val AssistantBubble = Color(0xFF1C1C26)
 val AssistantBubbleLight = Color(0xFFEDEAF4)
 val SystemMessageColor = Color(0xFF8B879A)
 val ToolChipColor = Color(0xFF262633)
 val ToolChipColorLight = Color(0xFFE6E3EE)
-
-// ── Skeleton shimmer colours ───────────────────────────────────────────
-
-val SkeletonBase = Color(0xFF1C1C26)
-val SkeletonHighlight = Color(0xFF2F2F3D)
-val SkeletonBaseLight = Color(0xFFE6E3EE)
-val SkeletonHighlightLight = Color(0xFFEFEDF4)
 
 // ── Syntax highlighting tokens (code blocks) ─────────────────────────────
 // VS Code Dark+ palette — good general readability across all presets.

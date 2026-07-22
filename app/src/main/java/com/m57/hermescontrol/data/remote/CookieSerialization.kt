@@ -77,13 +77,6 @@ fun wrapSessionCookie(rawValue: String): Cookie? {
     }.getOrNull()
 }
 
-/**
- * Build a permissive [Cookie] from a Set-Cookie `hermes_session_at=...`
- * header captured during login. Used by [PersistentCookieJar] when the server
- * does not echo an explicit domain (common for same-host dashboard logins).
- */
-fun sessionCookieFromValue(value: String): Cookie? = wrapSessionCookie(value)
-
 const val SESSION_COOKIE_NAME = "hermes_session_at"
 
 /**

@@ -211,14 +211,6 @@ interface HermesApiService {
         @Query("identifier") identifier: String,
     ): Response<SkillContentResponse>
 
-    @GET("api/skills/hub/scan")
-    suspend fun scanHubSkill(
-        @Query("identifier") identifier: String,
-    ): Response<SkillScanResponse>
-
-    @GET("api/skills/hub/sources")
-    suspend fun getHubSources(): Response<List<String>>
-
     @POST("api/skills/hub/install")
     suspend fun installHubSkill(
         @Body body: SkillHubInstallRequest,

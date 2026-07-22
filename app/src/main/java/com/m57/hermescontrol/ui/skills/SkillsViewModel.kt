@@ -205,17 +205,6 @@ class SkillsViewModel(
         }
     }
 
-    fun clearHubPreview() {
-        _uiState.update {
-            it.copy(
-                hubPreviewIdentifier = null,
-                hubPreviewContent = null,
-                isHubPreviewing = false,
-                hubPreviewError = null,
-            )
-        }
-    }
-
     // ── Hub install ─────────────────────────────────────────────────────────
 
     fun installSkill(identifier: String) {
@@ -286,43 +275,6 @@ class SkillsViewModel(
                             isUninstalling = false,
                             uninstallingSkillName = null,
                             toastMessage = "Failed to uninstall $name: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // ── SKILL.md preview ────────────────────────────────────────────────────
-
-    fun previewSkill(skillName: String) {
-        _uiState.update {
-            it.copy(
-                previewSkillName = skillName,
-                previewSkillContent = null,
-                isLoadingPreview = true,
-            )
-        }
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getSkillContent(skillName) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoadingPreview = false,
-                            previewSkillContent = result.data.content,
-                        )
-                    }
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoadingPreview = false,
-                            toastMessage = "Failed to load preview: ${result.error.message}",
                         )
                     }
                 }

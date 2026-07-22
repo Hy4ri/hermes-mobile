@@ -653,23 +653,4 @@ class SystemViewModel :
     override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
     }
-
-    fun clearTransientState() {
-        actionPollingJob?.cancel()
-        _uiState.update {
-            it.copy(
-                errorMessage = null,
-                toastMessage = null,
-                activeAction = null,
-                actionLog = null,
-                isLoading = false,
-                addingCred = false,
-                creatingHook = false,
-                sharing = false,
-                checkingUpdate = false,
-                updateConfirmOpen = false,
-                hookModalOpen = false,
-            )
-        }
-    }
 }

@@ -91,7 +91,6 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.SystemMessageColor
 import com.m57.hermescontrol.theme.ToolChipColor
 import com.m57.hermescontrol.theme.ToolChipColorLight
-import com.m57.hermescontrol.theme.UserBubble
 import com.m57.hermescontrol.theme.onColorFor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

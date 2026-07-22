@@ -67,8 +67,6 @@ class SettingsViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
-        every { AuthManager.setHost(any()) } returns Unit
-        every { AuthManager.setPort(any()) } returns Unit
         every { AuthManager.setBaseUrl(any()) } returns Unit
         every { AuthManager.setToken(any()) } returns Unit
         every { AuthManager.setAutoReconnect(any()) } returns Unit

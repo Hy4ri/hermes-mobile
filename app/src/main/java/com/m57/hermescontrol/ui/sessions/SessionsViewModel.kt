@@ -234,10 +234,6 @@ class SessionsViewModel : ViewModel(), ToastHost {
         }
     }
 
-    fun exitSelecting() {
-        _uiState.update { it.copy(isSelecting = false, selectedIds = emptySet()) }
-    }
-
     fun toggleSessionSelection(id: String) {
         _uiState.update {
             val updated = it.selectedIds.toMutableSet()
@@ -257,14 +253,6 @@ class SessionsViewModel : ViewModel(), ToastHost {
     }
 
     // ── Rename ───────────────────────────────────────────────────────────
-
-    fun startRenaming(sessionId: String) {
-        _uiState.update { it.copy(renamingSessionId = sessionId) }
-    }
-
-    fun cancelRenaming() {
-        _uiState.update { it.copy(renamingSessionId = null) }
-    }
 
     fun renameSession(
         sessionId: String,
@@ -303,27 +291,6 @@ class SessionsViewModel : ViewModel(), ToastHost {
                             toastMessage = "Rename failed: ${result.error.message}",
                         )
                     }
-                }
-            }
-        }
-    }
-
-    // ── Copy prompt ──────────────────────────────────────────────────────
-
-    fun copySessionPrompt(sessionId: String) {
-        viewModelScope.launch {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.getSessionPrompt(sessionId)
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val promptText = result.data.prompt ?: "No prompt available"
-                    _uiState.update { it.copy(toastMessage = promptText) }
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to get prompt: ${result.error.message}") }
                 }
             }
         }

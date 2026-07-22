@@ -251,6 +251,4 @@ class BillingViewModel : ViewModel() {
                 }
         }
     }
-
-    fun clearActionMessage() = _uiState.update { it.copy(actionMessage = null) }
 }

@@ -21,9 +21,6 @@ class ServerEndpoint private constructor(
     val baseUrl: HttpUrl,
     val securityWarning: String?,
 ) {
-    val isCleartext: Boolean
-        get() = baseUrl.scheme == "http"
-
     fun resolve(relativePath: String): HttpUrl {
         val path = relativePath.trim().trimStart('/')
         require(path.isNotEmpty()) { "Endpoint path must not be blank" }

@@ -126,11 +126,6 @@ data class UsageBar(
 // ── subscription.preview ──────────────────────────────────────────────────
 
 @Serializable
-data class SubscriptionPreviewRequest(
-    val subscription_type_id: String,
-)
-
-@Serializable
 data class SubscriptionPreviewResponse(
     val ok: Boolean? = null,
     val error: String? = null,
@@ -183,11 +178,6 @@ data class SubscriptionResumeResponse(
 )
 
 // ── subscription.upgrade ──────────────────────────────────────────────────
-
-@Serializable
-data class SubscriptionUpgradeRequest(
-    val subscription_type_id: String,
-)
 
 @Serializable
 data class SubscriptionUpgradeResponse(

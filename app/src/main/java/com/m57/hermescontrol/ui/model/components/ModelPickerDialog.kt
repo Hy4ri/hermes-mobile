@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
@@ -23,7 +24,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,11 +68,28 @@ fun ModelPickerDialog(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp,
         title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         },
         text = {
             Column {
@@ -139,7 +156,6 @@ fun ModelPickerDialog(
                             ) { pinned ->
                                 ModelItemCard(
                                     modelName = pinned.modelName,
-                                    providerSlug = pinned.providerSlug,
                                     isPinned = true,
                                     onPinToggle =
                                         if (onPinToggle != null) {
@@ -196,7 +212,6 @@ fun ModelPickerDialog(
                                         }
                                     ModelItemCard(
                                         modelName = model,
-                                        providerSlug = provider.slug,
                                         isPinned = isPinned,
                                         onPinToggle =
                                             if (onPinToggle != null) {
@@ -213,16 +228,13 @@ fun ModelPickerDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
+        confirmButton = {},
     )
 }
 
 @Composable
 private fun ModelItemCard(
     modelName: String,
-    providerSlug: String,
     isPinned: Boolean,
     onPinToggle: (() -> Unit)?,
     onClick: () -> Unit,
@@ -256,18 +268,6 @@ private fun ModelItemCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.padding(horizontal = 4.dp),
-            ) {
-                Text(
-                    text = providerSlug,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-            }
             if (onPinToggle != null) {
                 IconButton(
                     onClick = onPinToggle,

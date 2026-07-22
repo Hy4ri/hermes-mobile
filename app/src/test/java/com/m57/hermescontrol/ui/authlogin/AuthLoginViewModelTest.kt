@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.authlogin
 
+import android.app.Application
+import android.util.Log
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
@@ -12,6 +14,8 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.junit.After
@@ -21,11 +25,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import android.app.Application
-import android.util.Log
 import java.io.IOException
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 class AuthLoginViewModelTest {
     private lateinit var viewModel: AuthLoginViewModel

@@ -100,11 +100,11 @@ object ScreenRegistry {
                 DrawerSection.AUTOMATE,
             ) { sessionId, openDrawer -> WebhooksScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
-                GatewayScreen,
-                R.string.screen_gateway,
-                Icons.Filled.Bolt,
+                KanbanScreen,
+                R.string.screen_kanban,
+                Icons.Filled.Dashboard,
                 DrawerSection.AUTOMATE,
-            ) { sessionId, openDrawer -> GatewayScreenContent(onOpenDrawer = openDrawer) },
+            ) { sessionId, openDrawer -> KanbanScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 SkillsScreen,
                 R.string.screen_skills,
@@ -160,6 +160,12 @@ object ScreenRegistry {
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> ProvidersScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
+                GatewayScreen,
+                R.string.screen_gateway,
+                Icons.Filled.Bolt,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> GatewayScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
                 SystemScreen,
                 R.string.screen_system,
                 Icons.Filled.Info,
@@ -189,12 +195,6 @@ object ScreenRegistry {
                 Icons.Filled.AccountBalanceWallet,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> BillingScreenContent(onOpenDrawer = openDrawer) },
-            ScreenDefinition(
-                KanbanScreen,
-                R.string.screen_kanban,
-                Icons.Filled.Dashboard,
-                DrawerSection.INSPECT,
-            ) { sessionId, openDrawer -> KanbanScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 AchievementsScreen,
                 R.string.screen_achievements,

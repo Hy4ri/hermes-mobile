@@ -142,6 +142,16 @@ data class SecretPromptUi(
     val sessionId: String?,
 )
 
+/**
+ * Tracks an in-flight JSON-RPC request with its method and the session ID
+ * it was issued for. Used to reject stale results (e.g. a session.resume
+ * that arrives after the user has switched to a different session).
+ */
+private data class PendingRpcRequest(
+    val method: String,
+    val sessionId: String? = null,
+)
+
 class ChatViewModel(
     application: Application,
     private val startCleanup: Boolean,
@@ -158,8 +168,18 @@ class ChatViewModel(
 
     private val _streamingState = MutableStateFlow(StreamingState())
 
-    /** Maps an in-flight RPC id to its method for UI error labeling. */
-    private val idToMethod = ConcurrentHashMap<String, String>()
+    /**
+     * Tracks in-flight RPC requests with their method and the session ID they
+     * were issued for. Used to reject stale results (e.g. a session.resume
+     * that arrives after the user has already switched to a different session).
+     */
+    private val pendingRequests = ConcurrentHashMap<String, PendingRpcRequest>()
+
+    /**
+     * The session ID that was requested in the most recent [switchSession] call.
+     * Used to reject stale session.resume results.
+     */
+    private var requestedResumeSessionId: String? = null
 
     /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
     private var runtimeSessionId: String? = null
@@ -321,11 +341,12 @@ class ChatViewModel(
         preloadModelOptions()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
+            requestedResumeSessionId = currentId
             viewModelScope.launch(Dispatchers.IO) {
                 wsClient.send(
                     WsMethods.SESSION_RESUME,
                     mapOf("session_id" to currentId),
-                    onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                    onSent = { id -> trackResumeRequest(id, currentId) },
                 )
             }
             loadSessionMessages(currentId)
@@ -523,7 +544,19 @@ class ChatViewModel(
         id: String,
         result: Any?,
     ) {
-        val method = idToMethod.remove(id) ?: return
+        val request = pendingRequests.remove(id) ?: return
+        val method = request.method
+
+        // Reject stale session.resume results — if the user has already switched
+        // to a different session, the resume payload belongs to the old session
+        // and must not clobber the current one.
+        if (method == WsMethods.SESSION_RESUME &&
+            request.sessionId != null &&
+            request.sessionId != _uiState.value.currentSessionId
+        ) {
+            return
+        }
+
         when (method) {
             WsMethods.SESSION_CREATE -> {
                 val resultMap = result as? Map<String, Any?> ?: return
@@ -624,6 +657,16 @@ class ChatViewModel(
                 }
                 // Mirror the active runtime session id app-wide (issue #532).
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId)
+
+                // Hydrate messages from the resume payload if the current
+                // message list is empty or only contains system messages.
+                // This fills the gap between switchSession() (which clears
+                // messages) and loadSessionMessages() (which loads via REST),
+                // so the user sees history immediately instead of a blank screen.
+                val resumeMessages = resultMap?.get("messages") as? List<*>
+                if (resumeMessages != null && resumeMessages.isNotEmpty()) {
+                    hydrateResumeMessages(sessionId, resumeMessages)
+                }
                 addSystemMessage("Session resumed")
             }
 
@@ -701,7 +744,8 @@ class ChatViewModel(
         id: String,
         error: Any?,
     ) {
-        val method = idToMethod.remove(id) ?: return
+        val request = pendingRequests.remove(id) ?: return
+        val method = request.method
         val errorMsg =
             when (error) {
                 is Map<*, *> -> error["message"] as? String ?: error.toString()
@@ -1339,6 +1383,9 @@ class ChatViewModel(
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
+        // Track the requested session so we can reject stale resume results.
+        requestedResumeSessionId = sessionId
+
         // Reset streaming and pagination state before resuming the Desktop session.
         runtimeSessionId = null
         loadedMessageOffset = 0
@@ -1365,7 +1412,7 @@ class ChatViewModel(
                 wsClient.send(
                     WsMethods.SESSION_RESUME,
                     mapOf("session_id" to sessionId),
-                    onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                    onSent = { id -> trackResumeRequest(id, sessionId) },
                 )
             }
             loadSessionMessages(sessionId)
@@ -1400,12 +1447,23 @@ class ChatViewModel(
                     }
                     _uiState.update { state ->
                         if (state.currentSessionId != sessionId) return@update state
-                        state.copy(
-                            messages = chatMessages,
-                            isLoading = false,
-                            hasOlderMessages = offset > 0,
-                            isLoadingOlder = false,
-                        )
+                        // Don't overwrite resume-hydrated messages if REST returns
+                        // empty — the resume payload already has the history.
+                        val hasResumeHistory =
+                            state.messages.any { it.id.startsWith("resume-$sessionId-") }
+                        if (chatMessages.isEmpty() && hasResumeHistory) {
+                            state.copy(
+                                isLoading = false,
+                                isLoadingOlder = false,
+                            )
+                        } else {
+                            state.copy(
+                                messages = chatMessages,
+                                isLoading = false,
+                                hasOlderMessages = offset > 0 && chatMessages.isNotEmpty(),
+                                isLoadingOlder = false,
+                            )
+                        }
                     }
                 }
 
@@ -1589,6 +1647,96 @@ class ChatViewModel(
             left.zip(right).all { (a, b) ->
                 a.id == b.id && a.role == b.role && a.content == b.content
             }
+
+    /**
+     * Hydrates chat messages from the session.resume RPC payload.
+     *
+     * The backend returns a `messages` array in the resume result. We map each
+     * entry to a [ChatMessage] with `resume-$sessionId-$index` IDs, which are
+     * distinct from REST's `rest-$sessionId-$index` IDs so the two sources
+     * never collide.
+     *
+     * Only hydrates when the current message list is empty or contains only
+     * system messages — this prevents overwriting messages the user sent
+     * between [switchSession] and the resume ack.
+     *
+     * After hydration, [loadedMessageOffset] is set to 0 so pagination starts
+     * fresh from the beginning.
+     */
+    private fun hydrateResumeMessages(
+        sessionId: String,
+        payload: List<*>,
+    ) {
+        val resumedMessages =
+            payload.mapIndexedNotNull { index, item ->
+                val message = item as? Map<*, *> ?: return@mapIndexedNotNull null
+                val roleName = (message["role"] as? String)?.lowercase()
+                val role =
+                    when (roleName) {
+                        "user" -> MessageRole.USER
+                        "system" -> MessageRole.SYSTEM
+                        "tool" -> MessageRole.TOOL
+                        "assistant" -> MessageRole.ASSISTANT
+                        else -> return@mapIndexedNotNull null
+                    }
+                val content =
+                    (message["text"] as? String)
+                        ?: (message["content"] as? String)
+                        ?: if (role == MessageRole.TOOL) {
+                            (message["context"] as? String)
+                                ?.takeIf { it.isNotBlank() }
+                                ?: (message["name"] as? String).orEmpty()
+                        } else {
+                            ""
+                        }
+                if (content.isBlank()) return@mapIndexedNotNull null
+                val timestampSeconds =
+                    when (val timestamp = message["timestamp"]) {
+                        is Number -> timestamp.toDouble()
+                        is String -> timestamp.toDoubleOrNull()
+                        else -> null
+                    }
+                ChatMessage(
+                    id = "resume-$sessionId-$index",
+                    role = role,
+                    content = content,
+                    timestamp =
+                        timestampSeconds
+                            ?.times(1000)
+                            ?.toLong()
+                            ?: System.currentTimeMillis() + index,
+                    isStreaming = false,
+                )
+            }
+        if (resumedMessages.isEmpty()) return
+
+        _uiState.update { state ->
+            if (state.currentSessionId != sessionId) return@update state
+            // Only hydrate if the current message list is empty or contains
+            // only system messages — don't overwrite user-sent messages.
+            val hasTranscript =
+                state.messages.any { it.role != MessageRole.SYSTEM }
+            if (hasTranscript) {
+                state.copy(isLoading = false)
+            } else {
+                state.copy(
+                    messages = resumedMessages,
+                    isLoading = false,
+                    hasOlderMessages = false,
+                    isLoadingOlder = false,
+                )
+            }
+        }
+        // Reset pagination offset so loadOlderMessages starts from the
+        // beginning of the resumed history.
+        val hasResumeHistory =
+            _uiState.value.messages.any {
+                it.id.startsWith("resume-$sessionId-")
+            }
+        if (hasResumeHistory) {
+            loadedMessageOffset = 0
+        }
+    }
 
     // ── UI actions ───────────────────────────────────────────────────────
 
@@ -1972,7 +2120,18 @@ class ChatViewModel(
         id: String,
         method: String,
     ) {
-        idToMethod[id] = method
+        pendingRequests[id] = PendingRpcRequest(method = method, sessionId = null)
+    }
+
+    /**
+     * Track a session.resume request with its session ID, so we can reject
+     * the result if the user has switched sessions before it arrives.
+     */
+    private fun trackResumeRequest(
+        id: String,
+        sessionId: String,
+    ) {
+        pendingRequests[id] = PendingRpcRequest(method = WsMethods.SESSION_RESUME, sessionId = sessionId)
     }
 
     // ── Search ────────────────────────────────────────────────────────────

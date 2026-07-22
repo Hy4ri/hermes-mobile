@@ -187,9 +187,10 @@ fun LazyListState.isAtBottom(tolerance: Int = 8): Boolean {
     val visibleItems = layoutInfo.visibleItemsInfo
     if (visibleItems.isEmpty()) return true
     val lastItem = visibleItems.last()
+    if (lastItem.index < layoutInfo.totalItemsCount - 1) return false
     val lastBottom = lastItem.offset + lastItem.size
     val viewportBottom = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
-    return lastBottom >= viewportBottom - tolerance
+    return lastBottom <= viewportBottom + tolerance
 }
 
 /**

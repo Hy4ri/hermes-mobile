@@ -105,10 +105,19 @@ fun ChatInputBar(
         exit = slideOutVertically(targetOffsetY = { it }),
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 3.dp,
-            shadowElevation = 0.dp,
+            border =
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                ),
+            tonalElevation = 2.dp,
+            shadowElevation = 4.dp,
         ) {
             Column {
                 // Commands hidden from the suggestion menu — desktop/CLI-only and

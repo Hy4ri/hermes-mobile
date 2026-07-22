@@ -4,11 +4,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
@@ -17,6 +16,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -76,7 +76,7 @@ fun ComposerToolbar(
             )
         }
 
-        // Model chip — fixed width, text scrolls if too long
+        // Model chip — takes available space, fixed height
         FilterChip(
             selected = currentSessionModel != null,
             onClick = onModelTap,
@@ -93,11 +93,10 @@ fun ComposerToolbar(
             },
             modifier =
                 Modifier
-                    .widthIn(min = 140.dp)
+                    .weight(1f)
+                    .height(28.dp)
                     .testTag("model_chip"),
         )
-
-        Spacer(modifier = Modifier.weight(1f))
 
         // Reasoning chip with dropdown menu (right side, next to mic)
         Box {
@@ -114,7 +113,7 @@ fun ComposerToolbar(
                 },
                 modifier =
                     Modifier
-                        .padding(horizontal = 4.dp)
+                        .height(28.dp)
                         .testTag("reasoning_chip"),
             )
 
@@ -122,6 +121,13 @@ fun ComposerToolbar(
                 expanded = showReasoningMenu,
                 onDismissRequest = { showReasoningMenu = false },
             ) {
+                Text(
+                    text = "Reasoning",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+                HorizontalDivider()
                 val allLevels =
                     listOf(
                         "none" to "None",
@@ -208,3 +214,4 @@ private fun buildReasoningLabel(level: String?): String {
         else -> level
     }
 }
+

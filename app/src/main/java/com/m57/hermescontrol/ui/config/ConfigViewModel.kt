@@ -9,7 +9,6 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -59,7 +58,8 @@ class ConfigViewModel :
                 coroutineScope {
                     val configDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfig() } }
                     val schemaDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfigSchema() } }
-                    val defaultsDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfigDefaults() } }
+                    val defaultsDeferred =
+                        async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getConfigDefaults() } }
                     val rawDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getRawConfig() } }
 
                     val configResult = configDeferred.await()

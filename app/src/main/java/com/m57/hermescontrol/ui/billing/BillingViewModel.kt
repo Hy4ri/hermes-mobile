@@ -50,44 +50,46 @@ class BillingViewModel : ViewModel() {
         loadJob =
             viewModelScope.launch {
                 coroutineScope {
-                    val subDeferred = async {
-                        var sub: SubscriptionStateResponse? = null
-                        var unavailable = false
-                        var error: String? = null
-                        try {
-                            sub = BillingRepository.getSubscriptionState()
-                            if (sub?.ok == false) {
+                    val subDeferred =
+                        async {
+                            var sub: SubscriptionStateResponse? = null
+                            var unavailable = false
+                            var error: String? = null
+                            try {
+                                sub = BillingRepository.getSubscriptionState()
+                                if (sub?.ok == false) {
+                                    unavailable = true
+                                    error = sub.error ?: "Billing unavailable"
+                                } else if (sub == null) {
+                                    if (error == null) error = "No billing data returned"
+                                }
+                            } catch (e: HermesWsClient.HermesRpcException) {
                                 unavailable = true
-                                error = sub.error ?: "Billing unavailable"
-                            } else if (sub == null) {
-                                if (error == null) error = "No billing data returned"
+                                error = e.message
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                error = e.message ?: "Failed to load subscription"
                             }
-                        } catch (e: HermesWsClient.HermesRpcException) {
-                            unavailable = true
-                            error = e.message
-                        } catch (e: Exception) {
-                            if (e is kotlinx.coroutines.CancellationException) throw e
-                            error = e.message ?: "Failed to load subscription"
+                            Triple(sub, unavailable, error)
                         }
-                        Triple(sub, unavailable, error)
-                    }
 
-                    val barsDeferred = async {
-                        var bars: UsageBarsResponse? = null
-                        var error: String? = null
-                        try {
-                            bars = BillingRepository.getUsageBars()
-                            if (bars?.ok == false) {
-                                error = "Usage data unavailable"
+                    val barsDeferred =
+                        async {
+                            var bars: UsageBarsResponse? = null
+                            var error: String? = null
+                            try {
+                                bars = BillingRepository.getUsageBars()
+                                if (bars?.ok == false) {
+                                    error = "Usage data unavailable"
+                                }
+                            } catch (e: HermesWsClient.HermesRpcException) {
+                                // usage unavailable is non-fatal
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                error = e.message ?: "Failed to load usage"
                             }
-                        } catch (e: HermesWsClient.HermesRpcException) {
-                            // usage unavailable is non-fatal
-                        } catch (e: Exception) {
-                            if (e is kotlinx.coroutines.CancellationException) throw e
-                            error = e.message ?: "Failed to load usage"
+                            Pair(bars, error)
                         }
-                        Pair(bars, error)
-                    }
 
                     val (sub, unavailable, subError) = subDeferred.await()
                     val (bars, barsError) = barsDeferred.await()

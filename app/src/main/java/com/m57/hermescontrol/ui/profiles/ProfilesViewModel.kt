@@ -54,7 +54,8 @@ class ProfilesViewModel :
             try {
                 coroutineScope {
                     val profilesDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getProfiles() } }
-                    val activeDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getActiveProfile() } }
+                    val activeDeferred =
+                        async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getActiveProfile() } }
 
                     val profilesResult = profilesDeferred.await()
                     val activeResult = activeDeferred.await()
@@ -73,7 +74,9 @@ class ProfilesViewModel :
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                errorMessage = "Failed to load profiles/active: Profiles: $profilesError, Active: $activeError",
+                                errorMessage =
+                                    "Failed to load profiles/active: " +
+                                        "Profiles: $profilesError, Active: $activeError",
                             )
                         }
                     }
@@ -318,7 +321,9 @@ class ProfilesViewModel :
                         _uiState.update {
                             it.copy(
                                 isLoadingBuilderData = false,
-                                errorMessage = "Failed to load builder data: Models: $modelsError, Skills: $skillsError",
+                                errorMessage =
+                                    "Failed to load builder data: " +
+                                        "Models: $modelsError, Skills: $skillsError",
                             )
                         }
                     }

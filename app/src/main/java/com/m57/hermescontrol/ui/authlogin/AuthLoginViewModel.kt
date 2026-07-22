@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.AuthSessionState
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.AuthPayloads
 import com.m57.hermescontrol.data.remote.CleartextPolicy
@@ -80,9 +81,20 @@ class AuthLoginViewModel(
 
     init {
         loadLoggedInProfiles()
+        viewModelScope.launch {
+            AuthSessionState.signInRequired.collect { required ->
+                if (required) {
+                    _uiState.update { it.copy(loggedInProfiles = emptyList()) }
+                }
+            }
+        }
     }
 
     fun loadLoggedInProfiles() {
+        if (AuthSessionState.signInRequired.value) {
+            _uiState.update { it.copy(loggedInProfiles = emptyList()) }
+            return
+        }
         val allProfiles = AuthManager.getConnectionProfiles()
         val loggedIn =
             allProfiles.filter { profile ->
@@ -95,6 +107,7 @@ class AuthLoginViewModel(
     fun useExistingProfile(profileId: String) {
         AuthManager.setSelectedProfileId(profileId)
         ApiClient.rebuild()
+        AuthSessionState.markAuthenticated()
         HermesWsClient.connect()
         _uiState.update { it.copy(connectionSuccess = true) }
     }
@@ -345,6 +358,7 @@ class AuthLoginViewModel(
                     AuthManager.setWsAuthParam("ticket")
                 }
                 ApiClient.rebuild()
+                AuthSessionState.markAuthenticated()
                 HermesWsClient.connect()
                 _uiState.update { it.copy(isLoading = false, connectionSuccess = true) }
             }
@@ -366,7 +380,7 @@ class AuthLoginViewModel(
         }
 
         val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), token)
-        val result = safeApiCall { tempApi.getSessions() }
+        val result = safeApiCall(reportAuthExpiry = false) { tempApi.getSessions() }
 
         return when (result) {
             is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {

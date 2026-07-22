@@ -524,4 +524,16 @@ class ModelViewModel :
             _uiState.update { it.copy(pinnedModels = currentPinned) }
         }
     }
+
+    fun togglePinModel(
+        providerSlug: String,
+        modelName: String,
+    ) {
+        val target = PinnedModel(providerSlug, modelName)
+        if (_uiState.value.pinnedModels.contains(target)) {
+            unpinModel(providerSlug, modelName)
+        } else {
+            pinModel(providerSlug, modelName)
+        }
+    }
 }

@@ -16,8 +16,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,6 +48,7 @@ import com.m57.hermescontrol.ui.common.SearchBar
  *
  * [pinnedModels] renders a pinned section at the top (mirrors the global model
  * screen's pin section) so frequently-used models are one tap away.
+ * [onPinToggle] allows pinning and unpinning models directly inside the dialog.
  */
 @Composable
 fun ModelPickerDialog(
@@ -53,6 +56,7 @@ fun ModelPickerDialog(
     title: String,
     isLoading: Boolean = false,
     pinnedModels: List<PinnedModel> = emptyList(),
+    onPinToggle: ((provider: String, model: String) -> Unit)? = null,
     onSelect: (provider: String, model: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -136,6 +140,13 @@ fun ModelPickerDialog(
                                 ModelItemCard(
                                     modelName = pinned.modelName,
                                     providerSlug = pinned.providerSlug,
+                                    isPinned = true,
+                                    onPinToggle =
+                                        if (onPinToggle != null) {
+                                            { onPinToggle(pinned.providerSlug, pinned.modelName) }
+                                        } else {
+                                            null
+                                        },
                                     onClick = { onSelect(pinned.providerSlug, pinned.modelName) },
                                 )
                             }
@@ -179,9 +190,20 @@ fun ModelPickerDialog(
                                 }
 
                                 models.forEach { model ->
+                                    val isPinned =
+                                        pinnedModels.any {
+                                            it.providerSlug == provider.slug && it.modelName == model
+                                        }
                                     ModelItemCard(
                                         modelName = model,
                                         providerSlug = provider.slug,
+                                        isPinned = isPinned,
+                                        onPinToggle =
+                                            if (onPinToggle != null) {
+                                                { onPinToggle(provider.slug, model) }
+                                            } else {
+                                                null
+                                            },
                                         onClick = { onSelect(provider.slug, model) },
                                     )
                                 }
@@ -201,6 +223,8 @@ fun ModelPickerDialog(
 private fun ModelItemCard(
     modelName: String,
     providerSlug: String,
+    isPinned: Boolean,
+    onPinToggle: (() -> Unit)?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -220,7 +244,7 @@ private fun ModelItemCard(
             ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -235,7 +259,7 @@ private fun ModelItemCard(
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier.padding(horizontal = 4.dp),
             ) {
                 Text(
                     text = providerSlug,
@@ -243,6 +267,24 @@ private fun ModelItemCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 )
+            }
+            if (onPinToggle != null) {
+                IconButton(
+                    onClick = onPinToggle,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                        contentDescription = if (isPinned) "Unpin model" else "Pin model",
+                        tint =
+                            if (isPinned) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            },
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
         }
     }

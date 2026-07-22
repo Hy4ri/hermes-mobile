@@ -563,6 +563,7 @@ fun ChatScreen(
                 title = "Switch model (this chat)",
                 isLoading = state.modelPickerLoading && state.modelPickerProviders.isEmpty(),
                 pinnedModels = state.modelPickerPinned,
+                onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
                 onSelect = { provider, model ->
                     viewModel.sendSlashModel(provider, model)
                 },

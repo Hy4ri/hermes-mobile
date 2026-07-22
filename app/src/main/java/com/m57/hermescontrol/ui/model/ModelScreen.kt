@@ -242,6 +242,8 @@ fun ModelScreen(
             providers = state.providers,
             title = "Set Main Model",
             isLoading = state.isLoading && state.providers.isEmpty(),
+            pinnedModels = state.pinnedModels,
+            onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
             onSelect = { provider, model ->
                 viewModel.setMainModel(provider, model)
             },
@@ -266,6 +268,8 @@ fun ModelScreen(
             providers = state.providers,
             title = "Set Aux: ${state.auxPickerTask}",
             isLoading = state.isLoading && state.providers.isEmpty(),
+            pinnedModels = state.pinnedModels,
+            onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
             onSelect = { provider, model ->
                 viewModel.setAuxTask(state.auxPickerTask, provider, model)
             },

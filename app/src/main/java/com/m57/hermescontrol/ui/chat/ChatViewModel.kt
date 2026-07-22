@@ -1286,6 +1286,21 @@ class ChatViewModel(
         _uiState.update { it.copy(showModelPicker = false, modelPickerLoading = false) }
     }
 
+    fun togglePinModel(
+        providerSlug: String,
+        modelName: String,
+    ) {
+        val currentPinned = AuthManager.getPinnedModels().toMutableList()
+        val target = PinnedModel(providerSlug, modelName)
+        if (currentPinned.contains(target)) {
+            currentPinned.remove(target)
+        } else {
+            currentPinned.add(target)
+        }
+        AuthManager.savePinnedModels(currentPinned)
+        _uiState.update { it.copy(modelPickerPinned = currentPinned) }
+    }
+
     /**
      * Hot-swap the CURRENT session's model via the /model slash command.
      *

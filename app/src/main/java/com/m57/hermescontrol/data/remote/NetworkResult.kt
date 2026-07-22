@@ -1,11 +1,11 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthSessionState
-import retrofit2.Response
-import java.io.IOException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import retrofit2.Response
+import java.io.IOException
 
 sealed interface NetworkResult<out T> {
     data class Success<out T>(

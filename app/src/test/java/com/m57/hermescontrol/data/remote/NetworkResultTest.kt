@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthSessionState
+import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
@@ -9,7 +10,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
 import java.io.IOException
-import kotlinx.coroutines.runBlocking
 
 class NetworkResultTest {
     @Test

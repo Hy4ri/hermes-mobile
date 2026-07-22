@@ -1676,4 +1676,53 @@ class ChatViewModelTest {
             assertNull(viewModel.uiState.value.errorMessage)
             verify { HermesWsClient.disconnect() }
         }
+
+    // ── History pagination guard (issue #674) ───────────────────────────────
+
+    /**
+     * When the initial REST page returns empty messages, hasOlderMessages
+     * must be false — otherwise the UI shows a load-more button that fetches
+     * the same empty page again, creating an infinite loop.
+     */
+    @Test
+    fun testEmptyInitialRestPage_disablesOlderPagination() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            coEvery {
+                mockApi.getSessions(any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionListResponse(
+                        sessions =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionInfo(
+                                    id = "session-456",
+                                    title = "Test",
+                                    message_count = 200,
+                                ),
+                            ),
+                        total = 1,
+                    ),
+                )
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages = emptyList(),
+                    ),
+                )
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            assertFalse(
+                "hasOlderMessages must be false when initial page is empty",
+                viewModel.uiState.value.hasOlderMessages,
+            )
+            assertTrue(viewModel.uiState.value.messages.isEmpty())
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
 }

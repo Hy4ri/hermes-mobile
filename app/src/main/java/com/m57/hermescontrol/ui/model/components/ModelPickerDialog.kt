@@ -117,6 +117,29 @@ fun ModelPickerDialog(
                             }
                         }
 
+                    val pinnedSet =
+                        remember(pinnedModels) {
+                            pinnedModels.map { "${it.providerSlug}:${it.modelName}" }.toSet()
+                        }
+
+                    val filteredProvidersWithModels =
+                        remember(pickerQuery, providers) {
+                            providers.mapNotNull { provider ->
+                                val matchingModels =
+                                    provider.models.orEmpty().filter { model ->
+                                        pickerQuery.isBlank() ||
+                                            provider.name.contains(pickerQuery, ignoreCase = true) ||
+                                            provider.slug.contains(pickerQuery, ignoreCase = true) ||
+                                            model.contains(pickerQuery, ignoreCase = true)
+                                    }
+                                if (matchingModels.isNotEmpty()) {
+                                    provider to matchingModels
+                                } else {
+                                    null
+                                }
+                            }
+                        }
+
                     SearchBar(
                         query = pickerQuery,
                         onQueryChange = { pickerQuery = it },
@@ -168,25 +191,9 @@ fun ModelPickerDialog(
                             }
                         }
 
-                        // ── All providers / models ──
-                        items(
-                            providers.filter { provider ->
-                                pickerQuery.isBlank() ||
-                                    provider.name.contains(pickerQuery, ignoreCase = true) ||
-                                    provider.slug.contains(pickerQuery, ignoreCase = true) ||
-                                    provider.models.orEmpty().any {
-                                        it.contains(pickerQuery, ignoreCase = true)
-                                    }
-                            },
-                            key = { it.slug },
-                        ) { provider ->
-                            val models =
-                                provider.models.orEmpty().filter {
-                                    pickerQuery.isBlank() ||
-                                        it.contains(pickerQuery, ignoreCase = true)
-                                }
-
-                            if (models.isNotEmpty()) {
+                        // ── All providers / models (lazy item per model) ──
+                        filteredProvidersWithModels.forEach { (provider, models) ->
+                            item(key = "header:${provider.slug}") {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
@@ -204,24 +211,24 @@ fun ModelPickerDialog(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
+                            }
 
-                                models.forEach { model ->
-                                    val isPinned =
-                                        pinnedModels.any {
-                                            it.providerSlug == provider.slug && it.modelName == model
-                                        }
-                                    ModelItemCard(
-                                        modelName = model,
-                                        isPinned = isPinned,
-                                        onPinToggle =
-                                            if (onPinToggle != null) {
-                                                { onPinToggle(provider.slug, model) }
-                                            } else {
-                                                null
-                                            },
-                                        onClick = { onSelect(provider.slug, model) },
-                                    )
-                                }
+                            items(
+                                items = models,
+                                key = { model -> "${provider.slug}:$model" },
+                            ) { model ->
+                                val isPinned = "${provider.slug}:$model" in pinnedSet
+                                ModelItemCard(
+                                    modelName = model,
+                                    isPinned = isPinned,
+                                    onPinToggle =
+                                        if (onPinToggle != null) {
+                                            { onPinToggle(provider.slug, model) }
+                                        } else {
+                                            null
+                                        },
+                                    onClick = { onSelect(provider.slug, model) },
+                                )
                             }
                         }
                     }

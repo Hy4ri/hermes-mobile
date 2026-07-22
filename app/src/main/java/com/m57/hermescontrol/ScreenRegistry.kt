@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
@@ -100,11 +101,11 @@ object ScreenRegistry {
                 DrawerSection.AUTOMATE,
             ) { sessionId, openDrawer -> WebhooksScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
-                GatewayScreen,
-                R.string.screen_gateway,
-                Icons.Filled.Bolt,
+                KanbanScreen,
+                R.string.screen_kanban,
+                Icons.Filled.Dashboard,
                 DrawerSection.AUTOMATE,
-            ) { sessionId, openDrawer -> GatewayScreenContent(onOpenDrawer = openDrawer) },
+            ) { sessionId, openDrawer -> KanbanScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 SkillsScreen,
                 R.string.screen_skills,
@@ -160,6 +161,12 @@ object ScreenRegistry {
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> ProvidersScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
+                GatewayScreen,
+                R.string.screen_gateway,
+                Icons.Filled.Bolt,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> GatewayScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
                 SystemScreen,
                 R.string.screen_system,
                 Icons.Filled.Info,
@@ -190,15 +197,9 @@ object ScreenRegistry {
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> BillingScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
-                KanbanScreen,
-                R.string.screen_kanban,
-                Icons.Filled.Dashboard,
-                DrawerSection.INSPECT,
-            ) { sessionId, openDrawer -> KanbanScreenContent(onOpenDrawer = openDrawer) },
-            ScreenDefinition(
                 AchievementsScreen,
                 R.string.screen_achievements,
-                Icons.Filled.Info,
+                Icons.Filled.EmojiEvents,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> AchievementsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(

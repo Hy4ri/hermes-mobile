@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
@@ -198,7 +199,7 @@ object ScreenRegistry {
             ScreenDefinition(
                 AchievementsScreen,
                 R.string.screen_achievements,
-                Icons.Filled.Info,
+                Icons.Filled.EmojiEvents,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> AchievementsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(

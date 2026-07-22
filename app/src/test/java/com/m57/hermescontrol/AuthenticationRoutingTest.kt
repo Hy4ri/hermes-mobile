@@ -1,6 +1,7 @@
 package com.m57.hermescontrol
 
 import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthSessionState
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -34,7 +35,7 @@ class AuthenticationRoutingTest {
 
     @Test
     fun testGoBackFallbackGuardsChatWhenSignInRequired() {
-        val stack = NavBackStack(AuthLoginScreen)
+        val stack = NavBackStack<NavKey>(AuthLoginScreen)
         NavigationController.backStack = stack
 
         AuthSessionState.requireSignIn()
@@ -49,7 +50,7 @@ class AuthenticationRoutingTest {
 
     @Test
     fun testGoBackClearsToLandingWhenSignInRequiredAndExposingProtectedScreen() {
-        val stack = NavBackStack(ChatScreen)
+        val stack = NavBackStack<NavKey>(ChatScreen)
         stack.add(AuthLoginScreen)
         NavigationController.backStack = stack
 

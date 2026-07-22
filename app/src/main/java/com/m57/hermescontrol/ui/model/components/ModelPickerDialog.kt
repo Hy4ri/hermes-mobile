@@ -1,21 +1,25 @@
 package com.m57.hermescontrol.ui.model.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -25,7 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
@@ -54,7 +60,16 @@ fun ModelPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        },
         text = {
             Column {
                 if (isLoading) {
@@ -86,16 +101,19 @@ fun ModelPickerDialog(
                         onQueryChange = { pickerQuery = it },
                         placeholder = "Search models and providers...",
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    LazyColumn(modifier = Modifier.height(400.dp)) {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 420.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         // ── Pinned section ──
                         if (filteredPinned.isNotEmpty()) {
                             item(key = "pinned-header") {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.PushPin,
@@ -105,8 +123,9 @@ fun ModelPickerDialog(
                                     )
                                     Text(
                                         text = "Pinned",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
                                     )
                                 }
                             }
@@ -114,18 +133,11 @@ fun ModelPickerDialog(
                                 filteredPinned,
                                 key = { "pinned:${it.providerSlug}:${it.modelName}" },
                             ) { pinned ->
-                                OutlinedButton(
+                                ModelItemCard(
+                                    modelName = pinned.modelName,
+                                    providerSlug = pinned.providerSlug,
                                     onClick = { onSelect(pinned.providerSlug, pinned.modelName) },
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                    contentPadding =
-                                        androidx.compose.foundation.layout
-                                            .PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                ) {
-                                    Text(
-                                        text = "${pinned.modelName}  ·  ${pinned.providerSlug}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
+                                )
                             }
                         }
 
@@ -148,23 +160,30 @@ fun ModelPickerDialog(
                                 }
 
                             if (models.isNotEmpty()) {
-                                Text(
-                                    text = provider.name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
+                                ) {
+                                    Text(
+                                        text = provider.name,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = "${models.size} models",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
 
                                 models.forEach { model ->
-                                    OutlinedButton(
+                                    ModelItemCard(
+                                        modelName = model,
+                                        providerSlug = provider.slug,
                                         onClick = { onSelect(provider.slug, model) },
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        contentPadding =
-                                            androidx.compose.foundation.layout
-                                                .PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                    ) {
-                                        Text(text = model, style = MaterialTheme.typography.bodySmall)
-                                    }
+                                    )
                                 }
                             }
                         }
@@ -176,4 +195,55 @@ fun ModelPickerDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
+}
+
+@Composable
+private fun ModelItemCard(
+    modelName: String,
+    providerSlug: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border =
+            BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+            ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = modelName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(start = 8.dp),
+            ) {
+                Text(
+                    text = providerSlug,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
+    }
 }

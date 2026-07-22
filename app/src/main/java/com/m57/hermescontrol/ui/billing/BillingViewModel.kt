@@ -8,6 +8,8 @@ import com.m57.hermescontrol.data.model.UsageBarsResponse
 import com.m57.hermescontrol.data.ws.BillingRepository
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,54 +49,61 @@ class BillingViewModel : ViewModel() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null, featureUnavailable = false) }
         loadJob =
             viewModelScope.launch {
-                var sub: SubscriptionStateResponse? = null
-                var bars: UsageBarsResponse? = null
-                var unavailable = false
-                var error: String? = null
-                try {
-                    sub = BillingRepository.getSubscriptionState()
-                    // The live gateway returns an `ok:false` *result* (with
-                    // `error`/`message`) rather than an RPC-level error when the
-                    // backend feature is missing or the user isn't portal-authed.
-                    // Catch that here so the screen degrades gracefully.
-                    if (sub?.ok == false) {
-                        unavailable = true
-                        error = sub.error ?: "Billing unavailable"
-                    } else if (sub == null) {
-                        // Backend returned no result payload (null result / unmapped
-                        // response). Treat as a non-fatal load miss, not a crash.
-                        if (error == null) error = "No billing data returned"
+                coroutineScope {
+                    val subDeferred =
+                        async {
+                            var sub: SubscriptionStateResponse? = null
+                            var unavailable = false
+                            var error: String? = null
+                            try {
+                                sub = BillingRepository.getSubscriptionState()
+                                if (sub?.ok == false) {
+                                    unavailable = true
+                                    error = sub.error ?: "Billing unavailable"
+                                } else if (sub == null) {
+                                    if (error == null) error = "No billing data returned"
+                                }
+                            } catch (e: HermesWsClient.HermesRpcException) {
+                                unavailable = true
+                                error = e.message
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                error = e.message ?: "Failed to load subscription"
+                            }
+                            Triple(sub, unavailable, error)
+                        }
+
+                    val barsDeferred =
+                        async {
+                            var bars: UsageBarsResponse? = null
+                            var error: String? = null
+                            try {
+                                bars = BillingRepository.getUsageBars()
+                                if (bars?.ok == false) {
+                                    error = "Usage data unavailable"
+                                }
+                            } catch (e: HermesWsClient.HermesRpcException) {
+                                // usage unavailable is non-fatal
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                error = e.message ?: "Failed to load usage"
+                            }
+                            Pair(bars, error)
+                        }
+
+                    val (sub, unavailable, subError) = subDeferred.await()
+                    val (bars, barsError) = barsDeferred.await()
+                    val error = subError ?: barsError
+
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            subscription = sub,
+                            usage = bars,
+                            featureUnavailable = unavailable,
+                            errorMessage = if (sub == null) error else null,
+                        )
                     }
-                } catch (e: HermesWsClient.HermesRpcException) {
-                    unavailable = true
-                    error = e.message
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    error = e.message ?: "Failed to load subscription"
-                }
-                try {
-                    bars = BillingRepository.getUsageBars()
-                    if (bars?.ok == false) {
-                        // usage unavailable is non-fatal — the plan card still renders
-                        if (error == null) error = "Usage data unavailable"
-                    }
-                } catch (e: HermesWsClient.HermesRpcException) {
-                    // usage unavailable is non-fatal — do NOT mark the whole
-                    // feature unavailable; the plan card still renders.
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    if (error == null) error = e.message ?: "Failed to load usage"
-                }
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        subscription = sub,
-                        usage = bars,
-                        featureUnavailable = unavailable,
-                        // A failed primary subscription load is fatal — surface it
-                        // even if usage bars happened to load.
-                        errorMessage = if (sub == null) error else null,
-                    )
                 }
             }
     }

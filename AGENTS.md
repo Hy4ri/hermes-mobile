@@ -253,8 +253,6 @@ gh pr create --title "fix(#N): description" --body "Closes #N"
 - Don't run `./gradlew` tasks without an Android SDK — CI handles compilation, lint, and tests.
 - Don't remove `@OptIn(ExperimentalMaterial3Api::class)` from screens that use
   `SegmentedButton`, `PullToRefreshBox`, or other experimental M3 APIs.
-- Don't use `remember { AuthManager.getBottomNavItems() }` without a key —
-  SharedPreferences is not Compose state; the value goes stale. Read it directly.
 - Don't access `MaterialTheme.colorScheme.*` inside non-`@Composable` lambdas
   (`remember {}`, `buildAnnotatedString`, `LaunchedEffect`). Extract to a local
   `val` at the composable scope first.

@@ -119,6 +119,7 @@ internal fun AppearanceSection(
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { presetsExpanded = true },
+                enabled = !useDynamicColors,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(

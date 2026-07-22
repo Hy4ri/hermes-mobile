@@ -79,10 +79,7 @@ class ModelViewModel :
     fun loadAll(refresh: Boolean = false) {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            val optionsDeferred =
-                async(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh) }
-                }
+            // Phase 1: Launch fast lightweight calls first (profiles, aux, moa)
             val activeProfileDeferred =
                 async(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.getActiveProfile() }
@@ -100,55 +97,69 @@ class ModelViewModel :
                     safeApiCall { ApiClient.hermesApi.getMoaModels() }
                 }
 
-            val optionsResult = optionsDeferred.await()
+            // Phase 2: Launch model options concurrently
+            val optionsDeferred =
+                async(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getModelOptions(refresh = refresh, includeUnconfigured = false) }
+                }
+
+            // Await Phase 1 calls (~40-190ms total) and update UI immediately with available state
             val activeProfileResult = activeProfileDeferred.await()
             val profilesResult = profilesDeferred.await()
             val auxResult = auxDeferred.await()
             val moaResult = moaDeferred.await()
 
+            val activeName =
+                if (activeProfileResult is NetworkResult.Success) {
+                    activeProfileResult.data.active
+                } else {
+                    null
+                }
+            val activeProfile =
+                if (profilesResult is NetworkResult.Success && activeName != null) {
+                    profilesResult.data.profiles.find { it.name == activeName }
+                } else {
+                    null
+                }
+            val mainModel =
+                if (auxResult is NetworkResult.Success) {
+                    Pair(auxResult.data.main.provider, auxResult.data.main.model)
+                } else {
+                    Pair("", "")
+                }
+            val auxTasks =
+                if (auxResult is NetworkResult.Success) {
+                    auxResult.data.tasks
+                } else {
+                    emptyList()
+                }
+            val moaConfig =
+                if (moaResult is NetworkResult.Success) {
+                    moaResult.data
+                } else {
+                    null
+                }
+
+            // Render Phase 1 results right away so UI controls update without waiting for model options
+            _uiState.update {
+                it.copy(
+                    activeProfile = activeProfile ?: it.activeProfile,
+                    pinnedModels = AuthManager.getPinnedModels(),
+                    mainModelProvider = mainModel.first,
+                    mainModelModel = mainModel.second,
+                    auxTasks = auxTasks,
+                    moaConfig = moaConfig ?: it.moaConfig,
+                )
+            }
+
+            // Await Phase 2 (model catalog option provider tree)
+            val optionsResult = optionsDeferred.await()
             when (optionsResult) {
                 is NetworkResult.Success -> {
-                    val activeName =
-                        if (activeProfileResult is NetworkResult.Success) {
-                            activeProfileResult.data.active
-                        } else {
-                            null
-                        }
-                    val activeProfile =
-                        if (profilesResult is NetworkResult.Success && activeName != null) {
-                            profilesResult.data.profiles.find { it.name == activeName }
-                        } else {
-                            null
-                        }
-                    val mainModel =
-                        if (auxResult is NetworkResult.Success) {
-                            Pair(auxResult.data.main.provider, auxResult.data.main.model)
-                        } else {
-                            Pair("", "")
-                        }
-                    val auxTasks =
-                        if (auxResult is NetworkResult.Success) {
-                            auxResult.data.tasks
-                        } else {
-                            emptyList()
-                        }
-                    val moaConfig =
-                        if (moaResult is NetworkResult.Success) {
-                            moaResult.data
-                        } else {
-                            null
-                        }
-
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             providers = optionsResult.data.providers.orEmpty(),
-                            activeProfile = activeProfile,
-                            pinnedModels = AuthManager.getPinnedModels(),
-                            mainModelProvider = mainModel.first,
-                            mainModelModel = mainModel.second,
-                            auxTasks = auxTasks,
-                            moaConfig = moaConfig,
                         )
                     }
                 }
@@ -157,10 +168,72 @@ class ModelViewModel :
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = "Failed to load model options: ${optionsResult.error.message}",
+                            errorMessage =
+                                if (it.providers.isEmpty()) {
+                                    "Failed to load model options: ${optionsResult.error.message}"
+                                } else {
+                                    null
+                                },
                         )
                     }
                 }
+            }
+        }
+    }
+
+    /** Fast refresh after model assignments/updates without re-fetching full provider catalog. */
+    fun loadQuick() {
+        viewModelScope.launch {
+            val activeProfileDeferred =
+                async(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getActiveProfile() }
+                }
+            val profilesDeferred =
+                async(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getProfiles() }
+                }
+            val auxDeferred =
+                async(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getAuxiliaryModels() }
+                }
+
+            val activeProfileResult = activeProfileDeferred.await()
+            val profilesResult = profilesDeferred.await()
+            val auxResult = auxDeferred.await()
+
+            val activeName =
+                if (activeProfileResult is NetworkResult.Success) {
+                    activeProfileResult.data.active
+                } else {
+                    null
+                }
+            val activeProfile =
+                if (profilesResult is NetworkResult.Success && activeName != null) {
+                    profilesResult.data.profiles.find { it.name == activeName }
+                } else {
+                    null
+                }
+            val mainModel =
+                if (auxResult is NetworkResult.Success) {
+                    Pair(auxResult.data.main.provider, auxResult.data.main.model)
+                } else {
+                    Pair("", "")
+                }
+            val auxTasks =
+                if (auxResult is NetworkResult.Success) {
+                    auxResult.data.tasks
+                } else {
+                    emptyList()
+                }
+
+            _uiState.update {
+                it.copy(
+                    activeProfile = activeProfile ?: it.activeProfile,
+                    mainModelProvider = mainModel.first,
+                    mainModelModel = mainModel.second,
+                    auxTasks = auxTasks,
+                    modelPickerBusy = false,
+                )
             }
         }
     }
@@ -222,7 +295,7 @@ class ModelViewModel :
                                 modelPickerBusy = false,
                             )
                         }
-                        loadAll()
+                        loadQuick()
                     }
                 }
 
@@ -265,7 +338,7 @@ class ModelViewModel :
                             modelPickerBusy = false,
                         )
                     }
-                    loadAll()
+                    loadQuick()
                 }
 
                 is NetworkResult.Failure -> {
@@ -341,7 +414,7 @@ class ModelViewModel :
                             auxPickerTask = "",
                         )
                     }
-                    loadAll()
+                    loadQuick()
                 }
 
                 is NetworkResult.Failure -> {
@@ -377,7 +450,7 @@ class ModelViewModel :
                     _uiState.update {
                         it.copy(toastMessage = "All auxiliary tasks reset to auto", modelPickerBusy = false)
                     }
-                    loadAll()
+                    loadQuick()
                 }
 
                 is NetworkResult.Failure -> {
@@ -442,45 +515,50 @@ class ModelViewModel :
         modelName: String,
     ) {
         viewModelScope.launch {
-            val activeProfileNameResResult =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getActiveProfile() }
-                }
-            when (activeProfileNameResResult) {
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            toastMessage =
-                                "Failed to fetch active profile: ${activeProfileNameResResult.error.message}",
-                        )
-                    }
-                    return@launch
-                }
-
-                is NetworkResult.Success -> {
-                    val activeProfileName = activeProfileNameResResult.data.active
-                    val updateResResult =
+            val cachedActiveProfileName = _uiState.value.activeProfile?.name
+            val activeProfileName =
+                if (!cachedActiveProfileName.isNullOrBlank()) {
+                    cachedActiveProfileName
+                } else {
+                    val activeProfileNameResResult =
                         withContext(Dispatchers.IO) {
-                            safeApiCall {
-                                ApiClient.hermesApi.updateProfileModel(
-                                    activeProfileName,
-                                    UpdateProfileModelRequest(providerSlug, modelName),
-                                )
-                            }
+                            safeApiCall { ApiClient.hermesApi.getActiveProfile() }
                         }
-                    when (updateResResult) {
-                        is NetworkResult.Success -> {
-                            _uiState.update { it.copy(toastMessage = "Successfully set profile model to $modelName") }
-                            loadAll()
-                        }
-
+                    when (activeProfileNameResResult) {
                         is NetworkResult.Failure -> {
                             _uiState.update {
                                 it.copy(
-                                    toastMessage = "Failed to set profile model: ${updateResResult.error.message}",
+                                    toastMessage =
+                                        "Failed to fetch active profile: ${activeProfileNameResResult.error.message}",
                                 )
                             }
+                            return@launch
                         }
+
+                        is NetworkResult.Success -> activeProfileNameResResult.data.active
+                    }
+                }
+
+            val updateResResult =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.updateProfileModel(
+                            activeProfileName,
+                            UpdateProfileModelRequest(providerSlug, modelName),
+                        )
+                    }
+                }
+            when (updateResResult) {
+                is NetworkResult.Success -> {
+                    _uiState.update { it.copy(toastMessage = "Successfully set profile model to $modelName") }
+                    loadQuick()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Failed to set profile model: ${updateResResult.error.message}",
+                        )
                     }
                 }
             }

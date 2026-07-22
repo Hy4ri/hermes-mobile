@@ -108,22 +108,6 @@ class SettingsViewModel(
         ApiClient.rebuild()
     }
 
-    fun onRenameProfileNameChange(value: String) {
-        _uiState.update { it.copy(renameProfileName = value, isSaved = false) }
-    }
-
-    fun renameProfile() {
-        val currentId = _uiState.value.selectedProfileId ?: return
-        val newName = _uiState.value.renameProfileName.trim()
-        if (newName.isBlank()) return
-        val updatedProfiles =
-            AuthManager.getConnectionProfiles().map {
-                if (it.id == currentId) it.copy(name = newName) else it
-            }
-        AuthManager.saveConnectionProfiles(updatedProfiles)
-        viewModelScope.launch(ioDispatcher) { loadSettings() }
-    }
-
     fun deleteProfile(profileId: String) {
         val updatedProfiles = AuthManager.getConnectionProfiles().filter { it.id != profileId }
         AuthManager.saveConnectionProfiles(updatedProfiles)
@@ -233,10 +217,6 @@ class SettingsViewModel(
         closeProfileDialog()
         viewModelScope.launch(ioDispatcher) { loadSettings() }
         ApiClient.rebuild()
-    }
-
-    fun clearNavigateToLogin() {
-        _uiState.update { it.copy(navigateToLogin = false) }
     }
 
     // ── Delete confirmation ──────────────────────────────────────────────

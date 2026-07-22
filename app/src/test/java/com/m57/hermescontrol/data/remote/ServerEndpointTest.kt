@@ -1,9 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -13,7 +11,6 @@ class ServerEndpointTest {
         val ep = ServerEndpoint.parse("https://example.com/hermes", CleartextPolicy.ALLOW_WITH_WARNING)
         assertEquals("https://example.com/hermes/", ep.baseUrl.toString())
         assertNull(ep.securityWarning)
-        assertFalse(ep.isCleartext)
     }
 
     @Test
@@ -21,7 +18,6 @@ class ServerEndpointTest {
         val ep = ServerEndpoint.parse("http://127.0.0.1:9119/", CleartextPolicy.ALLOW_WITH_WARNING)
         assertEquals("http://127.0.0.1:9119/", ep.baseUrl.toString())
         assertEquals(ServerEndpoint.CLEARTEXT_WARNING, ep.securityWarning)
-        assertTrue(ep.isCleartext)
     }
 
     @Test
@@ -130,7 +126,6 @@ class ServerEndpointTest {
     fun `fromLegacy preserves http host and port`() {
         val ep = ServerEndpoint.fromLegacy("10.0.0.1", 8080)
         assertEquals("http://10.0.0.1:8080/", ep.baseUrl.toString())
-        assertTrue(ep.isCleartext)
     }
 
     @Test

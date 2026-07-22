@@ -191,7 +191,7 @@ class NavigationControllerTest {
         assertNull(NavigationController.backStack)
     }
 
-    // ── primaryScreens and updatePrimaryScreens ───────────────────────────
+    // ── primaryScreens ────────────────────────────────────────────────────
 
     @Test
     fun `isPrimaryScreen returns true for default screens`() {
@@ -207,23 +207,5 @@ class NavigationControllerTest {
         assertFalse("ProfilesScreen should NOT be primary", NavigationController.isPrimaryScreen(ProfilesScreen))
         assertFalse("LogsScreen should NOT be primary", NavigationController.isPrimaryScreen(LogsScreen))
         assertFalse("ConfigScreen should NOT be primary", NavigationController.isPrimaryScreen(ConfigScreen))
-    }
-
-    @Test
-    fun `updatePrimaryScreens replaces the full screen set`() {
-        NavigationController.updatePrimaryScreens(setOf(ProfilesScreen, SystemScreen))
-
-        assertTrue("ProfilesScreen should now be primary", NavigationController.isPrimaryScreen(ProfilesScreen))
-        assertTrue("SystemScreen should still be primary", NavigationController.isPrimaryScreen(SystemScreen))
-
-        // Old defaults should no longer be primary
-        assertFalse("ChatScreen should no longer be primary", NavigationController.isPrimaryScreen(ChatScreen))
-        assertFalse("SkillsScreen should no longer be primary", NavigationController.isPrimaryScreen(SkillsScreen))
-        assertFalse("SettingsScreen should no longer be primary", NavigationController.isPrimaryScreen(SettingsScreen))
-
-        // Reset to defaults to avoid test pollution
-        NavigationController.updatePrimaryScreens(
-            setOf(ChatScreen, SkillsScreen, CronJobsScreen, SystemScreen, SettingsScreen),
-        )
     }
 }

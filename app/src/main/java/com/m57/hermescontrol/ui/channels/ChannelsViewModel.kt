@@ -260,10 +260,6 @@ class ChannelsViewModel :
         )
     }
 
-    fun dismissRestartNeeded() {
-        _uiState.update { it.copy(restartNeeded = false) }
-    }
-
     // ── Telegram onboarding ────────────────────────────────────────────────
 
     fun startTelegramOnboarding() {
@@ -500,10 +496,6 @@ class ChannelsViewModel :
                 onboardingExpiresIn = "",
             )
         }
-    }
-
-    fun dismissOnboardingError() {
-        _uiState.update { it.copy(onboardingError = null) }
     }
 
     override fun clearToast() {

@@ -86,24 +86,6 @@ class AchievementsViewModel : ViewModel(), ToastHost {
         )
     }
 
-    fun loadScanStatus() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { api.getAchievementScanStatus() } },
-            onStart = { /* silent background refresh */ },
-            onSuccess = { status ->
-                _uiState.update {
-                    it.copy(
-                        scanState = status.state,
-                        scanLastError = status.lastError,
-                        scanLastDurationMs = status.lastDurationMs,
-                        scanRunCount = status.runCount,
-                    )
-                }
-            },
-            onError = { /* silent — scan runs independently */ },
-        )
-    }
-
     fun loadRecentUnlocks() {
         safeLaunchLoad(
             apiCall = { safeApiCall { api.getRecentUnlocks() } },

@@ -6,9 +6,9 @@ import androidx.navigation3.runtime.NavKey
 /**
  * Central navigation controller with deduplication guard.
  *
- * Primary screens (bottom nav tabs) clear the back stack and become the new
- * root — this matches Material's bottom-nav pattern where each tab has its own
- * back stack history (simplified: we just clear).
+ * Top-level primary screens (drawer items) clear the back stack and become the new
+ * root — this matches navigation drawer patterns where switching top-level sections
+ * resets the stack.
  *
  * B7 (Jun 18 2026): Never call `backStack.add()` directly from UI callbacks.
  * Always route through [navigateTo] to prevent stacking duplicate screen
@@ -18,9 +18,7 @@ object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
     var pendingSessionId: String? = null
 
-    // Bottom-nav primary screens — dynamic, updated by Navigation.kt via
-    // updatePrimaryScreens() when the user customises the bottom nav bar.
-    // Default matches the default 5 bottom-nav items.
+    // Top-level primary screens (Chat, Skills, Cron, System, Settings)
     private val primaryScreens: MutableSet<NavKey> =
         mutableSetOf(
             ChatScreen,
@@ -30,15 +28,8 @@ object NavigationController {
             SettingsScreen,
         )
 
-    /** Returns whether the given key is a primary (bottom-nav) screen. */
+    /** Returns whether the given key is a primary top-level screen. */
     fun isPrimaryScreen(key: NavKey): Boolean = key in primaryScreens
-
-    /** Replace the primary screen set. Called by Navigation.kt when the
-     *  bottom-nav item config changes. */
-    fun updatePrimaryScreens(keys: Set<NavKey>) {
-        primaryScreens.clear()
-        primaryScreens.addAll(keys)
-    }
 
     fun navigateTo(key: NavKey) {
         val stack = backStack ?: return

@@ -38,7 +38,6 @@ import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.Skill
-import com.m57.hermescontrol.data.model.SkillContentResponse
 import com.m57.hermescontrol.data.model.SkillHubSearchResponse
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
@@ -100,8 +99,6 @@ class E2eIntegrationTest {
         every { AuthManager.getPort() } returns 9119
         every { AuthManager.getBaseUrl() } returns "https://127.0.0.1:9119/"
         every { AuthManager.setToken(any()) } returns Unit
-        every { AuthManager.setHost(any()) } returns Unit
-        every { AuthManager.setPort(any()) } returns Unit
         every { AuthManager.setBaseUrl(any()) } returns Unit
         every {
             AuthManager.endpoint()
@@ -470,47 +467,6 @@ class E2eIntegrationTest {
         }
 
     // ── Skills Preview ────────────────────────────────────────────────────
-
-    @Test
-    fun testSkillsPreview_success() =
-        runTest {
-            val content = SkillContentResponse("my-skill", "# My Skill\n\nDo stuff")
-            coEvery { mockApiService.getSkillContent(any()) } returns
-                Response.success(content)
-
-            val viewModel = SkillsViewModel(mockApp)
-            viewModel.previewSkill("my-skill")
-
-            advanceUntilIdle()
-            assertFalse(viewModel.uiState.value.isLoadingPreview)
-            assertEquals(
-                "my-skill",
-                viewModel.uiState.value.previewSkillName,
-            )
-            assertEquals(
-                content.content,
-                viewModel.uiState.value.previewSkillContent,
-            )
-        }
-
-    @Test
-    fun testSkillsPreview_error() =
-        runTest {
-            coEvery { mockApiService.getSkillContent(any()) } returns
-                createErrorResponse(500)
-
-            val viewModel = SkillsViewModel(mockApp)
-            viewModel.previewSkill("failing-skill")
-
-            advanceUntilIdle()
-            assertFalse(viewModel.uiState.value.isLoadingPreview)
-            assertNull(viewModel.uiState.value.previewSkillContent)
-            assertNotNull(viewModel.uiState.value.toastMessage)
-            assertTrue(
-                viewModel.uiState.value.toastMessage!!
-                    .contains("HTTP 500"),
-            )
-        }
 
     // Cron Jobs Screen:
     @Test
@@ -1031,8 +987,6 @@ class E2eIntegrationTest {
 
             val connectViewModel = ConnectViewModel(mockApp)
             connectViewModel.onTokenChange("valid-token")
-            connectViewModel.onHostChange("127.0.0.1")
-            connectViewModel.onPortChange("9119")
             connectViewModel.connect()
             advanceUntilIdle()
 

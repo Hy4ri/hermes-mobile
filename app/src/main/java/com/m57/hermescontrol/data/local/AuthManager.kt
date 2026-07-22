@@ -450,18 +450,6 @@ object AuthManager {
 
     fun getPort(): Int = serverStore.getLatestState().resolvedPort
 
-    fun setHost(host: String) {
-        val endpoint = endpoint()
-        val normalizedHost = host.trim().removePrefix("[").removeSuffix("]")
-        setBaseUrl(endpoint.baseUrl.newBuilder().host(normalizedHost).build().toString())
-    }
-
-    fun setPort(port: Int) {
-        require(port in 1..65535) { "Port is out of range" }
-        val endpoint = endpoint()
-        setBaseUrl(endpoint.baseUrl.newBuilder().port(port).build().toString())
-    }
-
     // ── Auto-reconnect ───────────────────────────────────────────────────
 
     fun isAutoReconnect(): Boolean = serverStore.getLatestState().autoReconnect

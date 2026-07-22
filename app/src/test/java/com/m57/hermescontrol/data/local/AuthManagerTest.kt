@@ -130,14 +130,9 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetAndSetHost() {
-        AuthManager.setHost("10.0.0.1")
+    fun testGetHostAndPortFromBaseUrl() {
+        AuthManager.setBaseUrl("https://10.0.0.1:9090/")
         assertEquals("10.0.0.1", AuthManager.getHost())
-    }
-
-    @Test
-    fun testGetAndSetPort() {
-        AuthManager.setPort(9090)
         assertEquals(9090, AuthManager.getPort())
     }
 
@@ -149,10 +144,7 @@ class AuthManagerTest {
 
     @Test
     fun testBaseUrl() {
-        AuthManager.setHost("hermes.local")
-        AuthManager.setPort(1234)
-        // setHost/setPort derive from the canonical base URL (default is https),
-        // so the result keeps the https scheme and swaps host/port.
+        AuthManager.setBaseUrl("https://hermes.local:1234/")
         assertEquals("https://hermes.local:1234/", AuthManager.getBaseUrl())
     }
 
@@ -181,8 +173,7 @@ class AuthManagerTest {
         AuthManager.ensureDefaultProfile()
         every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "token123"
         AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
-        AuthManager.setHost("hermes.local")
-        AuthManager.setPort(1234)
+        AuthManager.setBaseUrl("https://hermes.local:1234/")
         // Scheme tracks the canonical base URL (default https) → wss.
         assertEquals("wss://hermes.local:1234/api/ws?token=token123", AuthManager.wsUrl())
     }
@@ -192,8 +183,7 @@ class AuthManagerTest {
         AuthManager.ensureDefaultProfile()
         every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns null
         AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
-        AuthManager.setHost("hermes.local")
-        AuthManager.setPort(1234)
+        AuthManager.setBaseUrl("https://hermes.local:1234/")
         assertEquals("wss://hermes.local:1234/api/ws?token=", AuthManager.wsUrl())
     }
 
@@ -265,34 +255,21 @@ class AuthManagerTest {
         AuthManager.ensureDefaultProfile()
         AuthManager.setSelectedProfileId("nonexistent")
         AuthManager.saveConnectionProfiles(emptyList())
-        AuthManager.setHost("192.168.1.1")
+        AuthManager.setBaseUrl("http://192.168.1.1:9119/")
 
         assertEquals("192.168.1.1", AuthManager.getHost())
     }
 
     @Test
-    fun testSetHost_updatesProfileWhenSelected() {
+    fun testSetBaseUrl_updatesProfileWhenSelected() {
         val profile = ConnectionProfile(id = "prof-1", name = "Home", baseUrl = "http://10.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile))
         AuthManager.setSelectedProfileId("prof-1")
 
-        AuthManager.setHost("10.0.0.99")
+        AuthManager.setBaseUrl("http://10.0.0.99:9999/")
 
         val updated = AuthManager.getConnectionProfiles().first()
-        // host/port are now canonicalized into the base URL (profile was http)
-        assertEquals("http://10.0.0.99:9119/", updated.resolvedBaseUrl)
-    }
-
-    @Test
-    fun testSetPort_updatesProfileWhenSelected() {
-        val profile = ConnectionProfile(id = "prof-1", name = "Home", baseUrl = "http://10.0.0.1:9119/")
-        AuthManager.saveConnectionProfiles(listOf(profile))
-        AuthManager.setSelectedProfileId("prof-1")
-
-        AuthManager.setPort(9999)
-
-        val updated = AuthManager.getConnectionProfiles().first()
-        assertEquals("http://10.0.0.1:9999/", updated.resolvedBaseUrl)
+        assertEquals("http://10.0.0.99:9999/", updated.resolvedBaseUrl)
     }
 
     @Test

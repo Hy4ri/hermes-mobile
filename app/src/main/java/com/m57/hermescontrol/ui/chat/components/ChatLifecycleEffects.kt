@@ -11,12 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -30,7 +24,6 @@ import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SecretPromptUi
 import com.m57.hermescontrol.ui.chat.SudoPromptUi
-import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun ChatLifecycleEffects(
@@ -38,8 +31,6 @@ fun ChatLifecycleEffects(
     connectionStatus: ConnectionStatus,
     currentSessionId: String?,
     messages: List<ChatMessage>,
-    streamingMessage: ChatMessage?,
-    isThinking: Boolean,
     errorMessage: String?,
     backgroundCompleteMessage: String?,
     isSearchActive: Boolean,
@@ -49,6 +40,7 @@ fun ChatLifecycleEffects(
     sudoPrompt: SudoPromptUi?,
     secretPrompt: SecretPromptUi?,
     listState: LazyListState,
+    scrollController: ChatScrollController,
     snackbarHostState: SnackbarHostState,
     viewModel: ChatViewModel,
 ) {
@@ -61,16 +53,21 @@ fun ChatLifecycleEffects(
     }
 
     // Switch to session from notification/history
-    var lastSessionId by remember { mutableStateOf<String?>(null) }
-    val pendingSessionId = NavigationController.pendingSessionId
-    LaunchedEffect(sessionId, pendingSessionId, connectionStatus) {
+    LaunchedEffect(sessionId, NavigationController.pendingSessionId, connectionStatus) {
         if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
-        val target = if (!sessionId.isNullOrBlank()) sessionId else pendingSessionId
+        val target = if (!sessionId.isNullOrBlank()) sessionId else NavigationController.pendingSessionId
         if (!target.isNullOrBlank()) {
             viewModel.switchSession(target)
-            if (target == pendingSessionId) {
+            if (target == NavigationController.pendingSessionId) {
                 NavigationController.pendingSessionId = null
             }
+        }
+    }
+
+    // Land instantly at the bottom on a session switch (issue #682).
+    LaunchedEffect(currentSessionId) {
+        if (currentSessionId != null) {
+            scrollController.jumpToBottom(animated = false)
         }
     }
 
@@ -114,44 +111,6 @@ fun ChatLifecycleEffects(
         }
     }
 
-    // Auto-scroll to bottom on new messages + session switch (issues #584/#583)
-    //
-    // IMPORTANT (m57, #584 follow-up): while an assistant message is STREAMING
-    // the scroll is left completely FREE — no auto-follow of the streaming
-    // message — so the user can scroll up/down to read while it generates.
-    // Auto-scroll only happens on explicit actions (send / FAB / session
-    // switch, handled elsewhere) and when a discrete non-streaming message
-    // lands while the user is already pinned to the bottom.
-    //
-    // The effect runs once (Unit), so we mirror the params through
-    // rememberUpdatedState and read them live inside the flow/collect — that
-    // keeps the lambda bound to the latest values instead of first-composition
-    // closure captures. streamingMessage is intentionally NOT a flow key, so
-    // the flow doesn't churn per token; we just read it live to gate scrolling.
-    val latestMessages by rememberUpdatedState(messages)
-    val latestStreaming by rememberUpdatedState(streamingMessage)
-    val latestIsThinking by rememberUpdatedState(isThinking)
-    val latestSessionId by rememberUpdatedState(currentSessionId)
-    LaunchedEffect(Unit) {
-        snapshotFlow {
-            Pair(latestMessages.size, latestIsThinking)
-        }.collectLatest { (msgCount, thinking) ->
-            val totalItems = msgCount + (if (thinking) 1 else 0)
-            if (totalItems <= 0) return@collectLatest
-            // While a message is streaming, leave scrolling free (no auto-follow).
-            if (latestStreaming != null) return@collectLatest
-            val isSessionSwitch = latestSessionId != lastSessionId
-            if (isSessionSwitch) {
-                lastSessionId = latestSessionId
-                listState.scrollToBottom(animated = false)
-                return@collectLatest
-            }
-            if (!listState.isAtBottom()) return@collectLatest
-            // Discrete new message while pinned to the bottom — follow it.
-            listState.scrollToBottom(animated = true)
-        }
-    }
-
     // Show error as snackbar
     LaunchedEffect(errorMessage) {
         errorMessage?.let { error ->
@@ -183,7 +142,8 @@ fun ChatLifecycleEffects(
         )
     }
 
-    // Scroll to current search match
+    // Scroll to current search match (serialized through the controller so it
+    // doesn't compete with auto-follow / FAB / send scrolls).
     LaunchedEffect(isSearchActive, currentSearchMatchIndex, searchMatchIndices) {
         if (isSearchActive &&
             currentSearchMatchIndex >= 0 &&
@@ -191,9 +151,7 @@ fun ChatLifecycleEffects(
             messages.isNotEmpty()
         ) {
             val targetIndex = searchMatchIndices[currentSearchMatchIndex]
-            listState.animateScrollToItem(
-                targetIndex.coerceIn(0, messages.lastIndex),
-            )
+            scrollController.scrollToSearchMatch(targetIndex.coerceIn(0, messages.lastIndex))
         }
     }
 }

@@ -36,29 +36,6 @@ class ServerStoreTest {
     }
 
     @Test
-    fun testPureOps_removeServer() {
-        val profile1 = ConnectionProfile(id = "1", name = "Test1", host = "10.0.0.1", port = 8080)
-        val profile2 = ConnectionProfile(id = "2", name = "Test2", host = "10.0.0.2", port = 8081)
-        val state =
-            ServerStoreState(
-                connectionProfiles = listOf(profile1, profile2),
-                selectedProfileId = "2",
-            )
-
-        val newState = state.removeServer("2")
-        assertEquals(1, newState.connectionProfiles.size)
-        assertEquals("1", newState.connectionProfiles[0].id)
-        assertNull(newState.selectedProfileId)
-    }
-
-    @Test
-    fun testPureOps_switchToServer() {
-        val state = ServerStoreState(selectedProfileId = null)
-        val newState = state.switchToServer("prof-1")
-        assertEquals("prof-1", newState.selectedProfileId)
-    }
-
-    @Test
     fun testPureOps_selfHealed() {
         // Test orphaned selected profile ID
         val state =

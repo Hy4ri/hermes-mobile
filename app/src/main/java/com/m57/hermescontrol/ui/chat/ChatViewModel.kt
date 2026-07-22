@@ -1607,10 +1607,6 @@ class ChatViewModel(
 
     // ── UI actions ───────────────────────────────────────────────────────
 
-    fun toggleSessionPicker() {
-        _uiState.update { it.copy(showSessionPicker = !it.showSessionPicker) }
-    }
-
     /**
      * Dismiss the active clarify prompt and reject it (tell the agent no answer
      * was given).

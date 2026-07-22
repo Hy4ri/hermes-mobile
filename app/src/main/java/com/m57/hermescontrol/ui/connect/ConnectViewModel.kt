@@ -96,20 +96,6 @@ class ConnectViewModel(
         _uiState.update { it.copy(baseUrl = trimmed, transportWarning = warning, errorMessage = null) }
     }
 
-    fun onHostChange(value: String) {
-        val endpoint = AuthManager.endpoint()
-        val next = endpoint.baseUrl.newBuilder().host(value.trim()).build().toString()
-        onBaseUrlChange(next)
-    }
-
-    fun onPortChange(value: String) {
-        val portText = value.filter { c -> c.isDigit() }
-        val port = portText.toIntOrNull() ?: return
-        val endpoint = AuthManager.endpoint()
-        val next = endpoint.baseUrl.newBuilder().port(port).build().toString()
-        onBaseUrlChange(next)
-    }
-
     fun connect() {
         val state = _uiState.value
         if (state.token.isBlank()) {

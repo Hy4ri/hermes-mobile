@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.settings
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import io.mockk.every
@@ -63,12 +62,10 @@ class SettingsViewModelTest {
         every { AuthManager.getThemePreference() } returns ThemePreference.SYSTEM
         every { AuthManager.isUseDynamicColors() } returns true
         every { AuthManager.getThemePreset() } returns ThemePreset.DEFAULT
-        every { AuthManager.getBottomNavItems() } returns emptyList()
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
-        every { AuthManager.getBottomNavDisplayMode() } returns BottomNavDisplayMode.ICON_AND_TEXT
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
         every { AuthManager.setHost(any()) } returns Unit
         every { AuthManager.setPort(any()) } returns Unit
@@ -78,7 +75,6 @@ class SettingsViewModelTest {
         every { AuthManager.setThemePreference(any()) } returns Unit
         every { AuthManager.setUseDynamicColors(any()) } returns Unit
         every { AuthManager.setThemePreset(any()) } returns Unit
-        every { AuthManager.setBottomNavDisplayMode(any()) } returns Unit
         every { AuthManager.setTypingEffectEnabled(any()) } returns Unit
         every { AuthManager.setTypingEffectDelayMs(any()) } returns Unit
         every { AuthManager.setSelectedProfileId(any()) } answers {

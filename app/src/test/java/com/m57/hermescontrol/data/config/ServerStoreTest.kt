@@ -68,15 +68,6 @@ class ServerStoreTest {
             )
         val healed = state.selfHealed()
         assertNull(healed.selectedProfileId)
-
-        // Test empty bottomNavItems
-        val state2 =
-            ServerStoreState(
-                bottomNavItems = emptyList(),
-            )
-        val healed2 = state2.selfHealed()
-        assertEquals(5, healed2.bottomNavItems.size)
-        assertEquals("ChatScreen", healed2.bottomNavItems[0])
     }
 
     @Test

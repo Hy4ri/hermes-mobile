@@ -11,16 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
@@ -40,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.theme.BottomNavDisplayMode
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.ui.settings.SectionCard
@@ -312,160 +303,6 @@ internal fun ChatSection(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-internal fun NavBarSection(
-    bottomNavDisplayMode: BottomNavDisplayMode,
-    onBottomNavDisplayModeChange: (BottomNavDisplayMode) -> Unit,
-    selectedNavItems: List<String>,
-    availableNavItems: List<Pair<String, Int>>,
-    onReorderNavItems: (List<String>) -> Unit,
-    onRemoveNavItem: (String) -> Unit,
-    onAddNavItem: (String) -> Unit,
-) {
-    SectionCard {
-        Text(
-            text = stringResource(R.string.settings_item_bottom_nav_display_mode),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            BottomNavDisplayMode.entries.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = bottomNavDisplayMode == mode,
-                    onClick = { onBottomNavDisplayModeChange(mode) },
-                    shape =
-                        SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = BottomNavDisplayMode.entries.size,
-                        ),
-                ) {
-                    Text(
-                        when (mode) {
-                            BottomNavDisplayMode.ICON_AND_TEXT -> {
-                                stringResource(
-                                    R.string.settings_display_mode_icon_and_text,
-                                )
-                            }
-
-                            BottomNavDisplayMode.ICON_ONLY -> {
-                                stringResource(
-                                    R.string.settings_display_mode_icon_only,
-                                )
-                            }
-
-                            BottomNavDisplayMode.TEXT_ONLY -> {
-                                stringResource(
-                                    R.string.settings_display_mode_text_only,
-                                )
-                            }
-                        },
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = stringResource(R.string.settings_item_nav_items, selectedNavItems.size),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        selectedNavItems.forEachIndexed { index, name ->
-            val labelRes = availableNavItems.firstOrNull { it.first == name }?.second
-            val label = if (labelRes != null) stringResource(labelRes) else name
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(
-                        onClick = {
-                            val list = selectedNavItems.toMutableList()
-                            val temp = list[index]
-                            list[index] = list[index - 1]
-                            list[index - 1] = temp
-                            onReorderNavItems(list)
-                        },
-                        enabled = index > 0,
-                    ) {
-                        Icon(
-                            Icons.Filled.KeyboardArrowUp,
-                            contentDescription = stringResource(R.string.content_desc_move_up),
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            val list = selectedNavItems.toMutableList()
-                            val temp = list[index]
-                            list[index] = list[index + 1]
-                            list[index + 1] = temp
-                            onReorderNavItems(list)
-                        },
-                        enabled = index < selectedNavItems.lastIndex,
-                    ) {
-                        Icon(
-                            Icons.Filled.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.content_desc_move_down),
-                        )
-                    }
-                    IconButton(onClick = { onRemoveNavItem(name) }) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription =
-                                stringResource(
-                                    R.string.content_desc_remove_item,
-                                    label,
-                                ),
-                        )
-                    }
-                }
-            }
-        }
-
-        if (selectedNavItems.size < 5) {
-            val available =
-                availableNavItems.filter { it.first !in selectedNavItems }
-            if (available.isNotEmpty()) {
-                var expanded by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(onClick = { expanded = true }) {
-                        Icon(Icons.Filled.Add, contentDescription = null)
-                        Spacer(Modifier.size(4.dp))
-                        Text(stringResource(R.string.settings_action_add_item))
-                    }
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        available.forEach { (name, labelRes) ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(labelRes)) },
-                                onClick = {
-                                    onAddNavItem(name)
-                                    expanded = false
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        } else {
-            Text(
-                text = stringResource(R.string.settings_nav_max_reached),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

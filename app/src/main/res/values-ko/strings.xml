@@ -161,14 +161,6 @@
     <string name="settings_item_typing_delay">지연: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>
-    <string name="settings_sec_nav_bar">내비게이션 바</string>
-    <string name="settings_item_nav_items">하단 바 항목 (%1$d/5)</string>
-    <string name="settings_action_add_item">항목 추가</string>
-    <string name="settings_nav_max_reached">최대 5개 항목</string>
-    <string name="settings_item_bottom_nav_display_mode">하단 바 표시 모드</string>
-    <string name="settings_display_mode_icon_and_text">아이콘 + 텍스트</string>
-    <string name="settings_display_mode_icon_only">아이콘만</string>
-    <string name="settings_display_mode_text_only">텍스트만</string>
     <string name="settings_action_test_connection">연결 테스트</string>
     <string name="settings_sec_about">정보</string>
     <string name="settings_about_app_name">⚡ 헤르메스 모바일</string>
@@ -188,9 +180,6 @@
     <string name="content_desc_delete_profile">프로필 삭제</string>
     <string name="content_desc_hide_token">토큰 숨기기</string>
     <string name="content_desc_show_token">토큰 보기</string>
-    <string name="content_desc_move_up">위로</string>
-    <string name="content_desc_move_down">아래로</string>
-    <string name="content_desc_remove_item">%1$s 제거</string>
     <string name="theme_system">시스템</string>
     <string name="theme_light">라이트</string>
     <string name="theme_dark">다크</string>

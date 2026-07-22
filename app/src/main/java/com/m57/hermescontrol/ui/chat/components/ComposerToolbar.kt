@@ -214,4 +214,3 @@ private fun buildReasoningLabel(level: String?): String {
         else -> level
     }
 }
-

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
@@ -36,7 +35,7 @@ import androidx.compose.ui.unit.dp
 /**
  * Bottom toolbar row for the chat composer.
  *
- * Layout: [📎 attach] [model chip] [reasoning chip] [←spacer→] [🎙 mic]
+ * Layout: [📎 attach] [model chip] [←spacer→] [🧠 reasoning] [🎙 mic]
  *
  * The reasoning chip opens a dropdown menu to pick a level (instead of cycling).
  */
@@ -93,11 +92,13 @@ fun ComposerToolbar(
             },
             modifier =
                 Modifier
-                    .width(120.dp)
+                    .widthIn(min = 140.dp)
                     .testTag("model_chip"),
         )
 
-        // Reasoning chip with dropdown menu
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Reasoning chip with dropdown menu (right side, next to mic)
         Box {
             FilterChip(
                 selected = reasoningLevel != null,
@@ -110,7 +111,10 @@ fun ComposerToolbar(
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
-                modifier = Modifier.testTag("reasoning_chip"),
+                modifier =
+                    Modifier
+                        .padding(horizontal = 4.dp)
+                        .testTag("reasoning_chip"),
             )
 
             DropdownMenu(
@@ -119,14 +123,14 @@ fun ComposerToolbar(
             ) {
                 val allLevels =
                     listOf(
-                        "none" to "🧠 None",
-                        "minimal" to "🧠 Minimal",
-                        "low" to "🧠 Low",
-                        "medium" to "🧠 Med",
-                        "high" to "🧠 High",
-                        "xhigh" to "🧠 XHigh",
-                        "max" to "🧠 Max",
-                        "ultra" to "🧠 Ultra",
+                        "none" to "None",
+                        "minimal" to "Minimal",
+                        "low" to "Low",
+                        "medium" to "Med",
+                        "high" to "High",
+                        "xhigh" to "XHigh",
+                        "max" to "Max",
+                        "ultra" to "Ultra",
                     )
                 allLevels.forEach { (level, label) ->
                     DropdownMenuItem(
@@ -155,8 +159,6 @@ fun ComposerToolbar(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.weight(1f))
 
         // Mic / Stop button
         IconButton(
@@ -189,19 +191,19 @@ fun ComposerToolbar(
  *
  * @param level One of: "none", "minimal", "low", "medium", "high",
  *              "xhigh", "max", "ultra", or null for model default.
- * @return Display string such as "🧠 None", "🧠 Low", "🧠 XHigh", "🧠 Ultra", etc.
+ * @return Display string such as "None", "Low", "XHigh", "Ultra", etc.
  */
 private fun buildReasoningLabel(level: String?): String {
     return when (level) {
-        null -> "🧠 Med"
-        "none" -> "🧠 None"
-        "minimal" -> "🧠 Minimal"
-        "low" -> "🧠 Low"
-        "medium" -> "🧠 Med"
-        "high" -> "🧠 High"
-        "xhigh" -> "🧠 XHigh"
-        "max" -> "🧠 Max"
-        "ultra" -> "🧠 Ultra"
-        else -> "🧠 $level"
+        null -> "Med"
+        "none" -> "None"
+        "minimal" -> "Minimal"
+        "low" -> "Low"
+        "medium" -> "Med"
+        "high" -> "High"
+        "xhigh" -> "XHigh"
+        "max" -> "Max"
+        "ultra" -> "Ultra"
+        else -> level
     }
 }

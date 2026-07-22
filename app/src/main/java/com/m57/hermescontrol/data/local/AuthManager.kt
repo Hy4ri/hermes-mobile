@@ -60,9 +60,6 @@ object AuthManager {
                 "AuthManager not initialized. Call init(context) first.",
             )
 
-    private val _bottomNavItemsFlow = MutableStateFlow<List<String>>(emptyList())
-    val bottomNavItemsFlow: StateFlow<List<String>> = _bottomNavItemsFlow.asStateFlow()
-
     private val _themePreferenceFlow = MutableStateFlow<ThemePreference>(ThemePreference.SYSTEM)
     val themePreferenceFlow: StateFlow<ThemePreference> = _themePreferenceFlow.asStateFlow()
 
@@ -129,7 +126,6 @@ object AuthManager {
 
             scope.launch {
                 store.stateFlow.collect { state ->
-                    _bottomNavItemsFlow.value = state.bottomNavItems
                     _themePreferenceFlow.value = state.themePreference
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
@@ -505,16 +501,6 @@ object AuthManager {
             authParameter = authParam,
             credential = getToken().orEmpty(),
         )
-    }
-
-    // ── Bottom nav bar items ──────────────────────────────────────────────
-
-    /** Returns the list of selected bottom-nav item keys (data-object names). */
-    fun getBottomNavItems(): List<String> = serverStore.getLatestState().bottomNavItems
-
-    /** Persist the ordered list of bottom-nav item keys (max 5, data-object names). */
-    fun setBottomNavItems(items: List<String>) {
-        serverStore.update { it.copy(bottomNavItems = items) }
     }
 
     // ── Typing Effect ───────────────────────────────────────────────────

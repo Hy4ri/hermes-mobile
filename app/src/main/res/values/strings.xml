@@ -175,14 +175,6 @@
     <string name="settings_item_typing_delay">Delay: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>
-    <string name="settings_sec_nav_bar">Navigation Bar</string>
-    <string name="settings_item_nav_items">Bottom bar items (%1$d/5)</string>
-    <string name="settings_action_add_item">Add Item</string>
-    <string name="settings_nav_max_reached">Maximum of 5 items</string>
-    <string name="settings_item_bottom_nav_display_mode">Bottom Bar Display Mode</string>
-    <string name="settings_display_mode_icon_and_text">Icon &amp; Text</string>
-    <string name="settings_display_mode_icon_only">Icons Only</string>
-    <string name="settings_display_mode_text_only">Text Only</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
     <string name="settings_about_app_name">⚡ Hermes Mobile</string>
@@ -212,9 +204,6 @@
     <string name="content_desc_delete_profile">Delete Profile</string>
     <string name="content_desc_hide_token">Hide token</string>
     <string name="content_desc_show_token">Show token</string>
-    <string name="content_desc_move_up">Move up</string>
-    <string name="content_desc_move_down">Move down</string>
-    <string name="content_desc_remove_item">Remove %1$s</string>
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>

@@ -20,17 +20,8 @@ fun ServerStoreState.selfHealed(): ServerStoreState {
     val hasActive = connectionProfiles.any { it.id == selectedProfileId }
     val newSelected = if (selectedProfileId != null && !hasActive) null else selectedProfileId
 
-    val validItems = bottomNavItems.filter { it.isNotBlank() }
-    val finalBottomNavItems =
-        if (validItems.isEmpty()) {
-            listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen")
-        } else {
-            validItems
-        }
-
     return copy(
         selectedProfileId = newSelected,
-        bottomNavItems = finalBottomNavItems,
     )
 }
 

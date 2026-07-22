@@ -15,8 +15,6 @@ data class ServerStoreState(
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val useDynamicColors: Boolean = true,
     val themePreset: ThemePreset = ThemePreset.DEFAULT,
-    val bottomNavItems: List<String> =
-        listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen"),
     val connectionProfiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val pinnedModels: List<PinnedModel> = emptyList(),

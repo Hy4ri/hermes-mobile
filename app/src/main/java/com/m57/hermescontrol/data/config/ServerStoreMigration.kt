@@ -26,8 +26,6 @@ class ServerStoreMigration(
                 "theme_preference",
                 "use_dynamic_colors",
                 "theme_preset",
-                "bottom_nav_display_mode",
-                "bottom_nav_items",
                 "connection_profiles",
                 "selected_profile_id",
                 "pinned_models",
@@ -63,11 +61,6 @@ class ServerStoreMigration(
         val themePreset =
             runCatching { ThemePreset.valueOf(themePresetString!!) }
                 .getOrDefault(ThemePreset.DEFAULT)
-
-        val bottomNavItemsRaw = prefs.getString("bottom_nav_items", null)
-        val bottomNavItems =
-            bottomNavItemsRaw?.split(",")?.filter { it.isNotBlank() }
-                ?: listOf("ChatScreen", "SkillsScreen", "CronJobsScreen", "SystemScreen", "SettingsScreen")
 
         val connectionProfilesRaw = prefs.getString("connection_profiles", null)
         val connectionProfiles =
@@ -107,7 +100,6 @@ class ServerStoreMigration(
             themePreference = themePreference,
             useDynamicColors = useDynamicColors,
             themePreset = themePreset,
-            bottomNavItems = bottomNavItems,
             connectionProfiles =
                 connectionProfiles.map { profile ->
                     profile.copy(

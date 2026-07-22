@@ -249,7 +249,6 @@ fun MainNavigation(sessionId: String? = null) {
         ) {
             Scaffold(
                 contentWindowInsets = WindowInsets.navigationBars,
-                bottomBar = {},
             ) { paddingValues ->
                 NavDisplay(
                     backStack = backStack,

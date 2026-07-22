@@ -62,7 +62,6 @@ class SettingsViewModelTest {
         every { AuthManager.getThemePreference() } returns ThemePreference.SYSTEM
         every { AuthManager.isUseDynamicColors() } returns true
         every { AuthManager.getThemePreset() } returns ThemePreset.DEFAULT
-        every { AuthManager.getBottomNavItems() } returns emptyList()
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.getConnectionProfiles() } returns emptyList()

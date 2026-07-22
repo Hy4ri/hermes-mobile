@@ -17,6 +17,8 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,31 +51,36 @@ class ProfilesViewModel :
     fun loadProfiles() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            val profilesResult =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getProfiles() }
-                }
-            val activeResult =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getActiveProfile() }
-                }
+            try {
+                coroutineScope {
+                    val profilesDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getProfiles() } }
+                    val activeDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getActiveProfile() } }
 
-            if (profilesResult is NetworkResult.Success && activeResult is NetworkResult.Success) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        profiles = profilesResult.data.profiles.orEmpty(),
-                        activeProfileName = activeResult.data.active,
-                    )
+                    val profilesResult = profilesDeferred.await()
+                    val activeResult = activeDeferred.await()
+
+                    if (profilesResult is NetworkResult.Success && activeResult is NetworkResult.Success) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                profiles = profilesResult.data.profiles.orEmpty(),
+                                activeProfileName = activeResult.data.active,
+                            )
+                        }
+                    } else {
+                        val profilesError = (profilesResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+                        val activeError = (activeResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                errorMessage = "Failed to load profiles/active: Profiles: $profilesError, Active: $activeError",
+                            )
+                        }
+                    }
                 }
-            } else {
-                val profilesError = (profilesResult as? NetworkResult.Failure)?.error?.message ?: "Success"
-                val activeError = (activeResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+            } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load profiles/active: Profiles: $profilesError, Active: $activeError",
-                    )
+                    it.copy(isLoading = false, errorMessage = "Failed to load profiles: ${e.message}")
                 }
             }
         }
@@ -289,30 +296,38 @@ class ProfilesViewModel :
     fun loadBuilderData() {
         _uiState.update { it.copy(isLoadingBuilderData = true, errorMessage = null) }
         viewModelScope.launch {
-            val modelsResult =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getModelOptions() }
-                }
-            val skillsResult =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getSkills() }
-                }
+            try {
+                coroutineScope {
+                    val modelsDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getModelOptions() } }
+                    val skillsDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getSkills() } }
 
-            if (modelsResult is NetworkResult.Success && skillsResult is NetworkResult.Success) {
-                _uiState.update {
-                    it.copy(
-                        isLoadingBuilderData = false,
-                        modelProviders = modelsResult.data.providers,
-                        availableSkills = skillsResult.data,
-                    )
+                    val modelsResult = modelsDeferred.await()
+                    val skillsResult = skillsDeferred.await()
+
+                    if (modelsResult is NetworkResult.Success && skillsResult is NetworkResult.Success) {
+                        _uiState.update {
+                            it.copy(
+                                isLoadingBuilderData = false,
+                                modelProviders = modelsResult.data.providers,
+                                availableSkills = skillsResult.data,
+                            )
+                        }
+                    } else {
+                        val modelsError = (modelsResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+                        val skillsError = (skillsResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+                        _uiState.update {
+                            it.copy(
+                                isLoadingBuilderData = false,
+                                errorMessage = "Failed to load builder data: Models: $modelsError, Skills: $skillsError",
+                            )
+                        }
+                    }
                 }
-            } else {
-                val modelsError = (modelsResult as? NetworkResult.Failure)?.error?.message ?: "Success"
-                val skillsError = (skillsResult as? NetworkResult.Failure)?.error?.message ?: "Success"
+            } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         isLoadingBuilderData = false,
-                        errorMessage = "Failed to load builder data: Models: $modelsError, Skills: $skillsError",
+                        errorMessage = "Failed to load builder data: ${e.message}",
                     )
                 }
             }

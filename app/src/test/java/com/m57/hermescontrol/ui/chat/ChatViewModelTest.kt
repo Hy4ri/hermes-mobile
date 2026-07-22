@@ -14,7 +14,6 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import io.mockk.coEvery
-import io.mockk.eq
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -1752,22 +1751,41 @@ class ChatViewModelTest {
                         total = 1,
                     ),
                 )
+            var messagesCallCount = 0
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), eq(50), any())
-            } returns
-                retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
-                        messages =
-                            listOf(
-                                com.m57.hermescontrol.data.model.SessionMessage(
-                                    role = "assistant",
-                                    content = JsonPrimitive("Msg 50"),
+                mockApi.getSessionMessages("session-456", any(), any(), any())
+            } coAnswers {
+                messagesCallCount += 1
+                if (messagesCallCount == 1) {
+                    retrofit2.Response.success(
+                        com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                            messages =
+                                listOf(
+                                    com.m57.hermescontrol.data.model.SessionMessage(
+                                        role = "assistant",
+                                        content = JsonPrimitive("Msg 50"),
+                                    ),
                                 ),
-                            ),
-                        offset = 50,
-                        total = 100,
-                    ),
-                )
+                            offset = 50,
+                            total = 100,
+                        ),
+                    )
+                } else {
+                    retrofit2.Response.success(
+                        com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                            messages =
+                                listOf(
+                                    com.m57.hermescontrol.data.model.SessionMessage(
+                                        role = "user",
+                                        content = JsonPrimitive("Older Msg 20"),
+                                    ),
+                                ),
+                            offset = 20,
+                            total = 100,
+                        ),
+                    )
+                }
+            }
 
             viewModel.switchSession("session-456")
             advanceUntilIdle()
@@ -1775,23 +1793,6 @@ class ChatViewModelTest {
             assertTrue(viewModel.uiState.value.hasOlderMessages)
 
             // Server returns effective offset 20 (different from requested offset 0)
-            coEvery {
-                mockApi.getSessionMessages("session-456", any(), eq(0), any())
-            } returns
-                retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
-                        messages =
-                            listOf(
-                                com.m57.hermescontrol.data.model.SessionMessage(
-                                    role = "user",
-                                    content = JsonPrimitive("Older Msg 20"),
-                                ),
-                            ),
-                        offset = 20,
-                        total = 100,
-                    ),
-                )
-
             viewModel.loadOlderMessages()
             advanceUntilIdle()
 
@@ -1824,43 +1825,46 @@ class ChatViewModelTest {
                         total = 1,
                     ),
                 )
+            var messagesCallCount = 0
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), eq(50), any())
-            } returns
-                retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
-                        messages =
-                            listOf(
-                                com.m57.hermescontrol.data.model.SessionMessage(
-                                    role = "assistant",
-                                    content = JsonPrimitive("Msg 50"),
+                mockApi.getSessionMessages("session-456", any(), any(), any())
+            } coAnswers {
+                messagesCallCount += 1
+                if (messagesCallCount == 1) {
+                    retrofit2.Response.success(
+                        com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                            messages =
+                                listOf(
+                                    com.m57.hermescontrol.data.model.SessionMessage(
+                                        role = "assistant",
+                                        content = JsonPrimitive("Msg 50"),
+                                    ),
                                 ),
-                            ),
-                        offset = 50,
-                        total = 100,
-                    ),
-                )
+                            offset = 50,
+                            total = 100,
+                        ),
+                    )
+                } else {
+                    // Older server ignores query params and returns offset = 50
+                    // (same as oldOffset, offset did not decrease)
+                    retrofit2.Response.success(
+                        com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                            messages =
+                                listOf(
+                                    com.m57.hermescontrol.data.model.SessionMessage(
+                                        role = "assistant",
+                                        content = JsonPrimitive("Msg 50"),
+                                    ),
+                                ),
+                            offset = 50,
+                            total = 100,
+                        ),
+                    )
+                }
+            }
 
             viewModel.switchSession("session-456")
             advanceUntilIdle()
-
-            // Older server ignores query params and returns offset = 50 (same as oldOffset, offset did not decrease)
-            coEvery {
-                mockApi.getSessionMessages("session-456", any(), eq(0), any())
-            } returns
-                retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
-                        messages =
-                            listOf(
-                                com.m57.hermescontrol.data.model.SessionMessage(
-                                    role = "assistant",
-                                    content = JsonPrimitive("Msg 50"),
-                                ),
-                            ),
-                        offset = 50,
-                        total = 100,
-                    ),
-                )
 
             viewModel.loadOlderMessages()
             advanceUntilIdle()

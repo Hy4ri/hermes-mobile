@@ -360,7 +360,7 @@ class HermesApiServiceMockWebServerTest {
             assertNotNull(body)
             assertEquals(1, body!!.messages.size)
             assertNull(body.messages[0].role)
-            assertEquals("Plain content", body.messages[0].content)
+            assertEquals("Plain content", body.messages[0].contentText)
             assertNull(body.messages[0].timestamp)
         }
 
@@ -440,7 +440,7 @@ class HermesApiServiceMockWebServerTest {
             val request = mockServer.takeRequest()
             assertEquals(
                 "path should contain the session ID with slashes preserved",
-                "/api/sessions/session/with/slashes/messages?offset=0",
+                "/api/sessions/session/with/slashes/messages?offset=0&include_compacted=true",
                 request.path,
             )
         }

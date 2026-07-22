@@ -29,4 +29,3 @@ data class SessionMessage(
                 else -> content.toString()
             }
 }
-

@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import io.mockk.coEvery
+import io.mockk.eq
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -32,6 +33,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -1677,7 +1681,7 @@ class ChatViewModelTest {
             verify { HermesWsClient.disconnect() }
         }
 
-    // ── History pagination guard (issue #674) ───────────────────────────────
+    // ── History pagination guard (issue #674 & #686) ───────────────────────────────
 
     /**
      * When the initial REST page returns empty messages, hasOlderMessages
@@ -1707,7 +1711,7 @@ class ChatViewModelTest {
                     ),
                 )
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any())
             } returns
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionMessagesResponse(
@@ -1724,5 +1728,197 @@ class ChatViewModelTest {
             )
             assertTrue(viewModel.uiState.value.messages.isEmpty())
             assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun testLoadOlderMessages_honorsServerReturnedOffset() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            coEvery {
+                mockApi.getSessions(any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionListResponse(
+                        sessions =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionInfo(
+                                    id = "session-456",
+                                    title = "Test",
+                                    message_count = 100,
+                                ),
+                            ),
+                        total = 1,
+                    ),
+                )
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), eq(50), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    role = "assistant",
+                                    content = JsonPrimitive("Msg 50"),
+                                ),
+                            ),
+                        offset = 50,
+                        total = 100,
+                    ),
+                )
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+
+            // Server returns effective offset 20 (different from requested offset 0)
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), eq(0), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    role = "user",
+                                    content = JsonPrimitive("Older Msg 20"),
+                                ),
+                            ),
+                        offset = 20,
+                        total = 100,
+                    ),
+                )
+
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            val messages = viewModel.uiState.value.messages
+            assertEquals(2, messages.size)
+            assertEquals("rest-session-456-20", messages[0].id)
+            assertEquals("Older Msg 20", messages[0].content)
+        }
+
+    @Test
+    fun testLoadOlderMessages_oldServerFallback_stopsPaginationWhenOffsetDoesNotDecrease() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            coEvery {
+                mockApi.getSessions(any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionListResponse(
+                        sessions =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionInfo(
+                                    id = "session-456",
+                                    title = "Test",
+                                    message_count = 100,
+                                ),
+                            ),
+                        total = 1,
+                    ),
+                )
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), eq(50), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    role = "assistant",
+                                    content = JsonPrimitive("Msg 50"),
+                                ),
+                            ),
+                        offset = 50,
+                        total = 100,
+                    ),
+                )
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            // Older server ignores query params and returns offset = 50 (same as oldOffset, offset did not decrease)
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), eq(0), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    role = "assistant",
+                                    content = JsonPrimitive("Msg 50"),
+                                ),
+                            ),
+                        offset = 50,
+                        total = 100,
+                    ),
+                )
+
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+
+            assertFalse(
+                "hasOlderMessages must be false when returned offset does not decrease",
+                viewModel.uiState.value.hasOlderMessages,
+            )
+        }
+
+    @Test
+    fun testLoadMessages_handlesJsonObjectToolResult() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            coEvery {
+                mockApi.getSessions(any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionListResponse(
+                        sessions =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionInfo(
+                                    id = "session-456",
+                                    title = "Test",
+                                    message_count = 1,
+                                ),
+                            ),
+                        total = 1,
+                    ),
+                )
+            val jsonObjectContent =
+                buildJsonObject {
+                    put("status", JsonPrimitive("ok"))
+                }
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    role = "tool",
+                                    content = jsonObjectContent,
+                                ),
+                            ),
+                        offset = 0,
+                        total = 1,
+                    ),
+                )
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            val messages = viewModel.uiState.value.messages
+            assertEquals(1, messages.size)
+            assertEquals("{\"status\":\"ok\"}", messages[0].content)
         }
 }

@@ -23,14 +23,10 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -123,25 +119,20 @@ internal fun InstalledSkillsView(
             query = query,
             onQueryChange = onQueryChange,
             placeholder = stringResource(R.string.skills_search_placeholder),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
 
-        @OptIn(ExperimentalMaterial3Api::class)
-        SingleChoiceSegmentedButtonRow(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-        ) {
-            SkillFilter.entries.forEachIndexed { index, filter ->
-                SegmentedButton(
-                    selected = selectedStatus == filter,
-                    onClick = { onStatusChange(filter) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = SkillFilter.entries.size),
-                ) {
-                    Text(stringResource(filter.labelRes))
-                }
-            }
-        }
+        FilterChipRow(
+            chips =
+                listOf(
+                    SkillFilter.ALL_STATUSES,
+                    SkillFilter.ENABLED,
+                    SkillFilter.DISABLED,
+                ),
+            selectedChip = selectedStatus,
+            onChipSelected = onStatusChange,
+            chipLabel = { chip -> Text(stringResource(chip.labelRes)) },
+        )
 
         if (categories.isNotEmpty() || sources.isNotEmpty()) {
             FilterChipRow(
@@ -150,31 +141,17 @@ internal fun InstalledSkillsView(
                 onChipSelected = onCategoryChange,
             )
             if (sources.isNotEmpty()) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    FilterChip(
-                        selected = sourceFilter == null,
-                        onClick = { onSetSourceFilter(null) },
-                        label = {
-                            Text(
-                                stringResource(R.string.skills_source_all),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                    )
-                    sources.forEach { source ->
-                        FilterChip(
-                            selected = sourceFilter == source,
-                            onClick = { onSetSourceFilter(if (sourceFilter == source) null else source) },
-                            label = { Text(source, style = MaterialTheme.typography.labelSmall) },
+                FilterChipRow(
+                    chips = listOf<String?>(null) + sources,
+                    selectedChip = sourceFilter,
+                    onChipSelected = onSetSourceFilter,
+                    chipLabel = { source ->
+                        Text(
+                            text = source ?: stringResource(R.string.skills_source_all),
+                            style = MaterialTheme.typography.labelSmall,
                         )
-                    }
-                }
+                    },
+                )
             }
         }
 

@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -67,7 +68,6 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
-import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
@@ -205,6 +205,42 @@ fun McpServersScreen(
     }
 }
 
+// ── Section header (MCP-specific: distinct icon + neutral title so it reads
+// as a header, not a button) ──────────────────────────────────────────────
+@Composable
+private fun McpSectionHeader(
+    icon: ImageVector,
+    title: String,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    val spacing = LocalSpacing.current
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.md, vertical = spacing.sm),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.width(spacing.sm))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        trailing?.invoke()
+    }
+}
+
 // ── Sections ──────────────────────────────────────────────────────
 
 @Composable
@@ -213,7 +249,8 @@ private fun AddServerSection(
     viewModel: McpServersViewModel,
     spacing: com.m57.hermescontrol.theme.Spacing,
 ) {
-    SectionHeader(
+    McpSectionHeader(
+        icon = Icons.Filled.Add,
         title = stringResource(R.string.mcp_servers_add_server),
         trailing = {
             TextButton(onClick = { viewModel.toggleAddForm() }) {
@@ -569,7 +606,8 @@ private fun CatalogSection(
 ) {
     val catalogExpanded = remember { mutableStateOf(false) }
 
-    SectionHeader(
+    McpSectionHeader(
+        icon = Icons.Filled.Storage,
         title = stringResource(R.string.mcp_servers_section_catalog),
         trailing = {
             TextButton(onClick = {

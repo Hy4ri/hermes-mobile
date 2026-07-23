@@ -181,12 +181,8 @@ fun KeysScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadKeys() },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.openAddDialog() },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
+        actions = {
+            IconButton(onClick = { viewModel.openAddDialog() }) {
                 Icon(
                     imageVector = Icons.Filled.Add,
                     contentDescription = stringResource(R.string.content_desc_add_key),
@@ -194,101 +190,118 @@ fun KeysScreen(
             }
         },
     ) { paddingValues ->
-        when {
-            state.isLoading && !hasAnyVars -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
-            }
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                state.isLoading && !hasAnyVars -> {
+                    SkeletonListState(modifier = Modifier.padding(paddingValues))
+                }
 
-            state.errorMessage != null && !hasAnyVars -> {
-                ErrorState(
-                    message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadKeys() },
-                    modifier = Modifier.padding(paddingValues),
-                )
-            }
+                state.errorMessage != null && !hasAnyVars -> {
+                    ErrorState(
+                        message = state.errorMessage ?: "",
+                        onRetry = { viewModel.loadKeys() },
+                        modifier = Modifier.padding(paddingValues),
+                    )
+                }
 
-            !hasAnyVars && query.isBlank() -> {
-                EmptyState(
-                    title = stringResource(R.string.keys_empty_title),
-                    subtitle = stringResource(R.string.keys_empty_desc),
-                    onAction = { viewModel.loadKeys() },
-                    actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier.padding(paddingValues),
-                )
-            }
+                !hasAnyVars && query.isBlank() -> {
+                    EmptyState(
+                        title = stringResource(R.string.keys_empty_title),
+                        subtitle = stringResource(R.string.keys_empty_desc),
+                        onAction = { viewModel.loadKeys() },
+                        actionLabel = stringResource(R.string.content_desc_refresh),
+                        modifier = Modifier.padding(paddingValues),
+                    )
+                }
 
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = listContentPadding,
-                    verticalArrangement = listItemSpacing,
-                ) {
-                    // ── 1. Restart banner (pinned at top when dirty) ─────────
-                    if (state.keysChanged) {
-                        item(key = "restart-banner") {
-                            RestartBanner(
-                                isRestarting = state.isRestartingGateway,
-                                onRestart = viewModel::restartGateway,
-                            )
-                        }
-                    }
-
-                    // ── 2. Search Bar ────────────────────────────────────────
-                    item(key = "search") {
-                        SearchBar(
-                            query = query,
-                            onQueryChange = { query = it },
-                            placeholder = stringResource(R.string.keys_search_placeholder),
-                        )
-                    }
-
-                    // ── 3. Categorized Sections ──────────────────────────────
-                    if (filteredCategories.isEmpty() && query.isNotBlank()) {
-                        item(key = "no-results") {
-                            Box(
-                                modifier = Modifier.fillParentMaxHeight(0.6f),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                EmptyState(
-                                    title = stringResource(R.string.keys_no_matching_title),
-                                    subtitle = stringResource(R.string.keys_no_matching_desc),
-                                    actionLabel = stringResource(R.string.empty_action_clear_search),
-                                    onAction = { query = "" },
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = listContentPadding,
+                        verticalArrangement = listItemSpacing,
+                    ) {
+                        // ── 1. Restart banner (pinned at top when dirty) ─────────
+                        if (state.keysChanged) {
+                            item(key = "restart-banner") {
+                                RestartBanner(
+                                    isRestarting = state.isRestartingGateway,
+                                    onRestart = viewModel::restartGateway,
                                 )
                             }
                         }
-                    }
 
-                    filteredCategories.forEach { section ->
-                        item(key = "category-header-${section.name}") {
-                            CategoryHeader(
-                                name = section.name,
-                                count = section.vars.size,
-                                expanded = section.expanded,
-                                onToggle = { viewModel.toggleCategory(section.name) },
+                        // ── 2. Search Bar ────────────────────────────────────────
+                        item(key = "search") {
+                            SearchBar(
+                                query = query,
+                                onQueryChange = { query = it },
+                                placeholder = stringResource(R.string.keys_search_placeholder),
                             )
                         }
 
-                        if (section.expanded) {
-                            items(
-                                items = section.vars.toList(),
-                                key = { (key, _) -> "key-$key" },
-                            ) { (key, config) ->
-                                EnvVarCard(
-                                    key = key,
-                                    config = config,
-                                    revealedValue = state.revealedValues[key],
-                                    isDeleting = key in state.deletingKeys,
-                                    onReveal = { viewModel.revealKey(key) },
-                                    onHide = { viewModel.hideKey(key) },
-                                    onSave = { value -> viewModel.updateKey(key, value) },
-                                    onRequestDelete = { viewModel.requestDeleteKey(key) },
-                                    onShowToast = { msg -> viewModel.showToast(msg) },
+                        // ── 3. Categorized Sections ──────────────────────────────
+                        if (filteredCategories.isEmpty() && query.isNotBlank()) {
+                            item(key = "no-results") {
+                                Box(
+                                    modifier = Modifier.fillParentMaxHeight(0.6f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    EmptyState(
+                                        title = stringResource(R.string.keys_no_matching_title),
+                                        subtitle = stringResource(R.string.keys_no_matching_desc),
+                                        actionLabel = stringResource(R.string.empty_action_clear_search),
+                                        onAction = { query = "" },
+                                    )
+                                }
+                            }
+                        }
+
+                        filteredCategories.forEach { section ->
+                            item(key = "category-header-${section.name}") {
+                                CategoryHeader(
+                                    name = section.name,
+                                    count = section.vars.size,
+                                    expanded = section.expanded,
+                                    onToggle = { viewModel.toggleCategory(section.name) },
                                 )
+                            }
+
+                            if (section.expanded) {
+                                items(
+                                    items = section.vars.toList(),
+                                    key = { (key, _) -> "key-$key" },
+                                ) { (key, config) ->
+                                    EnvVarCard(
+                                        key = key,
+                                        config = config,
+                                        revealedValue = state.revealedValues[key],
+                                        isDeleting = key in state.deletingKeys,
+                                        onReveal = { viewModel.revealKey(key) },
+                                        onHide = { viewModel.hideKey(key) },
+                                        onSave = { value -> viewModel.updateKey(key, value) },
+                                        onRequestDelete = { viewModel.requestDeleteKey(key) },
+                                        onShowToast = { msg -> viewModel.showToast(msg) },
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            FloatingActionButton(
+                onClick = { viewModel.openAddDialog() },
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.content_desc_add_key),
+                )
             }
         }
     }

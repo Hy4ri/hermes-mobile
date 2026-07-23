@@ -28,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -44,7 +43,6 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.local.AuthSessionState
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -134,14 +132,6 @@ private fun appEntryProvider(
 
 @Composable
 fun MainNavigation(sessionId: String? = null) {
-    val signInRequired by AuthSessionState.signInRequired.collectAsState()
-    LaunchedEffect(signInRequired) {
-        if (signInRequired) {
-            HermesWsClient.disconnect()
-            NavigationController.resetTo(AuthLoginScreen)
-        }
-    }
-
     val token by AuthManager.tokenFlow.collectAsState()
     val hasToken = !token.isNullOrBlank()
     val startScreen: NavKey = if (hasToken) ChatScreen else LandingScreen

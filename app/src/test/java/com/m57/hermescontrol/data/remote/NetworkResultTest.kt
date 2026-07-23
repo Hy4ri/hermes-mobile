@@ -1,11 +1,9 @@
 package com.m57.hermescontrol.data.remote
 
-import com.m57.hermescontrol.data.local.AuthSessionState
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
@@ -197,37 +195,5 @@ class NetworkResultTest {
             assertTrue(unknownError.message.contains("An unexpected error occurred"))
             assertTrue(unknownError.message.contains("Unexpected error"))
             assertEquals(1, callCount) // Should not retry for unknown exceptions
-        }
-
-    @Test
-    fun testSafeApiCall_authExpired_triggersLatchWhenReportTrue() =
-        runBlocking {
-            AuthSessionState.resetForTest()
-            assertFalse(AuthSessionState.signInRequired.value)
-
-            val result =
-                safeApiCall<String>(reportAuthExpiry = true) {
-                    Response.error(401, "Unauthorized".toResponseBody("text/plain".toMediaTypeOrNull()))
-                }
-
-            assertTrue(result is NetworkResult.Failure)
-            assertTrue((result as NetworkResult.Failure).error is NetworkError.AuthExpired)
-            assertTrue(AuthSessionState.signInRequired.value)
-        }
-
-    @Test
-    fun testSafeApiCall_authExpired_doesNotTriggerLatchWhenReportFalse() =
-        runBlocking {
-            AuthSessionState.resetForTest()
-            assertFalse(AuthSessionState.signInRequired.value)
-
-            val result =
-                safeApiCall<String>(reportAuthExpiry = false) {
-                    Response.error(401, "Unauthorized".toResponseBody("text/plain".toMediaTypeOrNull()))
-                }
-
-            assertTrue(result is NetworkResult.Failure)
-            assertTrue((result as NetworkResult.Failure).error is NetworkError.AuthExpired)
-            assertFalse(AuthSessionState.signInRequired.value)
         }
 }

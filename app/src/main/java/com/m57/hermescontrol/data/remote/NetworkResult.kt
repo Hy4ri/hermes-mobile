@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.data.remote
 
-import com.m57.hermescontrol.data.local.AuthSessionState
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -91,7 +90,6 @@ fun jitteredBackoff(baseMs: Long): Long {
 
 suspend inline fun <reified T> safeApiCall(
     retries: Int = 2,
-    reportAuthExpiry: Boolean = true,
     crossinline call: suspend () -> Response<T>,
 ): NetworkResult<T> {
     var lastException: IOException? = null
@@ -120,11 +118,7 @@ suspend inline fun <reified T> safeApiCall(
                     delay(backoff)
                     continue
                 }
-                val failure = NetworkResult.Failure(mapHttpError(code, errorBody))
-                if (reportAuthExpiry && failure.error is NetworkError.AuthExpired) {
-                    AuthSessionState.requireSignIn()
-                }
-                return failure
+                return NetworkResult.Failure(mapHttpError(code, errorBody))
             }
         } catch (e: IOException) {
             lastException = e

@@ -8,7 +8,6 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.local.AuthSessionState
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -116,7 +115,7 @@ class ConnectViewModel(
             val result =
                 withContext(Dispatchers.IO) {
                     val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), state.token)
-                    safeApiCall(reportAuthExpiry = false) { tempApi.getStatus() }
+                    safeApiCall { tempApi.getStatus() }
                 }
             when (result) {
                 is NetworkResult.Success -> {
@@ -124,7 +123,6 @@ class ConnectViewModel(
                     AuthManager.setToken(state.token)
                     AuthManager.setBaseUrl(state.baseUrl)
                     ApiClient.rebuild()
-                    AuthSessionState.markAuthenticated()
 
                     if (state.saveProfile) {
                         val currentProfiles = AuthManager.getConnectionProfiles()

@@ -122,22 +122,21 @@ internal fun InstalledSkillsView(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
 
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SkillFilter.entries.forEach { filter ->
-                FilterChip(
-                    selected = selectedStatus == filter,
-                    onClick = { onStatusChange(filter) },
-                    label = { Text(stringResource(filter.labelRes)) },
+        FilterChipRow(
+            chips = SkillFilter.entries.toList(),
+            selectedChip = selectedStatus,
+            onChipSelected = onStatusChange,
+            chipLabel = { chip ->
+                Text(
+                    text =
+                        if (chip == SkillFilter.ALL_STATUSES) {
+                            stringResource(R.string.skills_category_all)
+                        } else {
+                            stringResource(chip.labelRes)
+                        },
                 )
-            }
-        }
+            },
+        )
 
         if (categories.isNotEmpty() || sources.isNotEmpty()) {
             FilterChipRow(

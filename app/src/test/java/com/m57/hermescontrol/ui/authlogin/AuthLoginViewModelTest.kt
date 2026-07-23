@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
+import io.mockk.any
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk

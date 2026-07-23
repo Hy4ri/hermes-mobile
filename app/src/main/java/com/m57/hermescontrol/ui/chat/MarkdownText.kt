@@ -50,6 +50,9 @@ import com.m57.hermescontrol.theme.searchHighlightColors
 private val URL_PATTERN = Regex("""https?://[^\s)>\[\]"'‘’]+""")
 private val TABLE_COL_WIDTH = 160.dp
 private val FN_DEF_RE = Regex("""^\[\^([^\]]+)\]:\s*(.*)$""")
+private val BULLET_RE = Regex("""^\s*[-*+]\s+(.*)""")
+private val TASK_RE = Regex("""^\s*[-*+]\s+\[([ xX])\]\s+(.*)""")
+private val ORDERED_RE = Regex("""^\s*\d+\.\s+(.*)""")
 
 /**
  * Renders chat assistant text as Markdown — but ONLY once the message has finished streaming.
@@ -408,9 +411,6 @@ internal fun parseBlocks(src: String): List<MdBlock> {
     val lines = src.lines()
     val blocks = mutableListOf<MdBlock>()
     val footnotes = mutableListOf<Footnote>()
-    val bulletRe = Regex("""^\s*[-*+]\s+(.*)""")
-    val taskRe = Regex("""^\s*[-*+]\s+\[([ xX])\]\s+(.*)""")
-    val orderedRe = Regex("""^\s*\d+\.\s+(.*)""")
     var i = 0
 
     while (i < lines.size) {
@@ -479,7 +479,7 @@ internal fun parseBlocks(src: String): List<MdBlock> {
             }
 
             // Definition list: term line followed by one+ ": definition" lines
-            isDefListStart(lines, i, bulletRe, orderedRe) -> {
+            isDefListStart(lines, i) -> {
                 val term = line.trim()
                 val defs = mutableListOf<String>()
                 i++
@@ -490,32 +490,32 @@ internal fun parseBlocks(src: String): List<MdBlock> {
                 blocks.add(MdBlock.DefList(listOf(DefItem(term, defs))))
             }
 
-            taskRe.matches(line) -> {
-                val m = taskRe.find(line)!!
+            TASK_RE.matches(line) -> {
+                val m = TASK_RE.find(line)!!
                 blocks.add(MdBlock.Task(m.groupValues[1].equals("x", ignoreCase = true), m.groupValues[2]))
                 i++
             }
 
-            bulletRe.matches(line) -> {
+            BULLET_RE.matches(line) -> {
                 val items = mutableListOf<String>()
-                while (i < lines.size && bulletRe.matches(lines[i]) && !taskRe.matches(lines[i])) {
-                    items.add(bulletRe.find(lines[i])!!.groupValues[1])
+                while (i < lines.size && BULLET_RE.matches(lines[i]) && !TASK_RE.matches(lines[i])) {
+                    items.add(BULLET_RE.find(lines[i])!!.groupValues[1])
                     i++
                 }
                 items.forEach { blocks.add(MdBlock.Bullet(it)) }
             }
 
-            orderedRe.matches(line) -> {
+            ORDERED_RE.matches(line) -> {
                 val items = mutableListOf<String>()
-                while (i < lines.size && orderedRe.matches(lines[i])) {
-                    items.add(orderedRe.find(lines[i])!!.groupValues[1])
+                while (i < lines.size && ORDERED_RE.matches(lines[i])) {
+                    items.add(ORDERED_RE.find(lines[i])!!.groupValues[1])
                     i++
                 }
                 items.forEachIndexed { idx, t -> blocks.add(MdBlock.Ordered(idx + 1, t)) }
             }
 
             else -> {
-                i = fallthroughToParagraph(lines, i, bulletRe, orderedRe, blocks)
+                i = fallthroughToParagraph(lines, i, blocks)
             }
         }
     }
@@ -585,12 +585,10 @@ private fun splitRow(line: String): List<String> {
 private fun isDefListStart(
     lines: List<String>,
     i: Int,
-    bulletRe: Regex,
-    orderedRe: Regex,
 ): Boolean {
     val l = lines[i].trim()
     if (l.isBlank() || l.startsWith("#") || l.startsWith(">") || l.startsWith("```")) return false
-    if (bulletRe.matches(lines[i]) || orderedRe.matches(lines[i])) return false
+    if (BULLET_RE.matches(lines[i]) || ORDERED_RE.matches(lines[i])) return false
     if (i + 1 >= lines.size) return false
     return lines[i + 1].trim().startsWith(":")
 }
@@ -604,8 +602,6 @@ private fun isValidHeading(line: String): Boolean {
 private fun fallthroughToParagraph(
     lines: List<String>,
     start: Int,
-    bulletRe: Regex,
-    orderedRe: Regex,
     blocks: MutableList<MdBlock>,
 ): Int {
     var i = start
@@ -616,11 +612,11 @@ private fun fallthroughToParagraph(
         !lines[i].startsWith("```") &&
         !isValidHeading(lines[i]) &&
         !lines[i].startsWith(">") &&
-        !bulletRe.matches(lines[i]) &&
-        !orderedRe.matches(lines[i]) &&
+        !BULLET_RE.matches(lines[i]) &&
+        !ORDERED_RE.matches(lines[i]) &&
         !isHorizontalRule(lines[i]) &&
         !isTableStart(lines, i) &&
-        !isDefListStart(lines, i, bulletRe, orderedRe) &&
+        !isDefListStart(lines, i) &&
         FN_DEF_RE.matchAt(lines[i], 0) == null
     ) {
         para.add(lines[i])

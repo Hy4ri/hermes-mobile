@@ -6,6 +6,8 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.remote.await
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -26,6 +28,7 @@ import java.io.IOException
 class AuthLoginViewModelTest {
     private lateinit var viewModel: AuthLoginViewModel
     private val app = mockk<Application>(relaxed = true)
+    private val mockProbeClient = mockk<OkHttpClient>(relaxed = true)
 
     @Before
     fun setup() {
@@ -34,11 +37,12 @@ class AuthLoginViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns emptyList()
 
         mockkObject(OkHttpProvider)
-        every { OkHttpProvider.probe } returns mockk<OkHttpClient>(relaxed = true)
+        every { OkHttpProvider.probe } returns mockProbeClient
 
         mockkStatic(Log::class)
-        every { Log.w(any<String>(), any<String>()) } returns 0
-        every { Log.d(any<String>(), any<String>()) } returns 0
+        mockkStatic("com.m57.hermescontrol.data.remote.CallExtKt")
+        every { android.util.Log.w(any(), any<String>()) } returns 0
+        every { android.util.Log.d(any(), any()) } returns 0
 
         every { app.getString(R.string.auth_login_error_unreachable) } returns "Dashboard unreachable"
 
@@ -84,8 +88,8 @@ class AuthLoginViewModelTest {
     @Test
     fun `probe when status probe throws IOException updates error state`() {
         val mockCall = mockk<okhttp3.Call>()
-        every { OkHttpProvider.probe.newCall(any()) } returns mockCall
-        every { mockCall.execute() } throws IOException("Connection refused")
+        every { mockProbeClient.newCall(any()) } returns mockCall
+        coEvery { mockCall.await() } throws IOException("Connection refused")
 
         viewModel.probe()
 
@@ -99,8 +103,8 @@ class AuthLoginViewModelTest {
     fun `probe when status probe returns unsuccessful updates error state`() {
         val mockCall = mockk<okhttp3.Call>()
         val mockResponse = mockk<Response>()
-        every { OkHttpProvider.probe.newCall(any()) } returns mockCall
-        every { mockCall.execute() } returns mockResponse
+        every { mockProbeClient.newCall(any()) } returns mockCall
+        coEvery { mockCall.await() } returns mockResponse
         every { mockResponse.isSuccessful } returns false
 
         viewModel.probe()

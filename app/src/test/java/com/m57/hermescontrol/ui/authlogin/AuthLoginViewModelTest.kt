@@ -7,12 +7,12 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import io.mockk.every
-import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.junit.After
@@ -83,9 +83,11 @@ class AuthLoginViewModelTest {
 
     @Test
     fun `probe when status probe throws IOException updates error state`() {
-        val mockCall = mockk<okhttp3.Call>()
+        val mockCall = mockk<okhttp3.Call>(relaxed = true)
         every { OkHttpProvider.probe.newCall(any()) } returns mockCall
-        every { mockCall.execute() } throws IOException("Connection refused")
+        every { mockCall.enqueue(any()) } answers {
+            arg<Callback>(0).onFailure(mockCall, IOException("Connection refused"))
+        }
 
         viewModel.probe()
 
@@ -97,10 +99,12 @@ class AuthLoginViewModelTest {
 
     @Test
     fun `probe when status probe returns unsuccessful updates error state`() {
-        val mockCall = mockk<okhttp3.Call>()
-        val mockResponse = mockk<Response>()
+        val mockCall = mockk<okhttp3.Call>(relaxed = true)
+        val mockResponse = mockk<Response>(relaxed = true)
         every { OkHttpProvider.probe.newCall(any()) } returns mockCall
-        every { mockCall.execute() } returns mockResponse
+        every { mockCall.enqueue(any()) } answers {
+            arg<Callback>(0).onResponse(mockCall, mockResponse)
+        }
         every { mockResponse.isSuccessful } returns false
 
         viewModel.probe()

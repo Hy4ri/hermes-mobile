@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.remote.AuthPayloads
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.remote.await
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import kotlinx.coroutines.Dispatchers
@@ -213,7 +214,7 @@ class AuthLoginViewModel(
      * is non-null, the session token was found embedded in the dashboard SPA HTML
      * (loopback mode only) and can be auto-populated.
      */
-    private fun probeDashboardInternal(endpoint: ServerEndpoint): ProbeResult? {
+    private suspend fun probeDashboardInternal(endpoint: ServerEndpoint): ProbeResult? {
         // Step 1: reachability + auth mode from the public status endpoint.
         val statusJson =
             try {
@@ -223,7 +224,7 @@ class AuthLoginViewModel(
                         .url(endpoint.resolve("api/status").toString())
                         .get()
                         .build()
-                val resp = probeClient.newCall(req).execute()
+                val resp = probeClient.newCall(req).await()
                 if (!resp.isSuccessful) return null
                 resp.body.string()
             } catch (e: Exception) {
@@ -256,7 +257,7 @@ class AuthLoginViewModel(
                         .url(endpoint.resolve("").toString())
                         .get()
                         .build()
-                val spaResp = probeClient.newCall(spaReq).execute()
+                val spaResp = probeClient.newCall(spaReq).await()
                 val body = spaResp.body.string()
                 val tokenMatch = Regex("""__HERMES_SESSION_TOKEN__\s*=\s*"([^"]+)"""").find(body)
                 extractedToken = tokenMatch?.groupValues?.getOrNull(1)
@@ -406,7 +407,7 @@ class AuthLoginViewModel(
      * Authenticate with basic auth, then mint a WS ticket.
      * Returns the WS ticket and the session cookie for REST auth.
      */
-    private fun connectBasicAuth(
+    private suspend fun connectBasicAuth(
         endpoint: ServerEndpoint,
         username: String,
         password: String,
@@ -439,7 +440,7 @@ class AuthLoginViewModel(
                     .header("Content-Type", "application/json")
                     .post(jsonBody.toRequestBody())
                     .build()
-            val loginResp = OkHttpProvider.probe.newCall(loginReq).execute()
+            val loginResp = OkHttpProvider.probe.newCall(loginReq).await()
 
             if (!loginResp.isSuccessful) {
                 val msg =
@@ -462,7 +463,7 @@ class AuthLoginViewModel(
                     .url(endpoint.resolve("api/auth/ws-ticket").toString())
                     .post("{}".toRequestBody())
                     .build()
-            val ticketResp = OkHttpProvider.probe.newCall(ticketReq).execute()
+            val ticketResp = OkHttpProvider.probe.newCall(ticketReq).await()
 
             if (!ticketResp.isSuccessful) {
                 _uiState.update {

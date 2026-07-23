@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.keys
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,10 +87,11 @@ import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
-import com.m57.hermescontrol.ui.common.listContentPadding
-import com.m57.hermescontrol.ui.common.listItemSpacing
 
 private const val FILTER_ALL = "ALL"
+
+private val keysContentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+private val keysItemSpacing = Arrangement.spacedBy(12.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -233,8 +235,8 @@ fun KeysScreen(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = listContentPadding,
-                        verticalArrangement = listItemSpacing,
+                        contentPadding = keysContentPadding,
+                        verticalArrangement = keysItemSpacing,
                     ) {
                         // ── 1. Restart banner (pinned at top when dirty) ─────────
                         if (state.keysChanged) {
@@ -536,12 +538,14 @@ private fun EnvVarCard(
             Modifier
                 .fillMaxWidth()
                 .animateContentSize(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             ),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             // Header: Key name + Status Badge + Delete Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -577,7 +581,7 @@ private fun EnvVarCard(
 
                     // Description
                     if (!config.description.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = config.description,
                             style = MaterialTheme.typography.bodySmall,
@@ -610,7 +614,7 @@ private fun EnvVarCard(
 
             // External documentation link button
             if (!config.url.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier =
@@ -639,7 +643,7 @@ private fun EnvVarCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Value Display Box or Edit Form
             if (isEditing) {
@@ -689,15 +693,16 @@ private fun EnvVarCard(
                 }
             } else {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -769,6 +774,8 @@ private fun RestartBanner(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, statusColors.warning.copy(alpha = 0.4f)),
         colors =
             CardDefaults.cardColors(
                 containerColor = statusColors.warningContainer,

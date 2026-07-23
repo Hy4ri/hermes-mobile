@@ -14,6 +14,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.advanceUntilIdle
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -103,6 +105,39 @@ class SettingsViewModelTest {
         assertEquals(2, state.profiles.size)
         assertEquals("prof-1", state.selectedProfileId)
         assertEquals("Work", state.renameProfileName)
+    }
+
+    @Test
+    fun testLoadSettings_loadsAllProperties() = runTest {
+        every { AuthManager.getSelectedProfileId() } answers { "prof-2" }
+        every { AuthManager.getBaseUrl() } returns "https://192.168.1.10:9119/"
+        every { AuthManager.getToken() } returns "dummy_token"
+        every { AuthManager.isAutoReconnect() } returns false
+        every { AuthManager.getThemePreference() } returns ThemePreference.DARK
+        every { AuthManager.isUseDynamicColors() } returns false
+        every { AuthManager.getThemePreset() } returns ThemePreset.CATPPUCCIN
+        every { AuthManager.isTypingEffectEnabled() } returns false
+        every { AuthManager.getTypingEffectDelayMs() } returns 15
+        every { AuthManager.getConnectionProfiles() } returns testProfiles
+        every { AuthManager.getAppLanguage() } returns "fr"
+
+        val viewModel = SettingsViewModel(ioDispatcher = testDispatcher)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+
+        assertEquals("https://192.168.1.10:9119/", state.baseUrl)
+        assertEquals("dummy_token", state.token)
+        assertEquals(false, state.autoReconnect)
+        assertEquals(ThemePreference.DARK, state.themePreference)
+        assertEquals(false, state.useDynamicColors)
+        assertEquals(ThemePreset.CATPPUCCIN, state.themePreset)
+        assertEquals(false, state.typingEffectEnabled)
+        assertEquals(15, state.typingEffectDelayMs)
+        assertEquals(testProfiles, state.profiles)
+        assertEquals("prof-2", state.selectedProfileId)
+        assertEquals("Home", state.renameProfileName)
+        assertEquals("fr", state.appLanguage)
     }
 
     @Test

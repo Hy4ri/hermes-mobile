@@ -6,7 +6,8 @@ import kotlin.system.measureTimeMillis
 class MarkdownTextBenchmark {
     @Test
     fun benchmarkParseBlocks() {
-        val md = """
+        val md =
+            """
             # Header
             - item 1
             - item 2
@@ -29,18 +30,19 @@ class MarkdownTextBenchmark {
 
             > A quote
             > Another quote
-        """.trimIndent()
+            """.trimIndent()
 
         // Warmup
         for (i in 1..500) {
             parseBlocks(md)
         }
 
-        val time = measureTimeMillis {
-            for (i in 1..10000) {
-                parseBlocks(md)
+        val time =
+            measureTimeMillis {
+                for (i in 1..10000) {
+                    parseBlocks(md)
+                }
             }
-        }
 
         println("BENCHMARK_RESULT: parseBlocks 10000 iterations took ${time}ms")
     }

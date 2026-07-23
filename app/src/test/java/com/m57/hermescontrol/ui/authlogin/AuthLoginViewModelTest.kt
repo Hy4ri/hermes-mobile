@@ -7,7 +7,6 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.await
-import io.mockk.any
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -41,8 +40,8 @@ class AuthLoginViewModelTest {
 
         mockkStatic(Log::class)
         mockkStatic("com.m57.hermescontrol.data.remote.CallExtKt")
-        every { Log.w(any<String>(), any<String>()) } returns 0
-        every { Log.d(any<String>(), any<String>()) } returns 0
+        every { android.util.Log.w(any(), any<String>()) } returns 0
+        every { android.util.Log.d(any(), any()) } returns 0
 
         every { app.getString(R.string.auth_login_error_unreachable) } returns "Dashboard unreachable"
 

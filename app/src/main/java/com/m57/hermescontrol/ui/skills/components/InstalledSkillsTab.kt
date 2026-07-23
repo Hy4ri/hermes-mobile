@@ -23,10 +23,14 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -121,17 +125,23 @@ internal fun InstalledSkillsView(
             placeholder = stringResource(R.string.skills_search_placeholder),
         )
 
-        FilterChipRow(
-            chips =
-                listOf(
-                    SkillFilter.ALL_STATUSES,
-                    SkillFilter.ENABLED,
-                    SkillFilter.DISABLED,
-                ),
-            selectedChip = selectedStatus,
-            onChipSelected = onStatusChange,
-            chipLabel = { chip -> Text(stringResource(chip.labelRes)) },
-        )
+        @OptIn(ExperimentalMaterial3Api::class)
+        SingleChoiceSegmentedButtonRow(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+        ) {
+            SkillFilter.entries.forEachIndexed { index, filter ->
+                SegmentedButton(
+                    selected = selectedStatus == filter,
+                    onClick = { onStatusChange(filter) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = SkillFilter.entries.size),
+                ) {
+                    Text(stringResource(filter.labelRes))
+                }
+            }
+        }
 
         if (categories.isNotEmpty() || sources.isNotEmpty()) {
             FilterChipRow(

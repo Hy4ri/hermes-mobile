@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+
 package com.m57.hermescontrol.ui.keys
 
 import androidx.compose.animation.animateContentSize
@@ -6,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -94,7 +97,6 @@ private const val FILTER_ALL = "ALL"
 private val keysContentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
 private val keysItemSpacing = Arrangement.spacedBy(12.dp)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeysScreen(
     modifier: Modifier = Modifier,
@@ -336,7 +338,6 @@ fun KeysScreen(
 
 // ── Category Filter Bar ──────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategoryFilterBar(
     categories: List<CategorySection>,

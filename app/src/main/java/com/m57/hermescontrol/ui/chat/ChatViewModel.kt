@@ -8,7 +8,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.local.AuthSessionState
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.ModelProvider
@@ -1871,7 +1870,6 @@ class ChatViewModel(
     }
 
     fun reconnect() {
-        AuthSessionState.markAuthenticated()
         _uiState.update {
             it.copy(
                 isLoading = true,
@@ -1969,7 +1967,6 @@ class ChatViewModel(
 
                     AuthManager.setWsAuthParam("ticket")
                     AuthManager.setToken(ticket)
-                    AuthSessionState.markAuthenticated()
 
                     withContext(Dispatchers.Main) {
                         onResult(true, null)

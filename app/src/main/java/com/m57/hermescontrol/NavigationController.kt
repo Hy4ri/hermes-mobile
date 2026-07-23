@@ -2,7 +2,6 @@ package com.m57.hermescontrol
 
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
-import com.m57.hermescontrol.data.local.AuthSessionState
 
 /**
  * Central navigation controller with deduplication guard.
@@ -59,24 +58,11 @@ object NavigationController {
      */
     fun goBack(fallback: NavKey = ChatScreen) {
         val stack = backStack ?: return
-        val effectiveFallback =
-            if (AuthSessionState.signInRequired.value && (fallback == ChatScreen || isPrimaryScreen(fallback))) {
-                LandingScreen
-            } else {
-                fallback
-            }
         if (stack.size > 1) {
             stack.removeLastOrNull()
-            if (AuthSessionState.signInRequired.value &&
-                stack.lastOrNull() != AuthLoginScreen &&
-                stack.lastOrNull() != LandingScreen
-            ) {
-                stack.clear()
-                stack.add(LandingScreen)
-            }
         } else if (stack.size == 1) {
             stack.clear()
-            stack.add(effectiveFallback)
+            stack.add(fallback)
         }
     }
 }

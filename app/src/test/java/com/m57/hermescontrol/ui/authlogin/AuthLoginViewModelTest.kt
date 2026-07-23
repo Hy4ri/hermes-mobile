@@ -3,12 +3,9 @@ package com.m57.hermescontrol.ui.authlogin
 import android.app.Application
 import android.util.Log
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.local.AuthSessionState
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
-import com.m57.hermescontrol.data.ws.HermesWsClient
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -22,7 +19,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -155,34 +151,5 @@ class AuthLoginViewModelTest {
             DashboardAuthMode.BASIC_AUTH,
             viewModel.deriveAuthMode(authRequired = true, providers = listOf("weird")),
         )
-    }
-
-    @Test
-    fun `loadLoggedInProfiles when signInRequired is true clears profile shortcuts`() {
-        AuthSessionState.requireSignIn()
-        every { AuthManager.getConnectionProfiles() } returns
-            listOf(
-                ConnectionProfile(id = "p1", name = "P1", baseUrl = "http://127.0.0.1"),
-            )
-        every { AuthManager.getProfileToken("p1") } returns "token1"
-
-        viewModel.loadLoggedInProfiles()
-
-        assertTrue(viewModel.uiState.value.loggedInProfiles.isEmpty())
-        AuthSessionState.resetForTest()
-    }
-
-    @Test
-    fun `useExistingProfile marks session authenticated`() {
-        AuthSessionState.requireSignIn()
-        mockkObject(HermesWsClient)
-        every { AuthManager.setSelectedProfileId("p1") } returns Unit
-        every { HermesWsClient.connect() } returns Unit
-
-        viewModel.useExistingProfile("p1")
-
-        assertFalse(AuthSessionState.signInRequired.value)
-        assertTrue(viewModel.uiState.value.connectionSuccess)
-        AuthSessionState.resetForTest()
     }
 }

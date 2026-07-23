@@ -6,13 +6,15 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.remote.await
+import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.junit.After
@@ -37,6 +39,7 @@ class AuthLoginViewModelTest {
         every { OkHttpProvider.probe } returns mockk<OkHttpClient>(relaxed = true)
 
         mockkStatic(Log::class)
+        mockkStatic("com.m57.hermescontrol.data.remote.CallExtKt")
         every { Log.w(any<String>(), any<String>()) } returns 0
         every { Log.d(any<String>(), any<String>()) } returns 0
 
@@ -83,11 +86,9 @@ class AuthLoginViewModelTest {
 
     @Test
     fun `probe when status probe throws IOException updates error state`() {
-        val mockCall = mockk<okhttp3.Call>(relaxed = true)
+        val mockCall = mockk<okhttp3.Call>()
         every { OkHttpProvider.probe.newCall(any()) } returns mockCall
-        every { mockCall.enqueue(any()) } answers {
-            arg<Callback>(0).onFailure(mockCall, IOException("Connection refused"))
-        }
+        coEvery { mockCall.await() } throws IOException("Connection refused")
 
         viewModel.probe()
 
@@ -99,12 +100,10 @@ class AuthLoginViewModelTest {
 
     @Test
     fun `probe when status probe returns unsuccessful updates error state`() {
-        val mockCall = mockk<okhttp3.Call>(relaxed = true)
-        val mockResponse = mockk<Response>(relaxed = true)
+        val mockCall = mockk<okhttp3.Call>()
+        val mockResponse = mockk<Response>()
         every { OkHttpProvider.probe.newCall(any()) } returns mockCall
-        every { mockCall.enqueue(any()) } answers {
-            arg<Callback>(0).onResponse(mockCall, mockResponse)
-        }
+        coEvery { mockCall.await() } returns mockResponse
         every { mockResponse.isSuccessful } returns false
 
         viewModel.probe()

@@ -274,25 +274,17 @@ private fun InstalledSkillsView(
             placeholder = stringResource(R.string.skills_search_placeholder),
         )
 
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChipRow(
-                chips =
-                    listOf(
-                        SkillFilter.ALL_STATUSES,
-                        SkillFilter.ENABLED,
-                        SkillFilter.DISABLED,
-                    ),
-                selectedChip = selectedStatus,
-                onChipSelected = onStatusChange,
-                chipLabel = { chip -> Text(stringResource(chip.labelRes)) },
-            )
-        }
+        FilterChipRow(
+            chips =
+                listOf(
+                    SkillFilter.ALL_STATUSES,
+                    SkillFilter.ENABLED,
+                    SkillFilter.DISABLED,
+                ),
+            selectedChip = selectedStatus,
+            onChipSelected = onStatusChange,
+            chipLabel = { chip -> Text(stringResource(chip.labelRes)) },
+        )
 
         if (categories.isNotEmpty() || sources.isNotEmpty()) {
             FilterChipRow(

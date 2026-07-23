@@ -119,7 +119,7 @@ internal fun InstalledSkillsView(
             query = query,
             onQueryChange = onQueryChange,
             placeholder = stringResource(R.string.skills_search_placeholder),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
         )
 
         FilterChipRow(

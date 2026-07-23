@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -607,6 +609,7 @@ fun SessionsScreen(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
+                                        .height(IntrinsicSize.Max)
                                         .padding(horizontal = spacing.md, vertical = spacing.sm),
                                 horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                             ) {
@@ -614,18 +617,18 @@ fun SessionsScreen(
                                     label = stringResource(R.string.sessions_stat_total),
                                     value = if (state.isLoadingStats) "…" else state.stats.total.toString(),
                                     icon = Icons.Filled.History,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                                 StatCard(
                                     label = stringResource(R.string.sessions_stat_active),
                                     value = if (state.isLoadingStats) "…" else state.stats.active.toString(),
                                     icon = Icons.Filled.CheckCircle,
                                     accentColor = statusColors.success,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                                 // Prune button card
                                 Card(
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
                                     colors =
                                         CardDefaults.cardColors(
                                             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -633,7 +636,7 @@ fun SessionsScreen(
                                     onClick = { viewModel.showPruneDialog() },
                                 ) {
                                     Box(
-                                        modifier = Modifier.padding(spacing.md),
+                                        modifier = Modifier.fillMaxSize().padding(spacing.md),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -646,8 +649,9 @@ fun SessionsScreen(
                                             Spacer(modifier = Modifier.height(spacing.xs))
                                             Text(
                                                 text = stringResource(R.string.sessions_action_prune),
-                                                style = MaterialTheme.typography.labelSmall,
+                                                style = MaterialTheme.typography.labelMedium,
                                                 color = statusColors.warning,
+                                                fontWeight = FontWeight.SemiBold,
                                             )
                                         }
                                     }

@@ -4,7 +4,9 @@ import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatMessageMapperTest {
@@ -32,7 +34,7 @@ class ChatMessageMapperTest {
         assertEquals(1000L, ui.timestamp)
         assertEquals("search", ui.toolName)
         assertEquals(ToolStatus.RUNNING, ui.toolStatus)
-        assertEquals(true, ui.isStreaming)
+        assertTrue(ui.isStreaming)
     }
 
     @Test
@@ -59,7 +61,7 @@ class ChatMessageMapperTest {
         assertEquals(2000L, entity.timestamp)
         assertNull(entity.toolName)
         assertNull(entity.toolStatus)
-        assertEquals(false, entity.isStreaming)
+        assertFalse(entity.isStreaming)
     }
 
     @Test

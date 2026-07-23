@@ -1,9 +1,11 @@
 package com.m57.hermescontrol.ui.skills
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,11 +35,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -76,12 +81,12 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
-import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.common.toDetailRows
 
 internal const val CATEGORY_ALL = "All"
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SkillsScreen(
     modifier: Modifier = Modifier,
@@ -116,20 +121,26 @@ fun SkillsScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
             // ── View mode tabs ──────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            SingleChoiceSegmentedButtonRow(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
-                FilterChip(
+                SegmentedButton(
                     selected = state.viewMode == SkillsViewMode.INSTALLED,
                     onClick = { viewModel.setViewMode(SkillsViewMode.INSTALLED) },
-                    label = { Text(stringResource(R.string.skills_mode_installed)) },
-                )
-                FilterChip(
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) {
+                    Text(stringResource(R.string.skills_mode_installed))
+                }
+                SegmentedButton(
                     selected = state.viewMode == SkillsViewMode.HUB,
                     onClick = { viewModel.setViewMode(SkillsViewMode.HUB) },
-                    label = { Text(stringResource(R.string.skills_mode_hub)) },
-                )
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) {
+                    Text(stringResource(R.string.skills_mode_hub))
+                }
             }
 
             when (state.viewMode) {
@@ -261,27 +272,24 @@ private fun InstalledSkillsView(
             query = query,
             onQueryChange = onQueryChange,
             placeholder = stringResource(R.string.skills_search_placeholder),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
 
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChipRow(
-                chips =
-                    listOf(
-                        SkillFilter.ALL_STATUSES,
-                        SkillFilter.ENABLED,
-                        SkillFilter.DISABLED,
-                    ),
-                selectedChip = selectedStatus,
-                onChipSelected = onStatusChange,
-                chipLabel = { chip -> Text(stringResource(chip.labelRes)) },
-            )
-        }
+        FilterChipRow(
+            chips = SkillFilter.entries.toList(),
+            selectedChip = selectedStatus,
+            onChipSelected = onStatusChange,
+            chipLabel = { chip ->
+                Text(
+                    text =
+                        if (chip == SkillFilter.ALL_STATUSES) {
+                            stringResource(R.string.skills_category_all)
+                        } else {
+                            stringResource(chip.labelRes)
+                        },
+                )
+            },
+        )
 
         if (categories.isNotEmpty() || sources.isNotEmpty()) {
             FilterChipRow(
@@ -290,31 +298,17 @@ private fun InstalledSkillsView(
                 onChipSelected = onCategoryChange,
             )
             if (sources.isNotEmpty()) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    FilterChip(
-                        selected = sourceFilter == null,
-                        onClick = { onSetSourceFilter(null) },
-                        label = {
-                            Text(
-                                stringResource(R.string.skills_source_all),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                    )
-                    sources.forEach { source ->
-                        FilterChip(
-                            selected = sourceFilter == source,
-                            onClick = { onSetSourceFilter(if (sourceFilter == source) null else source) },
-                            label = { Text(source, style = MaterialTheme.typography.labelSmall) },
+                FilterChipRow(
+                    chips = listOf<String?>(null) + sources,
+                    selectedChip = sourceFilter,
+                    onChipSelected = onSetSourceFilter,
+                    chipLabel = { source ->
+                        Text(
+                            text = source ?: stringResource(R.string.skills_source_all),
+                            style = MaterialTheme.typography.labelSmall,
                         )
-                    }
-                }
+                    },
+                )
             }
         }
 
@@ -341,7 +335,8 @@ private fun InstalledSkillsView(
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.padding(listContentPadding),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -388,18 +383,19 @@ private fun SkillCard(
     onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.weight(1f).padding(16.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
                 // ── Top row: name + source badge + toggle ──
                 Row(
@@ -549,7 +545,7 @@ private fun HubBrowseView(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             placeholder = { Text(stringResource(R.string.skills_hub_search_placeholder)) },
             trailingIcon = {
                 Row(
@@ -611,7 +607,8 @@ private fun HubBrowseView(
 
             state.hubResults.isNotEmpty() -> {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).padding(listContentPadding),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -679,14 +676,15 @@ private fun HubSkillCard(
     onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
         ) {
             // ── Top row: name ──
             Text(

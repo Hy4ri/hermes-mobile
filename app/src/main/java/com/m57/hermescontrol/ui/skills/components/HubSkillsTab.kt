@@ -1,8 +1,10 @@
 package com.m57.hermescontrol.ui.skills.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,7 +51,6 @@ import com.m57.hermescontrol.ui.common.DetailRow
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.SkeletonListState
-import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.skills.SkillsUiState
 
@@ -74,7 +75,7 @@ internal fun HubBrowseView(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             placeholder = { Text(stringResource(R.string.skills_hub_search_placeholder)) },
             trailingIcon = {
                 Row(
@@ -138,7 +139,8 @@ internal fun HubBrowseView(
 
             state.hubResults.isNotEmpty() -> {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).padding(listContentPadding),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -204,14 +206,15 @@ private fun HubSkillCard(
     onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
         ) {
             // ── Top row: name + source badge ──
             Row(

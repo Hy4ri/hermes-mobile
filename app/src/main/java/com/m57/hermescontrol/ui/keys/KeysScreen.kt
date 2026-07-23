@@ -561,7 +561,6 @@ private fun EnvVarCard(
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             text = key,

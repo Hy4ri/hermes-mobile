@@ -642,8 +642,7 @@ private fun EnvVarCard(
                                 } catch (_: Exception) {
                                     // ignore invalid URLs
                                 }
-                            }
-                            .padding(vertical = 2.dp),
+                            }.padding(vertical = 2.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.OpenInNew,

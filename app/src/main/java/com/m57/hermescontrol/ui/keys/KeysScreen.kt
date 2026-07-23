@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,8 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -23,11 +24,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Folder
@@ -42,6 +42,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,12 +81,15 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
+import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
+
+private const val FILTER_ALL = "ALL"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +100,9 @@ fun KeysScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf(FILTER_ALL) }
+
+    val filterAllLabel = stringResource(R.string.keys_filter_all)
 
     val filteredCategories =
         remember(query, state.categories) {
@@ -114,6 +121,15 @@ fun KeysScreen(
                         null
                     }
                 }
+            }
+        }
+
+    val visibleCategories =
+        remember(filteredCategories, selectedCategory) {
+            if (selectedCategory == FILTER_ALL) {
+                filteredCategories
+            } else {
+                filteredCategories.filter { it.name == selectedCategory }
             }
         }
 
@@ -239,8 +255,18 @@ fun KeysScreen(
                             )
                         }
 
-                        // ── 3. Categorized Sections ──────────────────────────────
-                        if (filteredCategories.isEmpty() && query.isNotBlank()) {
+                        // ── 3. Category Filter Chips ─────────────────────────────
+                        item(key = "filter-bar") {
+                            CategoryFilterBar(
+                                categories = state.categories,
+                                selectedCategory = selectedCategory,
+                                onCategorySelected = { selectedCategory = it },
+                                filterAllLabel = filterAllLabel,
+                            )
+                        }
+
+                        // ── 4. Keys List ─────────────────────────────────────────
+                        if (visibleCategories.isEmpty()) {
                             item(key = "no-results") {
                                 Box(
                                     modifier = Modifier.fillParentMaxHeight(0.6f),
@@ -250,39 +276,37 @@ fun KeysScreen(
                                         title = stringResource(R.string.keys_no_matching_title),
                                         subtitle = stringResource(R.string.keys_no_matching_desc),
                                         actionLabel = stringResource(R.string.empty_action_clear_search),
-                                        onAction = { query = "" },
+                                        onAction = {
+                                            query = ""
+                                            selectedCategory = FILTER_ALL
+                                        },
                                     )
                                 }
                             }
                         }
 
-                        filteredCategories.forEach { section ->
-                            item(key = "category-header-${section.name}") {
-                                CategoryHeader(
-                                    name = section.name,
-                                    count = section.vars.size,
-                                    expanded = section.expanded,
-                                    onToggle = { viewModel.toggleCategory(section.name) },
-                                )
+                        visibleCategories.forEach { section ->
+                            if (selectedCategory == FILTER_ALL && filteredCategories.size > 1) {
+                                item(key = "category-section-${section.name}") {
+                                    SectionHeader(title = "${section.name} (${section.vars.size})")
+                                }
                             }
 
-                            if (section.expanded) {
-                                items(
-                                    items = section.vars.toList(),
-                                    key = { (key, _) -> "key-$key" },
-                                ) { (key, config) ->
-                                    EnvVarCard(
-                                        key = key,
-                                        config = config,
-                                        revealedValue = state.revealedValues[key],
-                                        isDeleting = key in state.deletingKeys,
-                                        onReveal = { viewModel.revealKey(key) },
-                                        onHide = { viewModel.hideKey(key) },
-                                        onSave = { value -> viewModel.updateKey(key, value) },
-                                        onRequestDelete = { viewModel.requestDeleteKey(key) },
-                                        onShowToast = { msg -> viewModel.showToast(msg) },
-                                    )
-                                }
+                            items(
+                                items = section.vars.toList(),
+                                key = { (key, _) -> "key-$key" },
+                            ) { (key, config) ->
+                                EnvVarCard(
+                                    key = key,
+                                    config = config,
+                                    revealedValue = state.revealedValues[key],
+                                    isDeleting = key in state.deletingKeys,
+                                    onReveal = { viewModel.revealKey(key) },
+                                    onHide = { viewModel.hideKey(key) },
+                                    onSave = { value -> viewModel.updateKey(key, value) },
+                                    onRequestDelete = { viewModel.requestDeleteKey(key) },
+                                    onShowToast = { msg -> viewModel.showToast(msg) },
+                                )
                             }
                         }
                     }
@@ -303,6 +327,68 @@ fun KeysScreen(
                     contentDescription = stringResource(R.string.content_desc_add_key),
                 )
             }
+        }
+    }
+}
+
+// ── Category Filter Bar ──────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryFilterBar(
+    categories: List<CategorySection>,
+    selectedCategory: String,
+    onCategorySelected: (String) -> Unit,
+    filterAllLabel: String,
+    modifier: Modifier = Modifier,
+) {
+    val totalCount = remember(categories) { categories.sumOf { it.vars.size } }
+
+    LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 2.dp),
+    ) {
+        item(key = "filter-all") {
+            FilterChip(
+                selected = selectedCategory == FILTER_ALL,
+                onClick = { onCategorySelected(FILTER_ALL) },
+                label = { Text("$filterAllLabel ($totalCount)") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Apps,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                },
+            )
+        }
+
+        items(
+            items = categories,
+            key = { section -> "filter-${section.name}" },
+        ) { section ->
+            val icon: ImageVector =
+                when (section.name) {
+                    "LLM Providers" -> Icons.Outlined.SmartToy
+                    "Tool API Keys" -> Icons.Outlined.Build
+                    "Messaging Platforms" -> Icons.Outlined.Forum
+                    "Agent Settings" -> Icons.Outlined.Tune
+                    else -> Icons.Outlined.Folder
+                }
+
+            FilterChip(
+                selected = selectedCategory == section.name,
+                onClick = { onCategorySelected(section.name) },
+                label = { Text("${section.name} (${section.vars.size})") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                },
+            )
         }
     }
 }
@@ -410,79 +496,6 @@ private fun AddKeyDialog(
             }
         },
     )
-}
-
-// ── Category header ──────────────────────────────────────────────────────────
-
-@Composable
-private fun CategoryHeader(
-    name: String,
-    count: Int,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-) {
-    val categoryIcon: ImageVector =
-        when (name) {
-            "LLM Providers" -> Icons.Outlined.SmartToy
-            "Tool API Keys" -> Icons.Outlined.Build
-            "Messaging Platforms" -> Icons.Outlined.Forum
-            "Agent Settings" -> Icons.Outlined.Tune
-            else -> Icons.Outlined.Folder
-        }
-
-    Card(
-        onClick = onToggle,
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ),
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(
-                    imageVector = categoryIcon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                ) {
-                    Text(
-                        text = "$count",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                }
-            }
-            Icon(
-                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
 }
 
 // ── Env var card ──────────────────────────────────────────────────────────────

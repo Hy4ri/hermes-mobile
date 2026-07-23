@@ -754,6 +754,7 @@
     <string name="keys_add_key_placeholder">e.g. OPENAI_API_KEY</string>
     <string name="keys_add_value_placeholder">e.g. sk-...</string>
     <string name="keys_action_open_url">Open provider documentation</string>
+    <string name="keys_filter_all">All</string>
 
     <!-- Channels Screen -->
     <string name="channels_empty_title">No channels configured</string>

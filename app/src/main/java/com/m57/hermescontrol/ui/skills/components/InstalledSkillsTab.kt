@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -120,7 +121,7 @@ internal fun InstalledSkillsView(
             query = query,
             onQueryChange = onQueryChange,
             placeholder = stringResource(R.string.skills_search_placeholder),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
 
         FilterChipRow(
@@ -181,8 +182,8 @@ internal fun InstalledSkillsView(
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = listContentPadding,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -241,7 +242,7 @@ private fun SkillCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
                 // ── Top row: name + source badge + toggle ──
                 Row(

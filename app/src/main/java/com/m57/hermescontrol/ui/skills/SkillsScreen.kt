@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -126,7 +127,7 @@ fun SkillsScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
                 SegmentedButton(
                     selected = state.viewMode == SkillsViewMode.INSTALLED,
@@ -273,18 +274,23 @@ private fun InstalledSkillsView(
             query = query,
             onQueryChange = onQueryChange,
             placeholder = stringResource(R.string.skills_search_placeholder),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
 
         FilterChipRow(
-            chips =
-                listOf(
-                    SkillFilter.ALL_STATUSES,
-                    SkillFilter.ENABLED,
-                    SkillFilter.DISABLED,
-                ),
+            chips = SkillFilter.entries.toList(),
             selectedChip = selectedStatus,
             onChipSelected = onStatusChange,
-            chipLabel = { chip -> Text(stringResource(chip.labelRes)) },
+            chipLabel = { chip ->
+                Text(
+                    text =
+                        if (chip == SkillFilter.ALL_STATUSES) {
+                            stringResource(R.string.skills_category_all)
+                        } else {
+                            stringResource(chip.labelRes)
+                        },
+                )
+            },
         )
 
         if (categories.isNotEmpty() || sources.isNotEmpty()) {
@@ -294,31 +300,17 @@ private fun InstalledSkillsView(
                 onChipSelected = onCategoryChange,
             )
             if (sources.isNotEmpty()) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    FilterChip(
-                        selected = sourceFilter == null,
-                        onClick = { onSetSourceFilter(null) },
-                        label = {
-                            Text(
-                                stringResource(R.string.skills_source_all),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                    )
-                    sources.forEach { source ->
-                        FilterChip(
-                            selected = sourceFilter == source,
-                            onClick = { onSetSourceFilter(if (sourceFilter == source) null else source) },
-                            label = { Text(source, style = MaterialTheme.typography.labelSmall) },
+                FilterChipRow(
+                    chips = listOf<String?>(null) + sources,
+                    selectedChip = sourceFilter,
+                    onChipSelected = onSetSourceFilter,
+                    chipLabel = { source ->
+                        Text(
+                            text = source ?: stringResource(R.string.skills_source_all),
+                            style = MaterialTheme.typography.labelSmall,
                         )
-                    }
-                }
+                    },
+                )
             }
         }
 
@@ -345,7 +337,8 @@ private fun InstalledSkillsView(
 
             else -> {
                 LazyColumn(
-                    modifier = Modifier.padding(listContentPadding),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -404,7 +397,7 @@ private fun SkillCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
                 // ── Top row: name + source badge + toggle ──
                 Row(
@@ -554,7 +547,7 @@ private fun HubBrowseView(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             placeholder = { Text(stringResource(R.string.skills_hub_search_placeholder)) },
             trailingIcon = {
                 Row(
@@ -616,7 +609,8 @@ private fun HubBrowseView(
 
             state.hubResults.isNotEmpty() -> {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).padding(listContentPadding),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -692,7 +686,7 @@ private fun HubSkillCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
         ) {
             // ── Top row: name ──
             Text(

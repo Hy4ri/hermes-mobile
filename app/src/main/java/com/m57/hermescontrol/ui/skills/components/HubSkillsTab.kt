@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,7 +76,7 @@ internal fun HubBrowseView(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             placeholder = { Text(stringResource(R.string.skills_hub_search_placeholder)) },
             trailingIcon = {
                 Row(
@@ -140,7 +141,7 @@ internal fun HubBrowseView(
             state.hubResults.isNotEmpty() -> {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    contentPadding = listContentPadding,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -214,7 +215,7 @@ private fun HubSkillCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
         ) {
             // ── Top row: name + source badge ──
             Row(

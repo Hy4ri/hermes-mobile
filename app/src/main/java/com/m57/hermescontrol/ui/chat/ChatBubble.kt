@@ -92,6 +92,7 @@ import com.m57.hermescontrol.theme.SystemMessageColor
 import com.m57.hermescontrol.theme.ToolChipColor
 import com.m57.hermescontrol.theme.ToolChipColorLight
 import com.m57.hermescontrol.theme.onColorFor
+import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -389,6 +390,13 @@ private fun AssistantBubble(
                 tonalElevation = 1.dp,
             ) {
                 Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    if (message.reasoningText.isNotBlank()) {
+                        ReasoningCard(
+                            reasoningText = message.reasoningText,
+                            isStreaming = message.isStreaming,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
                     SelectionContainer {
                         MarkdownText(
                             text = message.content,

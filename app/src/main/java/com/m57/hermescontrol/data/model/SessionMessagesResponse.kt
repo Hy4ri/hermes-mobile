@@ -17,6 +17,8 @@ data class SessionMessage(
     val content: JsonElement? = null,
     val timestamp: JsonElement? = null,
     val type: String? = null,
+    val reasoning: JsonElement? = null,
+    val reasoning_text: JsonElement? = null,
 ) {
     val timestampText: String?
         get() = (timestamp as? JsonPrimitive)?.content
@@ -28,4 +30,13 @@ data class SessionMessage(
                 null -> ""
                 else -> content.toString()
             }
+
+    val reasoningText: String
+        get() =
+            when (val r = reasoning ?: reasoning_text) {
+                is JsonPrimitive -> r.content
+                null -> ""
+                else -> r.toString()
+            }
 }
+

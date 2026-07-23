@@ -92,16 +92,6 @@ fun ChatMessageList(
                 val isLastMessage = index == messages.lastIndex
                 val isAssistant = message.role == MessageRole.ASSISTANT
 
-                // Reasoning card — rendered inline in the same list item so it
-                // stays visible during AND after streaming
-                if (isAssistant && message.reasoningText.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    ReasoningCard(
-                        reasoningText = message.reasoningText,
-                        isStreaming = message.isStreaming,
-                    )
-                }
-
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
                     lastAnimatedMessageId != message.id
                 ) {
@@ -127,15 +117,6 @@ fun ChatMessageList(
             // Streaming message
             streamingMessage?.let { streaming ->
                 item(key = "streaming-${streaming.id}") {
-                    // Reasoning card — rendered inline in the same streaming item
-                    if (streaming.reasoningText.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        ReasoningCard(
-                            reasoningText = streaming.reasoningText,
-                            isStreaming = streaming.isStreaming,
-                        )
-                    }
-
                     if (typingEffectEnabled && streaming.isStreaming) {
                         StreamingBubbleWithTypingEffect(
                             streaming = streaming,

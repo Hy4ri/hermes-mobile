@@ -1576,8 +1576,13 @@ class ChatViewModel(
         sessionId: String,
         messages: List<SessionMessage>,
         offset: Int,
-    ): List<ChatMessage> =
-        messages.mapIndexed { index, msg ->
+    ): List<ChatMessage> {
+        val existingReasoningMap =
+            _uiState.value.messages
+                .filter { it.reasoningText.isNotBlank() }
+                .associateBy { it.content }
+
+        return messages.mapIndexed { index, msg ->
             val role =
                 when (msg.role?.lowercase()) {
                     "user" -> MessageRole.USER
@@ -1592,14 +1597,25 @@ class ChatViewModel(
                     ?.times(1000)
                     ?.toLong()
                     ?: System.currentTimeMillis()
+
+            val content = msg.contentText
+            val reasoning =
+                if (msg.reasoningText.isNotBlank()) {
+                    msg.reasoningText
+                } else {
+                    existingReasoningMap[content]?.reasoningText.orEmpty()
+                }
+
             ChatMessage(
                 id = "rest-$sessionId-$globalIndex",
                 role = role,
-                content = msg.contentText,
+                content = content,
+                reasoningText = reasoning,
                 timestamp = timestamp,
                 isStreaming = false,
             )
         }
+    }
 
     private fun serverMessageIndex(
         id: String,

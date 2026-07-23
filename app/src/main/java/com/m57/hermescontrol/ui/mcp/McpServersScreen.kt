@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -429,6 +430,7 @@ private fun ServerCard(
                 FilledTonalButton(
                     onClick = { viewModel.testServer(server.name) },
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                 ) {
                     Icon(Icons.Filled.Science, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(spacing.xs))
@@ -437,6 +439,7 @@ private fun ServerCard(
                 FilledTonalButton(
                     onClick = { viewModel.restartServer(server.name) },
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                 ) {
                     Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(spacing.xs))

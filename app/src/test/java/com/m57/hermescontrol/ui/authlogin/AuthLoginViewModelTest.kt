@@ -28,6 +28,7 @@ import java.io.IOException
 class AuthLoginViewModelTest {
     private lateinit var viewModel: AuthLoginViewModel
     private val app = mockk<Application>(relaxed = true)
+    private val mockProbeClient = mockk<OkHttpClient>(relaxed = true)
 
     @Before
     fun setup() {
@@ -36,7 +37,7 @@ class AuthLoginViewModelTest {
         every { AuthManager.getConnectionProfiles() } returns emptyList()
 
         mockkObject(OkHttpProvider)
-        every { OkHttpProvider.probe } returns mockk<OkHttpClient>(relaxed = true)
+        every { OkHttpProvider.probe } returns mockProbeClient
 
         mockkStatic(Log::class)
         mockkStatic("com.m57.hermescontrol.data.remote.CallExtKt")
@@ -87,7 +88,7 @@ class AuthLoginViewModelTest {
     @Test
     fun `probe when status probe throws IOException updates error state`() {
         val mockCall = mockk<okhttp3.Call>()
-        every { OkHttpProvider.probe.newCall(any()) } returns mockCall
+        every { mockProbeClient.newCall(any()) } returns mockCall
         coEvery { mockCall.await() } throws IOException("Connection refused")
 
         viewModel.probe()
@@ -102,7 +103,7 @@ class AuthLoginViewModelTest {
     fun `probe when status probe returns unsuccessful updates error state`() {
         val mockCall = mockk<okhttp3.Call>()
         val mockResponse = mockk<Response>()
-        every { OkHttpProvider.probe.newCall(any()) } returns mockCall
+        every { mockProbeClient.newCall(any()) } returns mockCall
         coEvery { mockCall.await() } returns mockResponse
         every { mockResponse.isSuccessful } returns false
 

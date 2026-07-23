@@ -33,11 +33,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -82,6 +86,7 @@ import com.m57.hermescontrol.ui.common.toDetailRows
 
 internal const val CATEGORY_ALL = "All"
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SkillsScreen(
     modifier: Modifier = Modifier,
@@ -116,20 +121,26 @@ fun SkillsScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
             // ── View mode tabs ──────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            SingleChoiceSegmentedButtonRow(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                FilterChip(
+                SegmentedButton(
                     selected = state.viewMode == SkillsViewMode.INSTALLED,
                     onClick = { viewModel.setViewMode(SkillsViewMode.INSTALLED) },
-                    label = { Text(stringResource(R.string.skills_mode_installed)) },
-                )
-                FilterChip(
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                ) {
+                    Text(stringResource(R.string.skills_mode_installed))
+                }
+                SegmentedButton(
                     selected = state.viewMode == SkillsViewMode.HUB,
                     onClick = { viewModel.setViewMode(SkillsViewMode.HUB) },
-                    label = { Text(stringResource(R.string.skills_mode_hub)) },
-                )
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) {
+                    Text(stringResource(R.string.skills_mode_hub))
+                }
             }
 
             when (state.viewMode) {

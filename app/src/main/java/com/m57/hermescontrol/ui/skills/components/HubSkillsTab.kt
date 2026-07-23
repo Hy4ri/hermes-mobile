@@ -138,7 +138,8 @@ internal fun HubBrowseView(
 
             state.hubResults.isNotEmpty() -> {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).padding(listContentPadding),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = listContentPadding,
                     verticalArrangement = listItemSpacing,
                 ) {
                     itemsIndexed(
@@ -204,7 +205,7 @@ private fun HubSkillCard(
     onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface,

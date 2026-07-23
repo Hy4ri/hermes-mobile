@@ -3,7 +3,7 @@ package com.m57.hermescontrol.data.config
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 
-fun ServerStoreState.addOrReplaceServer(profile: ConnectionProfile): ServerStoreState {
+fun ServerStoreState.addOrUpdate(profile: ConnectionProfile): ServerStoreState {
     val updated = connectionProfiles.filter { it.id != profile.id } + profile
     return copy(connectionProfiles = updated)
 }

@@ -20,17 +20,17 @@ class ServerStoreTest {
     }
 
     @Test
-    fun testPureOps_addOrReplaceServer() {
+    fun testPureOps_addOrUpdate() {
         val state = ServerStoreState()
         val profile = ConnectionProfile(id = "1", name = "Test", host = "10.0.0.1", port = 8080)
 
-        val newState = state.addOrReplaceServer(profile)
+        val newState = state.addOrUpdate(profile)
         assertEquals(1, newState.connectionProfiles.size)
         assertEquals(profile, newState.connectionProfiles[0])
 
         // Replace
         val updatedProfile = profile.copy(host = "10.0.0.2")
-        val finalState = newState.addOrReplaceServer(updatedProfile)
+        val finalState = newState.addOrUpdate(updatedProfile)
         assertEquals(1, finalState.connectionProfiles.size)
         assertEquals("10.0.0.2", finalState.connectionProfiles[0].host)
     }

@@ -8,6 +8,7 @@ package com.m57.hermescontrol.ui.keys
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -77,9 +79,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -539,9 +539,6 @@ private fun EnvVarCard(
 
     val copiedMessage = stringResource(R.string.keys_copied_toast)
 
-    // Insert zero-width spaces (\u200B) after underscores so line breaks happen cleanly between words
-    val formattedKeyName = remember(key) { key.replace("_", "_\u200B") }
-
     Card(
         modifier =
             Modifier
@@ -555,54 +552,27 @@ private fun EnvVarCard(
             ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header: Key name + Delete Button
+            // Header: Key name (single line, horizontally scrollable) + Delete Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = formattedKeyName,
-                        style =
-                            if (key.length > 24) {
-                                MaterialTheme.typography.titleSmall
-                            } else {
-                                MaterialTheme.typography.titleMedium
-                            },
+                        text = key,
+                        style = MaterialTheme.typography.titleMedium,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold,
-                        lineHeight = 20.sp,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                        softWrap = false,
                     )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    StatusBadge(
-                        text =
-                            if (config.isSet) {
-                                stringResource(R.string.keys_status_configured)
-                            } else {
-                                stringResource(R.string.keys_status_not_set)
-                            },
-                        status =
-                            if (config.isSet) {
-                                StatusBadgeType.SUCCESS
-                            } else {
-                                StatusBadgeType.WARNING
-                            },
-                    )
-
-                    // Description
-                    if (!config.description.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = config.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        )
-                    }
                 }
 
                 if (!isEditing) {
@@ -625,6 +595,33 @@ private fun EnvVarCard(
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            StatusBadge(
+                text =
+                    if (config.isSet) {
+                        stringResource(R.string.keys_status_configured)
+                    } else {
+                        stringResource(R.string.keys_status_not_set)
+                    },
+                status =
+                    if (config.isSet) {
+                        StatusBadgeType.SUCCESS
+                    } else {
+                        StatusBadgeType.WARNING
+                    },
+            )
+
+            // Description
+            if (!config.description.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = config.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                )
             }
 
             // External documentation link button
@@ -721,18 +718,27 @@ private fun EnvVarCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = displayValue,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color =
-                                if (config.isSet) {
-                                    MaterialTheme.colorScheme.onSurface
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                },
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.weight(1f),
-                        )
+                        Row(
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = displayValue,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color =
+                                    if (config.isSet) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    },
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
                         Row {
                             if (config.isSet) {
                                 IconButton(onClick = if (isRevealed) onHide else onReveal) {

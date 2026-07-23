@@ -79,7 +79,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -539,6 +541,9 @@ private fun EnvVarCard(
 
     val copiedMessage = stringResource(R.string.keys_copied_toast)
 
+    // Insert zero-width spaces (\u200B) after underscores so line breaks happen cleanly between words
+    val formattedKeyName = remember(key) { key.replace("_", "_\u200B") }
+
     Card(
         modifier =
             Modifier
@@ -552,27 +557,54 @@ private fun EnvVarCard(
             ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header: Key name (single line, horizontally scrollable) + Delete Button
+            // Header: Key name (breaks cleanly at underscores _) + Delete Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = key,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = formattedKeyName,
+                        style =
+                            if (key.length > 24) {
+                                MaterialTheme.typography.titleSmall
+                            } else {
+                                MaterialTheme.typography.titleMedium
+                            },
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false,
+                        lineHeight = 20.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
                     )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    StatusBadge(
+                        text =
+                            if (config.isSet) {
+                                stringResource(R.string.keys_status_configured)
+                            } else {
+                                stringResource(R.string.keys_status_not_set)
+                            },
+                        status =
+                            if (config.isSet) {
+                                StatusBadgeType.SUCCESS
+                            } else {
+                                StatusBadgeType.WARNING
+                            },
+                    )
+
+                    // Description
+                    if (!config.description.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = config.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        )
+                    }
                 }
 
                 if (!isEditing) {
@@ -595,33 +627,6 @@ private fun EnvVarCard(
                         }
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            StatusBadge(
-                text =
-                    if (config.isSet) {
-                        stringResource(R.string.keys_status_configured)
-                    } else {
-                        stringResource(R.string.keys_status_not_set)
-                    },
-                status =
-                    if (config.isSet) {
-                        StatusBadgeType.SUCCESS
-                    } else {
-                        StatusBadgeType.WARNING
-                    },
-            )
-
-            // Description
-            if (!config.description.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = config.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                )
             }
 
             // External documentation link button
@@ -657,7 +662,7 @@ private fun EnvVarCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Value Display Box or Edit Form
+            // Value Display Box (Single-line, horizontally scrollable) or Edit Form
             if (isEditing) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(

@@ -350,14 +350,13 @@ fun CronJobEditorDialog(
                 },
             ) { padding ->
                 if (state.isLoading) {
-                    LoadingState()
+                    LoadingState(modifier = Modifier.padding(padding))
                 } else {
                     Column(
                         modifier =
                             Modifier
                                 .fillMaxSize()
-                                .padding(padding)
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
                                 .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {

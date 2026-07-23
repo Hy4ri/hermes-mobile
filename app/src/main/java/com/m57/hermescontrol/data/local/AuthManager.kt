@@ -160,6 +160,23 @@ object AuthManager {
         serverStore.update { it.copy(wsAuthParam = param) }
     }
 
+    /**
+     * True when the active connection profile authenticated against a gated
+     * dashboard (non-loopback bind → session-cookie auth) instead of loopback
+     * token mode. Derived from [ServerStoreState.wsAuthParam], which
+     * [com.m57.hermescontrol.ui.authlogin.AuthLoginViewModel.connect] sets to
+     * "ticket" on gated (basic-auth) login and "token" on loopback.
+     *
+     * Critical: gated dashboards 401 any request carrying an
+     * `Authorization: Bearer` header — even alongside a valid session cookie
+     * (verified live 2026-07-23). So REST requests in gated mode MUST rely on
+     * the session cookie in the shared [CookieManager] jar and MUST NOT stamp a
+     * Bearer header. This is the fix for the "token expired" error that broke
+     * every REST tab (skills/cron/config/...) while the WS chat (ticket auth)
+     * kept working.
+     */
+    fun isGatedMode(): Boolean = serverStore.getLatestState().wsAuthParam == "ticket"
+
     // ── Session Cookie (for gated/dashboard REST API) ────────────────────
 
     /**

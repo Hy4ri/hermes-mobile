@@ -90,12 +90,22 @@ object ApiClient {
                     }
             }
 
-        // Loopback mode: authenticate via Bearer token (the session cookie used
-        // in gated mode is now handled automatically by the shared CookieJar —
-        // see issue #470).
+        // REST auth header strategy:
+        //  - Loopback/token mode: stamp `Authorization: Bearer <token>`.
+        //  - Gated (basic-auth cookie) mode: the shared CookieManager jar
+        //    attaches the session cookie automatically (issue #470). The
+        //    dashboard 401s any request that ALSO carries an
+        //    `Authorization: Bearer` header (verified live 2026-07-23), so we
+        //    must NOT stamp one here — otherwise every REST tab (skills, cron,
+        //    config, ...) fails with "token expired" while the WS chat, which
+        //    authenticates via ?ticket=, keeps working.
         val authInterceptor =
             Interceptor { chain ->
                 val request = chain.request()
+                if (AuthManager.isGatedMode()) {
+                    // Cookie in the shared jar is the only valid REST credential.
+                    return@Interceptor chain.proceed(request)
+                }
                 val token = AuthManager.getToken()
                 if (!token.isNullOrBlank()) {
                     chain.proceed(

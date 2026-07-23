@@ -49,6 +49,11 @@ class ApiClientTest {
         // which calls getSelectedProfileId(). Stub it to null so the interceptor
         // short-circuits (no profile scope) and these auth tests stay focused.
         every { AuthManager.getSelectedProfileId() } returns null
+
+        // Default to loopback/token mode; the gated-mode test overrides this.
+        // (mockkObject runs the real isGatedMode() body, which reads serverStore
+        // — null in unit tests — so it must be stubbed.)
+        every { AuthManager.isGatedMode() } returns false
     }
 
     @AfterEach
@@ -138,6 +143,50 @@ class ApiClientTest {
 
             val request = mockWebServer.takeRequest()
             assertEquals("Bearer $rawToken", request.getHeader("Authorization"))
+        }
+
+    @Test
+    fun testAuthInterceptor_omitsBearerInGatedModeEvenWithToken() =
+        runTest {
+            // Gated (basic-auth cookie) mode: wsAuthParam == "ticket". The mobile
+            // still stores the WS ticket as the token, but stamping it as a Bearer
+            // header 401s on the live dashboard (verified 2026-07-23) — the session
+            // cookie in the shared jar is the only valid REST credential.
+            every { AuthManager.getToken() } returns "ws-ticket-abc123"
+            every { AuthManager.isGatedMode() } returns true
+
+            ApiClient.rebuild()
+
+            mockWebServer.enqueue(
+                MockResponse().setResponseCode(200).setBody("""{"gateway_running":true}"""),
+            )
+
+            val response = ApiClient.hermesApi.getStatus()
+            assertTrue(response.isSuccessful)
+
+            val request = mockWebServer.takeRequest()
+            // No Bearer header must be sent in gated mode.
+            assertNull(request.getHeader("Authorization"))
+        }
+
+    @Test
+    fun testAuthInterceptor_stampsBearerInLoopbackMode() =
+        runTest {
+            // Loopback token mode: wsAuthParam != "ticket" → Bearer header required.
+            every { AuthManager.getToken() } returns "loopback-token-xyz"
+            every { AuthManager.isGatedMode() } returns false
+
+            ApiClient.rebuild()
+
+            mockWebServer.enqueue(
+                MockResponse().setResponseCode(200).setBody("""{"gateway_running":true}"""),
+            )
+
+            val response = ApiClient.hermesApi.getStatus()
+            assertTrue(response.isSuccessful)
+
+            val request = mockWebServer.takeRequest()
+            assertEquals("Bearer loopback-token-xyz", request.getHeader("Authorization"))
         }
 
     @Test

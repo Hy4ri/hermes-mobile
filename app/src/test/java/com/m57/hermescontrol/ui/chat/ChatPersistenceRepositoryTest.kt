@@ -54,8 +54,18 @@ class ChatPersistenceRepositoryTest {
 
             val daoMessages = dao.getMessagesForSession(sessionId)
             assertEquals(2, daoMessages.size)
+
             assertEquals("msg-2", daoMessages[0].id)
+            assertEquals(sessionId, daoMessages[0].sessionId)
+            assertEquals("SYSTEM", daoMessages[0].role)
+            assertEquals("System msg", daoMessages[0].content)
+            assertEquals(2000L, daoMessages[0].timestamp)
+
             assertEquals("msg-3", daoMessages[1].id)
+            assertEquals(sessionId, daoMessages[1].sessionId)
+            assertEquals("ASSISTANT", daoMessages[1].role)
+            assertEquals("Response", daoMessages[1].content)
+            assertEquals(3000L, daoMessages[1].timestamp)
         }
 
     @Test
@@ -76,5 +86,28 @@ class ChatPersistenceRepositoryTest {
             assertEquals("msg-5", loadedMessages[1].id)
             assertEquals(MessageRole.ASSISTANT, loadedMessages[1].role)
             assertEquals("A", loadedMessages[1].content)
+        }
+
+    @Test
+    fun loadMessages_filtersBySessionId() =
+        runTest {
+            val sessionA = "session-A"
+            val sessionB = "session-B"
+            val messageA1 = ChatMessage(id = "msg-A1", role = MessageRole.USER, content = "Hi A", timestamp = 1000L)
+            val messageB1 = ChatMessage(id = "msg-B1", role = MessageRole.USER, content = "Hi B", timestamp = 2000L)
+            val messageB2 =
+                ChatMessage(id = "msg-B2", role = MessageRole.ASSISTANT, content = "Hello B", timestamp = 3000L)
+
+            repository.persistMessage(messageA1, sessionA)
+            repository.persistMessages(listOf(messageB1, messageB2), sessionB)
+
+            val loadedA = repository.loadMessages(sessionA)
+            assertEquals(1, loadedA.size)
+            assertEquals("msg-A1", loadedA[0].id)
+
+            val loadedB = repository.loadMessages(sessionB)
+            assertEquals(2, loadedB.size)
+            assertEquals("msg-B1", loadedB[0].id)
+            assertEquals("msg-B2", loadedB[1].id)
         }
 }

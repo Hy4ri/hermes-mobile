@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -78,7 +77,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -538,6 +539,9 @@ private fun EnvVarCard(
 
     val copiedMessage = stringResource(R.string.keys_copied_toast)
 
+    // Insert zero-width spaces (\u200B) after underscores so line breaks happen cleanly between words
+    val formattedKeyName = remember(key) { key.replace("_", "_\u200B") }
+
     Card(
         modifier =
             Modifier
@@ -551,38 +555,44 @@ private fun EnvVarCard(
             ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header: Key name + Status Badge + Delete Button (FlowRow prevents status chip layout breaking)
+            // Header: Key name + Delete Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = key,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        StatusBadge(
-                            text =
-                                if (config.isSet) {
-                                    stringResource(R.string.keys_status_configured)
-                                } else {
-                                    stringResource(R.string.keys_status_not_set)
-                                },
-                            status =
-                                if (config.isSet) {
-                                    StatusBadgeType.SUCCESS
-                                } else {
-                                    StatusBadgeType.WARNING
-                                },
-                        )
-                    }
+                    Text(
+                        text = formattedKeyName,
+                        style =
+                            if (key.length > 24) {
+                                MaterialTheme.typography.titleSmall
+                            } else {
+                                MaterialTheme.typography.titleMedium
+                            },
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 20.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    StatusBadge(
+                        text =
+                            if (config.isSet) {
+                                stringResource(R.string.keys_status_configured)
+                            } else {
+                                stringResource(R.string.keys_status_not_set)
+                            },
+                        status =
+                            if (config.isSet) {
+                                StatusBadgeType.SUCCESS
+                            } else {
+                                StatusBadgeType.WARNING
+                            },
+                    )
 
                     // Description
                     if (!config.description.isNullOrBlank()) {

@@ -2,10 +2,8 @@ package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -92,16 +90,6 @@ fun ChatMessageList(
                 val isLastMessage = index == messages.lastIndex
                 val isAssistant = message.role == MessageRole.ASSISTANT
 
-                // Reasoning card — rendered inline in the same list item so it
-                // stays visible during AND after streaming
-                if (isAssistant && message.reasoningText.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    ReasoningCard(
-                        reasoningText = message.reasoningText,
-                        isStreaming = message.isStreaming,
-                    )
-                }
-
                 if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
                     lastAnimatedMessageId != message.id
                 ) {
@@ -127,15 +115,6 @@ fun ChatMessageList(
             // Streaming message
             streamingMessage?.let { streaming ->
                 item(key = "streaming-${streaming.id}") {
-                    // Reasoning card — rendered inline in the same streaming item
-                    if (streaming.reasoningText.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        ReasoningCard(
-                            reasoningText = streaming.reasoningText,
-                            isStreaming = streaming.isStreaming,
-                        )
-                    }
-
                     if (typingEffectEnabled && streaming.isStreaming) {
                         StreamingBubbleWithTypingEffect(
                             streaming = streaming,

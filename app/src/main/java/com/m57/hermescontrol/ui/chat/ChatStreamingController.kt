@@ -42,6 +42,7 @@ class ChatStreamingController(
      * ToolStart, ClarifyRequest, session switches, and interrupt handling.
      */
     fun resetStreaming() {
+        flushReasoning()
         streamingBuffer.clear()
         thinkingBuffer.clear()
         reasoningBuffer.clear()
@@ -69,10 +70,13 @@ class ChatStreamingController(
             streamingState.update { state ->
                 val current = state.streamingMessage
                 if (current != null) {
+                    val currentReasoning =
+                        if (current.reasoningText.isNotBlank()) current.reasoningText else state.reasoningText
                     state.copy(
                         streamingMessage =
                             current.copy(
                                 content = currentContent,
+                                reasoningText = currentReasoning,
                             ),
                         isThinking = false,
                     )
@@ -82,6 +86,7 @@ class ChatStreamingController(
                         ChatMessage(
                             role = MessageRole.ASSISTANT,
                             content = currentContent,
+                            reasoningText = state.reasoningText,
                             isStreaming = true,
                         )
                     state.copy(
@@ -125,15 +130,20 @@ class ChatStreamingController(
         val shouldFlush =
             (now - lastReasoningFlushMs >= 33L) || lastReasoningFlushMs == 0L || isTestEnvironment()
         if (shouldFlush) {
-            val currentContent = reasoningBuffer.toString()
-            lastReasoningFlushMs = now
-            streamingState.update { state ->
-                state.copy(
-                    isReasoning = true,
-                    reasoningText = currentContent,
-                    streamingMessage = state.streamingMessage?.copy(reasoningText = currentContent),
-                )
-            }
+            flushReasoning(now)
+        }
+    }
+
+    private fun flushReasoning(now: Long = System.currentTimeMillis()) {
+        val currentContent = reasoningBuffer.toString()
+        if (currentContent.isEmpty()) return
+        lastReasoningFlushMs = now
+        streamingState.update { state ->
+            state.copy(
+                isReasoning = true,
+                reasoningText = currentContent,
+                streamingMessage = state.streamingMessage?.copy(reasoningText = currentContent),
+            )
         }
     }
 }

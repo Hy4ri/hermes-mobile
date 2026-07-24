@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.mcp
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -68,7 +72,6 @@ import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
-import com.m57.hermescontrol.ui.common.SectionHeader
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
@@ -206,6 +209,45 @@ fun McpServersScreen(
     }
 }
 
+// ── Section header (MCP-specific: distinct icon + neutral title so it reads
+// as a header, not a button) ──────────────────────────────────────────────
+@Composable
+private fun McpSectionHeader(
+    icon: ImageVector,
+    title: String,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    val spacing = LocalSpacing.current
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    shape = RoundedCornerShape(12.dp),
+                ).padding(horizontal = spacing.md, vertical = spacing.sm),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.width(spacing.sm))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        trailing?.invoke()
+    }
+}
+
 // ── Sections ──────────────────────────────────────────────────────
 
 @Composable
@@ -214,10 +256,18 @@ private fun AddServerSection(
     viewModel: McpServersViewModel,
     spacing: com.m57.hermescontrol.theme.Spacing,
 ) {
-    SectionHeader(
+    McpSectionHeader(
+        icon = Icons.Filled.Add,
         title = stringResource(R.string.mcp_servers_add_server),
         trailing = {
-            TextButton(onClick = { viewModel.toggleAddForm() }) {
+            TextButton(
+                onClick = { viewModel.toggleAddForm() },
+                colors =
+                    ButtonDefaults.textButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
+            ) {
                 Text(if (state.showAddForm) "Hide" else "New")
             }
         },
@@ -572,15 +622,23 @@ private fun CatalogSection(
 ) {
     val catalogExpanded = remember { mutableStateOf(false) }
 
-    SectionHeader(
+    McpSectionHeader(
+        icon = Icons.Filled.Storage,
         title = stringResource(R.string.mcp_servers_section_catalog),
         trailing = {
-            TextButton(onClick = {
-                catalogExpanded.value = !catalogExpanded.value
-                if (catalogExpanded.value && state.catalogEntries.isEmpty() && !state.catalogLoading) {
-                    viewModel.loadCatalog()
-                }
-            }) {
+            TextButton(
+                onClick = {
+                    catalogExpanded.value = !catalogExpanded.value
+                    if (catalogExpanded.value && state.catalogEntries.isEmpty() && !state.catalogLoading) {
+                        viewModel.loadCatalog()
+                    }
+                },
+                colors =
+                    ButtonDefaults.textButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
+            ) {
                 Text(if (catalogExpanded.value) "Hide" else "Browse")
             }
         },

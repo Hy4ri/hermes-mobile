@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import kotlin.math.min
 fun ContextUsageChip(
     usedTokens: Long?,
     fullTokens: Long?,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val full = fullTokens
@@ -61,7 +63,15 @@ fun ContextUsageChip(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+                .then(
+                    if (onClick != null) {
+                        Modifier
+                            .clickable(onClick = onClick)
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    } else {
+                        Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    },
+                ),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(

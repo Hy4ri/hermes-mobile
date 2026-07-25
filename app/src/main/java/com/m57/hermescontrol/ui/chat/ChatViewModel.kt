@@ -97,6 +97,9 @@ data class ChatUiState(
     // Both null until the first successful fetch.
     val usedContextTokens: Long? = null,
     val fullContextTokens: Long? = null,
+    // Detailed token breakdown for the context meter's detail sheet (null until
+    // the first successful session-detail fetch).
+    val contextBreakdown: ContextBreakdown? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     // Reaction animation — set when a reaction WS event arrives, auto-clears
@@ -145,6 +148,21 @@ data class SudoPromptUi(
 data class SecretPromptUi(
     val requestId: String?,
     val sessionId: String?,
+)
+
+/**
+ * Token breakdown backing the context meter's detail sheet. All values are
+ * token counts sourced from `GET /api/sessions/{id}` (`input_tokens`,
+ * `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens`,
+ * `message_count`) — verified present on the live gateway's `sessions` table.
+ */
+data class ContextBreakdown(
+    val inputTokens: Long,
+    val outputTokens: Long,
+    val cacheReadTokens: Long,
+    val cacheWriteTokens: Long,
+    val reasoningTokens: Long,
+    val messageCount: Int,
 )
 
 class ChatViewModel(
@@ -1593,9 +1611,23 @@ class ChatViewModel(
             val usedResult =
                 safeApiCall { ApiClient.hermesApi.getSessionDetail(sessionId, profile) }
             if (usedResult is NetworkResult.Success) {
-                val used = usedResult.data.input_tokens
+                val d = usedResult.data
+                val used = d.input_tokens
                 if (used != null) {
-                    _uiState.update { it.copy(usedContextTokens = used) }
+                    _uiState.update {
+                        it.copy(
+                            usedContextTokens = used,
+                            contextBreakdown =
+                                ContextBreakdown(
+                                    inputTokens = used,
+                                    outputTokens = d.output_tokens ?: 0L,
+                                    cacheReadTokens = d.cache_read_tokens ?: 0L,
+                                    cacheWriteTokens = d.cache_write_tokens ?: 0L,
+                                    reasoningTokens = d.reasoning_tokens ?: 0L,
+                                    messageCount = d.message_count ?: 0,
+                                ),
+                        )
+                    }
                 }
             }
         }

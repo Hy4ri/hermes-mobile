@@ -348,6 +348,10 @@ object HermesWsClient {
         timeoutMs: Long = REQUEST_TIMEOUT_MS,
     ): CompletableDeferred<Any?> {
         val deferred = CompletableDeferred<Any?>()
+        if (!connected.get()) {
+            deferred.completeExceptionally(HermesRpcException("WebSocket not connected"))
+            return deferred
+        }
         val id =
             send(method, params) { reqId ->
                 pendingCalls[reqId] = PendingCall(method, deferred)

@@ -48,4 +48,16 @@ class SystemViewModelTest {
         viewModel.closeUpdateConfirm()
         assertFalse(viewModel.uiState.value.updateConfirmOpen)
     }
+
+    @Test
+    fun `loadBattery when disconnected sets battery state to unavailable`() =
+        kotlinx.coroutines.test.runTest {
+            val viewModel = SystemViewModel()
+            viewModel.loadBattery()
+            kotlinx.coroutines.test.advanceUntilIdle()
+
+            val battery = viewModel.uiState.value.battery
+            org.junit.Assert.assertNotNull(battery)
+            assertFalse(battery!!.available)
+        }
 }

@@ -61,6 +61,7 @@ object SystemRepository {
      */
     suspend fun getBatteryStatus(): BatteryStatus =
         try {
+            if (!HermesWsClient.isConnected) return BatteryStatus(available = false)
             val result = HermesWsClient.request(WsMethods.SYSTEM_BATTERY).await()
             decode<BatteryStatus>(result) ?: BatteryStatus(available = false)
         } catch (e: Exception) {

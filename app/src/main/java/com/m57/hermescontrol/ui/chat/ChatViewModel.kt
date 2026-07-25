@@ -92,6 +92,11 @@ data class ChatUiState(
     val currentSessionModel: String? = null,
     // Reasoning effort level for the current session
     val reasoningLevel: String? = null,
+    // Context-window meter (issue #XXX): tokens currently used by the session
+    // prompt (numerator) and the active model's full context window (denominator).
+    // Both null until the first successful fetch.
+    val usedContextTokens: Long? = null,
+    val fullContextTokens: Long? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     // Reaction animation — set when a reaction WS event arrives, auto-clears
@@ -1349,6 +1354,8 @@ class ChatViewModel(
                 currentSessionModel = "$provider/$model",
             )
         }
+        // Model switch changes the context-window denominator — refetch it.
+        fetchContextUsage()
         handleSlashCommand("/model $model --provider $provider --session")
     }
 
@@ -1545,6 +1552,48 @@ class ChatViewModel(
                 }
             } finally {
                 isSyncingMessages = false
+            }
+        }
+    }
+
+    /**
+     * Refresh the context-window meter for the current session.
+     *
+     * Numerator (`usedContextTokens`) comes from the session record's
+     * `last_prompt_tokens` (`/api/sessions/{id}`, backend
+     * `gateway/session.py`). Denominator (`fullContextTokens`) comes from the
+     * active model's `effective_context_length` (`/api/model/info`, PUBLIC).
+     *
+     * Both calls are independent and best-effort: a failure on one must not
+     * wipe the other's already-shown value, and neither blocks the chat. The
+     * two fetches are launched separately so a slow/erroring one can't starve
+     * the other. Polled from [syncCurrentSession] via the 5s loop and re-fired
+     * on model switch (the denominator changes).
+     */
+    fun fetchContextUsage() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        val profile = AuthManager.getSelectedProfileId()
+        viewModelScope.launch(Dispatchers.IO) {
+            // Denominator: full context window (cheap, public, rarely changes).
+            val fullResult =
+                safeApiCall { ApiClient.hermesApi.getModelInfo() }
+            if (fullResult is NetworkResult.Success) {
+                val full =
+                    fullResult.data.effective_context_length
+                        ?: fullResult.data.auto_context_length
+                        ?: fullResult.data.config_context_length
+                if (full != null && full > 0L) {
+                    _uiState.update { it.copy(fullContextTokens = full) }
+                }
+            }
+            // Numerator: used context for THIS session.
+            val usedResult =
+                safeApiCall { ApiClient.hermesApi.getSessionDetail(sessionId, profile) }
+            if (usedResult is NetworkResult.Success) {
+                val used = usedResult.data.last_prompt_tokens
+                if (used != null) {
+                    _uiState.update { it.copy(usedContextTokens = used) }
+                }
             }
         }
     }

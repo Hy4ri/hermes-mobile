@@ -78,6 +78,7 @@ import com.m57.hermescontrol.ui.chat.components.ChatLifecycleEffects
 import com.m57.hermescontrol.ui.chat.components.ChatLoadingOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatMessageList
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
+import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
@@ -131,6 +132,7 @@ fun ChatScreen(
         while (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
             delay(SESSION_SYNC_INTERVAL_MS)
             viewModel.syncCurrentSession()
+            viewModel.fetchContextUsage()
         }
     }
 
@@ -511,6 +513,14 @@ fun ChatScreen(
                     )
                 }
             }
+
+            // Context-window meter (used / full) — sits above the composer so it
+            // stays visible while the session is active, grouped with the model
+            // it belongs to without crowding the title or the control row.
+            ContextUsageChip(
+                usedTokens = state.usedContextTokens,
+                fullTokens = state.fullContextTokens,
+            )
 
             ChatInputBar(
                 inputFieldValue = inputFieldValue,

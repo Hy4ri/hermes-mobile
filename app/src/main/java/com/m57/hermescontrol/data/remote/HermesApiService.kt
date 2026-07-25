@@ -47,6 +47,7 @@ import com.m57.hermescontrol.data.model.MessagingPlatformUpdate
 import com.m57.hermescontrol.data.model.MoaConfigResponse
 import com.m57.hermescontrol.data.model.ModelAssignmentRequest
 import com.m57.hermescontrol.data.model.ModelAssignmentResponse
+import com.m57.hermescontrol.data.model.ModelInfoResponse
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelsAnalyticsResponse
 import com.m57.hermescontrol.data.model.OAuthCancelResponse
@@ -65,6 +66,7 @@ import com.m57.hermescontrol.data.model.RawConfigResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
+import com.m57.hermescontrol.data.model.SessionDetailResponse
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionPromptResponse
@@ -184,6 +186,17 @@ interface HermesApiService {
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
         @Path("id", encoded = true) sessionId: String,
     ): Response<SessionPromptResponse>
+
+    @GET("api/sessions/{id}")
+    suspend fun getSessionDetail(
+        // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
+        // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).
+        @Path("id", encoded = true) sessionId: String,
+        @Query("profile") profile: String? = null,
+    ): Response<SessionDetailResponse>
+
+    @GET("api/model/info")
+    suspend fun getModelInfo(): Response<ModelInfoResponse>
 
     @GET("api/system/stats")
     suspend fun getSystemStats(): Response<SystemStatsResponse>

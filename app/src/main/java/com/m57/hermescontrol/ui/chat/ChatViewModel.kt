@@ -1586,11 +1586,14 @@ class ChatViewModel(
                     _uiState.update { it.copy(fullContextTokens = full) }
                 }
             }
-            // Numerator: used context for THIS session.
+            // Numerator: used context for THIS session. The gateway's sessions
+            // table persists `input_tokens` (cumulative prompt tokens) — there is
+            // NO `last_prompt_tokens` column on the REST response, so we use
+            // `input_tokens` as the used-context numerator.
             val usedResult =
                 safeApiCall { ApiClient.hermesApi.getSessionDetail(sessionId, profile) }
             if (usedResult is NetworkResult.Success) {
-                val used = usedResult.data.last_prompt_tokens
+                val used = usedResult.data.input_tokens
                 if (used != null) {
                     _uiState.update { it.copy(usedContextTokens = used) }
                 }

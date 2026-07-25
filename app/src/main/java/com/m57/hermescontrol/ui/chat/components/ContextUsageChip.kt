@@ -22,14 +22,19 @@ import kotlin.math.min
 /**
  * Compact "used / full context" meter for the chat screen.
  *
- * Renders `<used> / <full>` (e.g. `12.3k / 262k`) plus a color-coded progress
- * bar. The bar turns amber past 70% and red past 90% of the context window so
- * the user sees compression pressure building before a turn silently compacts.
+ * Renders `<used> / <full> context` (e.g. `12.3k / 262k`) plus a color-coded
+ * progress bar. The bar turns amber past 70% and red past 90% of the context
+ * window so the user sees compression pressure building before a turn silently
+ * compacts.
  *
- * Both values are best-effort: when either is missing (not yet fetched, or the
- * gate is unreachable) the chip is simply hidden rather than showing `? / ?`.
+ * The denominator (`fullTokens`) comes from `GET /api/model/info` (PUBLIC) and
+ * is always available. The numerator (`usedTokens`) comes from
+ * `GET /api/sessions/{id}` (`input_tokens`) — gated, so it may lag or be absent
+ * on first render. The chip shows as soon as `fullTokens` is known; when
+ * `usedTokens` is still null it renders `— / <full>` (unknown used) rather than
+ * hiding entirely, so a missing gated fetch never blanks the meter.
  *
- * @param usedTokens tokens currently in the session prompt (numerator)
+ * @param usedTokens tokens currently in the session prompt (numerator), or null
  * @param fullTokens the active model's full context window (denominator)
  */
 @Composable
@@ -38,10 +43,10 @@ fun ContextUsageChip(
     fullTokens: Long?,
     modifier: Modifier = Modifier,
 ) {
-    val used = usedTokens
     val full = fullTokens
-    if (used == null || full == null || full <= 0L) return
+    if (full == null || full <= 0L) return
 
+    val used = usedTokens ?: 0L
     val fraction = min(1f, used.toFloat() / full.toFloat())
     val pct = (fraction * 100).toInt()
     val statusColors = LocalHermesStatusColors.current
@@ -65,7 +70,12 @@ fun ContextUsageChip(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "${formatTokens(used)} / ${formatTokens(full)} context",
+                text =
+                    if (usedTokens != null) {
+                        "${formatTokens(used)} / ${formatTokens(full)} context"
+                    } else {
+                        "— / ${formatTokens(full)} context"
+                    },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

@@ -765,6 +765,8 @@ class ChatViewModel(
         val attachments = _uiState.value.pendingAttachments.toList()
         clearAttachments()
 
+        val wasStreaming = _uiState.value.isAgentTyping
+
         val userMessage =
             ChatMessage(
                 role = MessageRole.USER,
@@ -862,8 +864,7 @@ class ChatViewModel(
             // in-flight turn via session.redirect instead of queueing a fresh
             // prompt.submit. The backend rewrites the live turn when it can, or
             // queues the correction as the next turn otherwise (issue #710).
-            val streaming = _uiState.value.isAgentTyping
-            if (streaming && attachments.isEmpty()) {
+            if (wasStreaming && attachments.isEmpty()) {
                 wsClient.sendRedirect(
                     agentSessionId,
                     fullText,

@@ -1117,6 +1117,23 @@ class ChatViewModelTest {
             verify { HermesWsClient.sendMessage(sessionId, "Hello Hermes", any()) }
         }
 
+    @Test
+    fun testSendMessageRedirectWhenStreaming() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            // First send starts streaming
+            viewModel.sendMessage("Hello Hermes")
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isAgentTyping)
+
+            // Second send while streaming triggers redirect
+            viewModel.sendMessage("Wait, correction")
+            advanceUntilIdle()
+
+            verify { HermesWsClient.sendRedirect(sessionId, "Wait, correction", any()) }
+        }
+
     // ── Session switch ───────────────────────────────────────────────────────
 
     @Test

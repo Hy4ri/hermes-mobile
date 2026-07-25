@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
@@ -48,6 +47,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.ui.channels.ChannelsViewModel
 import com.m57.hermescontrol.ui.connect.ConnectViewModel
 import com.m57.hermescontrol.ui.cron.CronJobsViewModel

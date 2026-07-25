@@ -35,6 +35,7 @@ class HermesWsClientTest {
 
     @Before
     fun setUp() {
+        unmockkAll()
         mockkStatic(Log::class)
         every { Log.d(any<String>(), any<String>()) } returns 0
         every { Log.i(any<String>(), any<String>()) } returns 0

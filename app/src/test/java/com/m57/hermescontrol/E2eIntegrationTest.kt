@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
@@ -83,7 +84,10 @@ class E2eIntegrationTest {
         mockkStatic(Dispatchers::class)
         val testMainDispatcher = Dispatchers.Main
         every { Dispatchers.IO } returns testDispatcher
+        every { Dispatchers.Default } returns testDispatcher
         every { Dispatchers.Main } returns testMainDispatcher
+
+        HermesWsClient.disconnect()
 
         mockkObject(AuthManager)
         mockkObject(ApiClient)

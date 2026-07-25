@@ -1,5 +1,11 @@
 package com.m57.hermescontrol.ui.system
 
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.ws.HermesWsClient
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -21,11 +27,25 @@ class SystemViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        mockkStatic(Dispatchers::class)
+        every { Dispatchers.IO } returns testDispatcher
+        every { Dispatchers.Default } returns testDispatcher
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.d(any(), any()) } returns 0
+        every { android.util.Log.i(any(), any()) } returns 0
+        every { android.util.Log.w(any(), any<String>()) } returns 0
+        every { android.util.Log.e(any(), any(), any()) } returns 0
+
+        mockkObject(AuthManager)
+        every { AuthManager.isAutoReconnect() } returns false
+
+        HermesWsClient.disconnect()
     }
 
     @After
     fun teardown() {
         Dispatchers.resetMain()
+        unmockkAll()
     }
 
     @Test

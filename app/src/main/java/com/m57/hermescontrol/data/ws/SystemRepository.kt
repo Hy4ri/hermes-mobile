@@ -67,7 +67,11 @@ object SystemRepository {
         } catch (e: Exception) {
             // Fail OPEN to "no battery" on any RPC error, decode failure, or
             // timeout — never let a bad/headless payload crash the System screen.
-            if (BuildConfig.DEBUG) Log.w(TAG, "system.battery failed: ${e.message}")
+            try {
+                if (BuildConfig.DEBUG) Log.w(TAG, "system.battery failed: ${e.message}")
+            } catch (_: Throwable) {
+                // Ignore log failures in unmocked JVM unit tests
+            }
             BatteryStatus(available = false)
         }
 

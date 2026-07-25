@@ -36,6 +36,7 @@ class GatewayViewModelTest {
         Dispatchers.setMain(testDispatcher)
         mockkStatic(Dispatchers::class)
         every { Dispatchers.IO } returns testDispatcher
+        every { Dispatchers.Default } returns testDispatcher
 
         mockApi = mockk()
         mockkObject(ApiClient)

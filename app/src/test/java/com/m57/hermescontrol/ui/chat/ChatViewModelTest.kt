@@ -69,6 +69,7 @@ class ChatViewModelTest {
 
         mockkStatic(Dispatchers::class)
         every { Dispatchers.IO } returns testDispatcher
+        every { Dispatchers.Default } returns testDispatcher
         every { Dispatchers.Main } returns testMainDispatcher
 
         mockkObject(AuthManager)
@@ -317,7 +318,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/status")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test
@@ -328,7 +329,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/sessions")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test
@@ -339,7 +340,7 @@ class ChatViewModelTest {
             viewModel.sendMessage("/stats")
             advanceUntilIdle()
 
-            verify { HermesWsClient.send(WsMethods.COMMAND_DISPATCH, any(), any()) }
+            verify { HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any()) }
         }
 
     @Test

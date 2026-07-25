@@ -66,6 +66,7 @@ class SlashCommandDispatchRpcTest {
 
         mockkStatic(Dispatchers::class)
         every { Dispatchers.IO } returns testDispatcher
+        every { Dispatchers.Default } returns testDispatcher
         every { Dispatchers.Main } returns testMainDispatcher
 
         mockkObject(AuthManager)

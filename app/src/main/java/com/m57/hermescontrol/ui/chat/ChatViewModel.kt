@@ -409,6 +409,12 @@ class ChatViewModel(
                 is ReducerEffect.RefreshSessions -> {
                     loadSessions()
                 }
+
+                is ReducerEffect.RefreshContextUsage -> {
+                    // Streaming finished — refresh the context meter now rather
+                    // than waiting up to 5s for the next session-sync poll.
+                    viewModelScope.launch { fetchContextUsage() }
+                }
             }
         }
 

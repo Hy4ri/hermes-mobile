@@ -252,6 +252,9 @@ object ChatWsEventReducer {
             effects.add(ReducerEffect.PersistMessage(msg, sid))
         }
         effects.add(ReducerEffect.RefreshSessions)
+        // Refresh the context meter immediately on completion instead of
+        // waiting for the next 5s session-sync poll.
+        effects.add(ReducerEffect.RefreshContextUsage)
         return ReducerResult(
             state =
                 state.copy(
@@ -664,4 +667,6 @@ sealed class ReducerEffect {
     data object LoadSessions : ReducerEffect()
 
     data object RefreshSessions : ReducerEffect()
+
+    data object RefreshContextUsage : ReducerEffect()
 }

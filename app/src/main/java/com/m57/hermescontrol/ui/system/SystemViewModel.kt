@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActionStatusResponse
+import com.m57.hermescontrol.data.model.BatteryStatus
 import com.m57.hermescontrol.data.model.CheckpointsResponse
 import com.m57.hermescontrol.data.model.CredentialPoolProvider
 import com.m57.hermescontrol.data.model.CuratorResponse
@@ -20,6 +21,7 @@ import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.SystemRepository
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,6 +39,7 @@ import kotlinx.coroutines.withContext
 data class SystemUiState(
     val isLoading: Boolean = false,
     val stats: SystemStatsResponse? = null,
+    val battery: BatteryStatus? = null,
     val portal: PortalResponse? = null,
     val curator: CuratorResponse? = null,
     val memory: MemoryResponse? = null,
@@ -81,12 +84,14 @@ class SystemViewModel :
     ToastHost {
     companion object {
         private const val TAG = "SystemViewModel"
+        private const val BATTERY_POLL_MS = 60_000L
     }
 
     private val _uiState = MutableStateFlow(SystemUiState())
     val uiState: StateFlow<SystemUiState> = _uiState.asStateFlow()
 
     private var actionPollingJob: Job? = null
+    private var batteryPollingJob: Job? = null
 
     // ── Full parallel data load ────────────────────────────────────────
 
@@ -106,6 +111,8 @@ class SystemViewModel :
                 val updateDeferred =
                     async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.checkHermesUpdate(false) } }
                 val doctorDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.runDoctor() } }
+                val batteryDeferred =
+                    async(Dispatchers.IO) { SystemRepository.getBatteryStatus() }
 
                 val statsResult = statsDeferred.await()
                 val statusResult = statusDeferred.await()
@@ -117,6 +124,7 @@ class SystemViewModel :
                 val hooksResult = hooksDeferred.await()
                 val updateResult = updateDeferred.await()
                 val doctorResult = doctorDeferred.await()
+                val batteryResult = batteryDeferred.await()
 
                 _uiState.update { state ->
                     state.copy(
@@ -132,6 +140,7 @@ class SystemViewModel :
                         hooks = (hooksResult as? NetworkResult.Success)?.data,
                         updateInfo = (updateResult as? NetworkResult.Success)?.data,
                         doctorReport = (doctorResult as? NetworkResult.Success)?.data,
+                        battery = batteryResult,
                         errorMessage = null,
                     )
                 }
@@ -205,6 +214,40 @@ class SystemViewModel :
             }
         }
     }
+
+    // ── Battery (WS method `system.battery`) ──────────────────────────
+
+    /**
+     * Fetch the backend host battery once (issue #711). If a battery is present
+     * we start a periodic poll (~60s, matching the TUI idle refresh); if the
+     * host is headless (`available: false`) we never poll again — no point
+     * spamming `system.battery` on a desktop/server/VM.
+     */
+    fun loadBattery() {
+        batteryPollingJob?.cancel()
+        batteryPollingJob =
+            viewModelScope.launch {
+                val status = fetchBatteryOnce()
+                _uiState.update { it.copy(battery = status) }
+                if (status.available) {
+                    batteryPollingJob =
+                        launch {
+                            while (isActive) {
+                                delay(BATTERY_POLL_MS)
+                                val refreshed = fetchBatteryOnce()
+                                _uiState.update { it.copy(battery = refreshed) }
+                                // Stop polling if the battery disappeared (e.g. host changed).
+                                if (!refreshed.available) break
+                            }
+                        }
+                }
+            }
+    }
+
+    private suspend fun fetchBatteryOnce(): BatteryStatus =
+        withContext(Dispatchers.IO) {
+            SystemRepository.getBatteryStatus()
+        }
 
     // ── Gateway actions ────────────────────────────────────────────────
 

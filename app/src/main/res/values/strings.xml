@@ -298,6 +298,8 @@
     <string name="system_label_disk">Disk</string>
     <string name="system_label_uptime">Uptime</string>
     <string name="system_label_load_avg">Load avg</string>
+    <string name="system_label_battery">Battery</string>
+    <string name="system_label_battery_plugged">%1$d%% ⚡</string>
     <string name="system_label_cores">cores</string>
     <string name="system_label_used_total_percent">%1$s / %2$s (%3$s%%)</string>
     <string name="system_psutil_warning">Install the psutil extra for CPU / memory / disk metrics.</string>

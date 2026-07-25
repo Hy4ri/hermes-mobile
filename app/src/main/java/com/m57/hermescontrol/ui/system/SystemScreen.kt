@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
@@ -442,6 +443,35 @@ private fun LazyListScope.hostSection(
                                 icon = Icons.Filled.Storage,
                                 modifier = Modifier.weight(1f),
                             )
+                        }
+                        state.battery?.let { batt ->
+                            // Only show a real reading. Hide on headless hosts
+                            // (available:false) and on the psutil phantom where a
+                            // server exposes a fake power_supply at exactly 0% with
+                            // no plug info — that's not a real battery.
+                            val hasRealReading =
+                                batt.available &&
+                                    batt.percent != null &&
+                                    !(batt.percent == 0.0 && batt.plugged == null)
+                            if (hasRealReading) {
+                                val plugged = batt.plugged == true
+                                val label = stringResource(R.string.system_label_battery)
+                                val value =
+                                    if (plugged) {
+                                        stringResource(
+                                            R.string.system_label_battery_plugged,
+                                            batt.percent?.toInt() ?: 0,
+                                        )
+                                    } else {
+                                        "${batt.percent?.toInt() ?: 0}%"
+                                    }
+                                StatCard(
+                                    label = label,
+                                    value = value,
+                                    icon = Icons.Filled.BatteryFull,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         }
                     }
 

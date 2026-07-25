@@ -29,6 +29,7 @@ import com.m57.hermescontrol.data.model.EnvVarDeleteRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealResponse
 import com.m57.hermescontrol.data.model.EnvVarUpdate
+import com.m57.hermescontrol.data.model.HealthStatus
 import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
@@ -122,6 +123,9 @@ interface HermesApiService {
 
     @GET("api/status")
     suspend fun getStatus(): Response<StatusResponse>
+
+    @GET("api/health")
+    suspend fun getHealth(): Response<HealthStatus>
 
     @GET("api/sessions")
     suspend fun getSessions(

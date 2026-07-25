@@ -8,6 +8,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.model.HealthStatus
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -33,6 +34,7 @@ data class ConnectUiState(
     val saveProfile: Boolean = false,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfile: ConnectionProfile? = null,
+    val health: HealthStatus? = null,
 )
 
 class ConnectViewModel(
@@ -59,6 +61,29 @@ class ConnectViewModel(
                 selectedProfile = selectedProfile,
                 profileName = selectedProfile?.name ?: "",
             )
+        }
+        loadHealth()
+    }
+
+    /**
+     * Cheap liveness probe (issue #713): GET /api/health against the current
+     * URL/token. Surfaces backend version + auth mode on the connection screen
+     * without the heavier /api/status payload. Best-effort: failures are silent
+     * (health stays null and the screen simply shows no read-out).
+     */
+    fun loadHealth() {
+        val state = _uiState.value
+        val endpoint = runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
+        if (endpoint == null || state.token.isBlank()) return
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), state.token)
+                    safeApiCall { tempApi.getHealth() }
+                }
+            if (result is NetworkResult.Success) {
+                _uiState.update { it.copy(health = result.data) }
+            }
         }
     }
 

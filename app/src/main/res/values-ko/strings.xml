@@ -179,6 +179,10 @@
     <!-- Connect Screen -->
     <string name="connect_selected_profile">프로필: %1$s</string>
     <string name="connect_action_select_profile">저장된 프로필 선택</string>
+    <string name="connect_health_title">백엔드 상태</string>
+    <string name="connect_health_body">Hermes %1$s · %2$s</string>
+    <string name="connect_health_auth_gated">게이트(OAuth)</string>
+    <string name="connect_health_auth_token">토큰</string>
 
     <!-- Connect Error Messages -->
     <string name="connect_error_token_required">토큰이 필요합니다</string>

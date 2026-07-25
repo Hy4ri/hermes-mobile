@@ -35,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -314,6 +315,43 @@ fun ConnectScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         )
+                    }
+                }
+
+                // Backend health read-out (issue #713): cheap /api/health probe.
+                // Shows version + auth mode when reachable; nothing when null.
+                state.health?.let { health ->
+                    val authMode =
+                        if (health.authRequired == true) {
+                            stringResource(R.string.connect_health_auth_gated)
+                        } else {
+                            stringResource(R.string.connect_health_auth_token)
+                        }
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.connect_health_title),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text =
+                                    stringResource(
+                                        R.string.connect_health_body,
+                                        health.version ?: "?",
+                                        authMode,
+                                    ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                     }
                 }
             }

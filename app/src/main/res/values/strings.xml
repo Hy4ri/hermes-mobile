@@ -207,6 +207,10 @@
     <!-- Connect Screen -->
     <string name="connect_selected_profile">Profile: %1$s</string>
     <string name="connect_action_select_profile">Select Saved Profile</string>
+    <string name="connect_health_title">Backend health</string>
+    <string name="connect_health_body">Hermes %1$s · %2$s</string>
+    <string name="connect_health_auth_gated">Gated (OAuth)</string>
+    <string name="connect_health_auth_token">Token</string>
 
     <!-- Connect Error Messages -->
     <string name="connect_error_token_required">Token is required</string>

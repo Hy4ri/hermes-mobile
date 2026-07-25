@@ -425,13 +425,22 @@ class ChatViewModel(
             }
 
             is WsEvent.SessionInfo -> {
-                // Session info pushed by backend when config changes
-                // (model switch, reasoning level, etc.)
+                // Session info pushed by backend when config changes OR after
+                // each turn completes. The payload is the agent-run result dict,
+                // which carries the LIVE token counts:
+                //   last_prompt_tokens — used context for this turn (the real
+                //     "used" value; the DB `input_tokens` column is stale/0 for
+                //     active sessions, so we must NOT source `used` from REST).
+                //   context_length      — this model's full context window.
+                //   input_tokens/output_tokens — turn totals.
                 val info = event.data
                 if (info != null) {
                     val model = info["model"] as? String
                     val provider = info["provider"] as? String
                     val reasoningEffort = info["reasoning_effort"] as? String
+                    val used = (info["last_prompt_tokens"] as? Number)?.toLong()
+                    val full = (info["context_length"] as? Number)?.toLong()
+                    val outTok = (info["output_tokens"] as? Number)?.toLong() ?: 0L
                     _uiState.update { state ->
                         state.copy(
                             currentSessionModel =
@@ -445,6 +454,24 @@ class ChatViewModel(
                                     null
                                 } else {
                                     reasoningEffort
+                                },
+                            // Live used/full context from the WS session-info
+                            // payload — never overwrite these with the stale REST
+                            // `input_tokens` (which is 0 for active sessions).
+                            usedContextTokens = used ?: state.usedContextTokens,
+                            fullContextTokens = full ?: state.fullContextTokens,
+                            contextBreakdown =
+                                if (used != null) {
+                                    ContextBreakdown(
+                                        inputTokens = used,
+                                        outputTokens = outTok,
+                                        cacheReadTokens = state.contextBreakdown?.cacheReadTokens ?: 0L,
+                                        cacheWriteTokens = state.contextBreakdown?.cacheWriteTokens ?: 0L,
+                                        reasoningTokens = state.contextBreakdown?.reasoningTokens ?: 0L,
+                                        messageCount = state.contextBreakdown?.messageCount ?: 0,
+                                    )
+                                } else {
+                                    state.contextBreakdown
                                 },
                         )
                     }
@@ -1583,22 +1610,28 @@ class ChatViewModel(
     /**
      * Refresh the context-window meter for the current session.
      *
-     * Numerator (`usedContextTokens`) comes from the session record's
-     * `last_prompt_tokens` (`/api/sessions/{id}`, backend
-     * `gateway/session.py`). Denominator (`fullContextTokens`) comes from the
-     * active model's `effective_context_length` (`/api/model/info`, PUBLIC).
+     * Denominator (`fullContextTokens`) — the model's full context window — is
+     * sourced from `GET /api/model/info` (PUBLIC) as a fallback, but the
+     * PRIMARY source is the live `context_length` carried in the WS
+     * `session.info` payload (see the [WsEvent.SessionInfo] handler), which is
+     * model-accurate and updates every turn.
      *
-     * Both calls are independent and best-effort: a failure on one must not
-     * wipe the other's already-shown value, and neither blocks the chat. The
-     * two fetches are launched separately so a slow/erroring one can't starve
-     * the other. Polled from [syncCurrentSession] via the 5s loop and re-fired
-     * on model switch (the denominator changes).
+     * The numerator (`usedContextTokens`) is NEVER sourced from the REST
+     * `/api/sessions/{id}` endpoint: that handler reads the DB `input_tokens`
+     * column, which is stale/0 for active sessions. The real live value is
+     * `last_prompt_tokens` on the in-memory session entry, delivered over WS in
+     * the `session.info` payload — so the WS handler owns `used`, and this
+     * poll must NOT overwrite it with the stale REST value.
+     *
+     * Best-effort: a failure must not wipe an already-shown value, and nothing
+     * here blocks the chat. Polled from [syncCurrentSession] via the 5s loop.
      */
     fun fetchContextUsage() {
         val sessionId = _uiState.value.currentSessionId ?: return
-        val profile = AuthManager.getSelectedProfileId()
         viewModelScope.launch(Dispatchers.IO) {
-            // Denominator: full context window (cheap, public, rarely changes).
+            // Denominator fallback only. The live value (context_length) arrives
+            // via the WS session.info payload; this covers the case where WS
+            // hasn't delivered one yet (e.g. before the first turn completes).
             val fullResult =
                 safeApiCall { ApiClient.hermesApi.getModelInfo() }
             if (fullResult is NetworkResult.Success) {
@@ -1607,32 +1640,13 @@ class ChatViewModel(
                         ?: fullResult.data.auto_context_length
                         ?: fullResult.data.config_context_length
                 if (full != null && full > 0L) {
-                    _uiState.update { it.copy(fullContextTokens = full) }
-                }
-            }
-            // Numerator: used context for THIS session. The gateway's sessions
-            // table persists `input_tokens` (cumulative prompt tokens) — there is
-            // NO `last_prompt_tokens` column on the REST response, so we use
-            // `input_tokens` as the used-context numerator.
-            val usedResult =
-                safeApiCall { ApiClient.hermesApi.getSessionDetail(sessionId, profile) }
-            if (usedResult is NetworkResult.Success) {
-                val d = usedResult.data
-                val used = d.input_tokens
-                if (used != null) {
-                    _uiState.update {
-                        it.copy(
-                            usedContextTokens = used,
-                            contextBreakdown =
-                                ContextBreakdown(
-                                    inputTokens = used,
-                                    outputTokens = d.output_tokens ?: 0L,
-                                    cacheReadTokens = d.cache_read_tokens ?: 0L,
-                                    cacheWriteTokens = d.cache_write_tokens ?: 0L,
-                                    reasoningTokens = d.reasoning_tokens ?: 0L,
-                                    messageCount = d.message_count ?: 0,
-                                ),
-                        )
+                    _uiState.update { state ->
+                        // Don't clobber a fresher WS-provided value.
+                        if (state.fullContextTokens == null) {
+                            state.copy(fullContextTokens = full)
+                        } else {
+                            state
+                        }
                     }
                 }
             }

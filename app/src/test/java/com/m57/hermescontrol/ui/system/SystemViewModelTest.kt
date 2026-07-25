@@ -3,10 +3,13 @@ package com.m57.hermescontrol.ui.system
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -51,13 +54,13 @@ class SystemViewModelTest {
 
     @Test
     fun `loadBattery when disconnected sets battery state to unavailable`() =
-        kotlinx.coroutines.test.runTest {
+        runTest {
             val viewModel = SystemViewModel()
             viewModel.loadBattery()
-            kotlinx.coroutines.test.advanceUntilIdle()
+            advanceUntilIdle()
 
             val battery = viewModel.uiState.value.battery
-            org.junit.Assert.assertNotNull(battery)
+            assertNotNull(battery)
             assertFalse(battery!!.available)
         }
 }

@@ -857,11 +857,25 @@ class ChatViewModel(
                         if (text.isNotBlank()) "\n\n$text" else ""
                 }
 
-            wsClient.sendMessage(
-                agentSessionId,
-                fullText,
-                onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
-            )
+            // While a turn is actively streaming and this is a plain text prompt
+            // (no attachments — session.redirect carries text only), steer the
+            // in-flight turn via session.redirect instead of queueing a fresh
+            // prompt.submit. The backend rewrites the live turn when it can, or
+            // queues the correction as the next turn otherwise (issue #710).
+            val streaming = _uiState.value.isAgentTyping
+            if (streaming && attachments.isEmpty()) {
+                wsClient.sendRedirect(
+                    agentSessionId,
+                    fullText,
+                    onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
+                )
+            } else {
+                wsClient.sendMessage(
+                    agentSessionId,
+                    fullText,
+                    onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
+                )
+            }
         }
     }
 

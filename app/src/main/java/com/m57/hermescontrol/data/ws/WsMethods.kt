@@ -10,6 +10,7 @@ object WsMethods {
     const val SESSION_RESUME = "session.resume"
     const val SESSION_CREATE = "session.create"
     const val SESSION_INTERRUPT = "session.interrupt"
+    const val SESSION_REDIRECT = "session.redirect"
     const val SESSION_DELETE = "session.delete"
     const val SESSION_TITLE = "session.title"
     const val SESSION_BRANCH = "session.branch"

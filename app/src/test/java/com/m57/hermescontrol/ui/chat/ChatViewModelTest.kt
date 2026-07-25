@@ -83,6 +83,7 @@ class ChatViewModelTest {
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
         every { AuthManager.getToken() } returns "test-token"
+        every { AuthManager.getSelectedProfileId() } returns null
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isAutoReconnect() } returns false
@@ -1742,7 +1743,10 @@ class ChatViewModelTest {
                 "hasOlderMessages must be false when initial page is empty",
                 viewModel.uiState.value.hasOlderMessages,
             )
-            assertTrue(viewModel.uiState.value.messages.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .isEmpty(),
+            )
             assertFalse(viewModel.uiState.value.isLoading)
         }
 

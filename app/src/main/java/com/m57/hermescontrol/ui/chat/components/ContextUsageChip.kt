@@ -108,11 +108,20 @@ fun ContextUsageChip(
  */
 internal fun formatTokens(tokens: Long): String =
     when {
-        tokens >= 1_000_000 -> "${tokens / 1_000_000}M"
+        tokens >= 1_000_000 -> {
+            "${tokens / 1_000_000}M"
+        }
+
+        tokens >= 100_000 -> {
+            "${tokens / 1000}k"
+        }
+
         tokens >= 1_000 -> {
             val k = tokens / 1000.0
-            // One decimal, but drop a trailing ".0" (e.g. "12.3k", "262k").
-            if (k % 1.0 == 0.0) "${k.toInt()}k" else String.format("%.1fk", k)
+            if (k % 1.0 == 0.0) "${k.toInt()}k" else String.format(java.util.Locale.US, "%.1fk", k)
         }
-        else -> tokens.toString()
+
+        else -> {
+            tokens.toString()
+        }
     }

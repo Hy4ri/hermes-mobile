@@ -56,6 +56,17 @@ class ChatStreamingController(
         resetStreaming()
     }
 
+    /**
+     * Flushes any throttled reasoning buffer before a state-transition event
+     * (MessageStart / MessageComplete / MessageDone / ToolStart). Without this,
+     * a reasoning delta that arrived just before a transition could be dropped
+     * because the next flush only fires on the ~33ms timer — so we force it out
+     * synchronously so the finalized message carries the latest reasoning.
+     */
+    fun flushPendingReasoning() {
+        flushReasoning()
+    }
+
     fun handleMessageToken(event: WsEvent.MessageToken) {
         if (!isCurrentSession(event.sessionId)) return
 

@@ -341,6 +341,18 @@ class ChatViewModel(
     }
 
     private fun handleWsEvent(event: WsEvent) {
+        // Flush any throttled reasoning before a state transition so the
+        // finalized/orphan message carries the latest reasoning text.
+        when (event) {
+            is WsEvent.MessageStart,
+            is WsEvent.MessageComplete,
+            is WsEvent.MessageDone,
+            is WsEvent.ToolStart,
+            -> streamingController.flushPendingReasoning()
+
+            else -> Unit
+        }
+
         // First, let the reducer compute the new state and any effects
         val result =
             ChatWsEventReducer.reduce(
@@ -1627,7 +1639,10 @@ class ChatViewModel(
     ): Boolean =
         left.size == right.size &&
             left.zip(right).all { (a, b) ->
-                a.id == b.id && a.role == b.role && a.content == b.content
+                a.id == b.id &&
+                    a.role == b.role &&
+                    a.content == b.content &&
+                    a.reasoningText == b.reasoningText
             }
 
     // ── UI actions ───────────────────────────────────────────────────────

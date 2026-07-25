@@ -10,7 +10,7 @@ val MonochromeDarkColorScheme =
     darkColorScheme(
         primary = Color.White,
         onPrimary = Color.Black,
-        primaryContainer = Color(0xFF2B2B2B),
+        primaryContainer = Color(0xFF404040),
         onPrimaryContainer = Color.White,
         inversePrimary = Color(0xFF121212),
         secondary = Color(0xFFB0B0B0),
@@ -49,7 +49,7 @@ val MonochromeLightColorScheme =
     lightColorScheme(
         primary = Color.Black,
         onPrimary = Color.White,
-        primaryContainer = Color(0xFFE0E0E0),
+        primaryContainer = Color(0xFFC8C8C8),
         onPrimaryContainer = Color.Black,
         inversePrimary = Color(0xFFE0E0E0),
         secondary = Color(0xFF4A4A4A),

@@ -49,8 +49,8 @@ val CatppuccinLightColorScheme =
     lightColorScheme(
         primary = Color(0xFF8839EF), // Mauve
         onPrimary = Color(0xFFEFF1F5), // Base
-        primaryContainer = Color(0xFFCCD0DA), // Surface 0
-        onPrimaryContainer = Color(0xFF4C4F69), // Text
+        primaryContainer = Color(0xFFE6CAFA), // Light Mauve Container
+        onPrimaryContainer = Color(0xFF380075),
         inversePrimary = Color(0xFFCBA6F7), // Mocha Mauve
         secondary = Color(0xFF1E66F5), // Blue
         onSecondary = Color(0xFFEFF1F5), // Base

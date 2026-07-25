@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.settings.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -69,11 +70,17 @@ internal fun ConnectionSection(
                         CardDefaults.cardColors(
                             containerColor =
                                 if (isActive) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                    MaterialTheme.colorScheme.primaryContainer
                                 } else {
                                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                 },
                         ),
+                    border =
+                        if (isActive) {
+                            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                        } else {
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                        },
                     elevation = CardDefaults.cardElevation(0.dp),
                 ) {
                     Row(
@@ -83,13 +90,27 @@ internal fun ConnectionSection(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = profile.name,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                style =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                                    ),
+                                color =
+                                    if (isActive) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
                             )
                             Text(
                                 text = profile.resolveBaseUrl(state.baseUrl),
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color =
+                                            if (isActive) {
+                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
                                     ),
                             )
                         }
@@ -101,6 +122,12 @@ internal fun ConnectionSection(
                                     imageVector = Icons.Filled.Edit,
                                     contentDescription = stringResource(R.string.settings_action_edit_profile),
                                     modifier = Modifier.size(18.dp),
+                                    tint =
+                                        if (isActive) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
                                 )
                             }
                             IconButton(

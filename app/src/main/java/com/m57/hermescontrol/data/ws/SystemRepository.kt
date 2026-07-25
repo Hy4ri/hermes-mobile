@@ -39,17 +39,39 @@ object SystemRepository {
     @Suppress("UNCHECKED_CAST")
     private fun anyToJsonElement(value: Any?): JsonElement =
         when (value) {
-            null -> JsonNull
-            is JsonElement -> value
-            is Map<*, *> ->
+            null -> {
+                JsonNull
+            }
+
+            is JsonElement -> {
+                value
+            }
+
+            is Map<*, *> -> {
                 JsonObject(
                     (value as Map<String, Any?>).mapValues { (_, v) -> anyToJsonElement(v) },
                 )
-            is List<*> -> JsonArray(value.map { anyToJsonElement(it) })
-            is String -> JsonPrimitive(value)
-            is Boolean -> JsonPrimitive(value)
-            is Number -> JsonPrimitive(value)
-            else -> JsonPrimitive(value.toString())
+            }
+
+            is List<*> -> {
+                JsonArray(value.map { anyToJsonElement(it) })
+            }
+
+            is String -> {
+                JsonPrimitive(value)
+            }
+
+            is Boolean -> {
+                JsonPrimitive(value)
+            }
+
+            is Number -> {
+                JsonPrimitive(value)
+            }
+
+            else -> {
+                JsonPrimitive(value.toString())
+            }
         }
 
     /**

@@ -1726,7 +1726,10 @@ class ChatViewModelTest {
                 "hasOlderMessages must be false when initial page is empty",
                 viewModel.uiState.value.hasOlderMessages,
             )
-            assertTrue(viewModel.uiState.value.messages.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .isEmpty(),
+            )
             assertFalse(viewModel.uiState.value.isLoading)
         }
 

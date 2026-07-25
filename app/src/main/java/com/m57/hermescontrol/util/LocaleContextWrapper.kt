@@ -25,20 +25,28 @@ object LocaleContextWrapper {
      */
     fun localeForCode(code: String): Locale =
         when {
-            code.isEmpty() || code == SYSTEM_LANGUAGE -> Locale.getDefault()
+            code.isEmpty() || code == SYSTEM_LANGUAGE -> {
+                Locale.getDefault()
+            }
+
             code.contains("-r", ignoreCase = true) -> {
                 val parts = code.split("-r", ignoreCase = true)
                 Locale(parts[0], parts.getOrElse(1) { "" })
             }
+
             code.contains("-") -> {
                 val parts = code.split("-")
                 Locale(parts[0], parts.getOrElse(1) { "" })
             }
+
             code.contains("_") -> {
                 val parts = code.split("_")
                 Locale(parts[0], parts.getOrElse(1) { "" })
             }
-            else -> Locale(code)
+
+            else -> {
+                Locale(code)
+            }
         }
 
     /**

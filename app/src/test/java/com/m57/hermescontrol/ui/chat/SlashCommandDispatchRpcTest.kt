@@ -192,7 +192,9 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/help")
             advanceUntilIdle()
 
-            val last = vm.uiState.value.messages.lastOrNull()
+            val last =
+                vm.uiState.value.messages
+                    .lastOrNull()
             assertEquals("⚠️ /help: session busy — /interrupt first", last?.content)
         }
 
@@ -233,7 +235,9 @@ class SlashCommandDispatchRpcTest {
             assertEquals(sessionId, params["session_id"])
 
             // And the slash.exec output must be surfaced to the user.
-            val last = vm.uiState.value.messages.lastOrNull()
+            val last =
+                vm.uiState.value.messages
+                    .lastOrNull()
             assertEquals("STATUS: gateway reachable", last?.content)
         }
 
@@ -255,7 +259,9 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/redraw")
             advanceUntilIdle()
 
-            val last = vm.uiState.value.messages.lastOrNull()
+            val last =
+                vm.uiState.value.messages
+                    .lastOrNull()
             assertTrue(
                 "expected a 'not supported on mobile' message, got: ${last?.content}",
                 last?.content?.contains("not supported on mobile") == true,
@@ -293,7 +299,9 @@ class SlashCommandDispatchRpcTest {
             advanceUntilIdle()
 
             // Both RPCs fail -> the secondary slash.exec error must surface.
-            val last = vm.uiState.value.messages.lastOrNull()
+            val last =
+                vm.uiState.value.messages
+                    .lastOrNull()
             assertEquals("⚠️ /status: slash worker start failed: boom", last?.content)
         }
 
@@ -328,6 +336,11 @@ class SlashCommandDispatchRpcTest {
             // must NOT append an assistant bubble — so the last message is still
             // the user's own command, and only one message was added.
             assertEquals(before + 1, vm.uiState.value.messages.size)
-            assertEquals("/status", vm.uiState.value.messages.lastOrNull()?.content)
+            assertEquals(
+                "/status",
+                vm.uiState.value.messages
+                    .lastOrNull()
+                    ?.content,
+            )
         }
 }

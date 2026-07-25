@@ -53,7 +53,9 @@ data class SessionsUiState(
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 }
 
-class SessionsViewModel : ViewModel(), ToastHost {
+class SessionsViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(SessionsUiState())
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
 

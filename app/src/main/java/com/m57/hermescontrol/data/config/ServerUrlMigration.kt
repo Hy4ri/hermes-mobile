@@ -19,19 +19,23 @@ class ServerUrlMigration : DataMigration<ServerStoreState> {
             state.copy(
                 baseUrl =
                     normalizeExisting(state.baseUrl)
-                        ?: ServerEndpoint.fromLegacy(
-                            state.host,
-                            state.port,
-                        ).baseUrl.toString(),
+                        ?: ServerEndpoint
+                            .fromLegacy(
+                                state.host,
+                                state.port,
+                            ).baseUrl
+                            .toString(),
                 connectionProfiles =
                     state.connectionProfiles.map { profile ->
                         profile.copy(
                             baseUrl =
                                 normalizeExisting(profile.baseUrl)
-                                    ?: ServerEndpoint.fromLegacy(
-                                        profile.host,
-                                        profile.port,
-                                    ).baseUrl.toString(),
+                                    ?: ServerEndpoint
+                                        .fromLegacy(
+                                            profile.host,
+                                            profile.port,
+                                        ).baseUrl
+                                        .toString(),
                         )
                     },
             )

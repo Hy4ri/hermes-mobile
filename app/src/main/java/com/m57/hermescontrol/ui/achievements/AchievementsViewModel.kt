@@ -39,7 +39,9 @@ data class AchievementsUiState(
     val toastMessage: String? = null,
 )
 
-class AchievementsViewModel : ViewModel(), ToastHost {
+class AchievementsViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(AchievementsUiState())
     val uiState: StateFlow<AchievementsUiState> = _uiState.asStateFlow()
 

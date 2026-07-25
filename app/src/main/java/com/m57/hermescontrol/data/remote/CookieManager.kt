@@ -81,8 +81,7 @@ object CookieManager {
                 .expiresAt(
                     System.currentTimeMillis() +
                         10L * 365 * 24 * 60 * 60 * 1000,
-                )
-                .hostOnlyDomain(endpoint.baseUrl.host)
+                ).hostOnlyDomain(endpoint.baseUrl.host)
                 .path(endpoint.baseUrl.encodedPath)
                 .httpOnly()
         if (endpoint.baseUrl.isHttps) builder.secure()

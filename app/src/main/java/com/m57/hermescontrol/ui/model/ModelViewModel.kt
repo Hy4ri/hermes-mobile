@@ -535,7 +535,9 @@ class ModelViewModel :
                             return@launch
                         }
 
-                        is NetworkResult.Success -> activeProfileNameResResult.data.active
+                        is NetworkResult.Success -> {
+                            activeProfileNameResResult.data.active
+                        }
                     }
                 }
 

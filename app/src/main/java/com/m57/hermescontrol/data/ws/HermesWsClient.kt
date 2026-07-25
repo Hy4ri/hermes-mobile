@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -79,7 +80,7 @@ object HermesWsClient {
     @Volatile
     private var currentBackoff = INITIAL_BACKOFF_MS
 
-    private val wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     @Volatile
     private var reconnectJob: Job? = null
@@ -122,20 +123,36 @@ object HermesWsClient {
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
+    @Volatile
+    private var _events: SharedFlow<WsEvent>? = null
+
     /** Collect this from ViewModels to receive all parsed [WsEvent]s. */
-    val events: SharedFlow<WsEvent> =
-        rawMessages
-            .buffer(Channel.BUFFERED)
-            .map { text ->
-                try {
-                    val rpc = OkHttpProvider.json.decodeFromString<JsonRpcResponse>(text)
-                    EventParser.parse(rpc, text)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse message", e)
-                    WsEvent.Unknown(text)
+    val events: SharedFlow<WsEvent>
+        get() {
+            var current = _events
+            if (current == null) {
+                synchronized(this) {
+                    current = _events
+                    if (current == null) {
+                        current =
+                            rawMessages
+                                .buffer(Channel.BUFFERED)
+                                .map { text ->
+                                    try {
+                                        val rpc = OkHttpProvider.json.decodeFromString<JsonRpcResponse>(text)
+                                        EventParser.parse(rpc, text)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Failed to parse message", e)
+                                        WsEvent.Unknown(text)
+                                    }
+                                }.flowOn(Dispatchers.Default) // CPU-bound
+                                .shareIn(wsScope, SharingStarted.Eagerly)
+                        _events = current
+                    }
                 }
-            }.flowOn(Dispatchers.Default) // CPU-bound
-            .shareIn(wsScope, SharingStarted.Eagerly)
+            }
+            return current!!
+        }
 
     // ── Connection status flow ──────────────────────────────────────────
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
@@ -157,33 +174,42 @@ object HermesWsClient {
         _credentialWarning.value = null
     }
 
-    init {
-        // Monitor network state to trigger immediate reconnect when network is restored
-        wsScope.launch {
-            NetworkMonitor.isConnected.collect { connected ->
-                if (connected && !isConnected && !intentionalClose.get() && AuthManager.isAutoReconnect()) {
-                    Log.d(TAG, "Network restored — triggering immediate reconnect")
-                    currentBackoff = INITIAL_BACKOFF_MS
-                    reconnectJob?.cancel()
-                    openSocket()
-                }
-            }
-        }
-        // Extract credential_warning from gateway.ready / session.info payloads.
-        wsScope.launch {
-            events.collect { event ->
-                val data: Map<String, Any?>? =
-                    when (event) {
-                        is WsEvent.GatewayReady -> event.data
-                        is WsEvent.SessionInfo -> event.data
-                        else -> null
+    private var networkMonitorJob: Job? = null
+    private var credentialWarningJob: Job? = null
+
+    private fun startBackgroundListeners() {
+        networkMonitorJob?.cancel()
+        networkMonitorJob =
+            wsScope.launch {
+                NetworkMonitor.isConnected.collect { connected ->
+                    if (connected && !isConnected && !intentionalClose.get() && AuthManager.isAutoReconnect()) {
+                        Log.d(TAG, "Network restored — triggering immediate reconnect")
+                        currentBackoff = INITIAL_BACKOFF_MS
+                        reconnectJob?.cancel()
+                        openSocket()
                     }
-                val warning = data?.get("credential_warning") as? String
-                if (!warning.isNullOrBlank()) {
-                    _credentialWarning.value = warning
                 }
             }
-        }
+        credentialWarningJob?.cancel()
+        credentialWarningJob =
+            wsScope.launch {
+                events.collect { event ->
+                    val data: Map<String, Any?>? =
+                        when (event) {
+                            is WsEvent.GatewayReady -> event.data
+                            is WsEvent.SessionInfo -> event.data
+                            else -> null
+                        }
+                    val warning = data?.get("credential_warning") as? String
+                    if (!warning.isNullOrBlank()) {
+                        _credentialWarning.value = warning
+                    }
+                }
+            }
+    }
+
+    init {
+        startBackgroundListeners()
     }
 
     // ── Connection helpers ────────────────────────────────────────────────
@@ -299,10 +325,17 @@ object HermesWsClient {
         reconnectJob?.cancel()
         reconnectJob = null
         stopHealthTracking()
+        rejectAllPending()
         webSocket?.close(1000, "Client closed")
         webSocket = null
         connected.set(false)
         _connectionStatus.value = ConnectionStatus.DISCONNECTED
+
+        // Re-create wsScope and events to guarantee test isolation when Dispatchers are mocked/unmocked in unit tests
+        wsScope.cancel()
+        wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        _events = null
+        startBackgroundListeners()
     }
 
     // ── Awaited RPC request layer (issue #526) ─────────────────────────

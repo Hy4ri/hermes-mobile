@@ -26,9 +26,7 @@ class CookieManagerTest {
         return jar
     }
 
-    private fun ep(host: String): ServerEndpoint {
-        return ServerEndpoint.fromLegacy(host, 9119)
-    }
+    private fun ep(host: String): ServerEndpoint = ServerEndpoint.fromLegacy(host, 9119)
 
     private fun httpsEp(
         host: String,

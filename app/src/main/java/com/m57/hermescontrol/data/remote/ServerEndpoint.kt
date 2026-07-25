@@ -149,7 +149,12 @@ class ServerEndpoint private constructor(
             val converted =
                 replaceScheme(rawUrl, httpScheme).toHttpUrlOrNull()
                     ?: return "<invalid-websocket-url>"
-            val redacted = converted.newBuilder().query(null).build().toString()
+            val redacted =
+                converted
+                    .newBuilder()
+                    .query(null)
+                    .build()
+                    .toString()
             return replaceScheme(redacted, socketScheme)
         }
 

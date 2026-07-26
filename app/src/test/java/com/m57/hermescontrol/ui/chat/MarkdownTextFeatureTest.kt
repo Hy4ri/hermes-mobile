@@ -194,4 +194,32 @@ class MarkdownTextFeatureTest {
         assertEquals("use val x = 1 here", an.toString())
         assertTrue(an.spanStyles.any { it.item.fontFamily != null })
     }
+
+    // 12. STANDALONE MARKDOWN IMAGE -> MdBlock.Image (agent-media rendering)
+    @Test
+    fun testStandaloneImage_parsesToImageBlock() {
+        val md = "![cute cat](https://example.com/cat.jpg)"
+        val block = parseBlocks(md).singleOrNull() as? MdBlock.Image
+        assertTrue("expected a single Image block", block != null)
+        assertEquals("https://example.com/cat.jpg", block!!.uri)
+        assertEquals("cute cat", block.alt)
+    }
+
+    // 12b. data: URL (base64 inline media) also accepted as an image uri
+    @Test
+    fun testImage_dataUrl_accepted() {
+        val uri = "data:image/jpeg;base64,/9j/abc"
+        val md = "![pic]($uri)"
+        val block = parseBlocks(md).singleOrNull() as? MdBlock.Image
+        assertTrue("data: URL should parse to Image block", block != null)
+        assertEquals(uri, block!!.uri)
+    }
+
+    // 12c. inline image inside a paragraph is left as text (scope guard)
+    @Test
+    fun testInlineImage_inParagraph_staysText() {
+        val md = "see this ![cat](https://x/cat.png) for reference"
+        val blocks = parseBlocks(md)
+        assertTrue("should remain a paragraph", blocks.single() is MdBlock.Paragraph)
+    }
 }

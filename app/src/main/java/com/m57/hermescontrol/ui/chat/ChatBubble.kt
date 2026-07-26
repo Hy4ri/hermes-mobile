@@ -406,6 +406,18 @@ private fun AssistantBubble(
                             isCurrentMatch = isCurrentMatch,
                         )
                     }
+                    // Render inline attachments (mirrors UserBubble so agent-delivered
+                    // media — images, files — shows in assistant bubbles too).
+                    if (!message.attachments.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        message.attachments.forEach { attachment ->
+                            InlineAttachment(
+                                attachment = attachment,
+                                textColor = textColor,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
                     if (!message.isStreaming) {
                         Text(
                             text = formatTimestamp(message.timestamp, DateFormat.is24HourFormat(LocalContext.current)),

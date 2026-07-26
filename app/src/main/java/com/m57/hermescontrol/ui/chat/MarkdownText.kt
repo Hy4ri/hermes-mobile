@@ -264,6 +264,30 @@ fun MarkdownText(
                     }
                 }
 
+                is MdBlock.Image -> {
+                    // AsyncImage is a Compose runtime composable — load it lazily
+                    // behind remember so the parser stays pure and testable (the
+                    // parseBlocks/parseInline unit tests never touch Compose).
+                    val model: Any = block.uri
+                    androidx.compose.foundation.layout.Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .padding(vertical = 4.dp),
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = model,
+                            contentDescription = block.alt.ifBlank { null },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp)),
+                            contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
+                        )
+                    }
+                }
+
                 is MdBlock.DefList -> {
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                         block.items.forEach { item ->
@@ -343,6 +367,21 @@ fun MarkdownText(
             }
         }
     }
+}
+
+/**
+ * Matches a Markdown image: `![alt](uri)`. The `uri` may be an http(s) URL
+ * (gateway-served media the phone can reach), a `data:image/...;base64,...`
+ * data URL (e.g. agent-delivered inline media), or any other resolvable model
+ * string (Coil handles all three). Bare `![]()` with empty uri is skipped.
+ */
+private val IMAGE_RE = Regex("""^!\[([^\]]*)\]\(([^)\s]+)\s*\)""")
+
+private fun tryParseImage(line: String): MdBlock.Image? {
+    val m = IMAGE_RE.matchAt(line, 0) ?: return null
+    val uri = m.groupValues[2].trim()
+    if (uri.isEmpty()) return null
+    return MdBlock.Image(uri = uri, alt = m.groupValues[1].trim())
 }
 
 @Composable
@@ -512,6 +551,14 @@ internal fun parseBlocks(src: String): List<MdBlock> {
                     i++
                 }
                 items.forEachIndexed { idx, t -> blocks.add(MdBlock.Ordered(idx + 1, t)) }
+            }
+
+            // Standalone Markdown image: ![alt](uri) on its own line.
+            // Inline images inside a paragraph are left as-is (rendered as text)
+            // to keep scope tight; standalone is the common agent-media case.
+            line.isNotBlank() && tryParseImage(line) != null -> {
+                blocks.add(tryParseImage(line)!!)
+                i++
             }
 
             else -> {
@@ -901,6 +948,11 @@ internal sealed interface MdBlock {
     data class Ordered(
         val index: Int,
         val text: String,
+    ) : MdBlock
+
+    data class Image(
+        val uri: String,
+        val alt: String = "",
     ) : MdBlock
 
     data class Quote(

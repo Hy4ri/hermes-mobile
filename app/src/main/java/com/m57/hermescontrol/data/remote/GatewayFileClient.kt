@@ -120,10 +120,14 @@ object GatewayFileClient {
         }
     }
 
-    /** Best-effort filename pull from a `Content-Disposition: ...; filename="x"` header. */
+    /** Best-effort filename pull from a `Content-Disposition: ...; filename="x"`
+     * or `filename*=UTF-8''<pct-enc>` header. The captured value is URL-decoded
+     * so `filename*=UTF-8''a%20b.png` yields `a b.png`. */
     internal fun parseFilename(header: String): String? {
         val m = FILENAME_RE.find(header) ?: return null
-        return m.groupValues[1].takeIf { it.isNotBlank() }
+        val raw = m.groupValues[1].takeIf { it.isNotBlank() } ?: return null
+        return runCatching { java.net.URLDecoder.decode(raw, StandardCharsets.UTF_8.name()) }
+            .getOrDefault(raw)
     }
 
     private fun fileNameFromPath(path: String): String =

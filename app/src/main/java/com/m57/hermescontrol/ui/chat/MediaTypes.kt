@@ -51,8 +51,23 @@ fun mediaMimeForPath(path: String): String {
     return MEDIA_BY_EXT[ext]?.second ?: "application/octet-stream"
 }
 
-/** Trailing filename from a path or URL. */
-fun mediaNameFromPath(path: String): String =
-    runCatching { java.net.URI(path).path.split('/').lastOrNull() }.getOrNull()
+/** Trailing filename from a path or URL.
+ *
+ * Handles both a bare gateway path (`/tmp/report.pdf`) and a full
+ * `/api/files/download?path=<enc>` URL, where the real filename lives in the
+ * percent-encoded `path=` query parameter. */
+fun mediaNameFromPath(path: String): String {
+    val paramIdx = path.indexOf("path=")
+    if (paramIdx >= 0) {
+        val enc = path.substring(paramIdx + "path=".length).substringBefore('&')
+        return runCatching {
+            java.net.URLDecoder
+                .decode(enc, StandardCharsets.UTF_8.name())
+                .split('/')
+                .lastOrNull()
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "file"
+    }
+    return runCatching { java.net.URI(path).path.split('/').lastOrNull() }.getOrNull()
         ?: path.split('/', '\\').lastOrNull()
         ?: path
+}

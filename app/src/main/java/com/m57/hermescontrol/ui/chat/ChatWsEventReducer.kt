@@ -255,6 +255,15 @@ object ChatWsEventReducer {
         // Refresh the context meter immediately on completion instead of
         // waiting for the next 5s session-sync poll.
         effects.add(ReducerEffect.RefreshContextUsage)
+        // Mobile-only media fix (issue #724): the WS stream delivers the raw
+        // `MEDIA:<host-path>` directive the desktop app inlines locally. The
+        // phone cannot reach the host filesystem the way the co-located desktop
+        // does, so ask the ViewModel to inline the image bytes (base64
+        // data: URL) into the local message copy when it can read the file.
+        // Mirrors desktop's resolveMediaDisplaySrc/readFileDataUrl path.
+        if (msg.role == MessageRole.ASSISTANT && sid != null) {
+            effects.add(ReducerEffect.InlineLocalMedia(sid, msg.id))
+        }
         return ReducerResult(
             state =
                 state.copy(
@@ -287,6 +296,12 @@ object ChatWsEventReducer {
         val sid = state.currentSessionId
         if (sid != null) {
             effects.add(ReducerEffect.PersistMessage(msg, sid))
+        }
+        // Mobile-only media fix (issue #724): inline any `MEDIA:<path>` image
+        // directive carried in the finalized assistant message. See the
+        // ReducerEffect.InlineLocalMedia KDoc for the rationale.
+        if (msg.role == MessageRole.ASSISTANT && sid != null) {
+            effects.add(ReducerEffect.InlineLocalMedia(sid, msg.id))
         }
         return ReducerResult(
             state =
@@ -669,4 +684,24 @@ sealed class ReducerEffect {
     data object RefreshSessions : ReducerEffect()
 
     data object RefreshContextUsage : ReducerEffect()
+
+    /**
+     * Ask the ViewModel to inline any `MEDIA:<host-path>` image directives in
+     * the just-finalized assistant message into base64 `data:image/...` markdown
+     * tags, then merge that into the local [messageId].
+     *
+     * Why: the gateway's WebSocket stream delivers the raw `MEDIA:<path>`
+     * directive (the same one the desktop app resolves locally via
+     * `readFileDataUrl`). The mobile renderer (`MarkdownText`) can show
+     * `data:image/...` URLs but not a bare host path, so unless the bytes are
+     * inlined the image is invisible on mobile. This mirrors desktop's
+     * `resolveMediaDisplaySrc` and is a mobile-only delivery fix — the backend
+     * is untouched. If the file can't be read (e.g. the app isn't co-located
+     * with the host), the ViewModel strips the directive instead of showing a
+     * raw path. See hermes-mobile issue #724.
+     */
+    data class InlineLocalMedia(
+        val sessionId: String,
+        val messageId: String,
+    ) : ReducerEffect()
 }

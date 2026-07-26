@@ -416,13 +416,13 @@ class ChatViewModel(
                     viewModelScope.launch { fetchContextUsage() }
                 }
 
-                is ReducerEffect.InlineLocalMedia -> {
-                    // Issue #724: inline host-path MEDIA: images (that the
-                    // co-located desktop would read locally) into base64 data:
-                    // URLs the mobile renderer can show. Best-effort: if the
-                    // file can't be read, the directive is stripped.
+                is ReducerEffect.RewriteHostMediaUrls -> {
+                    // Issue #724: rewrite host-path MEDIA: images into the
+                    // authenticated gateway /api/files/download URL (mirrors
+                    // desktop mediaExternalUrl) so the renderer can fetch the
+                    // bytes over HTTP — works on a remote phone too.
                     viewModelScope.launch(Dispatchers.IO) {
-                        inlineLocalMedia(effect.sessionId, effect.messageId)
+                        rewriteHostMediaUrls(effect.sessionId, effect.messageId)
                     }
                 }
             }
@@ -1743,39 +1743,43 @@ class ChatViewModel(
         }
     }
 
-    // ── Issue #724: inline host-path MEDIA: images ──────────────────────
+    // ── Issue #724: rewrite host-path MEDIA: images to gateway URLs ────────
     //
     // The gateway's WebSocket stream delivers the same raw `MEDIA:<path>`
-    // directive the desktop app resolves locally (readFileDataUrl). The mobile
-    // renderer (`MarkdownText`) only shows `data:image/...` URLs or http(s),
-    // never a bare host path — so an agent-sent image is invisible on mobile
-    // unless we inline the bytes ourselves. This mirrors desktop's
-    // resolveMediaDisplaySrc and is a mobile-only fix; the backend is untouched.
-    // The pure inlining logic lives in [MediaInline] so it can be unit-tested
-    // without an Android context.
+    // directive the desktop app turns into an authenticated
+    // `/api/files/download?path=<enc>&token=<enc>` URL (mediaExternalUrl).
+    // The mobile renderer (`MarkdownText`) shows http(s) `![]()` images via
+    // Coil, so rewriting the directive makes agent-sent images appear on
+    // mobile too — including on a remote phone (real HTTP, unlike a host-local
+    // file read). Mobile-only fix; the backend is untouched. The pure rewrite
+    // logic lives in [MediaUrlRewriter] so it can be unit-tested without an
+    // Android context.
 
     /**
-     * ViewModel-side handler for [ReducerEffect.InlineLocalMedia]: find the local
-     * message by id and, if its content carries inlinable media, swap in the
-     * data:-URL version. Only the content text is rewritten; role, reasoning,
-     * timestamp and attachments are preserved. No-op if the message is gone or
-     * the content already contains a data: image.
+     * ViewModel-side handler for [ReducerEffect.RewriteHostMediaUrls]: find the
+     * local message by id and, if its content carries `MEDIA:` directives,
+     * swap in the gateway `/api/files/download` URL version. Only the content
+     * text is rewritten; role, reasoning, timestamp and attachments are
+     * preserved. No-op if the message is gone or already rewritten.
      */
-    private fun inlineLocalMedia(
+    private fun rewriteHostMediaUrls(
         sessionId: String,
         messageId: String,
     ) {
         val current = _uiState.value.messages.find { it.id == messageId } ?: return
         val content = current.content
-        if (content.contains("data:image/")) return // already inlined (idempotent)
-        val inlined = MediaInline.inlineLocalMediaText(content)
-        if (inlined == content) return
+        if (content.contains("/api/files/download")) return // already rewritten (idempotent)
+        val baseUrl = AuthManager.getBaseUrl()
+        val token = AuthManager.getToken()
+        if (baseUrl.isBlank() || token.isNullOrBlank()) return
+        val rewritten = MediaUrlRewriter.rewriteMediaToGatewayUrls(content, baseUrl, token)
+        if (rewritten == content) return
         _uiState.update { state ->
             state.copy(
                 messages =
                     state.messages.map { msg ->
                         if (msg.id == messageId) {
-                            msg.copy(content = inlined)
+                            msg.copy(content = rewritten)
                         } else {
                             msg
                         }

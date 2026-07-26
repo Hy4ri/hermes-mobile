@@ -24,7 +24,7 @@ internal object MediaInline {
     private val MEDIA_TAG_RE =
         Regex(
             """[`"']?MEDIA:\s*((?:~|/|/[A-Za-z]:)[^\s`"')]*?\.(png|jpe?g|gif|webp|bmp))[`"']?""",
-            RegexOption.IGNORECASE,
+            RegexOption.IGNORE_CASE,
         )
 
     /**

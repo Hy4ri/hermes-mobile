@@ -1,12 +1,12 @@
 package com.m57.hermescontrol.ui.files
 
+import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
 import com.m57.hermescontrol.data.model.ManagedFileActionResponse
 import com.m57.hermescontrol.data.model.ManagedFileDelete
 import com.m57.hermescontrol.data.model.ManagedFileEntry
-import com.m57.hermescontrol.data.model.ManagedFileRead
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -37,8 +37,38 @@ data class FilesUiState(
     val newDirName: String = "",
     val isUploading: Boolean = false,
     val deleteTarget: ManagedFileEntry? = null,
+    val openingPath: String? = null,
     val toastMessage: String? = null,
 )
+
+/** Decoded file ready to be written to disk and opened on-device. */
+data class DownloadedFile(
+    val name: String,
+    val mimeType: String,
+    val bytes: ByteArray?,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DownloadedFile) return false
+        return name == other.name &&
+            mimeType == other.mimeType &&
+            (bytes?.contentEquals(other.bytes) == true)
+    }
+
+    override fun hashCode(): Int {
+        var r = name.hashCode()
+        r = 31 * r + mimeType.hashCode()
+        r = 31 * r + (bytes?.contentHashCode() ?: 0)
+        return r
+    }
+}
+
+/** Map a successful [NetworkResult] to a new value; pass failures through. */
+inline fun <T, R> NetworkResult<T>.map(transform: (T) -> R): NetworkResult<R> =
+    when (this) {
+        is NetworkResult.Success -> NetworkResult.Success(transform(this.data))
+        is NetworkResult.Failure -> this
+    }
 
 class FilesViewModel :
     ViewModel(),
@@ -203,11 +233,40 @@ class FilesViewModel :
         }
     }
 
-    // ── Read (for in-app preview / text view / image decode) ───────────────
-    suspend fun readFile(path: String): NetworkResult<ManagedFileRead> =
-        withContext(Dispatchers.IO) {
-            safeApiCall { ApiClient.hermesApi.readManagedFile(path) }
+    // ── Read / open (in-app download + base64 decode) ───────────────────────
+    // The backend returns file bytes as a base64 `data_url` (GET /api/files/read).
+    // We decode in-app and hand the raw bytes to the Screen, which writes them
+    // to cacheDir and opens via FileProvider — reusing the normal Bearer/session
+    // auth instead of the browser-only `?token=` escape hatch.
+    fun downloadFile(
+        entry: ManagedFileEntry,
+        onResult: (NetworkResult<DownloadedFile>) -> Unit,
+    ) {
+        _uiState.update { it.copy(openingPath = entry.path) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.readManagedFile(entry.path) }
+                        .map { read ->
+                            val bytes = decodeDataUrl(read.dataUrl)
+                            DownloadedFile(
+                                name = entry.name,
+                                mimeType = read.mimeType.ifBlank { "application/octet-stream" },
+                                bytes = bytes,
+                            )
+                        }
+                }
+            _uiState.update { it.copy(openingPath = null) }
+            onResult(result)
         }
+    }
+
+    private fun decodeDataUrl(dataUrl: String): ByteArray? {
+        val comma = dataUrl.indexOf(',')
+        if (comma < 0) return null
+        val payload = dataUrl.substring(comma + 1)
+        return runCatching { Base64.decode(payload, Base64.DEFAULT) }.getOrNull()
+    }
 
     private fun handleActionResult(
         result: NetworkResult<ManagedFileActionResponse>,

@@ -2,6 +2,7 @@
 
 package com.m57.hermescontrol.ui.files
 
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -49,22 +50,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ManagedFileEntry
-import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -79,7 +79,6 @@ fun FilesScreen(
     viewModel: FilesViewModel = viewModel { FilesViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
 
     val uploadLauncher =
@@ -242,12 +241,12 @@ fun FilesScreen(
                         ) { entry ->
                             FileRow(
                                 entry = entry,
-                                isBusy = entry.path in state.busyPaths,
+                                isBusy = entry.path in state.busyPaths || state.openingPath == entry.path,
                                 onClick = {
                                     if (entry.isDirectory) {
                                         viewModel.navigateTo(entry)
                                     } else {
-                                        openFile(entry, uriHandler)
+                                        openManagedFile(entry, viewModel, context)
                                     }
                                 },
                                 onDelete = { viewModel.requestDelete(entry) },
@@ -467,21 +466,58 @@ private fun fileSubtitle(entry: ManagedFileEntry): String {
 }
 
 /**
- * Open a file by building an authenticated gateway download URL with
- * [GatewayFileClient] and handing it to the system viewer via
- * [LocalUriHandler]. Works on a remote phone because the URL is HTTP-fetchable.
+ * Download a managed file **in-app** through the authenticated client and open
+ * it on the device via a `FileProvider`-shared URI + `ACTION_VIEW`.
+ *
+ * This replaces the earlier approach of handing a `?token=`-authenticated URL
+ * to the system browser: `/api/files/download` only accepts the *ephemeral
+ * in-process* session token as `?token=`, not the mobile's Bearer token, so a
+ * browser-opened link returned a JSON error body instead of the file. Fetching
+ * the bytes through [FilesViewModel.downloadFile] reuses the normal
+ * Bearer/session-cookie auth (same path as the rest of the app) and works on a
+ * remote phone because the file is materialized locally before viewing.
  */
-private fun openFile(
+private fun openManagedFile(
     entry: ManagedFileEntry,
-    uriHandler: androidx.compose.ui.platform.UriHandler,
+    viewModel: FilesViewModel,
+    context: android.content.Context,
 ) {
-    val url =
-        GatewayFileClient.buildDownloadUrl(
-            baseUrl = AuthManager.getBaseUrl(),
-            token = AuthManager.getToken().orEmpty(),
-            path = entry.path,
-        )
-    if (url != null) {
-        uriHandler.openUri(url)
+    viewModel.downloadFile(entry) { result ->
+        when (result) {
+            is com.m57.hermescontrol.data.remote.NetworkResult.Success -> {
+                val data = result.data
+                val bytes = data.bytes
+                if (bytes == null) {
+                    viewModel.showToast("Could not decode file")
+                    return@downloadFile
+                }
+                runCatching {
+                    val safeName =
+                        entry.name
+                            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                            .takeIf { it.isNotBlank() } ?: "file"
+                    val file = File(context.cacheDir, "hermes_files_$safeName")
+                    file.writeBytes(bytes)
+                    val uri =
+                        FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            file,
+                        )
+                    val intent =
+                        Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, data.mimeType)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    context.startActivity(intent)
+                }.onFailure {
+                    viewModel.showToast("Could not open file: ${it.message}")
+                }
+            }
+
+            is com.m57.hermescontrol.data.remote.NetworkResult.Failure -> {
+                viewModel.showToast("Failed to open file: ${result.error.message}")
+            }
+        }
     }
 }

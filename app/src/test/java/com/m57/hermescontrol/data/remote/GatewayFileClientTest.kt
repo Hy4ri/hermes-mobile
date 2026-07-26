@@ -14,7 +14,10 @@ class GatewayFileClientTest {
     fun `buildDownloadUrl encodes path and token`() {
         val url = GatewayFileClient.buildDownloadUrl(base, tok, "/tmp/foo.png")!!
         assertEquals(
-            "$base/api/files/download?path=%2Ftmp%2Ffoo.png&token=${java.net.URLEncoder.encode(tok, "UTF-8")}",
+            "$base/api/files/download?path=%2Ftmp%2Ffoo.png&token=${java.net.URLEncoder.encode(
+                tok,
+                "UTF-8",
+            ).replace("+", "%20")}",
             url,
         )
         assertTrue(url.contains("path=%2Ftmp%2Ffoo.png"))

@@ -3,6 +3,7 @@ package com.m57.hermescontrol.data.remote
 import com.m57.hermescontrol.data.local.AuthManager
 import okhttp3.Request
 import java.io.IOException
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.regex.Pattern
@@ -42,8 +43,8 @@ object GatewayFileClient {
         val trimmedBase = baseUrl.trimEnd('/')
         if (trimmedBase.isBlank() || token.isBlank()) return null
         val norm = normalizePath(path) ?: return null
-        val encPath = URLEncoder.encode(norm, StandardCharsets.UTF_8.name())
-        val encToken = URLEncoder.encode(token, StandardCharsets.UTF_8.name())
+        val encPath = URLEncoder.encode(norm, StandardCharsets.UTF_8.name()).replace("+", "%20")
+        val encToken = URLEncoder.encode(token, StandardCharsets.UTF_8.name()).replace("+", "%20")
         return "$trimmedBase$DOWNLOAD_PATH?path=$encPath&token=$encToken"
     }
 
@@ -105,10 +106,7 @@ object GatewayFileClient {
                 if (!resp.isSuccessful) {
                     return GatewayFileResult.Failure(IOException("HTTP ${resp.code}"))
                 }
-                val body = resp.body?.bytes()
-                if (body == null) {
-                    return GatewayFileResult.Failure(IOException("empty response body"))
-                }
+                val body = resp.body.bytes()
                 val name =
                     resp.header("Content-Disposition")?.let { parseFilename(it) }
                         ?: fileNameFromPath(path)
@@ -126,8 +124,7 @@ object GatewayFileClient {
     internal fun parseFilename(header: String): String? {
         val m = FILENAME_RE.find(header) ?: return null
         val raw = m.groupValues[1].takeIf { it.isNotBlank() } ?: return null
-        return runCatching { java.net.URLDecoder.decode(raw, StandardCharsets.UTF_8.name()) }
-            .getOrDefault(raw)
+        return runCatching { URLDecoder.decode(raw, StandardCharsets.UTF_8.name()) }.getOrDefault(raw)
     }
 
     private fun fileNameFromPath(path: String): String =
@@ -161,7 +158,9 @@ data class GatewayFile(
 
 /** Outcome of [GatewayFileClient.fetch]. */
 sealed interface GatewayFileResult {
-    data class Success(val file: GatewayFile) : GatewayFileResult
+    data class Success(
+        val file: GatewayFile,
+    ) : GatewayFileResult
 
     data object NotFound : GatewayFileResult // 404 — file missing on gateway
 
@@ -171,5 +170,7 @@ sealed interface GatewayFileResult {
 
     data object Unauthorized : GatewayFileResult // 401 — bad/expired token
 
-    data class Failure(val throwable: Throwable) : GatewayFileResult // network / unexpected
+    data class Failure(
+        val throwable: Throwable,
+    ) : GatewayFileResult // network / unexpected
 }

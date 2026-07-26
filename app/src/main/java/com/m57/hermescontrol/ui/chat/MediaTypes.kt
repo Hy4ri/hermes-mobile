@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.ui.chat
 
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+
 /**
  * File-kind classification for gateway-hosted files, mirroring the desktop app's
  * `MEDIA_BY_EXT` table (`apps/desktop/src/lib/media.ts`). Lets UI code decide
@@ -41,13 +44,25 @@ private val MEDIA_BY_EXT: Map<String, Pair<MediaKind, String>> =
 
 /** Classify a path/URL by extension. Unknown extensions fall back to [MediaKind.FILE]. */
 fun mediaKindForPath(path: String): MediaKind {
-    val ext = path.split('?', limit = 2)[0].split('.').lastOrNull()?.lowercase().orEmpty()
+    val ext =
+        path
+            .split('?', limit = 2)[0]
+            .split('.')
+            .lastOrNull()
+            ?.lowercase()
+            .orEmpty()
     return MEDIA_BY_EXT[ext]?.first ?: MediaKind.FILE
 }
 
 /** Best-guess MIME type for a path/URL by extension. Falls back to octet-stream. */
 fun mediaMimeForPath(path: String): String {
-    val ext = path.split('?', limit = 2)[0].split('.').lastOrNull()?.lowercase().orEmpty()
+    val ext =
+        path
+            .split('?', limit = 2)[0]
+            .split('.')
+            .lastOrNull()
+            ?.lowercase()
+            .orEmpty()
     return MEDIA_BY_EXT[ext]?.second ?: "application/octet-stream"
 }
 
@@ -57,17 +72,22 @@ fun mediaMimeForPath(path: String): String {
  * `/api/files/download?path=<enc>` URL, where the real filename lives in the
  * percent-encoded `path=` query parameter. */
 fun mediaNameFromPath(path: String): String {
-    val paramIdx = path.indexOf("path=")
-    if (paramIdx >= 0) {
-        val enc = path.substring(paramIdx + "path=".length).substringBefore('&')
-        return runCatching {
-            java.net.URLDecoder
-                .decode(enc, StandardCharsets.UTF_8.name())
-                .split('/')
-                .lastOrNull()
-        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "file"
+    val queryPathMatch = Regex("""[?&]path=([^&]+)""", RegexOption.IGNORE_CASE).find(path)
+    if (queryPathMatch != null) {
+        val targetPath =
+            runCatching {
+                URLDecoder.decode(queryPathMatch.groupValues[1], StandardCharsets.UTF_8.name())
+            }.getOrDefault(queryPathMatch.groupValues[1])
+        targetPath.split('/', '\\').lastOrNull { it.isNotBlank() }?.let { return it }
     }
-    return runCatching { java.net.URI(path).path.split('/').lastOrNull() }.getOrNull()
-        ?: path.split('/', '\\').lastOrNull()
+    val cleanPath = path.split('?', limit = 2)[0]
+    return runCatching {
+        java.net
+            .URI(cleanPath)
+            .path
+            .split('/')
+            .lastOrNull { it.isNotBlank() }
+    }.getOrNull()
+        ?: cleanPath.split('/', '\\').lastOrNull { it.isNotBlank() }
         ?: path
 }

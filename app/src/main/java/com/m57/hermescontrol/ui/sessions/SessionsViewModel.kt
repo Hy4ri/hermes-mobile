@@ -80,7 +80,7 @@ class SessionsViewModel : ViewModel(), ToastHost {
                         )
                     }
                 },
-                onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
+                onStart = { _uiState.update { it.copy(isLoading = it.sessions.isEmpty(), errorMessage = null) } },
                 onSuccess = { data ->
                     _uiState.update {
                         it.copy(

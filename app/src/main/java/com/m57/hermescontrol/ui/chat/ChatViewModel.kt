@@ -186,7 +186,8 @@ class ChatViewModel(
 
     /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
     private var runtimeSessionId: String? = null
-    private var loadedMessageOffset = 0
+    private val loadedMessageOffsets = ConcurrentHashMap<String, Int>()
+    private var sessionSwitchCounter = 0
     private var isSyncingMessages = false
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
@@ -640,11 +641,28 @@ class ChatViewModel(
                 val provider = infoMap?.get("provider") as? String
                 val reasoningEffort = infoMap?.get("reasoning_effort") as? String
 
-                // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
-                // cached messages here — switchSession() already did so before
-                // the WS round-trip. Calling loadCachedMessages() here would
-                // overwrite any message the user sent between switchSession() and
-                // the server ack, making the chat appear to go blank.
+                // Parse WS resume messages if provided in payload by backend
+                @Suppress("UNCHECKED_CAST")
+                val rawMessages = resultMap?.get("messages") as? List<Map<String, Any?>>
+                if (!rawMessages.isNullOrEmpty() && sessionId != null) {
+                    val serverMessages = mapServerMessages(sessionId, rawMessages, 0)
+                    loadedMessageOffsets[sessionId] = 0
+                    viewModelScope.launch(Dispatchers.IO) {
+                        repo.persistMessages(serverMessages, sessionId)
+                    }
+                    _uiState.update { state ->
+                        if (state.currentSessionId == sessionId) {
+                            state.copy(
+                                messages = serverMessages,
+                                isLoading = false,
+                                hasOlderMessages = false,
+                            )
+                        } else {
+                            state
+                        }
+                    }
+                }
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -1412,9 +1430,10 @@ class ChatViewModel(
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
-        // Reset streaming and pagination state before resuming the Desktop session.
+        val generation = ++sessionSwitchCounter
+
+        // Reset streaming state before resuming the session.
         runtimeSessionId = null
-        loadedMessageOffset = 0
         streamingController.resetStreaming()
         _uiState.update {
             val title = it.sessions.find { s -> s.id == sessionId }?.title ?: "Hermes"
@@ -1432,6 +1451,10 @@ class ChatViewModel(
         // Mirror the active session id app-wide (issue #532).
         ActiveSessionHolder.set(sessionId)
         _streamingState.update { StreamingState() }
+
+        // Cache-first: render Room DB cached messages instantly (0ms latency)
+        loadCachedMessages(sessionId, generation)
+
         viewModelScope.launch {
             // Resume the selected desktop session, then load its complete transcript.
             launch(Dispatchers.IO) {
@@ -1441,25 +1464,34 @@ class ChatViewModel(
                     onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
                 )
             }
-            loadSessionMessages(sessionId)
+            loadSessionMessages(sessionId, generation)
             loadSessions()
         }
     }
 
-    private fun loadCachedMessages(sessionId: String): Job =
+    private fun loadCachedMessages(
+        sessionId: String,
+        generation: Int = sessionSwitchCounter,
+    ): Job =
         viewModelScope.launch(Dispatchers.IO) {
             val cachedMessages = repo.loadMessages(sessionId)
             _uiState.update { state ->
-                // Only replace if still showing this session
-                if (state.currentSessionId == sessionId) {
-                    state.copy(messages = cachedMessages, isLoading = false)
+                // Only replace if still showing this session and generation matches
+                if (state.currentSessionId == sessionId && generation == sessionSwitchCounter) {
+                    state.copy(
+                        messages = if (cachedMessages.isNotEmpty()) cachedMessages else state.messages,
+                        isLoading = cachedMessages.isEmpty() && state.isLoading,
+                    )
                 } else {
                     state
                 }
             }
         }
 
-    private fun loadSessionMessages(sessionId: String) {
+    private fun loadSessionMessages(
+        sessionId: String,
+        generation: Int = sessionSwitchCounter,
+    ) {
         viewModelScope.launch {
             val messageCount = fetchServerMessageCount(sessionId)
             val offset = (messageCount - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
@@ -1468,12 +1500,14 @@ class ChatViewModel(
                 is NetworkResult.Success -> {
                     val serverOffset = result.data.offset ?: offset
                     val chatMessages = mapServerMessages(sessionId, result.data.messages.orEmpty(), serverOffset)
-                    loadedMessageOffset = serverOffset
+                    loadedMessageOffsets[sessionId] = serverOffset
                     withContext(Dispatchers.IO) {
                         repo.persistMessages(chatMessages, sessionId)
                     }
                     _uiState.update { state ->
-                        if (state.currentSessionId != sessionId) return@update state
+                        if (state.currentSessionId != sessionId || generation != sessionSwitchCounter) {
+                            return@update state
+                        }
                         state.copy(
                             messages = chatMessages,
                             isLoading = false,
@@ -1485,7 +1519,7 @@ class ChatViewModel(
 
                 is NetworkResult.Failure -> {
                     _uiState.update {
-                        if (it.currentSessionId != sessionId) return@update it
+                        if (it.currentSessionId != sessionId || generation != sessionSwitchCounter) return@update it
                         it.copy(
                             isLoading = false,
                             isLoadingOlder = false,
@@ -1500,8 +1534,9 @@ class ChatViewModel(
     fun loadOlderMessages() {
         val state = _uiState.value
         val sessionId = state.currentSessionId ?: return
-        if (!state.hasOlderMessages || state.isLoadingOlder || loadedMessageOffset <= 0) return
-        val oldOffset = loadedMessageOffset
+        val currentOffset = loadedMessageOffsets[sessionId] ?: 0
+        if (!state.hasOlderMessages || state.isLoadingOlder || currentOffset <= 0) return
+        val oldOffset = currentOffset
         val newOffset = (oldOffset - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
         val limit = oldOffset - newOffset
         _uiState.update { it.copy(isLoadingOlder = true) }
@@ -1510,7 +1545,7 @@ class ChatViewModel(
                 is NetworkResult.Success -> {
                     val returnedOffset = result.data.offset ?: newOffset
                     val older = mapServerMessages(sessionId, result.data.messages.orEmpty(), returnedOffset)
-                    loadedMessageOffset = returnedOffset
+                    loadedMessageOffsets[sessionId] = returnedOffset
                     withContext(Dispatchers.IO) { repo.persistMessages(older, sessionId) }
                     _uiState.update { current ->
                         if (current.currentSessionId != sessionId) return@update current
@@ -1537,12 +1572,13 @@ class ChatViewModel(
         ) {
             return
         }
+        val currentOffset = loadedMessageOffsets[sessionId] ?: 0
         val nextOffset =
             state.messages
                 .mapNotNull { serverMessageIndex(it.id, sessionId) }
                 .maxOrNull()
                 ?.plus(1)
-                ?: loadedMessageOffset
+                ?: currentOffset
         isSyncingMessages = true
         viewModelScope.launch {
             try {

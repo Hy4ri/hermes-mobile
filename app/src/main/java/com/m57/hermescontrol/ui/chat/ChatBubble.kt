@@ -114,6 +114,7 @@ fun ChatBubble(
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
     onRespondApproval: (String) -> Unit = {},
+    onOpenAttachment: (Attachment) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
@@ -129,17 +130,25 @@ fun ChatBubble(
     ) {
         when (message.role) {
             MessageRole.USER -> {
-                UserBubble(message, maxBubbleWidth, searchQuery, isCurrentMatch, modifier)
+                UserBubble(
+                    message = message,
+                    maxWidth = maxBubbleWidth,
+                    searchQuery = searchQuery,
+                    isCurrentMatch = isCurrentMatch,
+                    onOpenAttachment = onOpenAttachment,
+                    modifier = modifier,
+                )
             }
 
             MessageRole.ASSISTANT -> {
                 AssistantBubble(
-                    message,
-                    maxBubbleWidth,
-                    isDarkTheme,
-                    searchQuery,
-                    isCurrentMatch,
-                    modifier,
+                    message = message,
+                    maxWidth = maxBubbleWidth,
+                    isDarkTheme = isDarkTheme,
+                    searchQuery = searchQuery,
+                    isCurrentMatch = isCurrentMatch,
+                    onOpenAttachment = onOpenAttachment,
+                    modifier = modifier,
                 )
             }
 
@@ -164,6 +173,7 @@ private fun UserBubble(
     maxWidth: androidx.compose.ui.unit.Dp,
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
+    onOpenAttachment: (Attachment) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val clipboard = LocalClipboard.current
@@ -263,7 +273,7 @@ private fun UserBubble(
                             InlineAttachment(
                                 attachment = attachment,
                                 textColor = userBubbleTextColor,
-                                onOpen = { viewModel.openGatewayAttachment(it) },
+                                onOpen = { onOpenAttachment(it) },
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
@@ -326,6 +336,7 @@ private fun AssistantBubble(
     isDarkTheme: Boolean,
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
+    onOpenAttachment: (Attachment) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val bubbleColor = if (isDarkTheme) AssistantBubble else AssistantBubbleLight
@@ -415,7 +426,7 @@ private fun AssistantBubble(
                             InlineAttachment(
                                 attachment = attachment,
                                 textColor = textColor,
-                                onOpen = { viewModel.openGatewayAttachment(it) },
+                                onOpen = { onOpenAttachment(it) },
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }

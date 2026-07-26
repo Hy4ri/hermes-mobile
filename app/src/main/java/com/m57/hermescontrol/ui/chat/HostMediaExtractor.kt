@@ -23,10 +23,10 @@ internal object HostMediaExtractor {
         val path: String, // normalized absolute path
     )
 
-    /** Matches `MEDIA:<absolute-or-~/path>` (any extension), optional quotes/backticks. */
+    /** Matches `MEDIA:<path>` (any extension), supporting quotes/backticks around the path. */
     private val MEDIA_TAG_RE =
         Regex(
-            """[`"']?MEDIA:\s*((?:~|/|/[A-Za-z]:)[^\s`"')]*)[`"']?""",
+            """[`"']?MEDIA:\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`|((?:~|/|[A-Za-z]:)[^\s`"')]*))[`"']?""",
             RegexOption.IGNORE_CASE,
         )
 
@@ -36,7 +36,7 @@ internal object HostMediaExtractor {
         return MEDIA_TAG_RE
             .findAll(text)
             .mapNotNull { m ->
-                val raw = m.groupValues[1]
+                val raw = m.groupValues.drop(1).firstOrNull { it.isNotBlank() } ?: return@mapNotNull null
                 val path = normalizePath(raw) ?: return@mapNotNull null
                 Item(match = m.value, path = path)
             }.toList()
@@ -45,7 +45,11 @@ internal object HostMediaExtractor {
     /** Remove all `MEDIA:<path>` directives from [text] (leaves other content). */
     fun strip(text: String): String {
         if (!text.contains("MEDIA:")) return text
-        return MEDIA_TAG_RE.replace(text) { "" }.replace(Regex("""\n{3,}"""), "\n\n").trim()
+        return MEDIA_TAG_RE
+            .replace(text) { "" }
+            .replace(Regex("""[ \t]+"""), " ")
+            .replace(Regex("""\n{3,}"""), "\n\n")
+            .trim()
     }
 
     /** Expand ~/ and verify the path is absolute. Null if not an absolute path. */

@@ -15,7 +15,9 @@ import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.GatewayFile
 import com.m57.hermescontrol.data.remote.GatewayFileClient
+import com.m57.hermescontrol.data.remote.GatewayFileResult
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -1064,10 +1066,11 @@ class ChatViewModel(
                 // #576). For those we fall back to slash.exec, which runs the
                 // full COMMAND_REGISTRY through the worker.
                 val result =
-                    wsClient.request(
-                        WsMethods.COMMAND_DISPATCH,
-                        mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
-                    ).await()
+                    wsClient
+                        .request(
+                            WsMethods.COMMAND_DISPATCH,
+                            mapOf("name" to name, "arg" to arg, "session_id" to sessionId),
+                        ).await()
                 handleDispatchResult(result)
             } catch (e: HermesWsClient.HermesRpcException) {
                 val msg = e.message.orEmpty()
@@ -1080,13 +1083,14 @@ class ChatViewModel(
                     // which routes the full CLI command set through the worker.
                     try {
                         val result =
-                            wsClient.request(
-                                WsMethods.SLASH_EXEC,
-                                mapOf(
-                                    "command" to "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
-                                    "session_id" to sessionId,
-                                ),
-                            ).await()
+                            wsClient
+                                .request(
+                                    WsMethods.SLASH_EXEC,
+                                    mapOf(
+                                        "command" to "/$name${if (arg.isNotEmpty()) " $arg" else ""}",
+                                        "session_id" to sessionId,
+                                    ),
+                                ).await()
                         val output = (result as? Map<*, *>)?.get("output") as? String
                         if (!output.isNullOrBlank()) addAssistantMessage(output)
                     } catch (e2: HermesWsClient.HermesRpcException) {
@@ -1827,7 +1831,9 @@ class ChatViewModel(
         val url = attachment.gatewayUrl ?: return
         val path =
             runCatching {
-                java.net.URL(url).query
+                java.net
+                    .URL(url)
+                    .query
                     .split('&')
                     .firstOrNull { it.startsWith("path=") }
                     ?.removePrefix("path=")

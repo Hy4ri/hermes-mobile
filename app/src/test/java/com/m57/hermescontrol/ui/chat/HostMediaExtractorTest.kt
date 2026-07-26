@@ -37,14 +37,14 @@ class HostMediaExtractorTest {
     @Test
     fun `strips directives from text`() {
         val out = HostMediaExtractor.strip("See MEDIA:/tmp/a.png for details")
-        assertEquals("See  for details", out)
+        assertEquals("See for details", out)
         assertFalse(out.contains("MEDIA:"))
     }
 
     @Test
     fun `strips multiple directives`() {
         val out = HostMediaExtractor.strip("MEDIA:/a/x.pdf MEDIA:/b/y.mp3 end")
-        assertEquals(" end", out)
+        assertEquals("end", out)
     }
 
     @Test

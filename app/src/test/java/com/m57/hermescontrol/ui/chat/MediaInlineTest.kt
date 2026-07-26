@@ -10,7 +10,7 @@ class MediaInlineTest {
     @Test
     fun `inlines readable image into data url`() {
         val file = File.createTempFile("media-inline-test", ".png")
-        file.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47))
+        file.writeBytes(byteArrayOf(0x89.toByte(), 0x50.toByte(), 0x4E.toByte(), 0x47.toByte()))
         val text = "Here is the result: MEDIA:${file.absolutePath}"
         val out = MediaInline.inlineLocalMediaText(text)
         assertTrue(out.contains("data:image/png;base64,"))
@@ -36,7 +36,7 @@ class MediaInlineTest {
     @Test
     fun `handles quoted path`() {
         val file = File.createTempFile("media-quote", ".jpg")
-        file.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8, 0xFF.toByte(), 0xE0.toByte()))
+        file.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()))
         val text = "MEDIA:\"${file.absolutePath}\""
         val out = MediaInline.inlineLocalMediaText(text)
         assertTrue(out.startsWith("![image](data:image/jpg;base64,"))

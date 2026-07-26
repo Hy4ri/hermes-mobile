@@ -80,6 +80,7 @@
     <string name="screen_providers">제공자</string>
     <string name="screen_analytics">분석</string>
     <string name="screen_billing">결제</string>
+    <string name="screen_files">파일</string>
 
     <!-- Notifications -->
     <string name="notif_title">헤르메스</string>

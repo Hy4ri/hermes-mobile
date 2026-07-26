@@ -35,6 +35,12 @@ import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LogResponse
+import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
+import com.m57.hermescontrol.data.model.ManagedFileActionResponse
+import com.m57.hermescontrol.data.model.ManagedFileDelete
+import com.m57.hermescontrol.data.model.ManagedFileRead
+import com.m57.hermescontrol.data.model.ManagedFileUpload
+import com.m57.hermescontrol.data.model.ManagedFilesListResponse
 import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
 import com.m57.hermescontrol.data.model.McpCatalogResponse
 import com.m57.hermescontrol.data.model.McpServer
@@ -106,9 +112,11 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.HTTP
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -757,4 +765,41 @@ interface HermesApiService {
         @Path("name") name: String,
         @Query("lines") lines: Int = 200,
     ): Response<ActionStatusResponse>
+
+    // ── Managed Files ──────────────────────────────────────────────────
+    // Backed by hermes_cli/web_server.py /api/files* endpoints. The mobile app
+    // talks to the dashboard (9119) and authenticates with the standard
+    // Bearer/session-cookie middleware, so no ?token= query param is needed.
+    @GET("api/files")
+    suspend fun listManagedFiles(
+        @Query("path") path: String? = null,
+    ): Response<ManagedFilesListResponse>
+
+    @GET("api/files/read")
+    suspend fun readManagedFile(
+        @Query("path") path: String,
+    ): Response<ManagedFileRead>
+
+    @POST("api/files/upload")
+    suspend fun uploadManagedFile(
+        @Body body: ManagedFileUpload,
+    ): Response<ManagedFileActionResponse>
+
+    @Multipart
+    @POST("api/files/upload-stream")
+    suspend fun uploadManagedFileStream(
+        @Part("path") path: okhttp3.RequestBody,
+        @Part("overwrite") overwrite: okhttp3.RequestBody,
+        @Part file: okhttp3.MultipartBody.Part,
+    ): Response<ManagedFileActionResponse>
+
+    @POST("api/files/mkdir")
+    suspend fun createManagedDirectory(
+        @Body body: ManagedDirectoryCreate,
+    ): Response<ManagedFileActionResponse>
+
+    @HTTP(method = "DELETE", path = "api/files", hasBody = true)
+    suspend fun deleteManagedFile(
+        @Body body: ManagedFileDelete,
+    ): Response<ManagedFileActionResponse>
 }

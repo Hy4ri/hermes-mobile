@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
 import androidx.compose.material.icons.filled.Info
@@ -33,6 +34,7 @@ import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
 import com.m57.hermescontrol.ui.cron.CronJobsScreen as CronJobsScreenContent
+import com.m57.hermescontrol.ui.files.FilesScreen as FilesScreenContent
 import com.m57.hermescontrol.ui.gateway.GatewayScreen as GatewayScreenContent
 import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
 import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
@@ -196,6 +198,12 @@ object ScreenRegistry {
                 Icons.Filled.AccountBalanceWallet,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> BillingScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                FilesScreen,
+                R.string.screen_files,
+                Icons.Filled.Folder,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> FilesScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 AchievementsScreen,
                 R.string.screen_achievements,

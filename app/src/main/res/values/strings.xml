@@ -91,6 +91,7 @@
     <string name="screen_providers">Providers</string>
     <string name="screen_analytics">Analytics</string>
     <string name="screen_billing">Billing</string>
+    <string name="screen_files">Files</string>
 
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>
@@ -759,6 +760,21 @@
     <string name="keys_add_value_placeholder">e.g. sk-...</string>
     <string name="keys_action_open_url">Open provider documentation</string>
     <string name="keys_filter_all">All</string>
+
+    <!-- Files Screen -->
+    <string name="files_root_label">Managed files root</string>
+    <string name="files_empty_title">No files here</string>
+    <string name="files_empty_desc">This folder is empty. Create a folder or upload a file to get started.</string>
+    <string name="files_action_up">Go up</string>
+    <string name="files_action_upload">Upload file</string>
+    <string name="files_action_new_folder">New folder</string>
+    <string name="files_action_create">Create</string>
+    <string name="files_action_delete">Delete</string>
+    <string name="files_dialog_new_folder_title">New Folder</string>
+    <string name="files_new_folder_label">Folder name</string>
+    <string name="files_new_folder_placeholder">my-folder</string>
+    <string name="files_dialog_delete_title">Delete?</string>
+    <string name="files_dialog_delete_message">Are you sure you want to delete \"%1$s\"? This cannot be undone.</string>
 
     <!-- Channels Screen -->
     <string name="channels_empty_title">No channels configured</string>

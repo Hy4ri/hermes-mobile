@@ -256,11 +256,11 @@ object ChatWsEventReducer {
         // waiting for the next 5s session-sync poll.
         effects.add(ReducerEffect.RefreshContextUsage)
         // Mobile-only media fix (issue #724): the WS stream delivers the raw
-        // `MEDIA:<host-path>` directive. Rewrite it to the authenticated
-        // gateway /api/files/download URL (mirrors desktop mediaExternalUrl)
-        // so the image renders on mobile, including on a remote phone.
+        // `MEDIA:<host-path>` directive. Turn it into real attachments (images
+        // inline, every other file tappable) via the gateway /api/files/download
+        // endpoint — works on a remote phone too.
         if (msg.role == MessageRole.ASSISTANT && sid != null) {
-            effects.add(ReducerEffect.RewriteHostMediaUrls(sid, msg.id))
+            effects.add(ReducerEffect.AttachHostMedia(sid, msg.id))
         }
         return ReducerResult(
             state =
@@ -295,12 +295,11 @@ object ChatWsEventReducer {
         if (sid != null) {
             effects.add(ReducerEffect.PersistMessage(msg, sid))
         }
-        // Mobile-only media fix (issue #724): rewrite any `MEDIA:<path>` image
-        // directive carried in the finalized assistant message to the
-        // authenticated gateway /api/files/download URL. See the
-        // ReducerEffect.RewriteHostMediaUrls KDoc for the rationale.
+        // Mobile-only media fix (issue #724): attach any `MEDIA:<path>` file
+        // carried in the finalized assistant message as a real attachment. See
+        // the ReducerEffect.AttachHostMedia KDoc for the rationale.
         if (msg.role == MessageRole.ASSISTANT && sid != null) {
-            effects.add(ReducerEffect.RewriteHostMediaUrls(sid, msg.id))
+            effects.add(ReducerEffect.AttachHostMedia(sid, msg.id))
         }
         return ReducerResult(
             state =
@@ -685,22 +684,19 @@ sealed class ReducerEffect {
     data object RefreshContextUsage : ReducerEffect()
 
     /**
-     * Ask the ViewModel to rewrite any `MEDIA:<host-path>` image directives in
-     * the just-finalized assistant message into gateway-served
-     * `![image](<baseUrl>/api/files/download?path=<enc>&token=<enc>)` markdown
-     * tags and merge that into the local [messageId].
+     * Ask the ViewModel to turn any `MEDIA:<host-path>` directives in the
+     * just-finalized assistant message into real [Attachment]s (images inline,
+     * every other file type tappable) and strip the directives from the text.
      *
      * Why: the gateway's WebSocket stream delivers the raw `MEDIA:<path>`
      * directive (the same one the desktop app resolves via `mediaExternalUrl`
      * to the authenticated `/api/files/download` endpoint, which streams the
-     * host file over HTTP). The mobile renderer (`MarkdownText`) shows
-     * http(s) `![]()` images via Coil, so rewriting the directive makes
-     * agent-sent images appear on mobile too — even on a remote phone (real
-     * HTTP, unlike a host-local file read). Mirrors desktop's
-     * `mediaExternalUrl` and is a mobile-only delivery fix; the backend is
-     * untouched. See hermes-mobile issue #724.
+     * host file over HTTP). Attaching them lets the renderer show images inline
+     * and offer every other file as a fetchable attachment — even on a remote
+     * phone (real HTTP, unlike a host-local file read). Mirrors desktop's
+     * `mediaExternalUrl`; mobile-only, backend untouched. See issue #724.
      */
-    data class RewriteHostMediaUrls(
+    data class AttachHostMedia(
         val sessionId: String,
         val messageId: String,
     ) : ReducerEffect()

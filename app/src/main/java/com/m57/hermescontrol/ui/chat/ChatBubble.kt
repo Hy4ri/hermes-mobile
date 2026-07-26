@@ -263,6 +263,7 @@ private fun UserBubble(
                             InlineAttachment(
                                 attachment = attachment,
                                 textColor = userBubbleTextColor,
+                                onOpen = { viewModel.openGatewayAttachment(it) },
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
@@ -414,6 +415,7 @@ private fun AssistantBubble(
                             InlineAttachment(
                                 attachment = attachment,
                                 textColor = textColor,
+                                onOpen = { viewModel.openGatewayAttachment(it) },
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
@@ -2293,24 +2295,30 @@ private fun buildHighlightedString(
 private fun InlineAttachment(
     attachment: Attachment,
     textColor: Color,
+    onOpen: (Attachment) -> Unit = {},
 ) {
+    val clickable = Modifier.clickable { onOpen(attachment) }
     if (attachment.isImage) {
-        // Image attachment — show as a rounded thumbnail
+        // Image attachment — show as a rounded thumbnail (Coil loads the
+        // gateway download URL directly when gateway-sourced).
         AsyncImage(
             model = attachment.uri,
             contentDescription = attachment.name,
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp)),
+                    .clip(RoundedCornerShape(12.dp))
+                    .then(clickable),
             contentScale = ContentScale.FillWidth,
         )
     } else {
-        // Non-image file — show a card with file icon and name
+        // Non-image file — show a card with file icon and name. Tapping fetches
+        // the bytes (gateway-sourced) or opens the local URI.
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = textColor.copy(alpha = 0.1f),
             border = BorderStroke(1.dp, textColor.copy(alpha = 0.2f)),
+            modifier = clickable,
         ) {
             Row(
                 modifier = Modifier.padding(8.dp),

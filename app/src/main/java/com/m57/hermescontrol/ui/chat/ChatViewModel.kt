@@ -10,10 +10,12 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -416,13 +418,13 @@ class ChatViewModel(
                     viewModelScope.launch { fetchContextUsage() }
                 }
 
-                is ReducerEffect.RewriteHostMediaUrls -> {
-                    // Issue #724: rewrite host-path MEDIA: images into the
-                    // authenticated gateway /api/files/download URL (mirrors
-                    // desktop mediaExternalUrl) so the renderer can fetch the
-                    // bytes over HTTP — works on a remote phone too.
+                is ReducerEffect.AttachHostMedia -> {
+                    // Issue #724: turn host-path MEDIA: directives into real
+                    // attachments (images inline, every other file tappable)
+                    // via the gateway /api/files/download endpoint. Works on a
+                    // remote phone too.
                     viewModelScope.launch(Dispatchers.IO) {
-                        rewriteHostMediaUrls(effect.sessionId, effect.messageId)
+                        attachHostMedia(effect.sessionId, effect.messageId)
                     }
                 }
             }
@@ -1743,48 +1745,123 @@ class ChatViewModel(
         }
     }
 
-    // ── Issue #724: rewrite host-path MEDIA: images to gateway URLs ────────
+    // ── Issue #724: attach host-path MEDIA: files as real attachments ────
     //
-    // The gateway's WebSocket stream delivers the same raw `MEDIA:<path>`
-    // directive the desktop app turns into an authenticated
-    // `/api/files/download?path=<enc>&token=<enc>` URL (mediaExternalUrl).
-    // The mobile renderer (`MarkdownText`) shows http(s) `![]()` images via
-    // Coil, so rewriting the directive makes agent-sent images appear on
-    // mobile too — including on a remote phone (real HTTP, unlike a host-local
-    // file read). Mobile-only fix; the backend is untouched. The pure rewrite
-    // logic lives in [MediaUrlRewriter] so it can be unit-tested without an
-    // Android context.
+    // The gateway's WebSocket stream delivers the raw `MEDIA:<path>` directive
+    // the desktop app turns into an authenticated `/api/files/download?...`
+    // URL. We parse every directive, build the download URL via
+    // [GatewayFileClient], classify it (image / audio / video / file) using
+    // [mediaKindForPath], and attach it to the message. Images render inline
+    // (Coil loads the URL); every other type becomes a tappable, fetchable
+    // attachment. The directive text is stripped from the message body. Works
+    // on a remote phone (real HTTP). Mobile-only; backend untouched. Pure
+    // parsing lives in [HostMediaExtractor].
 
     /**
-     * ViewModel-side handler for [ReducerEffect.RewriteHostMediaUrls]: find the
-     * local message by id and, if its content carries `MEDIA:` directives,
-     * swap in the gateway `/api/files/download` URL version. Only the content
-     * text is rewritten; role, reasoning, timestamp and attachments are
-     * preserved. No-op if the message is gone or already rewritten.
+     * ViewModel-side handler for [ReducerEffect.AttachHostMedia]: find the local
+     * message by id, convert any `MEDIA:<path>` directives into [Attachment]s
+     * (via the gateway download URL) and strip them from the text. Role,
+     * reasoning, timestamp and existing attachments are preserved; new gateway
+     * attachments are appended. Idempotent — skips if gateway attachments for
+     * the same paths already exist.
      */
-    private fun rewriteHostMediaUrls(
+    private fun attachHostMedia(
         sessionId: String,
         messageId: String,
     ) {
         val current = _uiState.value.messages.find { it.id == messageId } ?: return
         val content = current.content
-        if (content.contains("/api/files/download")) return // already rewritten (idempotent)
+        val items = HostMediaExtractor.extract(content)
+        if (items.isEmpty()) return
+
         val baseUrl = AuthManager.getBaseUrl()
         val token = AuthManager.getToken()
         if (baseUrl.isBlank() || token.isNullOrBlank()) return
-        val rewritten = MediaUrlRewriter.rewriteMediaToGatewayUrls(content, baseUrl, token)
-        if (rewritten == content) return
+
+        val existingUrls =
+            current.attachments
+                .orEmpty()
+                .mapNotNull { it.gatewayUrl }
+                .toSet()
+        val newAttachments =
+            items.mapNotNull { item ->
+                val url = GatewayFileClient.buildDownloadUrl(baseUrl, token, item.path) ?: return@mapNotNull null
+                if (url in existingUrls) return@mapNotNull null
+                Attachment(
+                    uri = url,
+                    name = mediaNameFromPath(item.path),
+                    mimeType = mediaMimeForPath(item.path),
+                    size = 0,
+                    gatewayUrl = url,
+                    source = AttachmentSource.GATEWAY,
+                )
+            }
+        if (newAttachments.isEmpty()) return
+
+        val stripped = HostMediaExtractor.strip(content)
         _uiState.update { state ->
             state.copy(
                 messages =
                     state.messages.map { msg ->
                         if (msg.id == messageId) {
-                            msg.copy(content = rewritten)
+                            msg.copy(
+                                content = stripped,
+                                attachments =
+                                    (msg.attachments.orEmpty() + newAttachments)
+                                        .distinctBy { it.gatewayUrl ?: it.uri },
+                            )
                         } else {
                             msg
                         }
                     },
             )
+        }
+    }
+
+    /**
+     * Open a gateway-sourced attachment: fetch its bytes via
+     * [GatewayFileClient] and share them via a chooser Intent. No-op for
+     * non-gateway attachments (those are opened by the system via their URI).
+     */
+    fun openGatewayAttachment(attachment: Attachment) {
+        val url = attachment.gatewayUrl ?: return
+        val path =
+            runCatching {
+                java.net.URL(url).query
+                    .split('&')
+                    .firstOrNull { it.startsWith("path=") }
+                    ?.removePrefix("path=")
+                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            }.getOrNull() ?: attachment.name
+        viewModelScope.launch(Dispatchers.IO) {
+            when (val result = GatewayFileClient.fetch(path)) {
+                is GatewayFileResult.Success -> shareBytes(result.file)
+                else -> Unit // TODO: surface a snackbar/error to the UI
+            }
+        }
+    }
+
+    private fun shareBytes(file: GatewayFile) {
+        // Write to a cache file and share via a chooser Intent.
+        runCatching {
+            val ctx = getApplication<Application>().applicationContext
+            val dir = java.io.File(ctx.cacheDir, "gateway_files").also { it.mkdirs() }
+            val safeName = file.name.replace(Regex("[/\\\\]"), "_").ifBlank { "file" }
+            val out = java.io.File(dir, safeName)
+            out.writeBytes(file.bytes)
+            val uri =
+                androidx.core.content.FileProvider.getUriForFile(
+                    ctx,
+                    "${ctx.packageName}.fileprovider",
+                    out,
+                )
+            val intent =
+                android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = file.mimeType
+                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            ctx.startActivity(android.content.Intent.createChooser(intent, "Share ${file.name}"))
         }
     }
 

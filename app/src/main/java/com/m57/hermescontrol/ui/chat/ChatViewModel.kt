@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -645,7 +646,8 @@ class ChatViewModel(
                 @Suppress("UNCHECKED_CAST")
                 val rawMessages = resultMap?.get("messages") as? List<Map<String, Any?>>
                 if (!rawMessages.isNullOrEmpty() && sessionId != null) {
-                    val serverMessages = mapServerMessages(sessionId, rawMessages, 0)
+                    val sessionMessages = parseWsSessionMessages(rawMessages)
+                    val serverMessages = mapServerMessages(sessionId, sessionMessages, 0)
                     loadedMessageOffsets[sessionId] = 0
                     viewModelScope.launch(Dispatchers.IO) {
                         repo.persistMessages(serverMessages, sessionId)
@@ -1720,6 +1722,39 @@ class ChatViewModel(
                 limit = limit,
                 offset = offset,
                 includeCompacted = true,
+            )
+        }
+    }
+
+    private fun parseWsSessionMessages(rawMessages: List<Map<String, Any?>>): List<SessionMessage> {
+        return rawMessages.map { map ->
+            val role = map["role"] as? String
+            val contentStr =
+                when (val c = map["content"]) {
+                    is String -> c
+                    null -> ""
+                    else -> c.toString()
+                }
+            val timestampVal = map["timestamp"]
+            val timestampStr =
+                when (timestampVal) {
+                    is Number -> timestampVal.toString()
+                    is String -> timestampVal
+                    else -> null
+                }
+            val type = map["type"] as? String
+            val reasoningStr =
+                when (val r = map["reasoning"] ?: map["reasoning_text"]) {
+                    is String -> r
+                    null -> null
+                    else -> r.toString()
+                }
+            SessionMessage(
+                role = role,
+                content = JsonPrimitive(contentStr),
+                timestamp = timestampStr?.let { JsonPrimitive(it) },
+                type = type,
+                reasoning = reasoningStr?.let { JsonPrimitive(it) },
             )
         }
     }

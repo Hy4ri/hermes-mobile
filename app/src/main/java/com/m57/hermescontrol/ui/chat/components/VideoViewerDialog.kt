@@ -191,7 +191,7 @@ fun VideoViewerDialog(
                             com.m57.hermescontrol.data.remote.CookieManager
                                 .getSessionCookie()
                         if (!cookieVal.isNullOrBlank()) {
-                            headers["Cookie"] = "hermes_session_at=\"$cookieVal\""
+                            headers["Cookie"] = "hermes_session_at=$cookieVal"
                         }
                         val token =
                             com.m57.hermescontrol.data.local.AuthManager

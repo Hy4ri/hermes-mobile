@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
@@ -47,7 +49,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
 
 /**
- * Inline Video Player component for chat bubbles and markdown blocks (issue #722).
+ * Modern inline Video Player component with control lock (issue #722).
  */
 @Composable
 fun InlineVideoPlayer(
@@ -60,6 +62,7 @@ fun InlineVideoPlayer(
     var durationMs by remember { mutableLongStateOf(0L) }
     var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
     var showControls by remember { mutableStateOf(true) }
+    var isLocked by remember { mutableStateOf(false) }
 
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
@@ -86,10 +89,13 @@ fun InlineVideoPlayer(
             modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable { showControls = !showControls }
-                .testTag("inline_video_player"),
+                .clickable {
+                    if (!isLocked) {
+                        showControls = !showControls
+                    }
+                }.testTag("inline_video_player"),
     ) {
         AndroidView(
             factory = { context ->
@@ -111,8 +117,8 @@ fun InlineVideoPlayer(
             modifier = Modifier.fillMaxSize(),
         )
 
-        // Overlay play button when paused
-        if (!isPlaying) {
+        // Overlay play button when paused and not locked
+        if (!isPlaying && !isLocked) {
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f),
@@ -138,14 +144,51 @@ fun InlineVideoPlayer(
             }
         }
 
-        // Floating Control Bar
+        // Top-right compact lock button pill
         AnimatedVisibility(
-            visible = showControls || !isPlaying,
+            visible = showControls || isLocked,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
         ) {
             Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.70f),
+                modifier = Modifier.size(32.dp),
+            ) {
+                IconButton(
+                    onClick = {
+                        isLocked = !isLocked
+                        if (isLocked) {
+                            showControls = false
+                        }
+                    },
+                    modifier = Modifier.size(32.dp).testTag("video_lock_button"),
+                ) {
+                    Icon(
+                        imageVector = if (isLocked) Icons.Filled.Lock else Icons.Filled.LockOpen,
+                        contentDescription = if (isLocked) "Unlock Controls" else "Lock Controls",
+                        tint =
+                            if (isLocked) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.inverseOnSurface
+                            },
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+
+        // Floating Control Bar
+        AnimatedVisibility(
+            visible = (showControls || !isPlaying) && !isLocked,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.75f),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -153,7 +196,7 @@ fun InlineVideoPlayer(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(

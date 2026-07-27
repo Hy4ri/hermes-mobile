@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat.components
 
 import android.net.Uri
+import android.widget.Toast
 import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -14,11 +15,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,30 +42,111 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.chat.ImageBytesResolver
+import com.m57.hermescontrol.ui.chat.MediaImageStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * Fullscreen Video Viewer modal dialog (issue #722).
+ * Fullscreen Video Viewer modal dialog with Save, Share, and Compact Lock (issue #722).
  */
 @Composable
 fun VideoViewerDialog(
     videoUri: String,
     onDismissRequest: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var isPlaying by remember { mutableStateOf(true) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
     var showControls by remember { mutableStateOf(true) }
+    var isLocked by remember { mutableStateOf(false) }
+    var isBusy by remember { mutableStateOf(false) }
+
+    val savedMsg = stringResource(R.string.image_viewer_saved)
+    val saveFailedMsg = stringResource(R.string.image_viewer_save_failed)
+    val loadFailedFmt = stringResource(R.string.image_viewer_load_failed)
+    val shareTitle = stringResource(R.string.image_viewer_share_title)
+
+    val onSave: () -> Unit = {
+        if (!isBusy) {
+            isBusy = true
+            scope.launch(Dispatchers.IO) {
+                val resolved = ImageBytesResolver.resolve(context, videoUri, "video/mp4")
+                val result =
+                    when (resolved) {
+                        is ImageBytesResolver.Result.Bytes -> {
+                            val uri =
+                                MediaImageStore.saveToDownloads(
+                                    context,
+                                    resolved.bytes,
+                                    "hermes-video.${resolved.extension}",
+                                    resolved.mimeType,
+                                )
+                            if (uri != null) savedMsg else saveFailedMsg
+                        }
+
+                        is ImageBytesResolver.Result.Error -> {
+                            String.format(loadFailedFmt, resolved.message)
+                        }
+                    }
+                withContext(Dispatchers.Main) {
+                    isBusy = false
+                    Toast.makeText(context, result, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val onShare: () -> Unit = {
+        if (!isBusy) {
+            isBusy = true
+            scope.launch(Dispatchers.IO) {
+                val resolved = ImageBytesResolver.resolve(context, videoUri, "video/mp4")
+                val intent =
+                    when (resolved) {
+                        is ImageBytesResolver.Result.Bytes -> {
+                            MediaImageStore.buildShareIntent(
+                                context,
+                                resolved.bytes,
+                                "hermes-video.${resolved.extension}",
+                                resolved.mimeType,
+                            )
+                        }
+
+                        is ImageBytesResolver.Result.Error -> {
+                            null
+                        }
+                    }
+                withContext(Dispatchers.Main) {
+                    isBusy = false
+                    if (intent != null) {
+                        context.startActivity(android.content.Intent.createChooser(intent, shareTitle))
+                    } else {
+                        Toast.makeText(context, saveFailedMsg, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
@@ -92,12 +182,15 @@ fun VideoViewerDialog(
                 Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.scrim)
-                    .clickable { showControls = !showControls }
-                    .testTag("video_viewer_dialog"),
+                    .clickable {
+                        if (!isLocked) {
+                            showControls = !showControls
+                        }
+                    }.testTag("video_viewer_dialog"),
         ) {
             AndroidView(
-                factory = { context ->
-                    VideoView(context).apply {
+                factory = { ctx ->
+                    VideoView(ctx).apply {
                         setVideoURI(Uri.parse(videoUri))
                         setOnPreparedListener { mp ->
                             durationMs = mp.duration.toLong()
@@ -116,9 +209,36 @@ fun VideoViewerDialog(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Top Bar with Close Button
+            // Center overlay play button when paused & not locked
+            if (!isPlaying && !isLocked) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f),
+                    modifier =
+                        Modifier
+                            .align(Alignment.Center)
+                            .size(64.dp)
+                            .clickable {
+                                videoViewRef?.let { view ->
+                                    view.start()
+                                    isPlaying = true
+                                }
+                            },
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = "Play Video",
+                            tint = MaterialTheme.colorScheme.inverseOnSurface,
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                }
+            }
+
+            // Top Bar with Back/Close, Lock, Save, Share
             AnimatedVisibility(
-                visible = showControls,
+                visible = showControls || isLocked,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.TopCenter),
@@ -128,40 +248,104 @@ fun VideoViewerDialog(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Spacer(modifier = Modifier.weight(1f))
                         IconButton(
                             onClick = onDismissRequest,
                             modifier = Modifier.testTag("close_video_dialog_button"),
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Close,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Close",
                                 tint = MaterialTheme.colorScheme.inverseOnSurface,
                             )
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        // Compact Lock Button Pill
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.60f),
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    isLocked = !isLocked
+                                    if (isLocked) showControls = false
+                                },
+                            ) {
+                                Icon(
+                                    imageVector =
+                                        if (isLocked) {
+                                            Icons.Filled.Lock
+                                        } else {
+                                            Icons.Filled.LockOpen
+                                        },
+                                    contentDescription = if (isLocked) "Unlock Controls" else "Lock Controls",
+                                    tint =
+                                        if (isLocked) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.inverseOnSurface
+                                        },
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+
+                        if (!isLocked) {
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            if (isBusy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp).padding(horizontal = 8.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                                )
+                            } else {
+                                IconButton(onClick = onSave, enabled = !isBusy) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Download,
+                                        contentDescription = "Save",
+                                        tint = MaterialTheme.colorScheme.inverseOnSurface,
+                                    )
+                                }
+                                IconButton(onClick = onShare, enabled = !isBusy) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Share,
+                                        contentDescription = "Share",
+                                        tint = MaterialTheme.colorScheme.inverseOnSurface,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Bottom Controls Bar
+            // Floating Bottom Controls Bar
             AnimatedVisibility(
-                visible = showControls || !isPlaying,
+                visible = (showControls || !isPlaying) && !isLocked,
                 enter = fadeIn(),
                 exit = fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
             ) {
                 Surface(
-                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.75f),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.80f),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(

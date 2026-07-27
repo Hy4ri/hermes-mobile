@@ -185,7 +185,21 @@ fun VideoViewerDialog(
             AndroidView(
                 factory = { ctx ->
                     VideoView(ctx).apply {
-                        setVideoURI(Uri.parse(videoUri))
+                        val uri = Uri.parse(videoUri)
+                        val headers = mutableMapOf<String, String>()
+                        val cookieVal =
+                            com.m57.hermescontrol.data.remote.CookieManager
+                                .getSessionCookie()
+                        if (!cookieVal.isNullOrBlank()) {
+                            headers["Cookie"] = "hermes_session_at=\"$cookieVal\""
+                        }
+                        val token =
+                            com.m57.hermescontrol.data.local.AuthManager
+                                .getToken()
+                        if (!token.isNullOrBlank()) {
+                            headers["Authorization"] = "Bearer $token"
+                        }
+                        setVideoURI(uri, headers)
                         setOnPreparedListener { mp ->
                             durationMs = mp.duration.toLong()
                             start()

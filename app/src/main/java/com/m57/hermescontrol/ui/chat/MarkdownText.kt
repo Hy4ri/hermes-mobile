@@ -269,6 +269,7 @@ fun MarkdownText(
                 }
 
                 is MdBlock.Video -> {
+                    val resolvedUri = remember(block.uri) { resolveImageUrl(block.uri) }
                     var showVideoDialog by remember { mutableStateOf(false) }
                     androidx.compose.foundation.layout.Box(
                         modifier =
@@ -277,12 +278,12 @@ fun MarkdownText(
                                 .padding(vertical = 4.dp),
                     ) {
                         com.m57.hermescontrol.ui.chat.components.InlineVideoPlayer(
-                            videoUri = block.uri,
+                            videoUri = resolvedUri,
                             onFullScreenClick = { showVideoDialog = true },
                         )
                         if (showVideoDialog) {
                             com.m57.hermescontrol.ui.chat.components.VideoViewerDialog(
-                                videoUri = block.uri,
+                                videoUri = resolvedUri,
                                 onDismissRequest = { showVideoDialog = false },
                             )
                         }

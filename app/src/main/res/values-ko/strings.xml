@@ -687,4 +687,15 @@
     <string name="analytics_tool_uses">%1$d회 호출 • 전체의 %2$d%%</string>
     <string name="processes_kill_confirm">종료</string>
     <string name="processes_kill_cd">프로세스 종료</string>
+
+    <!-- Image viewer (issue #723) -->
+    <string name="image_viewer_content_desc">채팅 이미지</string>
+    <string name="image_viewer_close">닫기</string>
+    <string name="image_viewer_save">기기에 저장</string>
+    <string name="image_viewer_share">공유</string>
+    <string name="image_viewer_share_title">이미지 공유</string>
+    <string name="image_viewer_saved">다운로드에 이미지 저장됨</string>
+    <string name="image_viewer_save_failed">이미지를 저장할 수 없음</string>
+    <string name="image_viewer_load_failed">이미지를 불러올 수 없음: %1$s</string>
+    <string name="image_viewer_share_failed">이미지를 공유할 수 없음</string>
 </resources>

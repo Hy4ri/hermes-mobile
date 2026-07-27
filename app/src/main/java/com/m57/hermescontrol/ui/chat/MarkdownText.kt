@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,6 +75,7 @@ fun MarkdownText(
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
     modifier: Modifier = Modifier,
+    onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
     val statusColors = LocalHermesStatusColors.current
     val highlights = searchHighlightColors(statusColors)
@@ -276,7 +278,17 @@ fun MarkdownText(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .padding(vertical = 4.dp),
+                                .clickable(
+                                    onClick = {
+                                        onImageClick(
+                                            ImageViewerModel(
+                                                model = block.uri,
+                                                name = block.alt,
+                                                mimeType = "image/*",
+                                            ),
+                                        )
+                                    },
+                                ).padding(vertical = 4.dp),
                     ) {
                         coil.compose.AsyncImage(
                             model = model,

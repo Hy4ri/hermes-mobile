@@ -863,4 +863,15 @@
     <string name="analytics_tool_uses">%1$d calls \u2022 %2$d%% of total</string>
     <string name="processes_kill_confirm">Kill</string>
     <string name="processes_kill_cd">Kill process</string>
+
+    <!-- Image viewer (issue #723) -->
+    <string name="image_viewer_content_desc">Chat image</string>
+    <string name="image_viewer_close">Close</string>
+    <string name="image_viewer_save">Save to device</string>
+    <string name="image_viewer_share">Share</string>
+    <string name="image_viewer_share_title">Share image</string>
+    <string name="image_viewer_saved">Image saved to Downloads</string>
+    <string name="image_viewer_save_failed">Could not save image</string>
+    <string name="image_viewer_load_failed">Could not load image: %1$s</string>
+    <string name="image_viewer_share_failed">Could not share image</string>
 </resources>

@@ -20,6 +20,7 @@ import com.m57.hermescontrol.ui.chat.ChatBubble
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
+import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -50,6 +51,7 @@ fun ChatMessageList(
     clarifyRequest: ClarifyUi? = null,
     onRespondClarify: ((String) -> Unit)? = null,
     onDismissClarify: (() -> Unit)? = null,
+    onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
     if (messages.isEmpty() && !isLoading) {
         Box(
@@ -109,6 +111,7 @@ fun ChatMessageList(
                         isCurrentMatch = isCurrentMatch,
                         onRespondApproval = viewModel::respondToApproval,
                         onOpenAttachment = viewModel::openAttachment,
+                        onImageClick = onImageClick,
                     )
                 }
             }
@@ -129,6 +132,7 @@ fun ChatMessageList(
                             searchQuery = "",
                             isCurrentMatch = false,
                             onOpenAttachment = viewModel::openAttachment,
+                            onImageClick = onImageClick,
                         )
                     }
                 }

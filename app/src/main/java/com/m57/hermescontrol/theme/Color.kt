@@ -75,7 +75,7 @@ val StatusGrey = Color(0xFF9E9E9E)
 val StatusGreyDark = Color(0xFF1A1A24)
 val StatusGreyLight = Color(0xFFF5F5F5)
 
-// ── Chat-specific colours (always brand-defined for consistency) ───────
+// ── Chat-specific colours (default theme fallback tokens) ─────────────────
 
 val AssistantBubble = Color(0xFF1C1C26)
 val AssistantBubbleLight = Color(0xFFEDEAF4)

@@ -8,7 +8,9 @@ import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
 
-class HermesControlApp : Application(), ImageLoaderFactory {
+class HermesControlApp :
+    Application(),
+    ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         AuthManager.init(this)
@@ -22,10 +24,10 @@ class HermesControlApp : Application(), ImageLoaderFactory {
         AnalyticsPreloader.preload(this)
     }
 
-    override fun newImageLoader(): ImageLoader {
-        return ImageLoader.Builder(this)
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader
+            .Builder(this)
             .okHttpClient(OkHttpProvider.base)
             .crossfade(true)
             .build()
-    }
 }

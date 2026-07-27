@@ -1750,17 +1750,23 @@ class ChatViewModel(
                 if (items.isNotEmpty()) {
                     finalContent = HostMediaExtractor.strip(rawContent)
                     attachments =
-                        items.mapNotNull { item ->
-                            val url = GatewayFileClient.buildDownloadUrl(baseUrl, token, item.path) ?: return@mapNotNull null
-                            Attachment(
-                                uri = url,
-                                name = mediaNameFromPath(item.path),
-                                mimeType = mediaMimeForPath(item.path),
-                                size = 0,
-                                gatewayUrl = url,
-                                source = AttachmentSource.GATEWAY,
-                            )
-                        }.takeIf { it.isNotEmpty() }
+                        items
+                            .mapNotNull { item ->
+                                val url =
+                                    GatewayFileClient.buildDownloadUrl(
+                                        baseUrl,
+                                        token,
+                                        item.path,
+                                    ) ?: return@mapNotNull null
+                                Attachment(
+                                    uri = url,
+                                    name = mediaNameFromPath(item.path),
+                                    mimeType = mediaMimeForPath(item.path),
+                                    size = 0,
+                                    gatewayUrl = url,
+                                    source = AttachmentSource.GATEWAY,
+                                )
+                            }.takeIf { it.isNotEmpty() }
                 }
             }
 
@@ -1888,17 +1894,29 @@ class ChatViewModel(
             } ?: attachment.name
         viewModelScope.launch(Dispatchers.IO) {
             when (val result = GatewayFileClient.fetch(path)) {
-                is GatewayFileResult.Success -> openBytes(ctx, result.file)
-                is GatewayFileResult.NotFound ->
+                is GatewayFileResult.Success -> {
+                    openBytes(ctx, result.file)
+                }
+
+                is GatewayFileResult.NotFound -> {
                     showOpenError("File not found on gateway: ${attachment.name}")
-                is GatewayFileResult.Forbidden ->
+                }
+
+                is GatewayFileResult.Forbidden -> {
                     showOpenError("Access denied: ${attachment.name}")
-                is GatewayFileResult.TooLarge ->
+                }
+
+                is GatewayFileResult.TooLarge -> {
                     showOpenError("File too large to open: ${attachment.name}")
-                is GatewayFileResult.Unauthorized ->
+                }
+
+                is GatewayFileResult.Unauthorized -> {
                     showOpenError("Session expired — reconnect to open: ${attachment.name}")
-                is GatewayFileResult.Failure ->
+                }
+
+                is GatewayFileResult.Failure -> {
                     showOpenError("Could not open ${attachment.name}: ${result.throwable.message}")
+                }
             }
         }
     }
@@ -1929,12 +1947,27 @@ class ChatViewModel(
         uri: android.net.Uri,
         mimeType: String,
     ) {
-        val intent =
+        val viewIntent =
             android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, mimeType)
+                setDataAndType(uri, mimeType.ifBlank { "*/*" })
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-        ctx.startActivity(intent)
+        try {
+            ctx.startActivity(viewIntent)
+        } catch (e: Throwable) {
+            val fallbackIntent =
+                android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "*/*")
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            val chooser =
+                android.content.Intent.createChooser(fallbackIntent, "Open file").apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            ctx.startActivity(chooser)
+        }
     }
 
     private fun showOpenError(message: String) {

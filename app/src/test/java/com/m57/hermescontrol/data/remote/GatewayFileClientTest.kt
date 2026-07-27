@@ -25,9 +25,15 @@ class GatewayFileClientTest {
     }
 
     @Test
-    fun `buildDownloadUrl rejects blank base or token`() {
+    fun `buildDownloadUrl rejects blank base`() {
         assertNull(GatewayFileClient.buildDownloadUrl("", tok, "/tmp/x.png"))
-        assertNull(GatewayFileClient.buildDownloadUrl(base, "", "/tmp/x.png"))
+    }
+
+    @Test
+    fun `buildDownloadUrl permits blank token for cookie auth`() {
+        val url = GatewayFileClient.buildDownloadUrl(base, "", "/tmp/x.png")!!
+        assertEquals("$base/api/files/download?path=%2Ftmp%2Fx.png", url)
+        assertFalse(url.contains("token="))
     }
 
     @Test

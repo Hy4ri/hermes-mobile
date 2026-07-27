@@ -342,4 +342,164 @@ class SlashCommandDispatchRpcTest {
                     ?.content,
             )
         }
+
+    @Test
+    fun `slash init forwards name=init to COMMAND_DISPATCH`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodSlot = slot<String>()
+            val paramsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+            } answers {
+                CompletableDeferred<Any?>(Unit)
+            }
+
+            // /init generates-or-updates AGENTS.md (backend command.dispatch
+            // name=="init" branch, hermes-agent tui_gateway/server.py ~L15451).
+            // NOT client-special-cased -> RpcDispatch.
+            vm.sendMessage("/init")
+            advanceUntilIdle()
+
+            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
+            val params = paramsSlot.captured
+            assertEquals("init", params["name"])
+            assertEquals("", params["arg"])
+            assertEquals(sessionId, params["session_id"])
+        }
+
+    @Test
+    fun `slash init with extra arg forwards arg separately`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodSlot = slot<String>()
+            val paramsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+            } answers {
+                CompletableDeferred<Any?>(Unit)
+            }
+
+            vm.sendMessage("/init extra context here")
+            advanceUntilIdle()
+
+            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
+            val params = paramsSlot.captured
+            assertEquals("init", params["name"])
+            assertEquals("extra context here", params["arg"])
+            assertEquals(sessionId, params["session_id"])
+        }
+
+    @Test
+    fun `slash focus forwards name=focus to COMMAND_DISPATCH`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodSlot = slot<String>()
+            val paramsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+            } answers {
+                CompletableDeferred<Any?>(Unit)
+            }
+
+            // /focus is the display-only focus view (backend command.dispatch
+            // name=="focus" branch, hermes-agent tui_gateway/server.py ~L15522).
+            // NOT client-special-cased -> RpcDispatch.
+            vm.sendMessage("/focus")
+            advanceUntilIdle()
+
+            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
+            val params = paramsSlot.captured
+            assertEquals("focus", params["name"])
+            assertEquals("", params["arg"])
+            assertEquals(sessionId, params["session_id"])
+        }
+
+    @Test
+    fun `slash focus on off status forwards arg to COMMAND_DISPATCH`() =
+        runTest {
+            val (vm, sessionId) = createViewModelWithSession()
+
+            val methodSlot = slot<String>()
+            val paramsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+            } answers {
+                CompletableDeferred<Any?>(Unit)
+            }
+
+            vm.sendMessage("/focus on")
+            advanceUntilIdle()
+
+            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
+            val params = paramsSlot.captured
+            assertEquals("focus", params["name"])
+            assertEquals("on", params["arg"])
+            assertEquals(sessionId, params["session_id"])
+        }
+
+    @Test
+    fun `command dispatch type=send submits the returned prompt (init)`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+
+            val methodSlot = slot<String>()
+            val paramsSlot = slot<Map<String, Any>>()
+            val sentText = slot<String>()
+            every {
+                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+            } answers {
+                val d = CompletableDeferred<Any?>()
+                if (methodSlot.captured == WsMethods.COMMAND_DISPATCH) {
+                    // Backend /init returns type:"send" with the AGENTS.md prompt.
+                    d.complete(mapOf("type" to "send", "message" to "Scan this repo and write AGENTS.md"))
+                } else {
+                    d.complete(mapOf("session_id" to "session-xyz"))
+                }
+                d
+            }
+            // submitPrompt() forwards the returned prompt via wsClient.sendMessage.
+            every {
+                HermesWsClient.sendMessage(any(), capture(sentText), any())
+            } answers {
+                val id = "send-msg-1"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            vm.sendMessage("/init")
+            advanceUntilIdle()
+
+            // type:"send" must be forwarded to the agent as a normal prompt turn.
+            assertEquals("Scan this repo and write AGENTS.md", sentText.captured)
+        }
+
+    @Test
+    fun `command dispatch type=exec surfaces output as a message (focus)`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(any(), any(), any())
+            } answers {
+                val m = arg<String>(0)
+                val d = CompletableDeferred<Any?>()
+                if (m == WsMethods.COMMAND_DISPATCH) {
+                    // Backend /focus returns type:"exec" with a notice line.
+                    d.complete(mapOf("type" to "exec", "output" to "Focus view: ON (tool progress pinned off)"))
+                } else {
+                    d.complete(mapOf("session_id" to "session-xyz"))
+                }
+                d
+            }
+
+            vm.sendMessage("/focus on")
+            advanceUntilIdle()
+
+            val last = vm.uiState.value.messages.lastOrNull()
+            assertEquals("Focus view: ON (tool progress pinned off)", last?.content)
+        }
 }

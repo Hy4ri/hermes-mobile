@@ -244,4 +244,27 @@ class MarkdownTextFeatureTest {
         assertTrue(nonGifAttachment.isImage)
         assertFalse(nonGifAttachment.isGif)
     }
+
+    // 14. Standalone video parsing (issue #722)
+    @Test
+    fun testStandaloneVideo_parsesToVideoBlock() {
+        val md = "![demo](https://example.com/demo.mp4)"
+        val block = parseBlocks(md).singleOrNull() as? MdBlock.Video
+        assertTrue("video URL should parse to Video block", block != null)
+        assertEquals("https://example.com/demo.mp4", block!!.uri)
+        assertEquals("demo", block.alt)
+    }
+
+    // 15. Attachment isVideo check (issue #722)
+    @Test
+    fun testAttachment_isVideo() {
+        val videoAttachment =
+            com.m57.hermescontrol.data.model.Attachment(
+                uri = "content://media/1.mp4",
+                name = "test.mp4",
+                mimeType = "video/mp4",
+            )
+        assertTrue(videoAttachment.isVideo)
+        assertFalse(videoAttachment.isImage)
+    }
 }

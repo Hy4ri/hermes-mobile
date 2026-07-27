@@ -2298,7 +2298,19 @@ private fun InlineAttachment(
     onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
     val clickable = Modifier.clickable { onOpen(attachment) }
-    if (attachment.isImage) {
+    if (attachment.isVideo) {
+        var showVideoDialog by remember { mutableStateOf(false) }
+        com.m57.hermescontrol.ui.chat.components.InlineVideoPlayer(
+            videoUri = attachment.uri,
+            onFullScreenClick = { showVideoDialog = true },
+        )
+        if (showVideoDialog) {
+            com.m57.hermescontrol.ui.chat.components.VideoViewerDialog(
+                videoUri = attachment.uri,
+                onDismissRequest = { showVideoDialog = false },
+            )
+        }
+    } else if (attachment.isImage) {
         // Image / GIF attachment — show thumbnail with GIF badge & tap-to-play animation.
         com.m57.hermescontrol.ui.chat.components.GifImageThumbnail(
             model = attachment.uri,

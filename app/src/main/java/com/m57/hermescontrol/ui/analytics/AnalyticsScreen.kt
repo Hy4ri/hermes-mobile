@@ -210,12 +210,12 @@ private fun AnalyticsContent(
                     ModelRow(model = model)
                 }
             } else if ((usage?.by_model ?: emptyList()).isNotEmpty()) {
-                itemsIndexed(usage?.by_model ?: emptyList(), key = {
-                    index,
-                    it,
-                    ->
-                    "usage_${it.model}_$index"
-                }) { _, entry ->
+                itemsIndexed(
+                    usage?.by_model ?: emptyList(),
+                    key = { index, it ->
+                        "usage_${it.model}_$index"
+                    },
+                ) { _, entry ->
                     ModelEntryRow(entry = entry)
                 }
             } else {
@@ -232,12 +232,12 @@ private fun AnalyticsContent(
 
         if (selectedSectionTab == 1) {
             if ((usage?.skills?.top_skills ?: emptyList()).isNotEmpty()) {
-                itemsIndexed(usage?.skills?.top_skills ?: emptyList(), key = {
-                    index,
-                    it,
-                    ->
-                    "skill_${it.skill}_$index"
-                }) { _, skill ->
+                itemsIndexed(
+                    usage?.skills?.top_skills ?: emptyList(),
+                    key = { index, it ->
+                        "skill_${it.skill}_$index"
+                    },
+                ) { _, skill ->
                     SkillRow(skill = skill)
                 }
             } else {

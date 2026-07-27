@@ -22,8 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
@@ -63,7 +61,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Fullscreen Video Viewer modal dialog with Save, Share, and Compact Lock (issue #722).
+ * Fullscreen Video Viewer modal dialog with Save & Share (issue #722).
  */
 @Composable
 fun VideoViewerDialog(
@@ -78,7 +76,6 @@ fun VideoViewerDialog(
     var durationMs by remember { mutableLongStateOf(0L) }
     var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
     var showControls by remember { mutableStateOf(true) }
-    var isLocked by remember { mutableStateOf(false) }
     var isBusy by remember { mutableStateOf(false) }
 
     val savedMsg = stringResource(R.string.image_viewer_saved)
@@ -182,11 +179,8 @@ fun VideoViewerDialog(
                 Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.scrim)
-                    .clickable {
-                        if (!isLocked) {
-                            showControls = !showControls
-                        }
-                    }.testTag("video_viewer_dialog"),
+                    .clickable { showControls = !showControls }
+                    .testTag("video_viewer_dialog"),
         ) {
             AndroidView(
                 factory = { ctx ->
@@ -209,8 +203,8 @@ fun VideoViewerDialog(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Center overlay play button when paused & not locked
-            if (!isPlaying && !isLocked) {
+            // Center overlay play button when paused
+            if (!isPlaying) {
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f),
@@ -236,9 +230,9 @@ fun VideoViewerDialog(
                 }
             }
 
-            // Top Bar with Back/Close, Lock, Save, Share
+            // Top Bar with Back/Close, Save, Share
             AnimatedVisibility(
-                visible = showControls || isLocked,
+                visible = showControls,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.TopCenter),
@@ -268,61 +262,26 @@ fun VideoViewerDialog(
 
                         Spacer(modifier = Modifier.weight(1f))
 
-                        // Compact Lock Button Pill
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.60f),
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    isLocked = !isLocked
-                                    if (isLocked) showControls = false
-                                },
-                            ) {
+                        if (isBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp).padding(horizontal = 8.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.inverseOnSurface,
+                            )
+                        } else {
+                            IconButton(onClick = onSave, enabled = !isBusy) {
                                 Icon(
-                                    imageVector =
-                                        if (isLocked) {
-                                            Icons.Filled.Lock
-                                        } else {
-                                            Icons.Filled.LockOpen
-                                        },
-                                    contentDescription = if (isLocked) "Unlock Controls" else "Lock Controls",
-                                    tint =
-                                        if (isLocked) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.inverseOnSurface
-                                        },
-                                    modifier = Modifier.size(20.dp),
+                                    imageVector = Icons.Filled.Download,
+                                    contentDescription = "Save",
+                                    tint = MaterialTheme.colorScheme.inverseOnSurface,
                                 )
                             }
-                        }
-
-                        if (!isLocked) {
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            if (isBusy) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp).padding(horizontal = 8.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                            IconButton(onClick = onShare, enabled = !isBusy) {
+                                Icon(
+                                    imageVector = Icons.Filled.Share,
+                                    contentDescription = "Share",
+                                    tint = MaterialTheme.colorScheme.inverseOnSurface,
                                 )
-                            } else {
-                                IconButton(onClick = onSave, enabled = !isBusy) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Download,
-                                        contentDescription = "Save",
-                                        tint = MaterialTheme.colorScheme.inverseOnSurface,
-                                    )
-                                }
-                                IconButton(onClick = onShare, enabled = !isBusy) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Share,
-                                        contentDescription = "Share",
-                                        tint = MaterialTheme.colorScheme.inverseOnSurface,
-                                    )
-                                }
                             }
                         }
                     }
@@ -331,7 +290,7 @@ fun VideoViewerDialog(
 
             // Floating Bottom Controls Bar
             AnimatedVisibility(
-                visible = (showControls || !isPlaying) && !isLocked,
+                visible = showControls || !isPlaying,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),

@@ -65,6 +65,14 @@ fun ImageViewerDialog(
     var offsetY by remember { mutableStateOf(0f) }
     var isBusy by remember { mutableStateOf(false) }
 
+    // Resolve string resources at composable scope (Lint forbids reading
+    // resource *values* from LocalContext.current inside coroutine lambdas).
+    val savedMsg = stringResource(R.string.image_viewer_saved)
+    val saveFailedMsg = stringResource(R.string.image_viewer_save_failed)
+    val loadFailedFmt = stringResource(R.string.image_viewer_load_failed)
+    val shareTitle = stringResource(R.string.image_viewer_share_title)
+    val shareFailedMsg = stringResource(R.string.image_viewer_share_failed)
+
     val onSave: () -> Unit = {
         if (!isBusy) {
             isBusy = true
@@ -82,14 +90,14 @@ fun ImageViewerDialog(
                                     resolved.mimeType,
                                 )
                             if (uri != null) {
-                                context.getString(R.string.image_viewer_saved)
+                                savedMsg
                             } else {
-                                context.getString(R.string.image_viewer_save_failed)
+                                saveFailedMsg
                             }
                         }
 
                         is ImageBytesResolver.Result.Error ->
-                            context.getString(R.string.image_viewer_load_failed, resolved.message)
+                            String.format(loadFailedFmt, resolved.message)
                     }
                 withContext(Dispatchers.Main) {
                     isBusy = false
@@ -123,13 +131,13 @@ fun ImageViewerDialog(
                     if (intent != null) {
                         context.startActivity(
                             android.content.Intent
-                                .createChooser(intent, context.getString(R.string.image_viewer_share_title)),
+                                .createChooser(intent, shareTitle),
                         )
                     } else {
                         Toast
                             .makeText(
                                 context,
-                                context.getString(R.string.image_viewer_share_failed),
+                                shareFailedMsg,
                                 Toast.LENGTH_SHORT,
                             ).show()
                     }

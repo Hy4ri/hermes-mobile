@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -269,35 +268,31 @@ fun MarkdownText(
                 }
 
                 is MdBlock.Image -> {
-                    // AsyncImage is a Compose runtime composable — load it lazily
-                    // behind remember so the parser stays pure and testable (the
-                    // parseBlocks/parseInline unit tests never touch Compose).
                     val model: Any = remember(block.uri) { resolveImageUrl(block.uri) }
-                    androidx.compose.foundation.layout.Box(
+                    val isGif =
+                        remember(block.uri) {
+                            block.uri.contains(".gif", ignoreCase = true) ||
+                                block.uri.startsWith("data:image/gif", ignoreCase = true)
+                        }
+                    Box(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable(
-                                    onClick = {
-                                        onImageClick(
-                                            ImageViewerModel(
-                                                model = block.uri,
-                                                name = block.alt,
-                                                mimeType = "image/*",
-                                            ),
-                                        )
-                                    },
-                                ).padding(vertical = 4.dp),
+                                .padding(vertical = 4.dp),
                     ) {
-                        coil.compose.AsyncImage(
+                        com.m57.hermescontrol.ui.chat.components.GifImageThumbnail(
                             model = model,
                             contentDescription = block.alt.ifBlank { null },
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp)),
-                            contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
+                            isGif = isGif,
+                            onClick = {
+                                onImageClick(
+                                    ImageViewerModel(
+                                        model = block.uri,
+                                        name = block.alt,
+                                        mimeType = if (isGif) "image/gif" else "image/*",
+                                    ),
+                                )
+                            },
                         )
                     }
                 }

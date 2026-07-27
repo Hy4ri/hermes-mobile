@@ -59,7 +59,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
@@ -78,7 +77,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -2301,24 +2299,20 @@ private fun InlineAttachment(
 ) {
     val clickable = Modifier.clickable { onOpen(attachment) }
     if (attachment.isImage) {
-        // Image attachment — show as a rounded thumbnail; tap opens the viewer.
-        AsyncImage(
+        // Image / GIF attachment — show thumbnail with GIF badge & tap-to-play animation.
+        com.m57.hermescontrol.ui.chat.components.GifImageThumbnail(
             model = attachment.uri,
             contentDescription = attachment.name,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        onImageClick(
-                            ImageViewerModel(
-                                model = attachment.uri,
-                                name = attachment.name,
-                                mimeType = attachment.mimeType,
-                            ),
-                        )
-                    },
-            contentScale = ContentScale.FillWidth,
+            isGif = attachment.isGif,
+            onClick = {
+                onImageClick(
+                    ImageViewerModel(
+                        model = attachment.uri,
+                        name = attachment.name,
+                        mimeType = if (attachment.isGif) "image/gif" else attachment.mimeType,
+                    ),
+                )
+            },
         )
     } else {
         // Non-image file — show a card with file icon and name. Tapping fetches

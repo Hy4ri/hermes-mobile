@@ -1,8 +1,11 @@
 package com.m57.hermescontrol
 
 import android.app.Application
+import android.os.Build
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -28,6 +31,12 @@ class HermesControlApp :
         ImageLoader
             .Builder(this)
             .okHttpClient(OkHttpProvider.base)
-            .crossfade(true)
+            .components {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }.crossfade(true)
             .build()
 }

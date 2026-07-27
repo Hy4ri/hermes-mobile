@@ -222,4 +222,26 @@ class MarkdownTextFeatureTest {
         val blocks = parseBlocks(md)
         assertTrue("should remain a paragraph", blocks.single() is MdBlock.Paragraph)
     }
+
+    // 13. Attachment isGif check (issue #721)
+    @Test
+    fun testAttachment_isGif() {
+        val gifAttachment =
+            com.m57.hermescontrol.data.model.Attachment(
+                uri = "content://media/1.gif",
+                name = "test.gif",
+                mimeType = "image/gif",
+            )
+        assertTrue(gifAttachment.isImage)
+        assertTrue(gifAttachment.isGif)
+
+        val nonGifAttachment =
+            com.m57.hermescontrol.data.model.Attachment(
+                uri = "content://media/1.jpg",
+                name = "test.jpg",
+                mimeType = "image/jpeg",
+            )
+        assertTrue(nonGifAttachment.isImage)
+        assertFalse(nonGifAttachment.isGif)
+    }
 }

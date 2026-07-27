@@ -166,6 +166,7 @@ dependencies {
 
     // Image loading
     implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
 
     // Encrypted storage
     implementation(libs.androidx.security.crypto)

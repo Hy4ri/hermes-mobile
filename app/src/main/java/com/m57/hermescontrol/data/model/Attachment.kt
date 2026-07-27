@@ -28,6 +28,13 @@ data class Attachment(
     val isImage: Boolean
         get() = mimeType.startsWith("image/")
 
+    val isGif: Boolean
+        get() =
+            mimeType.equals("image/gif", ignoreCase = true) ||
+                fileExtension == "gif" ||
+                uri.contains(".gif", ignoreCase = true) ||
+                uri.startsWith("data:image/gif", ignoreCase = true)
+
     val isGateway: Boolean
         get() = source == AttachmentSource.GATEWAY
 

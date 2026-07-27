@@ -20,7 +20,9 @@ import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
+import io.mockk.*
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -1971,13 +1973,19 @@ class ChatViewModelTest {
             } returns GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", bytes))
 
             val intentSlot = slot<Intent>()
+            // android.jar stubs Intent ctor/setters to throw "not mocked" in unit tests;
+            // mock the Intent constructor so openWithView can build + deliver it,
+            // and capture the constructed instance to assert on its setters.
+            mockkConstructor(Intent::class)
+            every { anyConstructed<Intent>().setDataAndType(any(), any()) } answers { self as Intent }
+            every { anyConstructed<Intent>().addFlags(any()) } answers { self as Intent }
             mockkStatic(FileProvider::class)
             every {
                 FileProvider.getUriForFile(any(), any(), any())
             } returns mockk(relaxed = true)
             every { app.getApplicationContext() } returns app
             every { app.applicationContext } returns app
-            every { app.startActivity(any()) } returns Unit
+            every { app.startActivity(capture(intentSlot)) } returns Unit
 
             val vm = createViewModel()
             val attachment =
@@ -1994,13 +2002,10 @@ class ChatViewModelTest {
 
             // fetch was invoked (proves we entered the IO launch)
             coVerify { GatewayFileClient.fetch(any()) }
-            // ACTION_VIEW intent with the right type + grant flag, no error surfaced
-            verify { app.startActivity(capture(intentSlot)) }
-            assertEquals(Intent.ACTION_VIEW, intentSlot.captured.action)
-            assertEquals("text/plain", intentSlot.captured.type)
-            assertTrue(
-                intentSlot.captured.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0,
-            )
+            // ACTION_VIEW intent delivered, with the right type + grant flag.
+            verify { app.startActivity(any()) }
+            verify { intentSlot.captured.setDataAndType(any(), eq("text/plain")) }
+            verify { intentSlot.captured.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             assertNull(vm.uiState.value.openError)
             cacheDir.deleteRecursively()
         }

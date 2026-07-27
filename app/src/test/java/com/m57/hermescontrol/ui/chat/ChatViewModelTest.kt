@@ -2,11 +2,18 @@ package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
 import android.content.ContentResolver
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.core.content.FileProvider
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.GatewayFile
+import com.m57.hermescontrol.data.remote.GatewayFileClient
+import com.m57.hermescontrol.data.remote.GatewayFileResult
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
@@ -21,6 +28,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import io.mockk.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1945,5 +1953,81 @@ class ChatViewModelTest {
             val messages = viewModel.uiState.value.messages
             assertEquals(1, messages.size)
             assertEquals("{\"status\":\"ok\"}", messages[0].content)
+        }
+
+    // ── Attachment open (issue #724) ─────────────────────────────────────
+
+    @Test
+    fun `openAttachment GATEWAY success fires ACTION_VIEW with FileProvider uri`() =
+        runTest {
+            val cacheDir =
+                java.io.File(System.getProperty("java.io.tmpdir"), "hermes_open_test_${System.nanoTime()}")
+            cacheDir.mkdirs()
+            every { app.cacheDir } returns cacheDir
+
+            mockkObject(GatewayFileClient)
+            val bytes = "hello".toByteArray()
+            coEvery {
+                GatewayFileClient.fetch(any())
+            } returns GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", bytes))
+
+            val intentSlot = slot<Intent>()
+            mockkStatic(FileProvider::class)
+            every {
+                FileProvider.getUriForFile(any(), any(), any())
+            } returns mockk(relaxed = true)
+            every { app.getApplicationContext() } returns app
+            every { app.applicationContext } returns app
+            every { app.startActivity(any()) } returns Unit
+
+            val vm = createViewModel()
+            val attachment =
+                Attachment(
+                    uri = "unused",
+                    name = "note.txt",
+                    mimeType = "text/plain",
+                    gatewayUrl = "https://gw/api/files/download?path=%2Ftmp%2Fnote.txt&token=t",
+                    source = AttachmentSource.GATEWAY,
+                )
+
+            vm.openAttachment(attachment)
+            advanceUntilIdle()
+
+            // fetch was invoked (proves we entered the IO launch)
+            coVerify { GatewayFileClient.fetch(any()) }
+            // ACTION_VIEW intent with the right type + grant flag, no error surfaced
+            verify { app.startActivity(capture(intentSlot)) }
+            assertEquals(Intent.ACTION_VIEW, intentSlot.captured.action)
+            assertEquals("text/plain", intentSlot.captured.type)
+            assertTrue(
+                intentSlot.captured.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0,
+            )
+            assertNull(vm.uiState.value.openError)
+            cacheDir.deleteRecursively()
+        }
+
+    @Test
+    fun `openAttachment GATEWAY not-found surfaces openError`() =
+        runTest {
+            mockkObject(GatewayFileClient)
+            coEvery {
+                GatewayFileClient.fetch(any())
+            } returns GatewayFileResult.NotFound
+
+            val vm = createViewModel()
+            val attachment =
+                Attachment(
+                    uri = "unused",
+                    name = "missing.pdf",
+                    mimeType = "application/pdf",
+                    gatewayUrl = "https://gw/api/files/download?path=%2Ftmp%2Fmissing.pdf&token=t",
+                    source = AttachmentSource.GATEWAY,
+                )
+
+            vm.openAttachment(attachment)
+            advanceUntilIdle()
+
+            assertNotNull(vm.uiState.value.openError)
+            assertTrue(vm.uiState.value.openError!!.contains("missing.pdf"))
         }
 }

@@ -334,6 +334,7 @@ fun ChatScreen(
         messages = state.messages,
         errorMessage = state.errorMessage,
         backgroundCompleteMessage = state.backgroundCompleteMessage,
+        openError = state.openError,
         isSearchActive = state.isSearchActive,
         currentSearchMatchIndex = state.currentSearchMatchIndex,
         searchMatchIndices = state.searchMatchIndices,

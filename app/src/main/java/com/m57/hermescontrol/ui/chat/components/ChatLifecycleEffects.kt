@@ -33,6 +33,7 @@ fun ChatLifecycleEffects(
     messages: List<ChatMessage>,
     errorMessage: String?,
     backgroundCompleteMessage: String?,
+    openError: String?,
     isSearchActive: Boolean,
     currentSearchMatchIndex: Int,
     searchMatchIndices: List<Int>,
@@ -124,6 +125,14 @@ fun ChatLifecycleEffects(
         backgroundCompleteMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             viewModel.clearBackgroundComplete()
+        }
+    }
+
+    // Show attachment-open failures as a non-blocking snackbar (issue #724)
+    LaunchedEffect(openError) {
+        openError?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearOpenError()
         }
     }
 

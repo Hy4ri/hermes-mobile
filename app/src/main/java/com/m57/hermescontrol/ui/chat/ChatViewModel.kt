@@ -70,6 +70,8 @@ data class ChatUiState(
     val errorMessage: String? = null,
     // Background job completion toast (issue #527) — non-blocking snackbar
     val backgroundCompleteMessage: String? = null,
+    // Attachment open failure — surfaced as a non-blocking snackbar (issue #724)
+    val openError: String? = null,
     val clarifyRequest: ClarifyUi? = null,
     // Sudo / secret prompts — surfaced as dialogs (issue #524)
     val sudoPrompt: SudoPromptUi? = null,
@@ -1823,34 +1825,65 @@ class ChatViewModel(
     }
 
     /**
-     * Open a gateway-sourced attachment: fetch its bytes via
-     * [GatewayFileClient] and share them via a chooser Intent. No-op for
-     * non-gateway attachments (those are opened by the system via their URI).
+     * Open an attachment when its chip/thumbnail is tapped.
+     *
+     * - LOCAL (user-picked) files: open the original `content://` URI
+     *   directly via [android.content.Intent.ACTION_VIEW] — the resolver
+     *   already grants read access for the picked document. If that fails
+     *   (e.g. the permission lapsed), we copy to cache and retry via
+     *   FileProvider so the tap is never a silent no-op.
+     * - GATEWAY (agent `MEDIA:`) files: fetch the bytes via
+     *   [GatewayFileClient], write them to a cache file, and open with
+     *   [android.content.Intent.ACTION_VIEW] through FileProvider — so a
+     *   remote phone can view agent-delivered files in-place.
+     *
+     * Failures surface through [ChatUiState.openError] (non-blocking
+     * snackbar); the tap is never swallowed.
      */
-    fun openGatewayAttachment(attachment: Attachment) {
-        val url = attachment.gatewayUrl ?: return
+    fun openAttachment(attachment: Attachment) {
+        val ctx = getApplication<Application>().applicationContext
+        if (attachment.source == AttachmentSource.LOCAL) {
+            // Best-effort direct open of the picked content URI.
+            runCatching { openWithView(ctx, android.net.Uri.parse(attachment.uri), attachment.mimeType) }
+                .onSuccess { return }
+                .onFailure { /* fall through to cache-copy below */ }
+        }
+        // GATEWAY, or LOCAL direct-open failed → fetch/copy then open.
         val path =
-            runCatching {
-                java.net
-                    .URL(url)
-                    .query
-                    .split('&')
-                    .firstOrNull { it.startsWith("path=") }
-                    ?.removePrefix("path=")
-                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-            }.getOrNull() ?: attachment.name
+            attachment.gatewayUrl?.let { url ->
+                runCatching {
+                    java.net
+                        .URL(url)
+                        .query
+                        .split('&')
+                        .firstOrNull { it.startsWith("path=") }
+                        ?.removePrefix("path=")
+                        ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                }.getOrNull()
+            } ?: attachment.name
         viewModelScope.launch(Dispatchers.IO) {
             when (val result = GatewayFileClient.fetch(path)) {
-                is GatewayFileResult.Success -> shareBytes(result.file)
-                else -> Unit // TODO: surface a snackbar/error to the UI
+                is GatewayFileResult.Success -> openBytes(ctx, result.file)
+                is GatewayFileResult.NotFound ->
+                    showOpenError("File not found on gateway: ${attachment.name}")
+                is GatewayFileResult.Forbidden ->
+                    showOpenError("Access denied: ${attachment.name}")
+                is GatewayFileResult.TooLarge ->
+                    showOpenError("File too large to open: ${attachment.name}")
+                is GatewayFileResult.Unauthorized ->
+                    showOpenError("Session expired — reconnect to open: ${attachment.name}")
+                is GatewayFileResult.Failure ->
+                    showOpenError("Could not open ${attachment.name}: ${result.throwable.message}")
             }
         }
     }
 
-    private fun shareBytes(file: GatewayFile) {
-        // Write to a cache file and share via a chooser Intent.
+    /** Open bytes written to a cache file via FileProvider + ACTION_VIEW. */
+    private fun openBytes(
+        ctx: android.content.Context,
+        file: GatewayFile,
+    ) {
         runCatching {
-            val ctx = getApplication<Application>().applicationContext
             val dir = java.io.File(ctx.cacheDir, "gateway_files").also { it.mkdirs() }
             val safeName = file.name.replace(Regex("[/\\\\]"), "_").ifBlank { "file" }
             val out = java.io.File(dir, safeName)
@@ -1861,14 +1894,30 @@ class ChatViewModel(
                     "${ctx.packageName}.fileprovider",
                     out,
                 )
-            val intent =
-                android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                    type = file.mimeType
-                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-            ctx.startActivity(android.content.Intent.createChooser(intent, "Share ${file.name}"))
-        }
+            openWithView(ctx, uri, file.mimeType)
+        }.onFailure { showOpenError("Could not open ${file.name}: ${it.message}") }
+    }
+
+    /** Fire an ACTION_VIEW intent; throws if no activity can handle the type. */
+    private fun openWithView(
+        ctx: android.content.Context,
+        uri: android.net.Uri,
+        mimeType: String,
+    ) {
+        val intent =
+            android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        ctx.startActivity(intent)
+    }
+
+    private fun showOpenError(message: String) {
+        _uiState.update { it.copy(openError = message) }
+    }
+
+    fun clearOpenError() {
+        _uiState.update { it.copy(openError = null) }
     }
 
     private fun serverMessageIndex(

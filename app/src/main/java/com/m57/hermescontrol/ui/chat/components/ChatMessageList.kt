@@ -108,7 +108,7 @@ fun ChatMessageList(
                         searchQuery = if (isSearchActive) searchQuery else "",
                         isCurrentMatch = isCurrentMatch,
                         onRespondApproval = viewModel::respondToApproval,
-                        onOpenAttachment = viewModel::openGatewayAttachment,
+                        onOpenAttachment = viewModel::openAttachment,
                     )
                 }
             }
@@ -128,7 +128,7 @@ fun ChatMessageList(
                             isDarkTheme = isDark,
                             searchQuery = "",
                             isCurrentMatch = false,
-                            onOpenAttachment = viewModel::openGatewayAttachment,
+                            onOpenAttachment = viewModel::openAttachment,
                         )
                     }
                 }

@@ -105,10 +105,12 @@ class ServerStoreMigration(
                     profile.copy(
                         baseUrl =
                             profile.baseUrl
-                                ?: ServerEndpoint.fromLegacy(
-                                    profile.host,
-                                    profile.port,
-                                ).baseUrl.toString(),
+                                ?: ServerEndpoint
+                                    .fromLegacy(
+                                        profile.host,
+                                        profile.port,
+                                    ).baseUrl
+                                    .toString(),
                     )
                 },
             selectedProfileId = selectedProfileId,

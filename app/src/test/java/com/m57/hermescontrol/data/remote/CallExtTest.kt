@@ -22,7 +22,8 @@ class CallExtTest {
             val call = mockk<Call>()
             val request = Request.Builder().url("http://localhost").build()
             val response =
-                Response.Builder()
+                Response
+                    .Builder()
                     .request(request)
                     .protocol(Protocol.HTTP_1_1)
                     .code(200)

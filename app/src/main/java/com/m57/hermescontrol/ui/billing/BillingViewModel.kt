@@ -162,11 +162,21 @@ class BillingViewModel : ViewModel() {
                     }
                     val msg =
                         when {
-                            resp.requires_action == true && resp.recovery_url != null ->
+                            resp.requires_action == true && resp.recovery_url != null -> {
                                 "Action required — open: ${resp.recovery_url}"
-                            resp.payment_failed == true -> resp.message ?: "Payment failed"
-                            resp.ok == true -> "Upgrade successful"
-                            else -> resp.message ?: "Upgrade requested"
+                            }
+
+                            resp.payment_failed == true -> {
+                                resp.message ?: "Payment failed"
+                            }
+
+                            resp.ok == true -> {
+                                "Upgrade successful"
+                            }
+
+                            else -> {
+                                resp.message ?: "Upgrade requested"
+                            }
                         }
                     _uiState.update { it.copy(isActionInFlight = false, actionMessage = msg) }
                     load()

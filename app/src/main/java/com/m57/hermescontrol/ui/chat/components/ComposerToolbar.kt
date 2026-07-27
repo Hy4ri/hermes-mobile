@@ -200,8 +200,8 @@ fun ComposerToolbar(
  *              "xhigh", "max", "ultra", or null for model default.
  * @return Display string such as "None", "Low", "XHigh", "Ultra", etc.
  */
-private fun buildReasoningLabel(level: String?): String {
-    return when (level) {
+private fun buildReasoningLabel(level: String?): String =
+    when (level) {
         null -> "Med"
         "none" -> "None"
         "minimal" -> "Minimal"
@@ -213,4 +213,3 @@ private fun buildReasoningLabel(level: String?): String {
         "ultra" -> "Ultra"
         else -> level
     }
-}

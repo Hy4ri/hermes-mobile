@@ -53,7 +53,8 @@ class HermesWsClientTest {
         every { AuthManager.serverStore } returns
             mockk<com.m57.hermescontrol.data.config.ServerStore>().also {
                 every { it.getLatestState() } returns
-                    com.m57.hermescontrol.data.config.ServerStoreState()
+                    com.m57.hermescontrol.data.config
+                        .ServerStoreState()
             }
 
         // Issue #470: clients are built through OkHttpProvider, which now
@@ -496,7 +497,8 @@ class HermesWsClientTest {
         every { AuthManager.serverStore } returns
             mockk<com.m57.hermescontrol.data.config.ServerStore>().also {
                 every { it.getLatestState() } returns
-                    com.m57.hermescontrol.data.config.ServerStoreState(wsAuthParam = "ticket")
+                    com.m57.hermescontrol.data.config
+                        .ServerStoreState(wsAuthParam = "ticket")
             }
         // No bare-name session cookie present (the prefixed one is server-side).
         every { AuthManager.getSessionCookie() } returns null

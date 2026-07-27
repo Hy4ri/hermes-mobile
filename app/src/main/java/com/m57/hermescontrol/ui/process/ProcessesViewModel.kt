@@ -24,7 +24,9 @@ data class ProcessesUiState(
     val sessionId: String? = null,
 )
 
-class ProcessesViewModel : ViewModel(), ToastHost {
+class ProcessesViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ProcessesUiState())
     val uiState: StateFlow<ProcessesUiState> = _uiState.asStateFlow()
 

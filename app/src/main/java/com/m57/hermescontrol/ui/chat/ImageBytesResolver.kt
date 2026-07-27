@@ -33,7 +33,9 @@ object ImageBytesResolver {
         ) : Result
 
         /** Could not load the image; [message] is safe to surface to the user. */
-        data class Error(val message: String) : Result
+        data class Error(
+            val message: String,
+        ) : Result
     }
 
     suspend fun resolve(
@@ -102,7 +104,8 @@ object ImageBytesResolver {
                 if (!resp.isSuccessful) return Result.Error("Download failed (HTTP ${resp.code})")
                 val bytes = resp.body.bytes()
                 val mime =
-                    resp.header("Content-Type")
+                    resp
+                        .header("Content-Type")
                         ?.substringBefore(";")
                         ?.ifBlank { fallbackMime }
                         ?: fallbackMime

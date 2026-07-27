@@ -92,18 +92,17 @@ class ChatMessageMapperTest {
         assertNull(createEntityWithToolStatus(null).toUiModel().toolStatus)
     }
 
-    private fun createEntityWithRole(role: String): ChatMessageEntity {
-        return ChatMessageEntity(
+    private fun createEntityWithRole(role: String): ChatMessageEntity =
+        ChatMessageEntity(
             id = "id",
             sessionId = "session",
             role = role,
             content = "content",
             timestamp = 0L,
         )
-    }
 
-    private fun createEntityWithToolStatus(status: String?): ChatMessageEntity {
-        return ChatMessageEntity(
+    private fun createEntityWithToolStatus(status: String?): ChatMessageEntity =
+        ChatMessageEntity(
             id = "id",
             sessionId = "session",
             role = "TOOL",
@@ -111,7 +110,6 @@ class ChatMessageMapperTest {
             timestamp = 0L,
             toolStatus = status,
         )
-    }
 
     @Test
     fun entityToUiModelCarriesReasoningText() {

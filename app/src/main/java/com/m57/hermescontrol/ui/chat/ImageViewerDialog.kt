@@ -96,8 +96,9 @@ fun ImageViewerDialog(
                             }
                         }
 
-                        is ImageBytesResolver.Result.Error ->
+                        is ImageBytesResolver.Result.Error -> {
                             String.format(loadFailedFmt, resolved.message)
+                        }
                     }
                 withContext(Dispatchers.Main) {
                     isBusy = false
@@ -124,7 +125,9 @@ fun ImageViewerDialog(
                             )
                         }
 
-                        is ImageBytesResolver.Result.Error -> null
+                        is ImageBytesResolver.Result.Error -> {
+                            null
+                        }
                     }
                 withContext(Dispatchers.Main) {
                     isBusy = false

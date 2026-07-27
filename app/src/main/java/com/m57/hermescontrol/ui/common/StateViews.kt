@@ -207,7 +207,11 @@ private fun shimmerBrush(): Brush {
     val base = MaterialTheme.colorScheme.surfaceVariant
     val highlight = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     val transition = rememberInfiniteTransition(label = "shimmer")
-    val widthPx = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val widthPx =
+        with(LocalDensity.current) {
+            LocalConfiguration.current.screenWidthDp.dp
+                .toPx()
+        }
     val offset by transition.animateFloat(
         initialValue = -widthPx,
         targetValue = widthPx,

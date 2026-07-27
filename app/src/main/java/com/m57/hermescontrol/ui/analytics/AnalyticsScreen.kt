@@ -211,8 +211,8 @@ private fun AnalyticsContent(
                 }
             } else if ((usage?.by_model ?: emptyList()).isNotEmpty()) {
                 itemsIndexed(usage?.by_model ?: emptyList(), key = {
-                        index,
-                        it,
+                    index,
+                    it,
                     ->
                     "usage_${it.model}_$index"
                 }) { _, entry ->
@@ -233,8 +233,8 @@ private fun AnalyticsContent(
         if (selectedSectionTab == 1) {
             if ((usage?.skills?.top_skills ?: emptyList()).isNotEmpty()) {
                 itemsIndexed(usage?.skills?.top_skills ?: emptyList(), key = {
-                        index,
-                        it,
+                    index,
+                    it,
                     ->
                     "skill_${it.skill}_$index"
                 }) { _, skill ->

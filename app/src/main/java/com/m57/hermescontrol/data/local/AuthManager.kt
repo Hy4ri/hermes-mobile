@@ -427,10 +427,12 @@ object AuthManager {
 
     fun setBaseUrl(baseUrl: String) {
         val normalized =
-            ServerEndpoint.parse(
-                baseUrl,
-                CleartextPolicy.ALLOW_WITH_WARNING,
-            ).baseUrl.toString()
+            ServerEndpoint
+                .parse(
+                    baseUrl,
+                    CleartextPolicy.ALLOW_WITH_WARNING,
+                ).baseUrl
+                .toString()
         val selectedId =
             getSelectedProfileId() ?: run {
                 ensureDefaultSelected()

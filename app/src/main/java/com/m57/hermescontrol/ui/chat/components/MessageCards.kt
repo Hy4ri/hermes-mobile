@@ -350,7 +350,10 @@ internal fun highlightSyntax(code: String): AnnotatedString =
         }
     }
 
-private data class TokenPattern(val regex: Regex, val color: Color)
+private data class TokenPattern(
+    val regex: Regex,
+    val color: Color,
+)
 
 private fun copyToClipboard(
     context: Context,

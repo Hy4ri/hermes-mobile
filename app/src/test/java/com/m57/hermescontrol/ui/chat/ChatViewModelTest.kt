@@ -2032,6 +2032,9 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertNotNull(vm.uiState.value.openError)
-            assertTrue(vm.uiState.value.openError!!.contains("missing.pdf"))
+            assertTrue(
+                vm.uiState.value.openError!!
+                    .contains("missing.pdf"),
+            )
         }
 }

@@ -43,6 +43,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.SearchHighlightColors
 import com.m57.hermescontrol.theme.searchHighlightColors
@@ -268,7 +270,7 @@ fun MarkdownText(
                     // AsyncImage is a Compose runtime composable — load it lazily
                     // behind remember so the parser stays pure and testable (the
                     // parseBlocks/parseInline unit tests never touch Compose).
-                    val model: Any = block.uri
+                    val model: Any = remember(block.uri) { resolveImageUrl(block.uri) }
                     androidx.compose.foundation.layout.Box(
                         modifier =
                             Modifier
@@ -999,4 +1001,27 @@ internal enum class TableAlign {
     LEFT,
     CENTER,
     RIGHT,
+}
+
+private fun resolveImageUrl(uri: String): String {
+    val trimmed = uri.trim()
+    if (trimmed.isBlank()) return uri
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:image/")) {
+        return trimmed
+    }
+    val baseUrl = runCatching { AuthManager.getBaseUrl() }.getOrDefault("")
+    val token = runCatching { AuthManager.getToken() }.getOrNull().orEmpty()
+    val downloadUrl = GatewayFileClient.buildDownloadUrl(baseUrl, token, trimmed)
+    if (downloadUrl != null) return downloadUrl
+
+    if (baseUrl.isNotBlank() && (trimmed.startsWith("/api/") || trimmed.startsWith("api/"))) {
+        val cleanPath = if (trimmed.startsWith("/")) trimmed else "/$trimmed"
+        val sep = if (cleanPath.contains("?")) "&" else "?"
+        return if (token.isNotBlank() && !cleanPath.contains("token=")) {
+            "${baseUrl.trimEnd('/')}$cleanPath${sep}token=$token"
+        } else {
+            "${baseUrl.trimEnd('/')}$cleanPath"
+        }
+    }
+    return uri
 }

@@ -41,11 +41,15 @@ object GatewayFileClient {
         path: String,
     ): String? {
         val trimmedBase = baseUrl.trimEnd('/')
-        if (trimmedBase.isBlank() || token.isBlank()) return null
+        if (trimmedBase.isBlank()) return null
         val norm = normalizePath(path) ?: return null
         val encPath = URLEncoder.encode(norm, StandardCharsets.UTF_8.name()).replace("+", "%20")
-        val encToken = URLEncoder.encode(token, StandardCharsets.UTF_8.name()).replace("+", "%20")
-        return "$trimmedBase$DOWNLOAD_PATH?path=$encPath&token=$encToken"
+        return if (token.isNotBlank()) {
+            val encToken = URLEncoder.encode(token, StandardCharsets.UTF_8.name()).replace("+", "%20")
+            "$trimmedBase$DOWNLOAD_PATH?path=$encPath&token=$encToken"
+        } else {
+            "$trimmedBase$DOWNLOAD_PATH?path=$encPath"
+        }
     }
 
     /**

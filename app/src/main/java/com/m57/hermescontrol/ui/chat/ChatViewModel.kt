@@ -1716,6 +1716,9 @@ class ChatViewModel(
                 .filter { it.reasoningText.isNotBlank() }
                 .associateBy { it.content }
 
+        val baseUrl = AuthManager.getBaseUrl()
+        val token = AuthManager.getToken().orEmpty()
+
         return messages.mapIndexed { index, msg ->
             val role =
                 when (msg.role?.lowercase()) {
@@ -1732,19 +1735,41 @@ class ChatViewModel(
                     ?.toLong()
                     ?: System.currentTimeMillis()
 
-            val content = msg.contentText
+            val rawContent = msg.contentText
             val reasoning =
                 if (msg.reasoningText.isNotBlank()) {
                     msg.reasoningText
                 } else {
-                    existingReasoningMap[content]?.reasoningText.orEmpty()
+                    existingReasoningMap[rawContent]?.reasoningText.orEmpty()
                 }
+
+            var finalContent = rawContent
+            var attachments: List<Attachment>? = null
+            if (role == MessageRole.ASSISTANT && rawContent.contains("MEDIA:")) {
+                val items = HostMediaExtractor.extract(rawContent)
+                if (items.isNotEmpty()) {
+                    finalContent = HostMediaExtractor.strip(rawContent)
+                    attachments =
+                        items.mapNotNull { item ->
+                            val url = GatewayFileClient.buildDownloadUrl(baseUrl, token, item.path) ?: return@mapNotNull null
+                            Attachment(
+                                uri = url,
+                                name = mediaNameFromPath(item.path),
+                                mimeType = mediaMimeForPath(item.path),
+                                size = 0,
+                                gatewayUrl = url,
+                                source = AttachmentSource.GATEWAY,
+                            )
+                        }.takeIf { it.isNotEmpty() }
+                }
+            }
 
             ChatMessage(
                 id = "rest-$sessionId-$globalIndex",
                 role = role,
-                content = content,
+                content = finalContent,
                 reasoningText = reasoning,
+                attachments = attachments,
                 timestamp = timestamp,
                 isStreaming = false,
             )

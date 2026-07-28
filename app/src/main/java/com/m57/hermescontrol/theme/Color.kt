@@ -98,3 +98,11 @@ val CodeTerminalBg = Color(0xFF1E1E1E)
 val CodeTerminalBorder = Color(0xFF333333)
 val CodeTerminalText = Color(0xFFD4D4D4)
 val CodeTerminalMuted = Color(0xFF808080)
+
+// ── Diff viewer tokens (issue #738) ──────────────────────────────────
+val CodeDiffAddBg = Color(0x263DDC84)
+val CodeDiffAddText = Color(0xFF3DDC84)
+val CodeDiffDeleteBg = Color(0x26FF5C5C)
+val CodeDiffDeleteText = Color(0xFFFF5C5C)
+val CodeDiffHunkBg = Color(0x264DA8FF)
+val CodeDiffHunkText = Color(0xFF4DA8FF)

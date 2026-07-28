@@ -85,6 +85,7 @@ import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LightOnSurface
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.onColorFor
+import com.m57.hermescontrol.ui.chat.components.DiffViewCard
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -560,6 +561,8 @@ data class ParsedToolData(
     val mainOutput: String? = null,
     val extraFields: Map<String, String> = emptyMap(),
     val isRunning: Boolean = false,
+    val diffOutput: String? = null,
+    val diffPath: String? = null,
 )
 
 private fun formatTodoToolOutput(
@@ -1760,6 +1763,45 @@ fun parseToolOutput(
                 }
             }
 
+            val diffCandidate =
+                dataSource.get("diff")?.takeIf { !it.isJsonNull }?.let {
+                    if (it.isJsonPrimitive) it.asString else it.toString()
+                }
+                    ?: dataSource.get("patch")?.takeIf { !it.isJsonNull }?.let {
+                        if (it.isJsonPrimitive) it.asString else it.toString()
+                    }
+                    ?: mainOutput
+
+            val filePathArg =
+                args["path"]?.toString()
+                    ?: argsObj?.get("path")?.takeIf { !it.isJsonNull }?.asString
+
+            val oldStrArg = args["old_string"]?.toString()
+            val newStrArg = args["new_string"]?.toString()
+
+            val extractedDiffOutput =
+                when {
+                    diffCandidate != null && (
+                        diffCandidate.contains("\n-") ||
+                            diffCandidate.contains("\n+") ||
+                            diffCandidate.startsWith("--- ") ||
+                            diffCandidate.startsWith("+++ ") ||
+                            diffCandidate.startsWith("*** ") ||
+                            diffCandidate.startsWith("@@ ")
+                    ) -> diffCandidate
+
+                    resolvedToolName == "patch" && oldStrArg != null && newStrArg != null -> {
+                        val pathHeader = filePathArg ?: "file"
+                        "--- $pathHeader\n+++ $pathHeader\n@@ -1,1 +1,1 @@\n-$oldStrArg\n+$newStrArg"
+                    }
+
+                    resolvedToolName == "patch" && args["patch"] != null -> {
+                        args["patch"].toString()
+                    }
+
+                    else -> null
+                }
+
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
 
             ParsedToolData(
@@ -1771,6 +1813,8 @@ fun parseToolOutput(
                 extraFields = extraFields,
                 durationSec = duration,
                 isRunning = isRunning,
+                diffOutput = extractedDiffOutput,
+                diffPath = filePathArg,
             )
         }
     } catch (e: Exception) {
@@ -1848,51 +1892,57 @@ private fun ExpandedToolContent(
                 )
             }
         } else {
-            // ── Generic tool output ──
-            parsed.mainOutput?.let {
-                Text(
-                    text = it,
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = contentColor.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                        ),
+            // ── Generic tool output / Diff view ──
+            if (parsed.diffOutput != null) {
+                DiffViewCard(
+                    diffText = parsed.diffOutput,
+                    filePath = parsed.diffPath,
                 )
-            }
-            parsed.extraFields.forEach { (key, value) ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
+            } else {
+                parsed.mainOutput?.let {
                     Text(
-                        text = "$key:",
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                color = contentColor.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Bold,
-                            ),
-                    )
-                    Text(
-                        text = value,
+                        text = it,
                         style =
                             MaterialTheme.typography.bodySmall.copy(
                                 color = contentColor.copy(alpha = 0.9f),
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                             ),
                     )
                 }
+                parsed.extraFields.forEach { (key, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "$key:",
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    color = contentColor.copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                        )
+                        Text(
+                            text = value,
+                            style =
+                                MaterialTheme.typography.bodySmall.copy(
+                                    color = contentColor.copy(alpha = 0.9f),
+                                    fontSize = 11.sp,
+                                ),
+                        )
+                    }
+                }
             }
-
-            // Duration footer
-            parsed.durationSec?.let { dur ->
-                Text(
-                    text = "Duration: ${"%.1f".format(dur)}s",
-                    style =
-                        MaterialTheme.typography.labelSmall.copy(
-                            color = contentColor.copy(alpha = 0.5f),
-                        ),
-                )
-            }
+        }
+        // Duration footer
+        parsed.durationSec?.let { dur ->
+            Text(
+                text = "Duration: ${"%.1f".format(dur)}s",
+                style =
+                    MaterialTheme.typography.labelSmall.copy(
+                        color = contentColor.copy(alpha = 0.5f),
+                    ),
+            )
         }
     }
 }

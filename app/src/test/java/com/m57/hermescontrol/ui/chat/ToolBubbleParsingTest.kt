@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.ui.chat.components.DiffLineType
+import com.m57.hermescontrol.ui.chat.components.parseDiffText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -243,5 +245,53 @@ class ToolBubbleParsingTest {
         assertEquals("done", parsed.stdout)
         assertEquals(0, parsed.exitCode)
         assertNull(parsed.summaryText) // no args → no summary
+    }
+
+    // ── Diff parsing & Patch tool tests ───────────────────────
+
+    @Test
+    fun testParseDiffText_unifiedDiff() {
+        val rawDiff =
+            """
+            --- app/src/Main.kt
+            +++ app/src/Main.kt
+            @@ -1,3 +1,3 @@
+             fun main() {
+            -    println("hello")
+            +    println("hello world")
+             }
+            """.trimIndent()
+
+        val result = parseDiffText(rawDiff)
+        assertEquals("app/src/Main.kt", result.filePath)
+        assertEquals(1, result.additionsCount)
+        assertEquals(1, result.deletionsCount)
+
+        val addedLine = result.lines.find { it.type == DiffLineType.ADDED }
+        assertNotNull(addedLine)
+        assertEquals("+    println(\"hello world\")", addedLine!!.text)
+    }
+
+    @Test
+    fun testParseToolOutput_patchReplaceMode() {
+        val json =
+            """{
+            "tool_id": "call_patch_1",
+            "name": "patch",
+            "args": {
+                "path": "app/config.json",
+                "old_string": "debug=false",
+                "new_string": "debug=true"
+            },
+            "result": {
+                "output": "--- app/config.json\n+++ app/config.json\n@@ -1,1 +1,1 @@\n-debug=false\n+debug=true"
+            }
+        }"""
+        val parsed = parseToolOutput(json, "patch", false)
+        assertNotNull(parsed)
+        assertEquals("app/config.json", parsed!!.diffPath)
+        assertNotNull(parsed.diffOutput)
+        assertTrue(parsed.diffOutput!!.contains("-debug=false"))
+        assertTrue(parsed.diffOutput!!.contains("+debug=true"))
     }
 }

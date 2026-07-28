@@ -1691,7 +1691,19 @@ fun parseToolOutput(
         val hasStderr = dataSource.has("stderr")
         val hasExitCode = dataSource.has("exit_code") || dataSource.has("exitCode")
 
-        if (hasOutput || hasStdout || hasStderr || hasExitCode) {
+        val isTerminalTool =
+            resolvedToolName == "terminal" ||
+                resolvedToolName == "bash" ||
+                resolvedToolName == "sh" ||
+                resolvedToolName == "cmd" ||
+                resolvedToolName == "exec"
+
+        val isDiffTool =
+            resolvedToolName == "patch" ||
+                resolvedToolName == "write_file" ||
+                resolvedToolName == "edit"
+
+        if (!isDiffTool && (isTerminalTool || hasOutput || hasStdout || hasStderr || hasExitCode)) {
             val terminalOutput =
                 (
                     dataSource.get("output")?.takeIf { !it.isJsonNull }?.asString
@@ -1898,39 +1910,44 @@ private fun ExpandedToolContent(
                     diffText = parsed.diffOutput,
                     filePath = parsed.diffPath,
                 )
-            } else {
-                parsed.mainOutput?.let {
+            }
+            val nonDiffOutput =
+                if (parsed.diffOutput != null && parsed.mainOutput == parsed.diffOutput) {
+                    null
+                } else {
+                    parsed.mainOutput
+                }
+            nonDiffOutput?.let {
+                Text(
+                    text = it,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = contentColor.copy(alpha = 0.9f),
+                            fontSize = 12.sp,
+                        ),
+                )
+            }
+            parsed.extraFields.forEach { (key, value) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Text(
-                        text = it,
+                        text = "$key:",
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = contentColor.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Bold,
+                            ),
+                    )
+                    Text(
+                        text = value,
                         style =
                             MaterialTheme.typography.bodySmall.copy(
                                 color = contentColor.copy(alpha = 0.9f),
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                             ),
                     )
-                }
-                parsed.extraFields.forEach { (key, value) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "$key:",
-                            style =
-                                MaterialTheme.typography.labelSmall.copy(
-                                    color = contentColor.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                        )
-                        Text(
-                            text = value,
-                            style =
-                                MaterialTheme.typography.bodySmall.copy(
-                                    color = contentColor.copy(alpha = 0.9f),
-                                    fontSize = 11.sp,
-                                ),
-                        )
-                    }
                 }
             }
         }

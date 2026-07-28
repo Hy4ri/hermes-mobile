@@ -9,14 +9,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Check
@@ -131,12 +134,12 @@ fun parseDiffText(
                 parsedLines.add(ParsedDiffLine(DiffLineType.HUNK_HEADER, line))
             }
 
-            line.startsWith("+") && !line.startsWith("+++") -> {
+            line.startsWith("+") -> {
                 additions++
                 parsedLines.add(ParsedDiffLine(DiffLineType.ADDED, line))
             }
 
-            line.startsWith("-") && !line.startsWith("---") -> {
+            line.startsWith("-") -> {
                 deletions++
                 parsedLines.add(ParsedDiffLine(DiffLineType.DELETED, line))
             }
@@ -202,52 +205,55 @@ fun DiffViewCard(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                    contentDescription = null,
-                    tint = CodeTerminalMuted,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = parsed.filePath ?: "diff",
-                    style =
-                        MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = CodeTerminalText,
-                        ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Spacer(Modifier.width(8.dp))
-
-                // Addition / Deletion badges
-                if (parsed.additionsCount > 0) {
-                    Text(
-                        text = "+${parsed.additionsCount}",
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = CodeDiffAddText,
-                            ),
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                        contentDescription = null,
+                        tint = CodeTerminalMuted,
+                        modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.width(6.dp))
-                }
-                if (parsed.deletionsCount > 0) {
                     Text(
-                        text = "-${parsed.deletionsCount}",
+                        text = parsed.filePath ?: "diff",
                         style =
-                            MaterialTheme.typography.labelSmall.copy(
+                            MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = CodeDiffDeleteText,
+                                fontFamily = FontFamily.Monospace,
+                                color = CodeTerminalText,
                             ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
-                    Spacer(Modifier.width(6.dp))
-                }
+                    Spacer(Modifier.width(8.dp))
 
-                Spacer(Modifier.weight(1f))
+                    // Addition / Deletion badges
+                    if (parsed.additionsCount > 0) {
+                        Text(
+                            text = "+${parsed.additionsCount}",
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = CodeDiffAddText,
+                                ),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    if (parsed.deletionsCount > 0) {
+                        Text(
+                            text = "-${parsed.deletionsCount}",
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = CodeDiffDeleteText,
+                                ),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
+                }
 
                 IconButton(
                     onClick = {
@@ -269,11 +275,20 @@ fun DiffViewCard(
             }
 
             // Diff lines body
+            val verticalScrollModifier =
+                if (expanded) {
+                    Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
+                } else {
+                    Modifier
+                }
+
             Column(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                        .then(verticalScrollModifier)
+                        .horizontalScroll(rememberScrollState())
+                        .width(IntrinsicSize.Max),
             ) {
                 displayLines.forEach { line ->
                     val (bgColor, textColor) =

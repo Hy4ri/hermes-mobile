@@ -14,6 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.utf8Size
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -92,6 +94,9 @@ object HermesWsClient {
 
     @Volatile
     private var reconnectJob: Job? = null
+
+    @Volatile
+    private var outboundDrainJob: Job? = null
 
     // ── Health and Ping/Pong tracking ────────────────────────────────────
 
@@ -170,10 +175,19 @@ object HermesWsClient {
         // Monitor network state to trigger immediate reconnect when network is restored
         wsScope.launch {
             NetworkMonitor.isConnected.collect { connected ->
-                if (connected && !isConnected && !intentionalClose.get() && AuthManager.isAutoReconnect()) {
-                    Log.d(TAG, "Network restored — triggering immediate reconnect")
-                    currentBackoff = INITIAL_BACKOFF_MS
-                    reconnectJob?.cancel()
+                val shouldOpen =
+                    synchronized(outboundLock) {
+                        if (connected && !isConnected && !intentionalClose.get() && AuthManager.isAutoReconnect()) {
+                            Log.d(TAG, "Network restored — triggering immediate reconnect")
+                            currentBackoff = INITIAL_BACKOFF_MS
+                            reconnectJob?.cancel()
+                            reconnectJob = null
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                if (shouldOpen) {
                     openSocket()
                 }
             }
@@ -227,7 +241,9 @@ object HermesWsClient {
             return
         }
         intentionalClose.set(false)
-        currentBackoff = INITIAL_BACKOFF_MS
+        synchronized(outboundLock) {
+            currentBackoff = INITIAL_BACKOFF_MS
+        }
         _connectionStatus.value = ConnectionStatus.CONNECTING
         openSocket()
     }
@@ -323,6 +339,8 @@ object HermesWsClient {
             connectionGeneration.incrementAndGet()
             reconnectJob?.cancel()
             reconnectJob = null
+            outboundDrainJob?.cancel()
+            outboundDrainJob = null
             stopHealthTracking()
             webSocket?.close(1000, "Client closed")
             webSocket = null
@@ -470,7 +488,11 @@ object HermesWsClient {
         return id
     }
 
-    private fun isRetryableMessage(json: String): Boolean = json.encodeToByteArray().size <= MAX_OUTBOUND_MESSAGE_BYTES
+    private fun isRetryableMessage(json: String): Boolean {
+        if (json.length > MAX_OUTBOUND_MESSAGE_BYTES) return false
+        if (json.length <= MAX_OUTBOUND_MESSAGE_BYTES / 4) return true
+        return json.utf8Size() <= MAX_OUTBOUND_MESSAGE_BYTES.toLong()
+    }
 
     private fun queueMessage(
         id: String,
@@ -500,13 +522,16 @@ object HermesWsClient {
             return
         }
         if (intentionalClose.get()) return
-        reconnectJob?.cancel()
-        reconnectJob =
+        outboundDrainJob?.cancel()
+        outboundDrainJob =
             wsScope.launch {
                 delay(OUTBOUND_DRAIN_TIMEOUT_MS)
-                if (!connected.get() && !intentionalClose.get() && webSocket === ws) {
-                    ws.cancel()
-                    scheduleReconnect()
+                synchronized(outboundLock) {
+                    if (!connected.get() && !intentionalClose.get() && webSocket === ws) {
+                        ws.cancel()
+                        outboundDrainJob = null
+                        scheduleReconnect()
+                    }
                 }
             }
     }
@@ -564,32 +589,41 @@ object HermesWsClient {
     }
 
     private fun scheduleReconnect() {
-        if (intentionalClose.get()) return
-        if (!AuthManager.isAutoReconnect()) {
-            if (BuildConfig.DEBUG) Log.d(TAG, "Auto-reconnect disabled")
-            _connectionStatus.value = ConnectionStatus.DISCONNECTED
-            return
-        }
-        if (!NetworkMonitor.isConnected.value) {
-            Log.d(TAG, "No network available — delaying reconnect scheduling")
-            _connectionStatus.value = ConnectionStatus.NO_NETWORK
-            return
-        }
-        val delay = currentBackoff
-        currentBackoff =
-            (currentBackoff * BACKOFF_MULTIPLIER)
-                .toLong()
-                .coerceAtMost(MAX_BACKOFF_MS)
-        if (BuildConfig.DEBUG) Log.d(TAG, "Reconnecting in ${delay}ms …")
-
-        reconnectJob?.cancel()
-        reconnectJob =
-            wsScope.launch {
-                delay(delay)
-                if (!intentionalClose.get() && !connected.get()) {
-                    openSocket()
-                }
+        synchronized(outboundLock) {
+            if (intentionalClose.get() || reconnectJob?.isActive == true) return
+            if (!AuthManager.isAutoReconnect()) {
+                if (BuildConfig.DEBUG) Log.d(TAG, "Auto-reconnect disabled")
+                _connectionStatus.value = ConnectionStatus.DISCONNECTED
+                return
             }
+            if (!NetworkMonitor.isConnected.value) {
+                Log.d(TAG, "No network available — delaying reconnect scheduling")
+                _connectionStatus.value = ConnectionStatus.NO_NETWORK
+                return
+            }
+            val reconnectDelay = currentBackoff
+            currentBackoff =
+                (currentBackoff * BACKOFF_MULTIPLIER)
+                    .toLong()
+                    .coerceAtMost(MAX_BACKOFF_MS)
+            if (BuildConfig.DEBUG) Log.d(TAG, "Reconnecting in ${reconnectDelay}ms …")
+
+            reconnectJob =
+                wsScope.launch {
+                    delay(reconnectDelay)
+                    val owner = currentCoroutineContext()[Job]
+                    val shouldOpen =
+                        synchronized(outboundLock) {
+                            if (reconnectJob !== owner) {
+                                false
+                            } else {
+                                reconnectJob = null
+                                !intentionalClose.get() && !connected.get()
+                            }
+                        }
+                    if (shouldOpen) openSocket()
+                }
+        }
     }
 
     // ── Listener ─────────────────────────────────────────────────────────
@@ -610,6 +644,8 @@ object HermesWsClient {
                 }
                 HermesWsClient.webSocket = webSocket
                 closingSocket = null
+                outboundDrainJob?.cancel()
+                outboundDrainJob = null
                 Log.i(TAG, "WebSocket opened")
                 connected.set(true)
                 _connectionStatus.value = ConnectionStatus.CONNECTED
@@ -695,6 +731,8 @@ object HermesWsClient {
                 if (!isCurrent()) return
                 connectionGeneration.incrementAndGet()
                 closingSocket = null
+                outboundDrainJob?.cancel()
+                outboundDrainJob = null
                 if (HermesWsClient.webSocket === webSocket) HermesWsClient.webSocket = null
                 // Do NOT log [reason] — it may carry server-side context. The
                 // reason is still inspected internally to detect auth failures.
@@ -722,6 +760,8 @@ object HermesWsClient {
                 if (!isCurrent()) return
                 connectionGeneration.incrementAndGet()
                 closingSocket = null
+                outboundDrainJob?.cancel()
+                outboundDrainJob = null
                 if (HermesWsClient.webSocket === webSocket) HermesWsClient.webSocket = null
                 // Log the exception class only — [Throwable.message] can leak URLs
                 // or headers. The message is still inspected internally for auth

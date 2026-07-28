@@ -4,6 +4,7 @@ import android.util.Log
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
+import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
 import io.mockk.every
@@ -11,6 +12,7 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -24,9 +26,11 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -178,6 +182,65 @@ class HermesWsClientTest {
     }
 
     @Test
+    fun testReconnectSchedulingIsIdempotentWhilePending() {
+        mockkObject(NetworkMonitor)
+        every { AuthManager.isAutoReconnect() } returns true
+        every { NetworkMonitor.isConnected } returns MutableStateFlow(true)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val backoffField = HermesWsClient::class.java.getDeclaredField("currentBackoff")
+        backoffField.isAccessible = true
+        backoffField.setLong(HermesWsClient, 1_000L)
+
+        val reconnectMethod = HermesWsClient::class.java.getDeclaredMethod("scheduleReconnect")
+        reconnectMethod.isAccessible = true
+        reconnectMethod.invoke(HermesWsClient)
+        reconnectMethod.invoke(HermesWsClient)
+
+        assertEquals(2_000L, backoffField.getLong(HermesWsClient))
+    }
+
+    @Test
+    fun testCompletedReconnectDoesNotClearReplacementJob() {
+        mockkObject(NetworkMonitor)
+        every { AuthManager.isAutoReconnect() } returns true
+        every { NetworkMonitor.isConnected } returns MutableStateFlow(true)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val backoffField = HermesWsClient::class.java.getDeclaredField("currentBackoff")
+        backoffField.isAccessible = true
+        backoffField.setLong(HermesWsClient, 0L)
+
+        val reconnectJobField = HermesWsClient::class.java.getDeclaredField("reconnectJob")
+        reconnectJobField.isAccessible = true
+        val replacementJob = mockk<Job>(relaxed = true)
+
+        val lockField = HermesWsClient::class.java.getDeclaredField("outboundLock")
+        lockField.isAccessible = true
+        val lock = lockField.get(HermesWsClient)
+        val reconnectMethod = HermesWsClient::class.java.getDeclaredMethod("scheduleReconnect")
+        reconnectMethod.isAccessible = true
+
+        synchronized(lock) {
+            reconnectMethod.invoke(HermesWsClient)
+            reconnectJobField.set(HermesWsClient, replacementJob)
+        }
+
+        Thread.sleep(100)
+        assertSame(replacementJob, reconnectJobField.get(HermesWsClient))
+    }
+
+    @Test
     fun testOversizedRejectedMessageIsNotQueued() {
         val staleSocket = mockk<WebSocket>(relaxed = true)
         every { staleSocket.send(any<String>()) } returns false
@@ -238,9 +301,50 @@ class HermesWsClientTest {
         HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
 
         io.mockk.verify(exactly = 0) { pressuredSocket.cancel() }
-        val reconnectJobField = HermesWsClient::class.java.getDeclaredField("reconnectJob")
-        reconnectJobField.isAccessible = true
-        assertNotNull(reconnectJobField.get(HermesWsClient))
+        val drainJobField = HermesWsClient::class.java.getDeclaredField("outboundDrainJob")
+        drainJobField.isAccessible = true
+        assertNotNull(drainJobField.get(HermesWsClient))
+    }
+
+    @Test
+    fun testFailureDuringOutboundDrainSchedulesReconnect() {
+        mockkObject(NetworkMonitor)
+        every { AuthManager.isAutoReconnect() } returns true
+        every { NetworkMonitor.isConnected } returns MutableStateFlow(true)
+
+        val pressuredSocket = mockk<WebSocket>(relaxed = true)
+        every { pressuredSocket.send(any<String>()) } returns false
+        every { pressuredSocket.queueSize() } returns 1024L
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, pressuredSocket)
+
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val generationField = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
+        generationField.isAccessible = true
+        (generationField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicInteger).set(1)
+
+        val backoffField = HermesWsClient::class.java.getDeclaredField("currentBackoff")
+        backoffField.isAccessible = true
+        backoffField.setLong(HermesWsClient, 1_000L)
+
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
+
+        val listenerClass = Class.forName("com.m57.hermescontrol.data.ws.HermesWsClient\$WsListenerImpl")
+        val constructor = listenerClass.declaredConstructors.single()
+        constructor.isAccessible = true
+        val listener = constructor.newInstance(1) as WebSocketListener
+        listener.onFailure(pressuredSocket, IOException("connection lost"), null)
+
+        assertEquals(2_000L, backoffField.getLong(HermesWsClient))
     }
 
     @Test
@@ -278,9 +382,9 @@ class HermesWsClientTest {
         assertEquals(1, queue.size)
         assertTrue(queue.peek()?.contains("\"2\"") == true)
         io.mockk.verify(exactly = 0) { pressuredSocket.cancel() }
-        val reconnectJobField = HermesWsClient::class.java.getDeclaredField("reconnectJob")
-        reconnectJobField.isAccessible = true
-        assertNotNull(reconnectJobField.get(HermesWsClient))
+        val drainJobField = HermesWsClient::class.java.getDeclaredField("outboundDrainJob")
+        drainJobField.isAccessible = true
+        assertNotNull(drainJobField.get(HermesWsClient))
     }
 
     @Test

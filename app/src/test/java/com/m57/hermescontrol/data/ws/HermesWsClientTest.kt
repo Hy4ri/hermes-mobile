@@ -72,12 +72,20 @@ class HermesWsClientTest {
         @Suppress("UNCHECKED_CAST")
         (statusField.get(HermesWsClient) as MutableStateFlow<ConnectionStatus>).value = ConnectionStatus.DISCONNECTED
 
-        HermesWsClient.disconnect() // Ensure it starts clean
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        (queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>).clear()
+
+        HermesWsClient.disconnect(clearPendingMessages = true) // Ensure it starts clean
+        val acceptQueuedMessagesField = HermesWsClient::class.java.getDeclaredField("acceptQueuedMessages")
+        acceptQueuedMessagesField.isAccessible = true
+        (acceptQueuedMessagesField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
     }
 
     @After
     fun tearDown() {
-        HermesWsClient.disconnect()
+        HermesWsClient.disconnect(clearPendingMessages = true)
         // Wait a bit to allow internal OkHttp coroutines to clean up before shutting down MockWebServer
         // Increased from 100ms for OkHttp 5.x — needs more time for the WS close handshake
         Thread.sleep(500)
@@ -134,6 +142,295 @@ class HermesWsClientTest {
         assertTrue(msg.contains("test_method"))
         assertTrue(msg.contains("value"))
         assertTrue(msg.contains(id))
+    }
+
+    @Test
+    fun testFailedSocketSendQueuesMessageForReconnect() {
+        val staleSocket = mockk<WebSocket>(relaxed = true)
+        every { staleSocket.send(any<String>()) } returns false
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, staleSocket)
+
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val statusField = HermesWsClient::class.java.getDeclaredField("_connectionStatus")
+        statusField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        (statusField.get(HermesWsClient) as MutableStateFlow<ConnectionStatus>).value = ConnectionStatus.CONNECTED
+
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        assertFalse(HermesWsClient.isConnected)
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+        assertEquals(1, queue.size)
+    }
+
+    @Test
+    fun testOversizedRejectedMessageIsNotQueued() {
+        val staleSocket = mockk<WebSocket>(relaxed = true)
+        every { staleSocket.send(any<String>()) } returns false
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, staleSocket)
+
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        HermesWsClient.send(
+            WsMethods.PROMPT_SUBMIT,
+            mapOf("session_id" to "s1", "text" to "x".repeat(16 * 1024 * 1024 + 1)),
+        )
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        assertTrue(queue.isEmpty())
+        io.mockk.verify(exactly = 0) { staleSocket.cancel() }
+    }
+
+    @Test
+    fun testDisconnectedOversizedMessageIsNotQueued() {
+        HermesWsClient.send(
+            WsMethods.PROMPT_SUBMIT,
+            mapOf("session_id" to "s1", "text" to "x".repeat(16 * 1024 * 1024 + 1)),
+        )
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        assertTrue(queue.isEmpty())
+    }
+
+    @Test
+    fun testQueuePressureDoesNotCancelAcceptedFrames() {
+        val pressuredSocket = mockk<WebSocket>(relaxed = true)
+        every { pressuredSocket.send(any<String>()) } returns false
+        every { pressuredSocket.queueSize() } returns 1024L
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, pressuredSocket)
+
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
+
+        io.mockk.verify(exactly = 0) { pressuredSocket.cancel() }
+        val reconnectJobField = HermesWsClient::class.java.getDeclaredField("reconnectJob")
+        reconnectJobField.isAccessible = true
+        assertNotNull(reconnectJobField.get(HermesWsClient))
+    }
+
+    @Test
+    fun testReplayPressureSchedulesRecoveryWithoutDroppingHead() {
+        val pressuredSocket = mockk<WebSocket>(relaxed = true)
+        every { pressuredSocket.send(any<String>()) } returnsMany listOf(true, false)
+        every { pressuredSocket.queueSize() } returns 1024L
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        queue.add("{\"jsonrpc\":\"2.0\",\"id\":\"1\"}")
+        queue.add("{\"jsonrpc\":\"2.0\",\"id\":\"2\"}")
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val generationField = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
+        generationField.isAccessible = true
+        (generationField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicInteger).set(1)
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, pressuredSocket)
+
+        val listenerClass = Class.forName("com.m57.hermescontrol.data.ws.HermesWsClient\$WsListenerImpl")
+        val constructor = listenerClass.declaredConstructors.single()
+        constructor.isAccessible = true
+        val listener = constructor.newInstance(1) as WebSocketListener
+        listener.onOpen(pressuredSocket, mockk(relaxed = true))
+
+        assertFalse(HermesWsClient.isConnected)
+        assertEquals(1, queue.size)
+        assertTrue(queue.peek()?.contains("\"2\"") == true)
+        io.mockk.verify(exactly = 0) { pressuredSocket.cancel() }
+        val reconnectJobField = HermesWsClient::class.java.getDeclaredField("reconnectJob")
+        reconnectJobField.isAccessible = true
+        assertNotNull(reconnectJobField.get(HermesWsClient))
+    }
+
+    @Test
+    fun testStaleOnOpenDoesNotReplayQueue() {
+        val staleSocket = mockk<WebSocket>(relaxed = true)
+        val currentSocket = mockk<WebSocket>(relaxed = true)
+        every { currentSocket.send(any<String>()) } returns true
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, currentSocket)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val generationField = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
+        generationField.isAccessible = true
+        (generationField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicInteger).set(2)
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        queue.add("{\"jsonrpc\":\"2.0\",\"id\":\"1\"}")
+
+        val listenerClass = Class.forName("com.m57.hermescontrol.data.ws.HermesWsClient\$WsListenerImpl")
+        val constructor = listenerClass.declaredConstructors.single()
+        constructor.isAccessible = true
+        val staleListener = constructor.newInstance(1) as WebSocketListener
+        val currentListener = constructor.newInstance(2) as WebSocketListener
+        val response = mockk<okhttp3.Response>(relaxed = true)
+
+        staleListener.onOpen(staleSocket, response)
+        currentListener.onOpen(currentSocket, response)
+
+        io.mockk.verify(exactly = 0) { staleSocket.send(any<String>()) }
+        io.mockk.verify(exactly = 1) { currentSocket.send(any<String>()) }
+        assertTrue(queue.isEmpty())
+    }
+
+    @Test
+    fun testRejectedSendAfterDisconnectIsNotQueued() {
+        val staleSocket = mockk<WebSocket>(relaxed = true)
+        every { staleSocket.send(any<String>()) } answers {
+            HermesWsClient.disconnect(clearPendingMessages = true)
+            false
+        }
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, staleSocket)
+
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        assertTrue(queue.isEmpty())
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+    }
+
+    @Test
+    fun testDisconnectPreservesQueuedMessagesUnlessExplicitlyCleared() {
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        assertEquals(1, queue.size)
+
+        HermesWsClient.disconnect()
+        assertEquals(1, queue.size)
+
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "during reconnect"))
+        assertEquals(2, queue.size)
+
+        HermesWsClient.disconnect(clearPendingMessages = true)
+        assertTrue(queue.isEmpty())
+
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "after logout"))
+        assertTrue(queue.isEmpty())
+    }
+
+    @Test
+    fun testRejectAllPendingRemovesQueuedAwaitedRpc() {
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val deferred = HermesWsClient.request(WsMethods.PROCESS_LIST, mapOf("session_id" to "s1"))
+
+        val queueField = HermesWsClient::class.java.getDeclaredField("messageQueue")
+        queueField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val queue = queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>
+        assertEquals(1, queue.size)
+
+        HermesWsClient.rejectAllPending()
+
+        assertTrue(deferred.isCompleted)
+        assertTrue(queue.isEmpty())
+    }
+
+    @Test
+    fun testAuthClosingCodeSurvivesRejectedSendRecovery() {
+        val socket = mockk<WebSocket>(relaxed = true)
+        every { socket.send(any<String>()) } returns false
+        every { socket.queueSize() } returns 0L
+
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket")
+        socketField.isAccessible = true
+        socketField.set(HermesWsClient, socket)
+
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected")
+        connectedField.isAccessible = true
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val generationField = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
+        generationField.isAccessible = true
+        (generationField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicInteger).set(1)
+
+        val listenerClass = Class.forName("com.m57.hermescontrol.data.ws.HermesWsClient\$WsListenerImpl")
+        val constructor = listenerClass.declaredConstructors.single()
+        constructor.isAccessible = true
+        val listener = constructor.newInstance(1) as WebSocketListener
+
+        listener.onClosing(socket, 4401, "expired")
+        HermesWsClient.send(WsMethods.PROMPT_SUBMIT, mapOf("session_id" to "s1", "text" to "hello"))
+
+        assertEquals(ConnectionStatus.AUTH_EXPIRED, HermesWsClient.connectionStatus.value)
+        io.mockk.verify(exactly = 0) { socket.cancel() }
     }
 
     @Test
@@ -211,7 +508,7 @@ class HermesWsClientTest {
         runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
         assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
 
-        HermesWsClient.disconnect()
+        HermesWsClient.disconnect(clearPendingMessages = true)
         assertFalse(HermesWsClient.isConnected)
         assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
 
@@ -378,7 +675,7 @@ class HermesWsClientTest {
         runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
 
         // Disconnect — this sets intentionalClose = true and cancels reconnect
-        HermesWsClient.disconnect()
+        HermesWsClient.disconnect(clearPendingMessages = true)
 
         assertFalse(HermesWsClient.isConnected)
         assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
@@ -482,7 +779,7 @@ class HermesWsClientTest {
         runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
 
         // Disconnect (sets intentionalClose) — after this, reconnect should be prevented
-        HermesWsClient.disconnect()
+        HermesWsClient.disconnect(clearPendingMessages = true)
         assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
         assertFalse(HermesWsClient.isConnected)
     }

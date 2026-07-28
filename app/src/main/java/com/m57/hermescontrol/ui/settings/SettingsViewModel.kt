@@ -299,7 +299,7 @@ class SettingsViewModel(
         AuthManager.setToken(null)
         AuthManager.setSessionCookie(null)
         AuthManager.setWsAuthParam("token")
-        HermesWsClient.disconnect()
+        HermesWsClient.disconnect(clearPendingMessages = true)
         // Don't rebuild ApiClient here — let the navigation complete first
     }
 

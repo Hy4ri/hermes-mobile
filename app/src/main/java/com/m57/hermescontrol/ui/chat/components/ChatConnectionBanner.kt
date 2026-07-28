@@ -121,9 +121,7 @@ fun ChatConnectionBanner(
                         }
                     }
 
-                    ConnectionStatus.RECONNECTING,
-                    ConnectionStatus.AUTH_EXPIRED,
-                    -> {
+                    ConnectionStatus.AUTH_EXPIRED -> {
                         TextButton(
                             onClick = onReloginClick,
                             colors =
@@ -134,6 +132,8 @@ fun ChatConnectionBanner(
                             Text(stringResource(R.string.chat_action_relogin))
                         }
                     }
+
+                    ConnectionStatus.RECONNECTING -> {}
 
                     else -> {}
                 }

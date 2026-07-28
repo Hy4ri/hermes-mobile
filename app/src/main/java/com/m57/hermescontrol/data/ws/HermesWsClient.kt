@@ -268,29 +268,41 @@ object HermesWsClient {
                     client.newCall(request).execute()
                 }
 
-            if (response.isSuccessful) {
-                val body = response.body.string()
-                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
-                val ticket = ticketMatch?.groupValues?.getOrNull(1)
-                if (!ticket.isNullOrBlank()) {
-                    AuthManager.setToken(ticket)
-                    if (BuildConfig.DEBUG) Log.d(TAG, "WS ticket refreshed")
-                    return true
+            response.use {
+                if (response.isSuccessful) {
+                    val body = response.body.string()
+                    val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
+                    val ticket = ticketMatch?.groupValues?.getOrNull(1)
+                    if (!ticket.isNullOrBlank()) {
+                        AuthManager.setToken(ticket)
+                        if (BuildConfig.DEBUG) Log.d(TAG, "WS ticket refreshed")
+                        return true
+                    } else {
+                        Log.w(TAG, "WS ticket refresh failed: response body did not contain ticket")
+                        return handleWsTicketRefreshFailure(ConnectionStatus.DISCONNECTED)
+                    }
                 } else {
-                    Log.w(TAG, "WS ticket refresh failed: response body did not contain ticket")
-                    _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
-                    return false
+                    Log.w(TAG, "WS ticket refresh failed: HTTP ${response.code}")
+                    val status =
+                        when {
+                            response.code == 401 || response.code == 403 -> ConnectionStatus.AUTH_EXPIRED
+                            response.code == 408 || response.code == 429 || response.code >= 500 ->
+                                ConnectionStatus.RECONNECTING
+                            else -> ConnectionStatus.DISCONNECTED
+                        }
+                    return handleWsTicketRefreshFailure(status)
                 }
-            } else {
-                Log.w(TAG, "WS ticket refresh failed: HTTP ${response.code}")
-                _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
-                return false
             }
         } catch (e: Exception) {
             Log.w(TAG, "WS ticket refresh failed: ${e.javaClass.simpleName}")
-            _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
-            return false
+            return handleWsTicketRefreshFailure(ConnectionStatus.RECONNECTING)
         }
+    }
+
+    private fun handleWsTicketRefreshFailure(status: ConnectionStatus): Boolean {
+        _connectionStatus.value = status
+        if (status == ConnectionStatus.RECONNECTING) scheduleReconnect()
+        return false
     }
 
     /** Cleanly close the WebSocket and stop auto-reconnect. */

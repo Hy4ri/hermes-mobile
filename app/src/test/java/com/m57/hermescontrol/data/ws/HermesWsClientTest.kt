@@ -557,4 +557,54 @@ class HermesWsClientTest {
 
         ticketServer.shutdown()
     }
+
+    @Test
+    fun testGatedMode_permanentTicketFailureStopsRetrying() {
+        every { AuthManager.isAutoReconnect() } returns true
+        every { AuthManager.serverStore } returns
+            mockk<com.m57.hermescontrol.data.config.ServerStore>().also {
+                every { it.getLatestState() } returns
+                    com.m57.hermescontrol.data.config
+                        .ServerStoreState(wsAuthParam = "ticket")
+            }
+
+        val ticketServer = MockWebServer()
+        ticketServer.start()
+        ticketServer.enqueue(MockResponse().setResponseCode(400))
+        every { AuthManager.endpointForBuild() } returns
+            ServerEndpoint.parse(
+                ticketServer.url("/").toString(),
+                CleartextPolicy.ALLOW_WITH_WARNING,
+            )
+
+        HermesWsClient.connect()
+
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+        ticketServer.shutdown()
+    }
+
+    @Test
+    fun testGatedMode_transientTicketFailureKeepsReconnectFlow() {
+        every { AuthManager.isAutoReconnect() } returns true
+        every { AuthManager.serverStore } returns
+            mockk<com.m57.hermescontrol.data.config.ServerStore>().also {
+                every { it.getLatestState() } returns
+                    com.m57.hermescontrol.data.config
+                        .ServerStoreState(wsAuthParam = "ticket")
+            }
+
+        val unavailableTicketServer = MockWebServer()
+        unavailableTicketServer.start()
+        val unavailableEndpoint = unavailableTicketServer.url("/").toString()
+        unavailableTicketServer.shutdown()
+        every { AuthManager.endpointForBuild() } returns
+            ServerEndpoint.parse(
+                unavailableEndpoint,
+                CleartextPolicy.ALLOW_WITH_WARNING,
+            )
+
+        HermesWsClient.connect()
+
+        assertEquals(ConnectionStatus.RECONNECTING, HermesWsClient.connectionStatus.value)
+    }
 }

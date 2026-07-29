@@ -115,7 +115,7 @@ object ImageBytesResolver {
     }
 
     fun extensionForMime(mime: String): String =
-        when (mime.lowercase()) {
+        when (mime.substringBefore(';').trim().lowercase()) {
             "image/jpeg", "image/jpg" -> "jpg"
             "image/png" -> "png"
             "image/gif" -> "gif"

@@ -224,8 +224,9 @@ data class ChatUiState(
     val errorMessage: String? = null,
     // Background job completion toast (issue #527) — non-blocking snackbar
     val backgroundCompleteMessage: String? = null,
-    // Attachment open failure — surfaced as a non-blocking snackbar (issue #724)
+    // Attachment feedback — surfaced as a non-blocking snackbar (issue #724)
     val openError: String? = null,
+    val savingAttachmentPath: String? = null,
     val clarifyRequest: ClarifyUi? = null,
     // Sudo / secret prompts — surfaced as dialogs (issue #524)
     val sudoPrompt: SudoPromptUi? = null,
@@ -2646,18 +2647,7 @@ class ChatViewModel(
                 .onFailure { /* fall through to cache-copy below */ }
         }
         // GATEWAY, or LOCAL direct-open failed → fetch/copy then open.
-        val path =
-            attachment.gatewayUrl?.let { url ->
-                runCatching {
-                    java.net
-                        .URL(url)
-                        .query
-                        .split('&')
-                        .firstOrNull { it.startsWith("path=") }
-                        ?.removePrefix("path=")
-                        ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                }.getOrNull()
-            } ?: attachment.name
+        val path = gatewayPathFor(attachment)
         viewModelScope.launch(Dispatchers.IO) {
             when (val result = GatewayFileClient.fetch(path)) {
                 is GatewayFileResult.Success -> {
@@ -2686,6 +2676,58 @@ class ChatViewModel(
             }
         }
     }
+
+    /** Save an agent-delivered file through Android's system document picker. */
+    fun saveAttachment(
+        attachment: Attachment,
+        destination: android.net.Uri,
+    ) {
+        if (_uiState.value.savingAttachmentPath != null) return
+        val path = gatewayPathFor(attachment)
+        _uiState.update { it.copy(savingAttachmentPath = path) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                when (val result = GatewayFileClient.fetch(path)) {
+                    is GatewayFileResult.Success -> {
+                        val resolver = getApplication<Application>().contentResolver
+                        runCatching {
+                            resolver
+                                .openOutputStream(destination, "wt")
+                                ?.use { it.write(result.file.bytes) }
+                                ?: error("destination is unavailable")
+                        }.onSuccess {
+                            showOpenError("Saved ${result.file.name}")
+                        }.onFailure {
+                            showOpenError("Could not save ${attachment.name}: ${it.message}")
+                        }
+                    }
+
+                    is GatewayFileResult.NotFound -> showOpenError("File not found on gateway: ${attachment.name}")
+                    is GatewayFileResult.Forbidden -> showOpenError("Access denied: ${attachment.name}")
+                    is GatewayFileResult.TooLarge -> showOpenError("File too large to save: ${attachment.name}")
+                    is GatewayFileResult.Unauthorized ->
+                        showOpenError(
+                            "Session expired — reconnect to save: ${attachment.name}",
+                        )
+                    is GatewayFileResult.Failure ->
+                        showOpenError("Could not save ${attachment.name}: ${result.throwable.message}")
+                }
+            } finally {
+                _uiState.update {
+                    if (it.savingAttachmentPath == path) {
+                        it.copy(savingAttachmentPath = null)
+                    } else {
+                        it
+                    }
+                }
+            }
+        }
+    }
+
+    fun gatewayPathFor(attachment: Attachment): String =
+        attachment.gatewayUrl?.let(::gatewayPathFromUrl)
+            ?: attachment.uri.removePrefix("gateway:").takeIf { it != attachment.uri }
+            ?: attachment.name
 
     /** Open bytes written to a cache file via FileProvider + ACTION_VIEW. */
     private fun openBytes(

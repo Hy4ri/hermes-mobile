@@ -33,9 +33,11 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -93,6 +95,9 @@ fun ChatBubble(
     isCurrentMatch: Boolean = false,
     onRespondApproval: (String) -> Unit = {},
     onOpenAttachment: (Attachment) -> Unit = {},
+    onSaveAttachment: (Attachment) -> Unit = {},
+    savingAttachmentPath: String? = null,
+    canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -115,6 +120,9 @@ fun ChatBubble(
                     searchQuery = searchQuery,
                     isCurrentMatch = isCurrentMatch,
                     onOpenAttachment = onOpenAttachment,
+                    onSaveAttachment = onSaveAttachment,
+                    savingAttachmentPath = savingAttachmentPath,
+                    canSaveAttachment = canSaveAttachment,
                     onImageClick = onImageClick,
                     modifier = modifier,
                 )
@@ -128,6 +136,9 @@ fun ChatBubble(
                     searchQuery = searchQuery,
                     isCurrentMatch = isCurrentMatch,
                     onOpenAttachment = onOpenAttachment,
+                    onSaveAttachment = onSaveAttachment,
+                    savingAttachmentPath = savingAttachmentPath,
+                    canSaveAttachment = canSaveAttachment,
                     onImageClick = onImageClick,
                     modifier = modifier,
                 )
@@ -155,6 +166,9 @@ private fun UserBubble(
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
     onOpenAttachment: (Attachment) -> Unit = {},
+    onSaveAttachment: (Attachment) -> Unit = {},
+    savingAttachmentPath: String? = null,
+    canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -256,6 +270,9 @@ private fun UserBubble(
                                 attachment = attachment,
                                 textColor = userBubbleTextColor,
                                 onOpen = { onOpenAttachment(it) },
+                                onSave = { onSaveAttachment(it) },
+                                savingPath = savingAttachmentPath,
+                                canSave = canSaveAttachment,
                                 onImageClick = onImageClick,
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -320,6 +337,9 @@ private fun AssistantBubble(
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
     onOpenAttachment: (Attachment) -> Unit = {},
+    onSaveAttachment: (Attachment) -> Unit = {},
+    savingAttachmentPath: String? = null,
+    canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -399,6 +419,9 @@ private fun AssistantBubble(
                                 attachment = attachment,
                                 textColor = textColor,
                                 onOpen = { onOpenAttachment(it) },
+                                onSave = { onSaveAttachment(it) },
+                                savingPath = savingAttachmentPath,
+                                canSave = canSaveAttachment,
                                 onImageClick = onImageClick,
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -642,9 +665,14 @@ private fun buildHighlightedString(
 private fun InlineAttachment(
     attachment: Attachment,
     textColor: Color,
-    onOpen: (Attachment) -> Unit = {},
-    onImageClick: (ImageViewerModel) -> Unit = {},
+    onOpen: (Attachment) -> Unit,
+    onSave: (Attachment) -> Unit,
+    savingPath: String?,
+    canSave: Boolean,
+    onImageClick: (ImageViewerModel) -> Unit,
 ) {
+    val attachmentPath = attachment.gatewayUrl?.let(::gatewayPathFromUrl) ?: attachment.name
+    val isSaving = savingPath != null && savingPath == attachmentPath
     val clickable = Modifier.clickable { onOpen(attachment) }
     if (attachment.isVideo) {
         var showVideoDialog by remember { mutableStateOf(false) }
@@ -675,30 +703,35 @@ private fun InlineAttachment(
             },
         )
     } else {
-        // Non-image file — show a card with file icon and name. Tapping fetches
-        // the bytes (gateway-sourced) or opens the local URI.
+        // Non-image file — native save picker on the trailing action.
         Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = textColor.copy(alpha = 0.1f),
-            border = BorderStroke(1.dp, textColor.copy(alpha = 0.2f)),
+            shape = RoundedCornerShape(12.dp),
+            color = textColor.copy(alpha = 0.08f),
+            border = BorderStroke(1.dp, textColor.copy(alpha = 0.16f)),
             modifier = clickable,
         ) {
             Row(
-                modifier = Modifier.padding(8.dp),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = textColor.copy(alpha = 0.8f),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
+                        contentDescription = null,
+                        modifier = Modifier.padding(9.dp).size(20.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = attachment.name,
                         color = textColor,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -707,6 +740,25 @@ private fun InlineAttachment(
                         color = textColor.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.labelSmall,
                     )
+                }
+                if (attachment.gatewayUrl != null) {
+                    IconButton(
+                        onClick = { onSave(attachment) },
+                        enabled = canSave,
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Save ${attachment.name}",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                 }
             }
         }

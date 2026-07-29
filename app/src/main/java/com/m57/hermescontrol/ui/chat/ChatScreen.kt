@@ -73,6 +73,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.Attachment
+import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -107,6 +109,16 @@ import java.util.Locale
 
 private const val SESSION_SYNC_INTERVAL_MS = 30_000L
 
+internal fun acceptedSaveDestination(
+    resultCode: Int,
+    destination: Uri?,
+): Uri? = destination.takeIf { resultCode == Activity.RESULT_OK }
+
+internal fun canStartAttachmentSave(
+    pendingSavePath: String?,
+    savingAttachmentPath: String?,
+): Boolean = pendingSavePath == null && savingAttachmentPath == null
+
 /**
  * Chat screen — the primary conversation surface of Hermes Control.
  *
@@ -135,6 +147,32 @@ fun ChatScreen(
     val scrollController = rememberChatScrollController(listState, scrollScope)
     var isOlderPagingArmed by remember(state.currentSessionId) { mutableStateOf(false) }
     var showContextSheet by remember { mutableStateOf(false) }
+    var pendingSavePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingSaveName by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingSaveMimeType by rememberSaveable { mutableStateOf<String?>(null) }
+    val saveAttachmentLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            try {
+                val path = pendingSavePath
+                val destination = acceptedSaveDestination(result.resultCode, result.data?.data)
+                if (destination != null && path != null) {
+                    viewModel.saveAttachment(
+                        Attachment(
+                            uri = "gateway:$path",
+                            name = pendingSaveName ?: "download",
+                            mimeType = pendingSaveMimeType ?: "application/octet-stream",
+                            size = 0,
+                            source = AttachmentSource.GATEWAY,
+                        ),
+                        destination,
+                    )
+                }
+            } finally {
+                pendingSavePath = null
+                pendingSaveName = null
+                pendingSaveMimeType = null
+            }
+        }
 
     // Periodic session sync while connected.
     LaunchedEffect(lifecycleOwner, state.currentSessionId, state.connectionStatus) {
@@ -401,10 +439,14 @@ fun ChatScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
+                val statusColors = LocalHermesStatusColors.current
+                val isDownloadComplete = data.visuals.message.startsWith("Saved ")
                 Snackbar(
                     snackbarData = data,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    containerColor =
+                        if (isDownloadComplete) statusColors.success else MaterialTheme.colorScheme.errorContainer,
+                    contentColor =
+                        if (isDownloadComplete) statusColors.onSuccess else MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
         },
@@ -511,6 +553,32 @@ fun ChatScreen(
                     clarifyRequest = state.clarifyRequest,
                     onRespondClarify = viewModel::respondToClarify,
                     onDismissClarify = viewModel::dismissClarify,
+                    onSaveAttachment = { attachment ->
+                        if (!canStartAttachmentSave(pendingSavePath, state.savingAttachmentPath)) {
+                            return@ChatMessageList
+                        }
+                        pendingSavePath = viewModel.gatewayPathFor(attachment)
+                        pendingSaveName = attachment.name
+                        pendingSaveMimeType = attachment.mimeType
+                        saveAttachmentLauncher.launch(
+                            Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type =
+                                    attachment.mimeType
+                                        .substringBefore(';')
+                                        .trim()
+                                        .takeIf { it.isNotBlank() } ?: "application/octet-stream"
+                                putExtra(
+                                    Intent.EXTRA_TITLE,
+                                    attachment.name
+                                        .substringAfterLast('/')
+                                        .substringAfterLast('\\')
+                                        .ifBlank { "download" },
+                                )
+                            },
+                        )
+                    },
+                    savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
                     onImageClick = { viewingImage = it },
                 )
 

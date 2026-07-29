@@ -27,6 +27,7 @@ class ImageBytesResolverTest {
     @Test
     fun `extensionForMime maps known types`() {
         assertEquals("png", ImageBytesResolver.extensionForMime("image/png"))
+        assertEquals("png", ImageBytesResolver.extensionForMime(" image/png; charset=binary"))
         assertEquals("jpg", ImageBytesResolver.extensionForMime("image/jpeg"))
         assertEquals("jpg", ImageBytesResolver.extensionForMime("image/JPG"))
         assertEquals("gif", ImageBytesResolver.extensionForMime("image/gif"))

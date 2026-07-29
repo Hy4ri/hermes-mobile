@@ -53,6 +53,8 @@ fun ChatMessageList(
     clarifyRequest: ClarifyUi? = null,
     onRespondClarify: ((String) -> Unit)? = null,
     onDismissClarify: (() -> Unit)? = null,
+    onSaveAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit = {},
+    savingAttachmentPath: String? = null,
     onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
     if (messages.isEmpty() && !isLoading) {
@@ -115,6 +117,9 @@ fun ChatMessageList(
                             isCurrentMatch = isCurrentMatch,
                             onRespondApproval = viewModel::respondToApproval,
                             onOpenAttachment = viewModel::openAttachment,
+                            onSaveAttachment = onSaveAttachment,
+                            savingAttachmentPath = savingAttachmentPath,
+                            canSaveAttachment = savingAttachmentPath == null,
                             onImageClick = onImageClick,
                         )
                     }
@@ -141,6 +146,9 @@ fun ChatMessageList(
                             searchQuery = "",
                             isCurrentMatch = false,
                             onOpenAttachment = viewModel::openAttachment,
+                            onSaveAttachment = onSaveAttachment,
+                            savingAttachmentPath = savingAttachmentPath,
+                            canSaveAttachment = savingAttachmentPath == null,
                             onImageClick = onImageClick,
                         )
                     }

@@ -66,20 +66,19 @@ fun mediaMimeForPath(path: String): String {
     return MEDIA_BY_EXT[ext]?.second ?: "application/octet-stream"
 }
 
+/** Decoded gateway file path carried in a `/api/files/download` URL. */
+fun gatewayPathFromUrl(url: String): String? =
+    Regex("""[?&]path=([^&]+)""", RegexOption.IGNORE_CASE).find(url)?.groupValues?.get(1)?.let {
+        runCatching { URLDecoder.decode(it, StandardCharsets.UTF_8.name()) }.getOrDefault(it)
+    }
+
 /** Trailing filename from a path or URL.
  *
  * Handles both a bare gateway path (`/tmp/report.pdf`) and a full
  * `/api/files/download?path=<enc>` URL, where the real filename lives in the
  * percent-encoded `path=` query parameter. */
 fun mediaNameFromPath(path: String): String {
-    val queryPathMatch = Regex("""[?&]path=([^&]+)""", RegexOption.IGNORE_CASE).find(path)
-    if (queryPathMatch != null) {
-        val targetPath =
-            runCatching {
-                URLDecoder.decode(queryPathMatch.groupValues[1], StandardCharsets.UTF_8.name())
-            }.getOrDefault(queryPathMatch.groupValues[1])
-        targetPath.split('/', '\\').lastOrNull { it.isNotBlank() }?.let { return it }
-    }
+    gatewayPathFromUrl(path)?.split('/', '\\')?.lastOrNull { it.isNotBlank() }?.let { return it }
     val cleanPath = path.split('?', limit = 2)[0]
     return runCatching {
         java.net

@@ -49,6 +49,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -2880,6 +2881,129 @@ class ChatViewModelTest {
             verify { intentSlot.captured.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             assertNull(vm.uiState.value.openError)
             cacheDir.deleteRecursively()
+        }
+
+    @Test
+    fun `saveAttachment writes gateway file to selected document`() =
+        runTest {
+            mockkObject(GatewayFileClient)
+            val bytes = "downloaded".toByteArray()
+            coEvery { GatewayFileClient.fetch("/tmp/note.txt") } returns
+                GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", bytes))
+            val resolver = mockk<android.content.ContentResolver>()
+            val output = java.io.ByteArrayOutputStream()
+            val destination = mockk<android.net.Uri>()
+            every { app.contentResolver } returns resolver
+            every { resolver.openOutputStream(destination, "wt") } returns output
+
+            val vm = createViewModel()
+            val attachment =
+                Attachment(
+                    uri = "unused",
+                    name = "note.txt",
+                    mimeType = "text/plain",
+                    gatewayUrl = "https://gw/api/files/download?path=%2Ftmp%2Fnote.txt&token=t",
+                    source = AttachmentSource.GATEWAY,
+                )
+
+            vm.saveAttachment(attachment, destination)
+            advanceUntilIdle()
+
+            assertArrayEquals(bytes, output.toByteArray())
+            assertNull(vm.uiState.value.savingAttachmentPath)
+            assertEquals("Saved note.txt", vm.uiState.value.openError)
+        }
+
+    @Test
+    fun `saveAttachment never deletes the selected document when download fails`() =
+        runTest {
+            mockkObject(GatewayFileClient)
+            val resolver = mockk<android.content.ContentResolver>(relaxed = true)
+            val destination = mockk<android.net.Uri>()
+            every { app.contentResolver } returns resolver
+            coEvery {
+                GatewayFileClient.fetch("/tmp/missing.pdf")
+            } returns GatewayFileResult.NotFound
+
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.saveAttachment(
+                attachment =
+                    Attachment(
+                        uri = "gateway:/tmp/missing.pdf",
+                        name = "missing.pdf",
+                        mimeType = "application/pdf",
+                        size = 0,
+                        source = AttachmentSource.GATEWAY,
+                        gatewayUrl = "https://host/files/download?path=%2Ftmp%2Fmissing.pdf",
+                    ),
+                destination = destination,
+            )
+            advanceUntilIdle()
+
+            verify(exactly = 0) { resolver.delete(any(), any(), any()) }
+            assertNull(viewModel.uiState.value.savingAttachmentPath)
+        }
+
+    @Test
+    fun `saveAttachment never deletes the selected document when writing fails`() =
+        runTest {
+            mockkObject(GatewayFileClient)
+            val resolver = mockk<android.content.ContentResolver>(relaxed = true)
+            val destination = mockk<android.net.Uri>()
+            every { app.contentResolver } returns resolver
+            every { resolver.openOutputStream(destination, "wt") } throws IllegalStateException("write failed")
+            coEvery { GatewayFileClient.fetch("/tmp/report.pdf") } returns
+                GatewayFileResult.Success(GatewayFile("report.pdf", "application/pdf", byteArrayOf(1)))
+
+            val viewModel = createViewModel()
+            viewModel.saveAttachment(
+                Attachment(
+                    uri = "gateway:/tmp/report.pdf",
+                    name = "report.pdf",
+                    mimeType = "application/pdf",
+                    source = AttachmentSource.GATEWAY,
+                ),
+                destination,
+            )
+            advanceUntilIdle()
+
+            verify(exactly = 0) { resolver.delete(any(), any(), any()) }
+            assertNull(viewModel.uiState.value.savingAttachmentPath)
+            assertTrue(viewModel.uiState.value.openError.orEmpty().startsWith("Could not save"))
+        }
+
+    @Test
+    fun `saveAttachment ignores overlapping saves`() =
+        runTest {
+            mockkObject(GatewayFileClient)
+            val firstResult = CompletableDeferred<GatewayFileResult>()
+            val fetchedPaths = mutableListOf<String>()
+            coEvery { GatewayFileClient.fetch(capture(fetchedPaths)) } coAnswers { firstResult.await() }
+            val resolver = mockk<android.content.ContentResolver>(relaxed = true)
+            every { app.contentResolver } returns resolver
+            val viewModel = createViewModel()
+
+            viewModel.saveAttachment(
+                Attachment("gateway:/tmp/first.pdf", "first.pdf", "application/pdf", source = AttachmentSource.GATEWAY),
+                mockk(),
+            )
+            runCurrent()
+            viewModel.saveAttachment(
+                Attachment(
+                    "gateway:/tmp/second.pdf",
+                    "second.pdf",
+                    "application/pdf",
+                    source = AttachmentSource.GATEWAY,
+                ),
+                mockk(),
+            )
+
+            assertEquals("/tmp/first.pdf", viewModel.uiState.value.savingAttachmentPath)
+            assertEquals(listOf("/tmp/first.pdf"), fetchedPaths)
+
+            firstResult.complete(GatewayFileResult.NotFound)
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.savingAttachmentPath)
         }
 
     @Test

@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
@@ -48,6 +49,7 @@ import com.m57.hermescontrol.ui.providers.ProvidersScreen as ProvidersScreenCont
 import com.m57.hermescontrol.ui.sessions.SessionsScreen as HistoryScreenContent
 import com.m57.hermescontrol.ui.settings.SettingsScreen as SettingsScreenContent
 import com.m57.hermescontrol.ui.skills.SkillsScreen as SkillsScreenContent
+import com.m57.hermescontrol.ui.starmap.StarMapScreen as StarMapScreenContent
 import com.m57.hermescontrol.ui.system.SystemScreen as SystemScreenContent
 import com.m57.hermescontrol.ui.toolsets.ToolsetsScreen as ToolsetsScreenContent
 import com.m57.hermescontrol.ui.webhooks.WebhooksScreen as WebhooksScreenContent
@@ -204,6 +206,12 @@ object ScreenRegistry {
                 Icons.Filled.Folder,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> FilesScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                StarMapScreen,
+                R.string.screen_starmap,
+                Icons.Filled.AutoAwesome,
+                DrawerSection.INSPECT,
+            ) { sessionId, openDrawer -> StarMapScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 AchievementsScreen,
                 R.string.screen_achievements,

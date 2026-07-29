@@ -34,6 +34,8 @@ import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.LearningGraphResponse
+import com.m57.hermescontrol.data.model.LearningNodeDetailResponse
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
 import com.m57.hermescontrol.data.model.ManagedFileActionResponse
@@ -678,7 +680,7 @@ interface HermesApiService {
     @POST("api/curator/run")
     suspend fun runCurator(): Response<ActionResponse>
 
-    // ── Admin: Memory ─────────────────────────────────────────────────
+    // ── Admin: Memory & Learning Graph ─────────────────────────────────
     @GET("api/memory")
     suspend fun getMemory(): Response<MemoryResponse>
 
@@ -686,6 +688,17 @@ interface HermesApiService {
     suspend fun resetMemory(
         @Body body: Map<String, String>,
     ): Response<Map<String, Any>>
+
+    @GET("api/learning/graph")
+    suspend fun getLearningGraph(
+        @Query("profile") profile: String? = null,
+    ): Response<LearningGraphResponse>
+
+    @GET("api/learning/node")
+    suspend fun getLearningNode(
+        @Query("id") id: String,
+        @Query("profile") profile: String? = null,
+    ): Response<LearningNodeDetailResponse>
 
     // ── Admin: Credential pool ────────────────────────────────────────
     @GET("api/credentials/pool")

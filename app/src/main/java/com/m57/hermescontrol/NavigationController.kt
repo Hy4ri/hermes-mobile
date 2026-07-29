@@ -26,6 +26,7 @@ object NavigationController {
             CronJobsScreen,
             SystemScreen,
             SettingsScreen,
+            StarMapScreen,
         )
 
     /** Returns whether the given key is a primary top-level screen. */

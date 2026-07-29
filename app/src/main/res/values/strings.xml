@@ -92,6 +92,19 @@
     <string name="screen_analytics">Analytics</string>
     <string name="screen_billing">Billing</string>
     <string name="screen_files">Files</string>
+    <string name="screen_starmap">StarMap</string>
+    <string name="starmap_screen_title">StarMap Constellation</string>
+    <string name="starmap_search_hint">Search memories &amp; skills…</string>
+    <string name="starmap_empty_title">No Nodes Discovered</string>
+    <string name="starmap_empty_subtitle">No memory or skill graph nodes found on this Hermes instance.</string>
+    <string name="starmap_filter_all">All</string>
+    <string name="starmap_filter_memories">Memories</string>
+    <string name="starmap_filter_skills">Skills</string>
+    <string name="starmap_node_kind_memory">Memory Node</string>
+    <string name="starmap_node_kind_skill">Skill Node</string>
+    <string name="starmap_trust_score">Trust Score</string>
+    <string name="starmap_use_count">Use Count</string>
+    <string name="starmap_connected_nodes">Connected Nodes</string>
 
     <!-- Notifications -->
     <string name="notif_title">Hermes</string>

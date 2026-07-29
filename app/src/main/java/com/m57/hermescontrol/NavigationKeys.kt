@@ -55,6 +55,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object FilesScreen : NavKey
 
+@Serializable data object StarMapScreen : NavKey
+
 // ── Settings drill-down sub-pages ──────────────────────────────────────
 
 @Serializable data object SettingsConnection : NavKey

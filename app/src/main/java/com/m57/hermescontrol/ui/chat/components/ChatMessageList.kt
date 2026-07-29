@@ -145,12 +145,11 @@ fun ChatMessageList(
                 }
             }
 
-            // Subagent indicators — SubagentCard replaces SubagentIndicatorRow
-            items(
-                items = subagentIndicators,
-                key = { indicator -> "subagent-${indicator.subagentId ?: indicator.goal ?: indicator.type}" },
-            ) { indicator ->
-                SubagentCard(indicator = indicator)
+            // Live task delegation card (issue #736)
+            if (subagentIndicators.isNotEmpty()) {
+                item(key = "delegation_task_card") {
+                    DelegationTaskCard(indicators = subagentIndicators)
+                }
             }
 
             // Clarify bubble — rendered at the very bottom

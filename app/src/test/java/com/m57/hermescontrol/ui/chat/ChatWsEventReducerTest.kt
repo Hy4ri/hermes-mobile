@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatWsEventReducerTest {
@@ -161,7 +162,7 @@ class ChatWsEventReducerTest {
     }
 
     @Test
-    fun testSubagentComplete_removesIndicator() {
+    fun testSubagentComplete_updatesIndicatorToCompleted() {
         val initialIndicator =
             SubagentIndicator(
                 type = "subagent.start",
@@ -196,7 +197,12 @@ class ChatWsEventReducerTest {
                 currentSessionId = "session-1",
             )
 
-        assertEquals(0, result.state.subagentIndicators.size)
+        assertEquals(1, result.state.subagentIndicators.size)
+        val indicator = result.state.subagentIndicators.first()
+        assertEquals("subagent.complete", indicator.type)
+        assertEquals("completed", indicator.status)
+        assertEquals("done", indicator.summary)
+        assertTrue(indicator.isComplete)
     }
 
     @Test
@@ -232,5 +238,85 @@ class ChatWsEventReducerTest {
         val updatedMessage = result.state.messages.first()
         assertEquals(ToolStatus.RUNNING, updatedMessage.toolStatus)
         assertEquals(null, updatedMessage.progressPreview)
+    }
+
+    @Test
+    fun testSubagentEvent_accumulatesLiveTranscriptLogs() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                subagentIndicators = emptyList(),
+            )
+        val startEvent =
+            WsEvent.SubagentEvent(
+                type = "subagent.start",
+                sessionId = "session-1",
+                payload =
+                    mapOf(
+                        "subagent_id" to "sub-1",
+                        "goal" to "research api",
+                        "text" to "Initializing subagent",
+                    ),
+            )
+
+        val res1 =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = startEvent,
+                currentSessionId = "session-1",
+            )
+
+        val progressEvent =
+            WsEvent.SubagentEvent(
+                type = "subagent.progress",
+                sessionId = "session-1",
+                payload =
+                    mapOf(
+                        "subagent_id" to "sub-1",
+                        "text" to "Fetching documentation",
+                    ),
+            )
+
+        val res2 =
+            ChatWsEventReducer.reduce(
+                state = res1.state,
+                streamingState = StreamingState(),
+                event = progressEvent,
+                currentSessionId = "session-1",
+            )
+
+        val indicator = res2.state.subagentIndicators.first()
+        assertEquals(2, indicator.logs.size)
+        assertEquals("Initializing subagent", indicator.logs[0].text)
+        assertEquals("Fetching documentation", indicator.logs[1].text)
+        assertTrue(indicator.isRunning)
+    }
+
+    @Test
+    fun testMessageStart_prunesCompletedSubagents() {
+        val completedSubagent =
+            SubagentIndicator(
+                type = "subagent.complete",
+                goal = "finished task",
+                subagentId = "sub-1",
+                status = "completed",
+            )
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                subagentIndicators = listOf(completedSubagent),
+            )
+        val startEvent = WsEvent.MessageStart(sessionId = "session-1")
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = startEvent,
+                currentSessionId = "session-1",
+            )
+
+        assertTrue(result.state.subagentIndicators.isEmpty())
     }
 }

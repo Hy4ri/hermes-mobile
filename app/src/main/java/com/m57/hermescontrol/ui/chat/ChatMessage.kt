@@ -53,6 +53,16 @@ data class ChatMessage(
 )
 
 /**
+ * Single live transcript log entry for subagent execution.
+ */
+data class SubagentLogLine(
+    val timestamp: Long = System.currentTimeMillis(),
+    val text: String,
+    val isError: Boolean = false,
+    val isSummary: Boolean = false,
+)
+
+/**
  * Representation of subagent execution details for transient UI indicators.
  *
  * Events: `subagent.spawn_requested`, `subagent.start`, `subagent.progress`, `subagent.complete`
@@ -63,10 +73,17 @@ data class SubagentIndicator(
     val taskIndex: Int? = null,
     val taskCount: Int? = null,
     val text: String? = null, // preview line
-    val status: String? = null, // complete only
+    val status: String? = null, // running / queued / completed / failed
     val summary: String? = null, // complete only
     val subagentId: String? = null,
-)
+    val logs: List<SubagentLogLine> = emptyList(),
+    val durationSeconds: Double? = null,
+    val model: String? = null,
+) {
+    val isComplete: Boolean get() = type == "subagent.complete" || status == "completed" || status == "done"
+    val isFailed: Boolean get() = status == "failed" || status == "interrupted"
+    val isRunning: Boolean get() = !isComplete && !isFailed
+}
 
 enum class MessageRole {
     USER,

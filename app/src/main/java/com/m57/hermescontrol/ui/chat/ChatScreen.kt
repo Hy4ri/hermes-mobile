@@ -84,6 +84,8 @@ import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
+import com.m57.hermescontrol.ui.chat.components.StickySubagentBar
+import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
@@ -211,6 +213,7 @@ fun ChatScreen(
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
+    var showSubagentInspectionSheet by rememberSaveable { mutableStateOf(false) }
     var viewingImage by rememberSaveable { mutableStateOf<ImageViewerModel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
@@ -469,6 +472,14 @@ fun ChatScreen(
                 }
             }
 
+            StickySubagentBar(
+                indicators = state.subagentIndicators,
+                onClick = {
+                    showSubagentInspectionSheet = true
+                    scrollController.resumeFollowing()
+                },
+            )
+
             Box(
                 modifier =
                     Modifier
@@ -638,6 +649,13 @@ fun ChatScreen(
                 breakdown = state.contextBreakdown!!,
                 fullTokens = state.fullContextTokens,
                 onDismiss = { showContextSheet = false },
+            )
+        }
+
+        if (showSubagentInspectionSheet) {
+            SubagentInspectionSheet(
+                indicators = state.subagentIndicators,
+                onDismiss = { showSubagentInspectionSheet = false },
             )
         }
 

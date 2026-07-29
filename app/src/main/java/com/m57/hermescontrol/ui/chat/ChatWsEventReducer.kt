@@ -134,6 +134,13 @@ object ChatWsEventReducer {
             )
         val effects = mutableListOf<ReducerEffect>()
 
+        val cleanedSubagents =
+            if (state.subagentIndicators.all { it.isComplete || it.isFailed }) {
+                emptyList()
+            } else {
+                state.subagentIndicators
+            }
+
         // Build new state: finalize any orphan streaming message, then set the new one
         var orphan: ChatMessage? = null
         val preState =
@@ -143,10 +150,12 @@ object ChatWsEventReducer {
                 state.copy(
                     messages = state.messages + finalized,
                     isAgentTyping = true,
+                    subagentIndicators = cleanedSubagents,
                 )
             } else {
                 state.copy(
                     isAgentTyping = true,
+                    subagentIndicators = cleanedSubagents,
                 )
             }
         val newStreamingState =
@@ -600,6 +609,8 @@ object ChatWsEventReducer {
         val text = event.payload?.get("text") as? String
         val status = event.payload?.get("status") as? String
         val summary = event.payload?.get("summary") as? String
+        val durationSeconds = (event.payload?.get("duration_seconds") as? Number)?.toDouble()
+        val model = event.payload?.get("model") as? String
         val subagentId =
             event.payload?.get(
                 "subagent_id",
@@ -615,18 +626,22 @@ object ChatWsEventReducer {
                 -1
             }
 
-        // A completed delegation is no longer "in flight" — drop its indicator
-        // so it doesn't linger in the chat after the subagent finishes.
-        if (event.type == "subagent.complete") {
-            if (idx >= 0) {
-                indicators.removeAt(idx)
-                return ReducerResult(
-                    state = state.copy(subagentIndicators = indicators),
-                    streamingState = streamingState,
-                )
-            }
-            return ReducerResult(state = state, streamingState = streamingState)
+        val existingLogs = if (idx >= 0) indicators[idx].logs else emptyList()
+        val newLogs = existingLogs.toMutableList()
+        if (!text.isNullOrBlank() && newLogs.lastOrNull()?.text != text) {
+            newLogs.add(SubagentLogLine(text = text, isError = status == "failed"))
         }
+        if (event.type == "subagent.complete" && !summary.isNullOrBlank() && newLogs.lastOrNull()?.text != summary) {
+            newLogs.add(SubagentLogLine(text = summary, isSummary = true))
+        }
+        val trimmedLogs = newLogs.takeLast(30)
+
+        val finalStatus =
+            if (event.type == "subagent.complete") {
+                status ?: "completed"
+            } else {
+                status ?: (if (idx >= 0) indicators[idx].status else "running")
+            }
 
         val indicator =
             SubagentIndicator(
@@ -634,10 +649,13 @@ object ChatWsEventReducer {
                 goal = goal ?: (if (idx >= 0) indicators[idx].goal else null),
                 taskIndex = taskIndex ?: (if (idx >= 0) indicators[idx].taskIndex else null),
                 taskCount = taskCount ?: (if (idx >= 0) indicators[idx].taskCount else null),
-                text = text ?: (if (idx >= 0) indicators[idx].text else null),
-                status = status ?: (if (idx >= 0) indicators[idx].status else null),
+                text = summary ?: text ?: (if (idx >= 0) indicators[idx].text else null),
+                status = finalStatus,
                 summary = summary ?: (if (idx >= 0) indicators[idx].summary else null),
                 subagentId = subagentId ?: (if (idx >= 0) indicators[idx].subagentId else null),
+                logs = trimmedLogs,
+                durationSeconds = durationSeconds ?: (if (idx >= 0) indicators[idx].durationSeconds else null),
+                model = model ?: (if (idx >= 0) indicators[idx].model else null),
             )
 
         if (idx >= 0) {

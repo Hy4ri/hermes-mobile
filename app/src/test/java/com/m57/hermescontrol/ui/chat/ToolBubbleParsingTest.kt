@@ -290,9 +290,10 @@ class ToolBubbleParsingTest {
         val parsed = parseToolOutput(json, "patch", false)
         assertNotNull(parsed)
         assertEquals("app/config.json", parsed!!.diffPath)
-        assertNotNull(parsed.diffOutput)
-        assertTrue(parsed.diffOutput.contains("-debug=false"))
-        assertTrue(parsed.diffOutput.contains("+debug=true"))
+        val diffOutput = parsed.diffOutput
+        assertNotNull(diffOutput)
+        assertTrue(diffOutput!!.contains("-debug=false"))
+        assertTrue(diffOutput.contains("+debug=true"))
     }
 
     @Test
@@ -313,8 +314,9 @@ class ToolBubbleParsingTest {
         val parsed = parseToolOutput(json, "edit", false)
         assertNotNull(parsed)
         assertEquals("app/src/Main.kt", parsed!!.diffPath)
-        assertNotNull(parsed.diffOutput)
-        assertTrue(parsed.diffOutput.contains("-val x = 1"))
-        assertTrue(parsed.diffOutput.contains("+val x = 2"))
+        val editDiff = parsed.diffOutput
+        assertNotNull(editDiff)
+        assertTrue(editDiff!!.contains("-val x = 1"))
+        assertTrue(editDiff.contains("+val x = 2"))
     }
 }

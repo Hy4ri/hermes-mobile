@@ -66,7 +66,10 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
@@ -103,7 +106,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val SESSION_SYNC_INTERVAL_MS = 5_000L
+private const val SESSION_SYNC_INTERVAL_MS = 30_000L
 
 /**
  * Chat screen — the primary conversation surface of Hermes Control.
@@ -127,6 +130,7 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
     val credentialWarning by HermesWsClient.credentialWarning.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
     val scrollController = rememberChatScrollController(listState, scrollScope)
@@ -134,15 +138,17 @@ fun ChatScreen(
     var showContextSheet by remember { mutableStateOf(false) }
 
     // Periodic session sync while connected.
-    LaunchedEffect(state.currentSessionId, state.connectionStatus) {
-        if (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
-            viewModel.syncCurrentSession()
-            viewModel.fetchContextUsage()
-        }
-        while (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
-            delay(SESSION_SYNC_INTERVAL_MS)
-            viewModel.syncCurrentSession()
-            viewModel.fetchContextUsage()
+    LaunchedEffect(lifecycleOwner, state.currentSessionId, state.connectionStatus) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            if (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
+                viewModel.syncCurrentSession()
+                viewModel.fetchContextUsage()
+            }
+            while (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
+                delay(SESSION_SYNC_INTERVAL_MS)
+                viewModel.syncCurrentSession()
+                viewModel.fetchContextUsage()
+            }
         }
     }
 

@@ -2105,7 +2105,7 @@ class ChatViewModel(
      * Both calls are independent and best-effort: a failure on one must not
      * wipe the other's already-shown value, and neither blocks the chat. The
      * two fetches are launched separately so a slow/erroring one can't starve
-     * the other. Polled from [syncCurrentSession] via the 5s loop and re-fired
+     * the other. Polled from [syncCurrentSession] via the 30s loop and re-fired
      * on model switch (the denominator changes).
      */
     fun fetchContextUsage() {

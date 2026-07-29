@@ -31,7 +31,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -120,9 +120,9 @@ fun LogsScreen(
     }
 
     // Auto-refresh logs via polling while the screen is visible
-    DisposableEffect(Unit) {
+    LifecycleStartEffect(viewModel) {
         viewModel.startAutoRefresh()
-        onDispose { viewModel.stopAutoRefresh() }
+        onStopOrDispose { viewModel.stopAutoRefresh() }
     }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)

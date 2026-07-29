@@ -1791,6 +1791,11 @@ fun parseToolOutput(
             val oldStrArg = args["old_string"]?.toString()
             val newStrArg = args["new_string"]?.toString()
 
+            val isDiffTool =
+                resolvedToolName == "patch" ||
+                    resolvedToolName == "edit" ||
+                    resolvedToolName == "write_file"
+
             val extractedDiffOutput =
                 when {
                     diffCandidate != null && (
@@ -1802,12 +1807,12 @@ fun parseToolOutput(
                             diffCandidate.startsWith("@@ ")
                     ) -> diffCandidate
 
-                    resolvedToolName == "patch" && oldStrArg != null && newStrArg != null -> {
+                    isDiffTool && oldStrArg != null && newStrArg != null -> {
                         val pathHeader = filePathArg ?: "file"
                         "--- $pathHeader\n+++ $pathHeader\n@@ -1,1 +1,1 @@\n-$oldStrArg\n+$newStrArg"
                     }
 
-                    resolvedToolName == "patch" && args["patch"] != null -> {
+                    isDiffTool && args["patch"] != null -> {
                         args["patch"].toString()
                     }
 
@@ -1910,44 +1915,39 @@ private fun ExpandedToolContent(
                     diffText = parsed.diffOutput,
                     filePath = parsed.diffPath,
                 )
-            }
-            val nonDiffOutput =
-                if (parsed.diffOutput != null && parsed.mainOutput == parsed.diffOutput) {
-                    null
-                } else {
-                    parsed.mainOutput
-                }
-            nonDiffOutput?.let {
-                Text(
-                    text = it,
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = contentColor.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                        ),
-                )
-            }
-            parsed.extraFields.forEach { (key, value) ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
+            } else {
+                parsed.mainOutput?.let {
                     Text(
-                        text = "$key:",
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                color = contentColor.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Bold,
-                            ),
-                    )
-                    Text(
-                        text = value,
+                        text = it,
                         style =
                             MaterialTheme.typography.bodySmall.copy(
                                 color = contentColor.copy(alpha = 0.9f),
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                             ),
                     )
+                }
+                parsed.extraFields.forEach { (key, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "$key:",
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    color = contentColor.copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                        )
+                        Text(
+                            text = value,
+                            style =
+                                MaterialTheme.typography.bodySmall.copy(
+                                    color = contentColor.copy(alpha = 0.9f),
+                                    fontSize = 11.sp,
+                                ),
+                        )
+                    }
                 }
             }
         }

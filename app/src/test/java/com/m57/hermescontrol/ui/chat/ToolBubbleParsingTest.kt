@@ -291,7 +291,30 @@ class ToolBubbleParsingTest {
         assertNotNull(parsed)
         assertEquals("app/config.json", parsed!!.diffPath)
         assertNotNull(parsed.diffOutput)
-        assertTrue(parsed.diffOutput!!.contains("-debug=false"))
-        assertTrue(parsed.diffOutput!!.contains("+debug=true"))
+        assertTrue(parsed.diffOutput.contains("-debug=false"))
+        assertTrue(parsed.diffOutput.contains("+debug=true"))
+    }
+
+    @Test
+    fun testParseToolOutput_editTool() {
+        val json =
+            """{
+            "tool_id": "call_edit_1",
+            "name": "edit",
+            "args": {
+                "path": "app/src/Main.kt",
+                "old_string": "val x = 1",
+                "new_string": "val x = 2"
+            },
+            "result": {
+                "output": "--- app/src/Main.kt\n+++ app/src/Main.kt\n@@ -1,1 +1,1 @@\n-val x = 1\n+val x = 2"
+            }
+        }"""
+        val parsed = parseToolOutput(json, "edit", false)
+        assertNotNull(parsed)
+        assertEquals("app/src/Main.kt", parsed!!.diffPath)
+        assertNotNull(parsed.diffOutput)
+        assertTrue(parsed.diffOutput.contains("-val x = 1"))
+        assertTrue(parsed.diffOutput.contains("+val x = 2"))
     }
 }

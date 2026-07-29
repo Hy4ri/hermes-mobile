@@ -1571,21 +1571,39 @@ class ChatViewModel(
                         withContext(Dispatchers.IO) { repo.persistMessages(incoming, sessionId) }
                         _uiState.update { current ->
                             if (current.currentSessionId != sessionId) return@update current
-                            val unmatched = incoming.map { it.role to it.content }.toMutableList()
-                            val retained =
-                                current.messages.filter { existing ->
-                                    if (serverMessageIndex(existing.id, sessionId) != null) {
-                                        true
+                            val unmatchedIncoming = incoming.toMutableList()
+                            val mergedList = mutableListOf<ChatMessage>()
+
+                            for (existing in current.messages) {
+                                val existingServerIndex = serverMessageIndex(existing.id, sessionId)
+                                if (existingServerIndex != null) {
+                                    val matchIdx = unmatchedIncoming.indexOfFirst { it.id == existing.id }
+                                    if (matchIdx >= 0) {
+                                        mergedList.add(unmatchedIncoming.removeAt(matchIdx))
                                     } else {
-                                        val duplicate =
-                                            unmatched.indexOfFirst { (role, content) ->
-                                                role == existing.role && content == existing.content
-                                            }
-                                        if (duplicate >= 0) unmatched.removeAt(duplicate)
-                                        duplicate < 0
+                                        mergedList.add(existing)
+                                    }
+                                } else {
+                                    val matchIdx =
+                                        unmatchedIncoming.indexOfFirst { inc ->
+                                            inc.role == existing.role && (
+                                                inc.content == existing.content ||
+                                                    (
+                                                        existing.role == MessageRole.TOOL &&
+                                                            inc.toolName != null &&
+                                                            inc.toolName == existing.toolName
+                                                    )
+                                            )
+                                        }
+                                    if (matchIdx >= 0) {
+                                        mergedList.add(unmatchedIncoming.removeAt(matchIdx))
+                                    } else {
+                                        mergedList.add(existing)
                                     }
                                 }
-                            val merged = (retained + incoming).distinctBy { it.id }
+                            }
+                            mergedList.addAll(unmatchedIncoming)
+                            val merged = mergedList.distinctBy { it.id }
                             if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
                         }
                     }

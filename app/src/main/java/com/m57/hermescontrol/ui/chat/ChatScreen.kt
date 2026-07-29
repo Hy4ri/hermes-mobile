@@ -134,6 +134,10 @@ fun ChatScreen(
 
     // Periodic session sync while connected.
     LaunchedEffect(state.currentSessionId, state.connectionStatus) {
+        if (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
+            viewModel.syncCurrentSession()
+            viewModel.fetchContextUsage()
+        }
         while (state.currentSessionId != null && state.connectionStatus == ConnectionStatus.CONNECTED) {
             delay(SESSION_SYNC_INTERVAL_MS)
             viewModel.syncCurrentSession()

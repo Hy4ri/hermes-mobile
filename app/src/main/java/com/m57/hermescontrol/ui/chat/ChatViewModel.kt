@@ -595,6 +595,9 @@ class ChatViewModel(
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = "Hermes",
+                        usedContextTokens = null,
+                        fullContextTokens = null,
+                        contextBreakdown = null,
                     )
                 }
                 // Mirror the active session id app-wide so session-scoped
@@ -604,6 +607,7 @@ class ChatViewModel(
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
+                fetchContextUsage()
             }
 
             WsMethods.SESSION_BRANCH -> {
@@ -616,6 +620,9 @@ class ChatViewModel(
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = (resultMap["title"] as? String)?.takeIf { t -> t.isNotBlank() } ?: "Hermes",
+                        usedContextTokens = null,
+                        fullContextTokens = null,
+                        contextBreakdown = null,
                     )
                 }
                 ActiveSessionHolder.set(newId)
@@ -623,6 +630,7 @@ class ChatViewModel(
                 addSystemMessage("Session branched", persist = true)
                 loadSessionMessages(newId)
                 loadSessions()
+                fetchContextUsage()
             }
 
             WsMethods.SESSION_LIST -> {
@@ -684,6 +692,7 @@ class ChatViewModel(
                 // Mirror the active runtime session id app-wide (issue #532).
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId)
                 addSystemMessage("Session resumed")
+                fetchContextUsage()
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -1447,6 +1456,9 @@ class ChatViewModel(
                 chatTitle = title,
                 showSessionPicker = false,
                 isAgentTyping = false,
+                usedContextTokens = null,
+                fullContextTokens = null,
+                contextBreakdown = null,
             )
         }
         // Mirror the active session id app-wide (issue #532).

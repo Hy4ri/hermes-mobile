@@ -34,6 +34,7 @@ import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.LearningGraphResponse
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
 import com.m57.hermescontrol.data.model.ManagedFileActionResponse
@@ -667,6 +668,11 @@ interface HermesApiService {
     suspend fun getPortal(): Response<PortalResponse>
 
     // ── Admin: Curator ────────────────────────────────────────────────
+    @GET("api/learning/graph")
+    suspend fun getLearningGraph(
+        @Query("profile") profile: String? = null,
+    ): Response<LearningGraphResponse>
+
     @GET("api/curator")
     suspend fun getCurator(): Response<CuratorResponse>
 

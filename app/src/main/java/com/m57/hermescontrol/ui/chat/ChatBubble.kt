@@ -941,7 +941,13 @@ fun parseToolOutput(
             val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
             val usage = dataSource.get("usage")?.takeIf { !it.isJsonNull }?.asString
 
-            val summaryText = "💾 $action${target?.let { " ($it)" } ?: ""}"
+            val summaryText =
+                when (action.lowercase()) {
+                    "add" -> "🧠 Memory Saved${target?.let { " ($it)" } ?: ""}"
+                    "replace", "update" -> "🧠 Memory Updated${target?.let { " ($it)" } ?: ""}"
+                    "remove", "delete" -> "🧠 Memory Removed${target?.let { " ($it)" } ?: ""}"
+                    else -> "🧠 Memory $action${target?.let { " ($it)" } ?: ""}"
+                }
             val mainOutput =
                 when {
                     errorMsg != null -> "❌ $errorMsg"
@@ -959,6 +965,48 @@ fun parseToolOutput(
                             it.toString()
                         }
                     } ?: "Memory"} $action done"
+                }
+            val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
+            return ParsedToolData(
+                toolName = resolvedToolName,
+                args = args,
+                result = dataSource.entrySet().associate { it.key to it.value.toString() },
+                summaryText = summaryText,
+                mainOutput = mainOutput,
+                durationSec = duration,
+                isRunning = isRunning,
+            )
+        }
+
+        // ── Skill Manage-specific formatting (Self-Improvement) ──
+        if (resolvedToolName == "skill_manage") {
+            val action = argsObj?.get("action")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val name = argsObj?.get("name")?.takeIf { !it.isJsonNull }?.asString
+            val category = argsObj?.get("category")?.takeIf { !it.isJsonNull }?.asString
+            val errorMsg = dataSource.get("error")?.takeIf { !it.isJsonNull }?.asString
+            val success = dataSource.get("success")?.takeIf { !it.isJsonNull }?.asBoolean ?: true
+            val msg = dataSource.get("message")?.takeIf { !it.isJsonNull }?.asString
+
+            val summaryText =
+                when (action.lowercase()) {
+                    "create" -> "⚡ Skill Created${name?.let { ": $it" } ?: ""}"
+                    "patch" -> "⚡ Skill Patched${name?.let { ": $it" } ?: ""}"
+                    "edit" -> "⚡ Skill Edited${name?.let { ": $it" } ?: ""}"
+                    "delete" -> "⚡ Skill Archived${name?.let { ": $it" } ?: ""}"
+                    "write_file" -> "⚡ Skill File Written${name?.let { ": $it" } ?: ""}"
+                    "remove_file" -> "⚡ Skill File Removed${name?.let { ": $it" } ?: ""}"
+                    else ->
+                        "⚡ Skill ${action.replaceFirstChar {
+                            if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString()
+                        }}${name?.let { ": $it" } ?: ""}"
+                }
+            val mainOutput =
+                when {
+                    errorMsg != null -> "❌ $errorMsg"
+                    !success -> "❌ Skill operation failed"
+                    msg != null -> "✅ $msg"
+                    name != null -> "✅ Skill '$name' $action succeeded${category?.let { " [$it]" } ?: ""}"
+                    else -> "✅ Skill $action done"
                 }
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(

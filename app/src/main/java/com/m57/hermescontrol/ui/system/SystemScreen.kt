@@ -49,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,6 +70,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -287,6 +289,9 @@ fun SystemScreen(
 
                     // ── 3. Curator ─────────────────────────────────────────
                     curatorSection(state, spacing, statusColors, viewModel)
+
+                    // ── 3.5 Self-Improvement & Learning ───────────────────
+                    selfImprovementSection(state, spacing, statusColors)
 
                     // ── 4. Gateway ─────────────────────────────────────────
                     gatewaySection(state, spacing, statusColors, viewModel)
@@ -698,6 +703,122 @@ private fun LazyListScope.curatorSection(
                                     icon = Icons.Filled.Refresh,
                                     text = stringResource(R.string.system_curator_run_now),
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun LazyListScope.selfImprovementSection(
+    state: SystemUiState,
+    spacing: com.m57.hermescontrol.theme.Spacing,
+    statusColors: com.m57.hermescontrol.theme.HermesStatusColors,
+) {
+    val graph = state.learningGraph
+    item {
+        SectionHeader(title = stringResource(R.string.system_sec_self_improvement))
+    }
+    item {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
+        ) {
+            Column(modifier = Modifier.padding(spacing.md)) {
+                Text(
+                    text = stringResource(R.string.system_self_improvement_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(spacing.sm))
+
+                if (graph == null || graph.nodes.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.system_self_improvement_no_activity),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                } else {
+                    val skillNodes = graph.nodes.filter { it.kind == "skill" }
+                    val memoryNodes = graph.nodes.filter { it.kind == "memory" }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                    ) {
+                        StatCard(
+                            label = "Learned Skills",
+                            value = "${skillNodes.size}",
+                            modifier = Modifier.weight(1f),
+                        )
+                        StatCard(
+                            label = "Memories & Facts",
+                            value = "${memoryNodes.size}",
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(spacing.md))
+                    Text(
+                        text = "Recent Agent Self-Improvement Events",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(modifier = Modifier.height(spacing.xs))
+
+                    val sortedNodes =
+                        graph.nodes
+                            .filter { it.timestamp != null || it.kind == "skill" }
+                            .sortedByDescending { it.timestamp ?: 0L }
+                            .take(8)
+
+                    sortedNodes.forEach { node ->
+                        Surface(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val icon = if (node.kind == "skill") "⚡" else "🧠"
+                                Text(text = icon, fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(spacing.xs))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = node.label,
+                                        style =
+                                            MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                            ),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    val cat = node.category ?: node.kind
+                                    val creator = node.createdBy?.let { " • by $it" } ?: ""
+                                    Text(
+                                        text = "[$cat]$creator",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                node.useCount.takeIf { it > 0 }?.let { uses ->
+                                    StatusBadge(
+                                        text = "$uses uses",
+                                        status = StatusBadgeType.INFO,
+                                    )
+                                }
                             }
                         }
                     }

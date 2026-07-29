@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.model.CuratorResponse
 import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.HookResponse
+import com.m57.hermescontrol.data.model.LearningGraphResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.PortalResponse
 import com.m57.hermescontrol.data.model.StatusResponse
@@ -40,6 +41,7 @@ data class SystemUiState(
     val portal: PortalResponse? = null,
     val curator: CuratorResponse? = null,
     val memory: MemoryResponse? = null,
+    val learningGraph: LearningGraphResponse? = null,
     val credentials: List<CredentialPoolProvider> = emptyList(),
     val checkpoints: CheckpointsResponse? = null,
     val hooks: HookResponse? = null,
@@ -100,6 +102,7 @@ class SystemViewModel :
                 val portalDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getPortal() } }
                 val curatorDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCurator() } }
                 val memoryDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getMemory() } }
+                val learningDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getLearningGraph() } }
                 val credDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCredentialPool() } }
                 val checkpointsDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCheckpoints() } }
                 val hooksDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getHooks() } }
@@ -112,6 +115,7 @@ class SystemViewModel :
                 val portalResult = portalDeferred.await()
                 val curatorResult = curatorDeferred.await()
                 val memoryResult = memoryDeferred.await()
+                val learningResult = learningDeferred.await()
                 val credResult = credDeferred.await()
                 val checkpointsResult = checkpointsDeferred.await()
                 val hooksResult = hooksDeferred.await()
@@ -126,6 +130,7 @@ class SystemViewModel :
                         portal = (portalResult as? NetworkResult.Success)?.data,
                         curator = (curatorResult as? NetworkResult.Success)?.data,
                         memory = (memoryResult as? NetworkResult.Success)?.data,
+                        learningGraph = (learningResult as? NetworkResult.Success)?.data,
                         credentials =
                             ((credResult as? NetworkResult.Success)?.data)?.providers ?: emptyList(),
                         checkpoints = (checkpointsResult as? NetworkResult.Success)?.data,

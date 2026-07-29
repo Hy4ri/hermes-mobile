@@ -319,4 +319,33 @@ class ToolBubbleParsingTest {
         assertTrue(editDiff!!.contains("-val x = 1"))
         assertTrue(editDiff.contains("+val x = 2"))
     }
+
+    @Test
+    fun testParseSkillManage_createAndPatch() {
+        val createJson =
+            """{
+            "tool_id": "call_sm_1",
+            "name": "skill_manage",
+            "args": {"action": "patch", "name": "our-workflow"},
+            "result": {"success": true, "message": "Patched skill our-workflow"}
+        }"""
+        val parsed = parseToolOutput(createJson, "skill_manage", false)
+        assertNotNull(parsed)
+        assertEquals("⚡ Skill Patched: our-workflow", parsed!!.summaryText)
+        assertEquals("✅ Patched skill our-workflow", parsed.mainOutput)
+    }
+
+    @Test
+    fun testParseMemory_selfImprovementBadge() {
+        val memJson =
+            """{
+            "tool_id": "call_mem_1",
+            "name": "memory",
+            "args": {"action": "add", "target": "user"},
+            "result": {"success": true, "usage": "1,200 / 2,200 chars"}
+        }"""
+        val parsed = parseToolOutput(memJson, "memory", false)
+        assertNotNull(parsed)
+        assertEquals("🧠 Memory Saved (user)", parsed!!.summaryText)
+    }
 }

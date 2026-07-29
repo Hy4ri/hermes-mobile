@@ -40,6 +40,7 @@ object ChatWsEventReducer {
                 is WsEvent.ToolProgress -> event.sessionId
                 is WsEvent.ToolGenerating -> event.sessionId
                 is WsEvent.SubagentEvent -> event.sessionId
+                is WsEvent.ReviewSummary -> event.sessionId
                 else -> null
             }
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
@@ -94,6 +95,8 @@ object ChatWsEventReducer {
             is WsEvent.SubagentEvent -> onSubagentEvent(state, streamingState, event)
 
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
+
+            is WsEvent.ReviewSummary -> onReviewSummary(state, streamingState, event)
 
             is WsEvent.RpcError -> onRpcError(state, streamingState, event)
 
@@ -505,6 +508,25 @@ object ChatWsEventReducer {
                     isAgentTyping = false,
                 ),
         )
+
+    // ── ReviewSummary (Self-improvement background review) ──────────────
+
+    private fun onReviewSummary(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ReviewSummary,
+    ): ReducerResult {
+        if (event.text.isBlank()) return ReducerResult(state = state, streamingState = streamingState)
+        val systemMessage =
+            ChatMessage(
+                role = MessageRole.SYSTEM,
+                content = event.text,
+            )
+        return ReducerResult(
+            state = state.copy(messages = state.messages + systemMessage),
+            streamingState = streamingState,
+        )
+    }
 
     // ── RpcError ──────────────────────────────────────────────────────
 

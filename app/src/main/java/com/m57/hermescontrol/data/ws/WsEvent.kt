@@ -123,6 +123,16 @@ sealed class WsEvent {
         val sessionId: String? = null,
     ) : WsEvent()
 
+    /**
+     * Self-improvement background review summary event.
+     * Emitted when background review patches a skill or saves a memory.
+     * Payload: `{ text: "💾 Self-improvement review: ..." }`
+     */
+    data class ReviewSummary(
+        val text: String,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── Status ───────────────────────────────────────────────────────────
 
     data class StatusUpdate(

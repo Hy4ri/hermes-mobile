@@ -375,4 +375,27 @@ class ChatWsEventReducerTest {
         assertEquals("Write tests", result.state.todos[0].content)
         assertTrue(result.state.todos[0].isCompleted)
     }
+
+    @Test
+    fun testReviewSummary_addsSystemMessage() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val event =
+            WsEvent.ReviewSummary(
+                text = "💾 Self-improvement review: Skill 'android-ci' patched",
+                sessionId = "session-1",
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(1, result.state.messages.size)
+        val msg = result.state.messages.first()
+        assertEquals(MessageRole.SYSTEM, msg.role)
+        assertEquals("💾 Self-improvement review: Skill 'android-ci' patched", msg.content)
+    }
 }

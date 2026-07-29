@@ -472,11 +472,69 @@ private fun AssistantBubble(
 }
 
 @Composable
+private fun SelfImprovementReviewCard(
+    content: String,
+    modifier: Modifier = Modifier,
+) {
+    val cleanText =
+        content
+            .removePrefix("💾")
+            .replace(Regex("^\\s*Self-improvement review:\\s*", RegexOption.IGNORE_CASE), "")
+            .trim()
+    val isSkill =
+        cleanText.contains("skill", ignoreCase = true) ||
+            cleanText.contains("SKILL.md", ignoreCase = true)
+    val icon = if (isSkill) "⚡" else "🧠"
+    val title =
+        if (isSkill) {
+            "Self-Improvement Review • Skill Patched"
+        } else {
+            "Self-Improvement Review • Memory Updated"
+        }
+
+    Card(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .testTag("self_improvement_review_card"),
+        shape = RoundedCornerShape(10.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = icon, fontSize = 16.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = cleanText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+@Composable
 private fun SystemBubble(
     message: ChatMessage,
     onRespondApproval: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    if (message.content.contains("Self-improvement review:", ignoreCase = true)) {
+        SelfImprovementReviewCard(content = message.content, modifier = modifier)
+        return
+    }
+
     Column(
         modifier =
             modifier

@@ -32,19 +32,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
+import com.m57.hermescontrol.ui.chat.TodoItem
 
 /**
  * Compact sticky progress indicator displayed below the top app bar
- * when background subagents are active.
+ * when background subagents or agent todos are in progress.
  */
 @Composable
 fun StickySubagentBar(
-    indicators: List<SubagentIndicator>,
+    indicators: List<SubagentIndicator> = emptyList(),
+    todos: List<TodoItem> = emptyList(),
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val activeCount = indicators.count { it.isRunning }
-    val isVisible = activeCount > 0
+    val activeSubagents = indicators.count { it.isRunning }
+    val activeTodos = todos.count { it.isInProgress }
+    val isVisible = activeSubagents > 0 || activeTodos > 0
 
     AnimatedVisibility(
         visible = isVisible,
@@ -77,7 +80,7 @@ fun StickySubagentBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.ElectricBolt,
-                        contentDescription = "Active Subagents",
+                        contentDescription = "Active Tasks",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp),
                     )
@@ -92,12 +95,31 @@ fun StickySubagentBar(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    val activeLabel = if (activeCount == 1) "1 Subagent Active" else "$activeCount Subagents Active"
-                    val activeSubagent = indicators.firstOrNull { it.isRunning }
-                    val goalText = activeSubagent?.goal?.takeIf { it.isNotBlank() }
+                    val labelText =
+                        when {
+                            activeSubagents > 0 && activeTodos > 0 -> {
+                                "$activeSubagents Subagents · $activeTodos Task Active"
+                            }
+                            activeSubagents > 0 -> {
+                                val activeSub = indicators.firstOrNull { it.isRunning }
+                                val goalText = activeSub?.goal?.takeIf { it.isNotBlank() }
+                                val countStr =
+                                    if (activeSubagents == 1) {
+                                        "1 Subagent Active"
+                                    } else {
+                                        "$activeSubagents Subagents Active"
+                                    }
+                                if (goalText != null) "$countStr · $goalText" else countStr
+                            }
+                            else -> {
+                                val activeTodo = todos.firstOrNull { it.isInProgress }
+                                val todoText = activeTodo?.content?.takeIf { it.isNotBlank() }
+                                if (todoText != null) "Task In Progress: $todoText" else "1 Task In Progress"
+                            }
+                        }
 
                     Text(
-                        text = if (goalText != null) "$activeLabel · $goalText" else activeLabel,
+                        text = labelText,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onTertiaryContainer,

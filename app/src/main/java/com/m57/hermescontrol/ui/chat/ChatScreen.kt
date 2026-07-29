@@ -188,6 +188,7 @@ fun ChatScreen(
         streamingState.streamingMessage,
         streamingState.isThinking,
         state.subagentIndicators,
+        state.todos,
         state.clarifyRequest,
     ) {
         scrollController.onTailChanged(
@@ -474,6 +475,7 @@ fun ChatScreen(
 
             StickySubagentBar(
                 indicators = state.subagentIndicators,
+                todos = state.todos,
                 onClick = {
                     showSubagentInspectionSheet = true
                     scrollController.resumeFollowing()
@@ -505,6 +507,7 @@ fun ChatScreen(
                     onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
                     viewModel = viewModel,
                     subagentIndicators = state.subagentIndicators,
+                    todos = state.todos,
                     clarifyRequest = state.clarifyRequest,
                     onRespondClarify = viewModel::respondToClarify,
                     onDismissClarify = viewModel::dismissClarify,
@@ -655,6 +658,7 @@ fun ChatScreen(
         if (showSubagentInspectionSheet) {
             SubagentInspectionSheet(
                 indicators = state.subagentIndicators,
+                todos = state.todos,
                 onDismiss = { showSubagentInspectionSheet = false },
             )
         }

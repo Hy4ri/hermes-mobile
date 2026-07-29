@@ -114,6 +114,8 @@ data class ChatUiState(
     val reactionTriggerId: Long = 0L,
     /** Subagent delegation indicators (issue #538) — transient UI state. */
     val subagentIndicators: List<SubagentIndicator> = emptyList(),
+    /** Agent todo / plan items (issue #736). */
+    val todos: List<TodoItem> = emptyList(),
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED

@@ -319,4 +319,60 @@ class ChatWsEventReducerTest {
 
         assertTrue(result.state.subagentIndicators.isEmpty())
     }
+
+    @Test
+    fun testToolStart_extractsAgentTodos() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val todoEvent =
+            WsEvent.ToolStart(
+                name = "todo",
+                sessionId = "session-1",
+                data =
+                    mapOf(
+                        "todos" to
+                            listOf(
+                                mapOf("id" to "1", "content" to "Inspect repo", "status" to "completed"),
+                                mapOf("id" to "2", "content" to "Implement feature", "status" to "in_progress"),
+                            ),
+                    ),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = todoEvent,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(2, result.state.todos.size)
+        assertEquals("Inspect repo", result.state.todos[0].content)
+        assertTrue(result.state.todos[0].isCompleted)
+        assertEquals("Implement feature", result.state.todos[1].content)
+        assertTrue(result.state.todos[1].isInProgress)
+    }
+
+    @Test
+    fun testHydrateTodosFromMessages_parsesStoredToolMessage() {
+        val todoMessage =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                toolName = "todo",
+                content = """{"todos":[{"id":"a","content":"Write tests","status":"completed"}]}""",
+            )
+        val state = ChatUiState(messages = listOf(todoMessage), currentSessionId = "session-1")
+        val event = WsEvent.MessageToken(token = "hello", sessionId = "session-1")
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(1, result.state.todos.size)
+        assertEquals("Write tests", result.state.todos[0].content)
+        assertTrue(result.state.todos[0].isCompleted)
+    }
 }

@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
@@ -44,29 +46,41 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.SubagentLogLine
+import com.m57.hermescontrol.ui.chat.TodoItem
 
 /**
- * Dedicated live task delegation card rendered inline in the chat stream.
+ * Dedicated live task delegation & plan card rendered inline in the chat stream.
  *
- * Displays individual subagent goals, current status, live transcript logs,
+ * Displays individual subagent goals, live transcript logs, and agent todo/plan items,
  * and smoothly transitions to a consolidated summary upon completion.
  */
 @Composable
 fun DelegationTaskCard(
-    indicators: List<SubagentIndicator>,
+    indicators: List<SubagentIndicator> = emptyList(),
+    todos: List<TodoItem> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
-    if (indicators.isEmpty()) return
+    if (indicators.isEmpty() && todos.isEmpty()) return
 
-    val totalCount = indicators.firstOrNull()?.taskCount ?: indicators.size
-    val completedCount = indicators.count { it.isComplete }
-    val failedCount = indicators.count { it.isFailed }
-    val allCompleted = completedCount + failedCount >= indicators.size && indicators.isNotEmpty()
+    val subagentsCount = indicators.size
+    val subagentsDone = indicators.count { it.isComplete }
+    val subagentsFailed = indicators.count { it.isFailed }
+
+    val todosCount = todos.size
+    val todosDone = todos.count { it.isCompleted }
+    val todosFailed = todos.count { it.isCancelled }
+
+    val totalCount = subagentsCount + todosCount
+    val completedCount = subagentsDone + todosDone
+    val failedCount = subagentsFailed + todosFailed
+    val allCompleted = completedCount + failedCount >= totalCount && totalCount > 0
+
     var isExpanded by remember { mutableStateOf(true) }
 
     Card(
@@ -141,15 +155,26 @@ fun DelegationTaskCard(
                     modifier = Modifier.weight(1f),
                 ) {
                     val headerTitle =
-                        if (allCompleted) {
-                            if (failedCount > 0) {
-                                "Task Delegation Failed ($failedCount/$totalCount failed)"
+                        if (indicators.isNotEmpty() && todos.isNotEmpty()) {
+                            if (allCompleted) {
+                                "Tasks & Plan Complete ($completedCount/$totalCount)"
                             } else {
-                                "Task Delegation Complete ($totalCount/$totalCount)"
+                                "Tasks & Plan ($completedCount/$totalCount completed)"
+                            }
+                        } else if (indicators.isNotEmpty()) {
+                            if (allCompleted) {
+                                "Task Delegation Complete ($completedCount/$totalCount)"
+                            } else {
+                                "Task Delegation Running ($completedCount/$totalCount completed)"
                             }
                         } else {
-                            "Task Delegation Running ($completedCount/$totalCount completed)"
+                            if (allCompleted) {
+                                "Agent Plan Complete ($completedCount/$totalCount)"
+                            } else {
+                                "Agent Plan ($completedCount/$totalCount completed)"
+                            }
                         }
+
                     Text(
                         text = headerTitle,
                         style = MaterialTheme.typography.titleSmall,
@@ -159,10 +184,15 @@ fun DelegationTaskCard(
 
                     val subtitleText =
                         if (allCompleted) {
-                            "All subagent tasks finished"
+                            "All tasks finished"
                         } else {
                             val activeSubagent = indicators.firstOrNull { it.isRunning }
-                            activeSubagent?.goal?.let { "Active: $it" } ?: "Processing subagent tasks..."
+                            val activeTodo = todos.firstOrNull { it.isInProgress }
+                            when {
+                                activeSubagent != null -> "Subagent: ${activeSubagent.goal}"
+                                activeTodo != null -> "In Progress: ${activeTodo.content}"
+                                else -> "Processing task list..."
+                            }
                         }
 
                     Text(
@@ -186,7 +216,7 @@ fun DelegationTaskCard(
                 }
             }
 
-            // Expanded Body: Individual Subagents
+            // Expanded Body: Todos & Subagents
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = fadeIn() + expandVertically(),
@@ -197,14 +227,133 @@ fun DelegationTaskCard(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    indicators.forEachIndexed { index, indicator ->
-                        SubagentItemRow(
-                            indicator = indicator,
-                            taskNumber = indicator.taskIndex ?: (index + 1),
-                        )
+                    // Todos Section
+                    if (todos.isNotEmpty()) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "AGENT PLAN",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 10.sp,
+                                )
+                            }
+                            todos.forEach { todo ->
+                                TodoItemRow(todo = todo)
+                            }
+                        }
                     }
+
+                    // Subagents Section
+                    if (indicators.isNotEmpty()) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            if (todos.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "SUBAGENTS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(start = 2.dp),
+                                )
+                            }
+                            indicators.forEachIndexed { index, indicator ->
+                                SubagentItemRow(
+                                    indicator = indicator,
+                                    taskNumber = indicator.taskIndex ?: (index + 1),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodoItemRow(todo: TodoItem) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            when {
+                todo.isCompleted -> {
+                    Text(text = "✅", fontSize = 14.sp)
+                }
+                todo.isInProgress -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                todo.isCancelled -> {
+                    Text(text = "❌", fontSize = 14.sp)
+                }
+                else -> {
+                    Text(text = "⭕", fontSize = 14.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = todo.content,
+                style =
+                    MaterialTheme.typography.bodyMedium.copy(
+                        textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                    ),
+                fontWeight = if (todo.isInProgress) FontWeight.Bold else FontWeight.Normal,
+                color =
+                    when {
+                        todo.isCompleted -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        todo.isInProgress -> MaterialTheme.colorScheme.onSurface
+                        todo.isCancelled -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            if (todo.isInProgress) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Text(
+                        text = "IN PROGRESS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    )
                 }
             }
         }

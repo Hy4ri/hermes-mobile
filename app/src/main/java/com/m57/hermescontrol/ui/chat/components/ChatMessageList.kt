@@ -23,6 +23,7 @@ import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
+import com.m57.hermescontrol.ui.chat.TodoItem
 import com.m57.hermescontrol.ui.common.EmptyState
 
 /**
@@ -48,6 +49,7 @@ fun ChatMessageList(
     onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
     subagentIndicators: List<SubagentIndicator> = emptyList(),
+    todos: List<TodoItem> = emptyList(),
     clarifyRequest: ClarifyUi? = null,
     onRespondClarify: ((String) -> Unit)? = null,
     onDismissClarify: (() -> Unit)? = null,
@@ -145,10 +147,10 @@ fun ChatMessageList(
                 }
             }
 
-            // Live task delegation card (issue #736)
-            if (subagentIndicators.isNotEmpty()) {
+            // Live task delegation & plan card (issue #736)
+            if (subagentIndicators.isNotEmpty() || todos.isNotEmpty()) {
                 item(key = "delegation_task_card") {
-                    DelegationTaskCard(indicators = subagentIndicators)
+                    DelegationTaskCard(indicators = subagentIndicators, todos = todos)
                 }
             }
 

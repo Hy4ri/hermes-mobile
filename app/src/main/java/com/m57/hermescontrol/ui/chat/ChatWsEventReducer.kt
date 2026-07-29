@@ -4,6 +4,9 @@ import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.toJsonElement
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Pure state reducer for WebSocket events.
@@ -42,7 +45,18 @@ object ChatWsEventReducer {
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
             return ReducerResult(state = state, streamingState = streamingState)
         }
-        return reduceInternal(state, streamingState, event)
+        val result = reduceInternal(state, streamingState, event)
+        val hydratedTodos =
+            if (result.state.todos.isEmpty() && result.state.messages.isNotEmpty()) {
+                hydrateTodosFromMessages(result.state.messages)
+            } else {
+                result.state.todos
+            }
+        return if (hydratedTodos !== result.state.todos) {
+            result.copy(state = result.state.copy(todos = hydratedTodos))
+        } else {
+            result
+        }
     }
 
     private fun reduceInternal(
@@ -370,8 +384,11 @@ object ChatWsEventReducer {
             effects.add(ReducerEffect.PersistMessage(toolMessage, sid))
         }
 
+        val parsedTodos = if (event.name == "todo") extractTodosFromMap(event.data) else null
+        val nextTodos = parsedTodos ?: newState.todos
+
         return ReducerResult(
-            state = newState.copy(messages = newState.messages + toolMessage),
+            state = newState.copy(messages = newState.messages + toolMessage, todos = nextTodos),
             effects = effects,
         )
     }
@@ -408,8 +425,12 @@ object ChatWsEventReducer {
         if (sid != null) {
             effects.add(ReducerEffect.PersistMessage(updated, sid))
         }
+
+        val parsedTodos = if (event.name == "todo") extractTodosFromMap(event.data) else null
+        val nextTodos = parsedTodos ?: state.todos
+
         return ReducerResult(
-            state = state.copy(messages = messages),
+            state = state.copy(messages = messages, todos = nextTodos),
             streamingState = streamingState,
             effects = effects,
         )
@@ -718,4 +739,63 @@ sealed class ReducerEffect {
         val sessionId: String,
         val messageId: String,
     ) : ReducerEffect()
+}
+
+@Suppress("UNCHECKED_CAST")
+fun extractTodosFromMap(data: Map<String, Any?>?): List<TodoItem>? {
+    if (data == null) return null
+    val rawList =
+        (data["todos"] as? List<*>)
+            ?: ((data["args"] as? Map<String, Any?>)?.get("todos") as? List<*>)
+            ?: ((data["parameters"] as? Map<String, Any?>)?.get("todos") as? List<*>)
+            ?: ((data["result"] as? Map<String, Any?>)?.get("todos") as? List<*>)
+            ?: return null
+
+    val items = mutableListOf<TodoItem>()
+    for (elem in rawList) {
+        val map = elem as? Map<String, Any?> ?: continue
+        val id = (map["id"] as? String) ?: continue
+        val content = (map["content"] as? String) ?: (map["text"] as? String) ?: ""
+        val status = (map["status"] as? String) ?: "pending"
+        items.add(TodoItem(id = id, content = content, status = status))
+    }
+    return items.takeIf { it.isNotEmpty() }
+}
+
+fun extractTodosFromJson(content: String): List<TodoItem>? {
+    if (content.isBlank()) return null
+    return try {
+        val element = OkHttpProvider.json.parseToJsonElement(content)
+        val obj = element as? JsonObject ?: return null
+        val todosArray =
+            (obj["todos"] as? JsonArray)
+                ?: ((obj["args"] as? JsonObject)?.get("todos") as? JsonArray)
+                ?: ((obj["result"] as? JsonObject)?.get("todos") as? JsonArray)
+                ?: ((obj["parameters"] as? JsonObject)?.get("todos") as? JsonArray)
+                ?: return null
+
+        todosArray.mapNotNull { item ->
+            val itemObj = item as? JsonObject ?: return@mapNotNull null
+            val id = (itemObj["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+            val contentStr =
+                (itemObj["content"] as? JsonPrimitive)?.content
+                    ?: (itemObj["text"] as? JsonPrimitive)?.content ?: ""
+            val status = (itemObj["status"] as? JsonPrimitive)?.content ?: "pending"
+            TodoItem(id = id, content = contentStr, status = status)
+        }.takeIf { it.isNotEmpty() }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+fun hydrateTodosFromMessages(messages: List<ChatMessage>): List<TodoItem> {
+    for (msg in messages.asReversed()) {
+        if (msg.role == MessageRole.TOOL && (msg.toolName == "todo" || msg.content.contains("\"todos\""))) {
+            val todos = extractTodosFromJson(msg.content)
+            if (!todos.isNullOrEmpty()) {
+                return todos
+            }
+        }
+    }
+    return emptyList()
 }

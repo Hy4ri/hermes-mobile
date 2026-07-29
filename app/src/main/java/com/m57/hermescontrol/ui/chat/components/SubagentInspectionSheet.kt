@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,17 +32,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
+import com.m57.hermescontrol.ui.chat.TodoItem
 
 /**
- * Inspection sheet displaying active & completed subagent tasks with live transcripts.
+ * Inspection sheet displaying active & completed subagent tasks and agent todos.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubagentInspectionSheet(
-    indicators: List<SubagentIndicator>,
+    indicators: List<SubagentIndicator> = emptyList(),
+    todos: List<TodoItem> = emptyList(),
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -74,7 +78,7 @@ fun SubagentInspectionSheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Subagent Task Inspection",
+                        text = "Task & Plan Inspection",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
@@ -90,9 +94,9 @@ fun SubagentInspectionSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (indicators.isEmpty()) {
+            if (indicators.isEmpty() && todos.isEmpty()) {
                 Text(
-                    text = "No active subagent tasks.",
+                    text = "No active tasks or plan items.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 16.dp),
@@ -102,16 +106,108 @@ fun SubagentInspectionSheet(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    itemsIndexed(
-                        items = indicators,
-                        key = { index, indicator ->
-                            "subagent-${indicator.subagentId ?: indicator.goal ?: "${indicator.type}_$index"}"
-                        },
-                    ) { _, indicator ->
-                        InspectionItemCard(indicator = indicator)
+                    if (todos.isNotEmpty()) {
+                        item(key = "todos_header") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "AGENT PLAN",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        itemsIndexed(
+                            items = todos,
+                            key = { index, todo -> "todo-${todo.id}_$index" },
+                        ) { _, todo ->
+                            TodoInspectionCard(todo = todo)
+                        }
+                    }
+
+                    if (indicators.isNotEmpty()) {
+                        if (todos.isNotEmpty()) {
+                            item(key = "subagents_header") {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ElectricBolt,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "SUBAGENTS",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                        itemsIndexed(
+                            items = indicators,
+                            key = { index, indicator ->
+                                "subagent-${indicator.subagentId ?: indicator.goal ?: "${indicator.type}_$index"}"
+                            },
+                        ) { _, indicator ->
+                            InspectionItemCard(indicator = indicator)
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TodoInspectionCard(todo: TodoItem) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val statusSymbol =
+                when {
+                    todo.isCompleted -> "✅"
+                    todo.isInProgress -> "⚡"
+                    todo.isCancelled -> "❌"
+                    else -> "⭕"
+                }
+            Text(text = statusSymbol, fontSize = 16.sp)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = todo.content,
+                style =
+                    MaterialTheme.typography.bodyMedium.copy(
+                        textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                    ),
+                fontWeight = if (todo.isInProgress) FontWeight.Bold else FontWeight.Normal,
+                color =
+                    if (todo.isCompleted) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

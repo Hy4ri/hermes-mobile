@@ -63,6 +63,20 @@ data class SubagentLogLine(
 )
 
 /**
+ * Representation of a single task/todo item in the agent's plan.
+ */
+data class TodoItem(
+    val id: String,
+    val content: String,
+    val status: String = "pending", // "pending" | "in_progress" | "completed" | "cancelled"
+) {
+    val isCompleted: Boolean get() = status == "completed" || status == "done"
+    val isInProgress: Boolean get() = status == "in_progress" || status == "running"
+    val isCancelled: Boolean get() = status == "cancelled" || status == "failed"
+    val isPending: Boolean get() = status == "pending" || status == "queued"
+}
+
+/**
  * Representation of subagent execution details for transient UI indicators.
  *
  * Events: `subagent.spawn_requested`, `subagent.start`, `subagent.progress`, `subagent.complete`

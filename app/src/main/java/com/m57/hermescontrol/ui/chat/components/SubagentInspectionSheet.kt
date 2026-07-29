@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -102,10 +102,12 @@ fun SubagentInspectionSheet(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(
+                    itemsIndexed(
                         items = indicators,
-                        key = { indicator -> indicator.subagentId ?: indicator.goal ?: indicator.type },
-                    ) { indicator ->
+                        key = { index, indicator ->
+                            "subagent-${indicator.subagentId ?: indicator.goal ?: "${indicator.type}_$index"}"
+                        },
+                    ) { _, indicator ->
                         InspectionItemCard(indicator = indicator)
                     }
                 }

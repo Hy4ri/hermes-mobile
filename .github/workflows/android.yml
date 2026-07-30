@@ -10,6 +10,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Cancel in-progress runs when a new commit lands on the same PR branch.
 # On main (push events), each commit gets a unique group so rapid merges
 # don't cancel each other's CI runs.

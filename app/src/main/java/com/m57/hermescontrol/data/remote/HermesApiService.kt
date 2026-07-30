@@ -44,6 +44,7 @@ import com.m57.hermescontrol.data.model.ManagedFileUpload
 import com.m57.hermescontrol.data.model.ManagedFilesListResponse
 import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
 import com.m57.hermescontrol.data.model.McpCatalogResponse
+import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
@@ -425,6 +426,16 @@ interface HermesApiService {
     suspend fun restartMcpServer(
         @Path("name") name: String,
     ): Response<Unit>
+
+    @POST("api/mcp/servers/{name}/auth")
+    suspend fun authMcpServer(
+        @Path("name") name: String,
+    ): Response<McpOAuthFlowResponse>
+
+    @GET("api/mcp/oauth/flows/{flow_id}")
+    suspend fun getMcpOAuthFlowStatus(
+        @Path("flow_id") flowId: String,
+    ): Response<McpOAuthFlowResponse>
 
     @GET("api/mcp/catalog")
     suspend fun getMcpCatalog(): Response<McpCatalogResponse>

@@ -517,6 +517,12 @@
     <string name="mcp_servers_catalog_installing">설치 중…</string>
     <string name="mcp_servers_catalog_source">출처: %1$s</string>
     <string name="mcp_servers_catalog_required_env">필수 환경 변수</string>
+    <string name="mcp_servers_action_authorize">승인</string>
+    <string name="mcp_servers_oauth_dialog_title">MCP OAuth 플로우</string>
+    <string name="mcp_servers_oauth_dialog_status">상태: %1$s</string>
+    <string name="mcp_servers_oauth_dialog_error">오류: %1$s</string>
+    <string name="mcp_servers_oauth_dialog_desc">브라우저에 승인 페이지가 열렸습니다. 로그인을 완료한 후 여기로 돌아오세요.</string>
+    <string name="mcp_servers_oauth_dialog_open_browser">브라우저 열기</string>
 
     <!-- Gateway Screen -->
     <string name="gateway_status_running">게이트웨이 실행 중</string>

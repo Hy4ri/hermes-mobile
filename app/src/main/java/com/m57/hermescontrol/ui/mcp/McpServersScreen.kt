@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Storage
@@ -54,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +90,7 @@ fun McpServersScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
+    val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var showDetail by remember { mutableStateOf<McpServer?>(null) }
 
@@ -183,6 +186,17 @@ fun McpServersScreen(
                             viewModel = viewModel,
                             spacing = spacing,
                             onClick = { showDetail = server },
+                            onOpenBrowser = { url ->
+                                try {
+                                    context.startActivity(
+                                        android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse(url),
+                                        ),
+                                    )
+                                } catch (_: Exception) {
+                                }
+                            },
                         )
                     }
 
@@ -205,6 +219,58 @@ fun McpServersScreen(
             title = server.name,
             rows = server.toDetailRows(),
             onDismiss = { showDetail = null },
+        )
+    }
+
+    state.activeOAuthFlow?.let { flow ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.dismissOAuthFlow() },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        flow.authorizationUrl?.let { url ->
+                            try {
+                                context.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(url),
+                                    ),
+                                )
+                            } catch (_: Exception) {
+                            }
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.mcp_servers_oauth_dialog_open_browser))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { viewModel.dismissOAuthFlow() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+            title = {
+                Text(stringResource(R.string.mcp_servers_oauth_dialog_title))
+            },
+            text = {
+                Column {
+                    Text(stringResource(R.string.mcp_servers_oauth_dialog_desc))
+                    Spacer(modifier = Modifier.height(spacing.sm))
+                    Text(
+                        text = stringResource(R.string.mcp_servers_oauth_dialog_status, flow.status),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    flow.error?.let { err ->
+                        Spacer(modifier = Modifier.height(spacing.xs))
+                        Text(
+                            text = stringResource(R.string.mcp_servers_oauth_dialog_error, err),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            },
         )
     }
 }
@@ -395,6 +461,7 @@ private fun ServerCard(
     viewModel: McpServersViewModel,
     spacing: com.m57.hermescontrol.theme.Spacing,
     onClick: () -> Unit,
+    onOpenBrowser: (String) -> Unit,
 ) {
     var showEnv by remember { mutableStateOf(false) }
 
@@ -477,6 +544,17 @@ private fun ServerCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
+                if (server.auth == "oauth") {
+                    FilledTonalButton(
+                        onClick = { viewModel.startMcpOAuthFlow(server, onOpenBrowser) },
+                        modifier = Modifier.weight(1.2f),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Icon(Icons.Filled.Key, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(spacing.xs))
+                        Text(stringResource(R.string.mcp_servers_action_authorize), maxLines = 1)
+                    }
+                }
                 FilledTonalButton(
                     onClick = { viewModel.testServer(server.name) },
                     modifier = Modifier.weight(1f),

@@ -664,6 +664,12 @@
     <string name="mcp_servers_auth_header">Header</string>
     <string name="mcp_servers_auth_oauth">OAuth</string>
     <string name="mcp_servers_field_bearer_token">Bearer token</string>
+    <string name="mcp_servers_action_authorize">Authorize</string>
+    <string name="mcp_servers_oauth_dialog_title">MCP OAuth Flow</string>
+    <string name="mcp_servers_oauth_dialog_status">Status: %1$s</string>
+    <string name="mcp_servers_oauth_dialog_error">Error: %1$s</string>
+    <string name="mcp_servers_oauth_dialog_desc">An authorization page has been opened in your browser. Complete the login, then return here.</string>
+    <string name="mcp_servers_oauth_dialog_open_browser">Open browser</string>
 
      <!-- Gateway Screen -->
     <string name="gateway_status_running">GATEWAY RUNNING</string>

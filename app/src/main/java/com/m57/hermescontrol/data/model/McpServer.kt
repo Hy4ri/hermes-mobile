@@ -17,6 +17,7 @@ data class McpServer(
     val enabled: Boolean,
     val status: String? = null,
     val error: String? = null,
+    val auth: String? = null,
 )
 
 @Serializable
@@ -63,4 +64,13 @@ data class McpCatalogEnvVar(
 data class McpCatalogInstallRequest(
     val name: String,
     val env: Map<String, String>? = null,
+)
+
+@Serializable
+data class McpOAuthFlowResponse(
+    val flowId: String,
+    val serverName: String,
+    val status: String,
+    val authorizationUrl: String? = null,
+    val error: String? = null,
 )

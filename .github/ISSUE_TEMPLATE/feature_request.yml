@@ -1,43 +1,24 @@
-name: ✨ Feature request
-description: Suggest an idea, enhancement, UX improvement, or refactor
+name: Feature request
+description: Suggest an idea or improvement
 title: '[enhancement] '
 labels: ['enhancement']
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thanks for your suggestion! Please describe the feature or improvement you'd like to see.
   - type: textarea
     id: problem
     attributes:
-      label: Problem / motivation
-      description: What problem would this solve? Why is this needed?
-      placeholder: |
-        e.g. It's frustrating when ... or The app currently lacks ...
+      label: Problem
+      description: What problem does this solve?
     validations:
       required: true
   - type: textarea
     id: solution
     attributes:
       label: Proposed solution
-      description: A clear description of what you want to happen.
-      placeholder: Describe your ideal solution here.
+      description: What you want to happen.
     validations:
       required: true
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternative approaches
-      description: Any alternative solutions or features you've considered.
-      placeholder: What else could work?
-  - type: textarea
-    id: mockups
-    attributes:
-      label: Screenshots / mockups
-      description: Sketches, screenshots from other apps, or wireframes.
-      placeholder: Drag & drop images here
   - type: textarea
     id: additional
     attributes:
       label: Additional context
-      description: Any other details, links, or relevant API endpoints.
+      description: Alternatives, mockups, links, or anything else relevant.

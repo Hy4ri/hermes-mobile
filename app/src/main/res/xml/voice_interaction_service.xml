@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Registers Hermes Mobile as a candidate for the Android digital-assistant
+    role (Settings > Apps > Default apps > Digital assistant app).
+
+    Both sessionService and recognitionService are REQUIRED by the framework
+    (VoiceInteractionServiceInfo rejects the service with a parse error if
+    either is missing). Recognition is a stub for now — no speech in v1.
+-->
+<voice-interaction-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.m57.hermescontrol.assistant.AssistantSessionService"
+    android:recognitionService="com.m57.hermescontrol.assistant.AssistantRecognitionService"
+    android:supportsAssist="true" />

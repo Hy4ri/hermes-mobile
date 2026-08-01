@@ -46,11 +46,17 @@ object AssistantRole {
      * Intent that lets the user switch the default assistant to this app.
      * API 29+ shows the system role-request dialog; older versions fall back
      * to the voice-input settings screen where the assistant can be picked.
+     * If the role request can't be built (role unavailable on some OEM/AOSP
+     * builds), falls back to the generic voice-input settings screen.
      */
     fun requestRoleIntent(context: Context): Intent =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = context.getSystemService(RoleManager::class.java)
-            roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT)
+            runCatching {
+                roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT)
+            }.getOrElse {
+                Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)
+            }
         } else {
             Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)
         }

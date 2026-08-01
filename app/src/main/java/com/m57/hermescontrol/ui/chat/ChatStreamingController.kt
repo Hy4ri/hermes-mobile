@@ -49,6 +49,10 @@ class ChatStreamingController(
         lastFlushMs = 0L
         lastThinkingFlushMs = 0L
         lastReasoningFlushMs = 0L
+        // Issue #755: the shared streaming state must not carry the previous
+        // message's reasoning into the next one. The finalized message keeps
+        // its own copy (persisted to Room), so clearing here is safe.
+        streamingState.update { it.copy(isReasoning = false, reasoningText = "") }
     }
 
     /** Resets buffers and starts a fresh streaming message (called on MessageStart). */

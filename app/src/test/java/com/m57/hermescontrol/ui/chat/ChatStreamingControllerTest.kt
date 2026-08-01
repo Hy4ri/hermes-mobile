@@ -62,6 +62,55 @@ class ChatStreamingControllerTest {
             assertEquals("Fresh reasoning", streamingState.value.reasoningText)
         }
 
+    @Test
+    fun resetStreaming_clearsStreamingReasoningState() =
+        runTest {
+            // Issue #755: resetStreaming must ALSO clear the state-level
+            // reasoning (text + flag) so the next message can never inherit it.
+            val uiState = MutableStateFlow(ChatUiState())
+            val streamingState =
+                MutableStateFlow(
+                    StreamingState(
+                        isReasoning = true,
+                        reasoningText = "Stale reasoning",
+                    ),
+                )
+            val controller = controller(this, uiState, streamingState, isTestEnvironment = { false })
+
+            controller.resetStreaming()
+
+            assertEquals("", streamingState.value.reasoningText)
+            assertEquals(false, streamingState.value.isReasoning)
+        }
+
+    @Test
+    fun resetStreaming_doesNotClearReasoningOnTheFinalizedMessage() =
+        runTest {
+            // The finalized message keeps its own reasoning copy (persisted to
+            // Room) — only the shared streaming state is reset. This preserves
+            // "reasoning card persists after streaming".
+            val uiState = MutableStateFlow(ChatUiState())
+            val streamingState =
+                MutableStateFlow(
+                    StreamingState(
+                        streamingMessage =
+                            ChatMessage(
+                                role = MessageRole.ASSISTANT,
+                                content = "final answer",
+                                reasoningText = "real reasoning trace",
+                                isStreaming = false,
+                            ),
+                        isReasoning = true,
+                        reasoningText = "real reasoning trace",
+                    ),
+                )
+            val controller = controller(this, uiState, streamingState, isTestEnvironment = { false })
+
+            controller.resetStreaming()
+
+            assertEquals("real reasoning trace", streamingState.value.streamingMessage?.reasoningText)
+        }
+
     private fun controller(
         scope: CoroutineScope,
         uiState: MutableStateFlow<ChatUiState>,

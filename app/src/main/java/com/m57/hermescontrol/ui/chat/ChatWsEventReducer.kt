@@ -146,7 +146,10 @@ object ChatWsEventReducer {
             ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = "",
-                reasoningText = streamingState.reasoningText,
+                // Issue #755: never seed a new message with the previous
+                // message's reasoning — the card must start blank and only
+                // fill once real reasoning deltas arrive.
+                reasoningText = "",
                 isStreaming = true,
             )
         val effects = mutableListOf<ReducerEffect>()
@@ -178,8 +181,10 @@ object ChatWsEventReducer {
         val newStreamingState =
             StreamingState(
                 streamingMessage = msg,
-                isReasoning = streamingState.isReasoning,
-                reasoningText = streamingState.reasoningText,
+                // Issue #755: the new message starts with a clean reasoning
+                // slate — no isReasoning flag, no inherited reasoning text.
+                isReasoning = false,
+                reasoningText = "",
             )
         val newState = preState
         val sid = newState.currentSessionId

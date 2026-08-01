@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -291,6 +292,89 @@ class ChatWsEventReducerTest {
         assertEquals("Initializing subagent", indicator.logs[0].text)
         assertEquals("Fetching documentation", indicator.logs[1].text)
         assertTrue(indicator.isRunning)
+    }
+
+    @Test
+    fun testMessageStart_doesNotSeedReasoningFromPreviousMessage() {
+        val previousReasoning = "old reasoning trace"
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+            )
+        val staleStreaming =
+            StreamingState(
+                streamingMessage =
+                    ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = "prev",
+                        reasoningText = previousReasoning,
+                        isStreaming = true,
+                    ),
+                isReasoning = true,
+                reasoningText = previousReasoning,
+            )
+        val startEvent = WsEvent.MessageStart(sessionId = "session-1")
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = staleStreaming,
+                event = startEvent,
+                currentSessionId = "session-1",
+            )
+
+        // Issue #755: the new message must NOT inherit the previous message's
+        // reasoning — the bubble starts blank until real reasoning deltas arrive.
+        assertEquals("", result.streamingState.streamingMessage?.reasoningText)
+        assertFalse(result.streamingState.isReasoning)
+        assertEquals("", result.streamingState.reasoningText)
+    }
+
+    @Test
+    fun testMessageComplete_withoutNewReasoning_persistsEmptyReasoning() {
+        // Simulates: message A reasoned, then a fast reply B with no reasoning.
+        val previousReasoning = "old reasoning trace"
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+            )
+        val staleStreaming =
+            StreamingState(
+                streamingMessage =
+                    ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = "prev",
+                        reasoningText = previousReasoning,
+                        isStreaming = true,
+                    ),
+                isReasoning = true,
+                reasoningText = previousReasoning,
+            )
+        val startEvent = WsEvent.MessageStart(sessionId = "session-1")
+
+        val startResult =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = staleStreaming,
+                event = startEvent,
+                currentSessionId = "session-1",
+            )
+        val completeResult =
+            ChatWsEventReducer.reduce(
+                state = startResult.state,
+                streamingState = startResult.streamingState,
+                event = WsEvent.MessageComplete(text = "fast reply", sessionId = "session-1"),
+                currentSessionId = "session-1",
+            )
+
+        // Issue #755: no reasoning tokens arrived for message B, so the
+        // finalized message must carry EMPTY reasoning — never the stale trace.
+        val persisted = completeResult.state.messages.last()
+        assertEquals("fast reply", persisted.content)
+        assertEquals("", persisted.reasoningText)
+        val persistEffect = completeResult.effects.filterIsInstance<ReducerEffect.PersistMessage>().firstOrNull()
+        assertTrue(persistEffect != null)
+        assertEquals("", persistEffect?.message?.reasoningText)
     }
 
     @Test

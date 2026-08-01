@@ -6,11 +6,8 @@ package com.m57.hermescontrol.ui.chat
  */
 data class ParsedToolData(
     val toolName: String = "",
-    val args: Map<String, Any?> = emptyMap(),
-    val result: Map<String, Any?> = emptyMap(),
     val isTerminal: Boolean = false,
     val stdout: String? = null,
-    val stderr: String? = null,
     val exitCode: Int? = null,
     val error: String? = null,
     val summaryText: String? = null,

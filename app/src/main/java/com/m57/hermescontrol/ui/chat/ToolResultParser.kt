@@ -12,7 +12,6 @@ import kotlinx.serialization.json.int
 
 private fun formatTodoToolOutput(
     dataSource: JsonObject,
-    args: Map<String, Any?>,
     obj: JsonObject,
     resolvedToolName: String?,
     isRunning: Boolean,
@@ -71,8 +70,6 @@ private fun formatTodoToolOutput(
 
     return ParsedToolData(
         toolName = resolvedToolName ?: "",
-        args = args,
-        result = dataSource.entrySet().associate { it.key to it.value.toString() },
         summaryText = todoSummaryText,
         mainOutput = formattedTodos,
         durationSec = duration,
@@ -134,7 +131,6 @@ fun parseToolOutput(
         if (resolvedToolName == "todo") {
             return formatTodoToolOutput(
                 dataSource = dataSource,
-                args = args,
                 obj = obj,
                 resolvedToolName = resolvedToolName,
                 isRunning = isRunning,
@@ -233,8 +229,6 @@ fun parseToolOutput(
 
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = factSummaryText,
                 mainOutput = factMainOutput,
                 durationSec = duration,
@@ -369,8 +363,6 @@ fun parseToolOutput(
 
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = ssSummaryText,
                 mainOutput = ssMainOutput,
                 durationSec = duration,
@@ -414,8 +406,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -456,8 +446,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -513,8 +501,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -575,8 +561,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -609,8 +593,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -648,8 +630,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -709,8 +689,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -757,8 +735,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -784,8 +760,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -821,8 +795,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -856,8 +828,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -900,8 +870,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -938,8 +906,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -971,8 +937,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -1016,8 +980,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 durationSec = duration,
@@ -1166,8 +1128,6 @@ fun parseToolOutput(
             val duration = obj.get("duration_s")?.takeIf { !it.isJsonNull }?.asDouble
             return ParsedToolData(
                 toolName = resolvedToolName,
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryLine,
                 mainOutput = mainBody,
                 durationSec = duration,
@@ -1233,11 +1193,8 @@ fun parseToolOutput(
 
             ParsedToolData(
                 toolName = resolvedToolName ?: "",
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 isTerminal = true,
                 stdout = terminalOutput,
-                stderr = null,
                 exitCode = exitCode,
                 error = effectiveError,
                 summaryText = summaryText,
@@ -1316,8 +1273,6 @@ fun parseToolOutput(
 
             ParsedToolData(
                 toolName = resolvedToolName ?: "",
-                args = args,
-                result = dataSource.entrySet().associate { it.key to it.value.toString() },
                 summaryText = summaryText,
                 mainOutput = mainOutput,
                 extraFields = extraFields,
@@ -1347,8 +1302,6 @@ private val JsonElement.asBoolean: Boolean get() = (this as JsonPrimitive).boole
 private fun JsonElement.has(key: String): Boolean = (this as? JsonObject)?.containsKey(key) == true
 
 private fun JsonObject.entrySet(): Set<Map.Entry<String, JsonElement>> = entries
-
-private fun JsonObject.keySet(): Set<String> = keys
 
 private fun JsonArray.size(): Int = size
 

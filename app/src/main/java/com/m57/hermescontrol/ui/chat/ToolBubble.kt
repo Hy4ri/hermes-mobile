@@ -191,7 +191,6 @@ private fun ExpandedToolContent(
 @Composable
 internal fun ToolBubble(
     message: ChatMessage,
-    isDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }

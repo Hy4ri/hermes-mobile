@@ -54,7 +54,6 @@ class ChatScrollController(
     var pendingCount by mutableStateOf(0)
         private set
 
-    private var lastSessionId: String? = null
     private var lastTailKey: Any? = null
     private var lastMessageCount: Int = 0
 

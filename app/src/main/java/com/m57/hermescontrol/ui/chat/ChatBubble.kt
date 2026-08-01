@@ -142,7 +142,7 @@ fun ChatBubble(
             }
 
             MessageRole.TOOL -> {
-                ToolBubble(message, isDarkTheme, modifier)
+                ToolBubble(message, modifier)
             }
         }
     }

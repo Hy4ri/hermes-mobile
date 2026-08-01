@@ -1,7 +1,5 @@
 package com.m57.hermescontrol.ui.settings
 
-import android.content.Intent
-import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +13,6 @@ import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,17 +24,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.NavigationController
@@ -47,7 +39,6 @@ import com.m57.hermescontrol.SettingsAppearance
 import com.m57.hermescontrol.SettingsBehavior
 import com.m57.hermescontrol.SettingsChat
 import com.m57.hermescontrol.SettingsConnection
-import com.m57.hermescontrol.assistant.AssistantRole
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -61,14 +52,6 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    var assistantActive by remember { mutableStateOf(false) }
-
-    // Refresh after returning from the system role dialog / settings screen.
-    LifecycleResumeEffect(Unit) {
-        assistantActive = AssistantRole.isDefaultAssistant(context)
-        onPauseOrDispose { }
-    }
 
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_settings)) },
@@ -125,30 +108,6 @@ fun SettingsScreen(
                                     stringResource(R.string.settings_summary_off)
                                 },
                             onClick = { NavigationController.navigateTo(SettingsBehavior) },
-                        ),
-                        SettingsRow(
-                            icon = Icons.Filled.SmartToy,
-                            label = stringResource(R.string.settings_sec_assistant),
-                            summary =
-                                if (!AssistantRole.isSupported(context)) {
-                                    stringResource(R.string.settings_summary_assistant_unsupported)
-                                } else if (assistantActive) {
-                                    stringResource(R.string.settings_summary_assistant_active)
-                                } else {
-                                    stringResource(R.string.settings_summary_assistant_inactive)
-                                },
-                            onClick = {
-                                runCatching {
-                                    context.startActivity(AssistantRole.requestRoleIntent(context))
-                                }.onFailure {
-                                    // Last resort: generic voice-input settings.
-                                    runCatching {
-                                        context.startActivity(
-                                            Intent(Settings.ACTION_VOICE_INPUT_SETTINGS),
-                                        )
-                                    }
-                                }
-                            },
                         ),
                         SettingsRow(
                             icon = Icons.Filled.Info,

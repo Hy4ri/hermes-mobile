@@ -159,7 +159,6 @@
     <string name="settings_delay_100ms">100 ms</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
-    <string name="settings_sec_assistant">Assistant</string>
     <string name="settings_about_app_name">⚡ Hermes Mobile</string>
     <string name="settings_about_version">Version</string>
     <string name="settings_about_build">Build</string>
@@ -173,9 +172,6 @@
     <string name="settings_summary_typing_off">Typing effect off</string>
     <string name="settings_summary_on">On</string>
     <string name="settings_summary_off">Off</string>
-    <string name="settings_summary_assistant_active">Active · long-press Home to open Hermes</string>
-    <string name="settings_summary_assistant_inactive">Not set · tap to enable</string>
-    <string name="settings_summary_assistant_unsupported">Not supported on this device</string>
     <string name="settings_summary_theme_system">System</string>
     <string name="settings_summary_theme_light">Light</string>
     <string name="settings_summary_theme_dark">Dark</string>

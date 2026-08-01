@@ -119,6 +119,7 @@
     <string name="chat_empty_title">Ready to chat</string>
     <string name="chat_empty_subtitle">Send a message to start a conversation</string>
     <string name="chat_status_connecting">Connecting to Hermes\u2026</string>
+    <string name="chat_resume_error_title">Couldn\'t connect to this session</string>
     <string name="chat_status_reconnecting">Reconnecting\u2026</string>
     <string name="chat_status_disconnected">Disconnected</string>
     <string name="chat_status_no_network">No network</string>

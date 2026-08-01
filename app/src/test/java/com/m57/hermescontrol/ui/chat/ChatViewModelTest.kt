@@ -39,6 +39,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.JsonPrimitive
@@ -1161,6 +1162,222 @@ class ChatViewModelTest {
             )
 
             verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456"), any()) }
+        }
+
+    // ── Session resume recovery (desktop parity: warm cache + bounded retry) ──
+
+    /** Override the send stub to capture (method → id) pairs. */
+    private fun captureSends(): MutableList<Pair<String, String>> {
+        val captured = mutableListOf<Pair<String, String>>()
+        every { HermesWsClient.send(any(), any(), any()) } answers {
+            reqCount++
+            val id = "req-id-$reqCount"
+            captured.add(arg<String>(0) to id)
+            arg<((String) -> Unit)?>(2)?.invoke(id)
+            id
+        }
+        return captured
+    }
+
+    private fun stubSession456Rests(success: Boolean) {
+        val mockApi = ApiClient.hermesApi
+        // mapServerMessages reads AuthManager.getBaseUrl() on the SUCCESS path
+        // before mapping any messages. mockkObject is spy-semantics: unstubbed
+        // calls fall through to the REAL AuthManager, whose serverStore is null
+        // unless another test class happened to init it earlier in the JVM
+        // (the order-dependent flakiness). Stub it for determinism — same
+        // pattern as E2eIntegrationTest / ApiClientTest.
+        every { AuthManager.getBaseUrl() } returns "http://test.local/"
+        if (success) {
+            coEvery {
+                mockApi.getSessions(any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionListResponse(
+                        sessions =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionInfo(
+                                    id = "session-456",
+                                    title = "Test",
+                                    message_count = 0,
+                                ),
+                            ),
+                        total = 1,
+                    ),
+                )
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages = emptyList(),
+                    ),
+                )
+        } else {
+            // Relaxed mock returns a non-success response → NetworkResult.Failure.
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any())
+            } returns
+                retrofit2.Response.error(
+                    500,
+                    okhttp3.ResponseBody.create(null, "{\"detail\":\"boom\"}"),
+                )
+        }
+    }
+
+    @Test
+    fun testSwitchSession_paintsWarmCache_andKeepsItWhenResumeExhausted() =
+        runTest {
+            // Seed the Room cache for the target session.
+            fakeRepo.dao.addMessageDirect(
+                com.m57.hermescontrol.data.local.ChatMessageEntity(
+                    id = "cached-1",
+                    sessionId = "session-456",
+                    role = "user",
+                    content = "Cached hello",
+                    timestamp = 1L,
+                ),
+            )
+            // Server keeps failing → bounded retries exhaust → resumeError.
+            stubSession456Rests(success = false)
+
+            val (viewModel, _) = createViewModelWithSession()
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            // Warm cache painted and survived the exhausted retry cycle — the
+            // screen never went blank, and the user gets history + an error.
+            assertEquals(1, viewModel.uiState.value.messages.size)
+            assertEquals("Cached hello", viewModel.uiState.value.messages[0].content)
+            assertFalse(viewModel.uiState.value.isLoading)
+            assertNotNull("resumeError must be set after retries exhaust", viewModel.uiState.value.resumeError)
+            assertFalse(viewModel.uiState.value.isResumeRetrying)
+        }
+
+    @Test
+    fun testSessionResume_boundedRetry_thenExplicitError() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            // Drive one RPC failure per cycle; each failure arms a backoff retry.
+            // Exhaustion needs MAX+1 failures: attempts 0..MAX-1 arm retries,
+            // the MAX-th failure hits the exhausted latch.
+            for (cycle in 1..(ChatViewModel.MAX_RESUME_RETRIES + 1)) {
+                val resumeId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+                mockEventsFlow.emit(
+                    WsEvent.RpcError(
+                        resumeId,
+                        JsonRpcError(code = -32000, message = "resume rejected"),
+                    ),
+                )
+                advanceUntilIdle()
+            }
+
+            val resumeSends = captured.count { it.first == WsMethods.SESSION_RESUME }
+            assertEquals(
+                "initial + MAX_RESUME_RETRIES retries",
+                ChatViewModel.MAX_RESUME_RETRIES + 1,
+                resumeSends,
+            )
+            assertNotNull(viewModel.uiState.value.resumeError)
+            assertFalse(viewModel.uiState.value.isResumeRetrying)
+            assertFalse(viewModel.uiState.value.isLoading)
+        }
+
+    @Test
+    fun testSessionResume_rpcAndRestFailuresCountAsOneCycle() =
+        runTest {
+            // REST fails + one RpcError lands while the retry is already armed —
+            // they must count as ONE failure, so the retry budget is not
+            // double-burned (5 sends total, not 4).
+            stubSession456Rests(success = false)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+
+            viewModel.switchSession("session-456")
+            runCurrent()
+            // First cycle: REST already failed and armed the retry; now the WS
+            // reject for the same resume arrives while that job is pending.
+            val resumeId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    resumeId,
+                    JsonRpcError(code = -32000, message = "resume rejected"),
+                ),
+            )
+            runCurrent()
+            advanceUntilIdle()
+
+            val resumeSends = captured.count { it.first == WsMethods.SESSION_RESUME }
+            assertEquals(
+                "initial + MAX_RESUME_RETRIES retries — no double-burn",
+                ChatViewModel.MAX_RESUME_RETRIES + 1,
+                resumeSends,
+            )
+            assertNotNull(viewModel.uiState.value.resumeError)
+        }
+
+    @Test
+    fun testRetryResumeSession_clearsErrorAndResends() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            // Exhaust the retry budget (MAX+1 failures — see boundedRetry test).
+            for (cycle in 1..(ChatViewModel.MAX_RESUME_RETRIES + 1)) {
+                val resumeId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+                mockEventsFlow.emit(
+                    WsEvent.RpcError(
+                        resumeId,
+                        JsonRpcError(code = -32000, message = "resume rejected"),
+                    ),
+                )
+                advanceUntilIdle()
+            }
+            assertNotNull(viewModel.uiState.value.resumeError)
+
+            // Manual retry clears the exhausted latch and dispatches a fresh resume.
+            viewModel.retryResumeSession()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.resumeError)
+            assertFalse(viewModel.uiState.value.isResumeRetrying)
+            val resumeSends = captured.count { it.first == WsMethods.SESSION_RESUME }
+            assertEquals(ChatViewModel.MAX_RESUME_RETRIES + 2, resumeSends)
+        }
+
+    @Test
+    fun testGatewayReconnect_clearsResumeErrorAndRestartsCycle() =
+        runTest {
+            stubSession456Rests(success = false)
+            val (viewModel, _) = createViewModelWithSession()
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertNotNull("resumeError must be set after retries exhaust", viewModel.uiState.value.resumeError)
+
+            // Reconnect is a fresh start: the error latch is cleared and the
+            // current session is re-resumed on the new socket.
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            runCurrent()
+
+            assertNull(viewModel.uiState.value.resumeError)
+            assertFalse(viewModel.uiState.value.isResumeRetrying)
+
+            // The re-resume's own failures start a NEW bounded cycle.
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.resumeError)
         }
 
     @Test

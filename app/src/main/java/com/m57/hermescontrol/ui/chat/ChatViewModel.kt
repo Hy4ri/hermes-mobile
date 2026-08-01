@@ -122,6 +122,9 @@ data class ChatUiState(
     val subagentIndicators: List<SubagentIndicator> = emptyList(),
     /** Agent todo / plan items (issue #736). */
     val todos: List<TodoItem> = emptyList(),
+    // Session resume recovery (desktop parity: bounded auto-retry + error UI)
+    val resumeError: String? = null,
+    val isResumeRetrying: Boolean = false,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -205,6 +208,15 @@ class ChatViewModel(
     private var runtimeSessionId: String? = null
     private var loadedMessageOffset = 0
     private var isSyncingMessages = false
+
+    // ── Session resume recovery (desktop parity) ────────────────────────
+    // Bounded auto-retry with exponential backoff, mirroring the desktop's
+    // use-route-resume: a failed session.resume retries 1s→2s→4s→8s up to
+    // MAX_RESUME_RETRIES, then surfaces an explicit error + manual Retry
+    // instead of latching the spinner forever.
+    private var resumeRetrySessionId: String? = null
+    private var resumeRetryAttempt = 0
+    private var resumeRetryJob: Job? = null
     val streamingState: StateFlow<StreamingState> = _streamingState.asStateFlow()
 
     /** Tracks the auto-clear coroutine for reaction animations. */
@@ -354,7 +366,12 @@ class ChatViewModel(
     // ── WS Event Handling ────────────────────────────────────────────────
 
     private fun handleGatewayReady() {
-        _uiState.update { it.copy(isLoading = false) }
+        // A (re)connect is a fresh start: clear any stale resume error and
+        // cancel a pending retry — the re-resume below rebinds the session
+        // on the new socket (desktop parity: gatewayBecameOpen re-resumes
+        // even when the route looks already active).
+        _uiState.update { it.copy(isLoading = false, resumeError = null, isResumeRetrying = false) }
+        cancelResumeRetry()
         addSystemMessage("Connected to Hermes")
         loadSessions()
         fetchCommandCatalog()
@@ -682,9 +699,16 @@ class ChatViewModel(
                 // the WS round-trip. Calling loadCachedMessages() here would
                 // overwrite any message the user sent between switchSession() and
                 // the server ack, making the chat appear to go blank.
+                // A successful resume also retires any pending retry job and
+                // clears the retry indicators (a reconnect re-resume landing
+                // while a backoff timer was armed must not double-fire).
+                resumeRetryJob?.cancel()
+                resumeRetryJob = null
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        isResumeRetrying = false,
+                        resumeError = null,
                         currentSessionId = sessionId,
                         currentSessionModel =
                             if (model != null && provider != null) {
@@ -786,6 +810,19 @@ class ChatViewModel(
                 is Map<*, *> -> error["message"] as? String ?: error.toString()
                 else -> error.toString()
             }
+
+        // Session resume failures go through the bounded retry (desktop
+        // parity) instead of a one-shot snackbar — the session may be
+        // mid-flush on the gateway or the WS may have just rebound, and a
+        // brief backoff usually clears it. Persistent failure ends in the
+        // explicit error + Retry state.
+        if (method == WsMethods.SESSION_RESUME) {
+            val sessionId = _uiState.value.currentSessionId
+            if (sessionId != null) {
+                handleResumeFailure(sessionId, errorMsg)
+            }
+            return
+        }
 
         // Surface error in UI (these are server-pushed RpcError for
         // fire-and-forget RPCs — awaited RPCs handle their own failure
@@ -1452,7 +1489,9 @@ class ChatViewModel(
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
 
-        // Reset streaming and pagination state before resuming the Desktop session.
+        // Reset streaming, pagination, and any pending resume retry before
+        // resuming the Desktop session.
+        cancelResumeRetry()
         runtimeSessionId = null
         loadedMessageOffset = 0
         streamingController.resetStreaming()
@@ -1471,12 +1510,19 @@ class ChatViewModel(
                 fullContextTokens = null,
                 contextBreakdown = null,
                 compressionCount = null,
+                resumeError = null,
+                isResumeRetrying = false,
             )
         }
         // Mirror the active session id app-wide (issue #532).
         ActiveSessionHolder.set(sessionId)
         _streamingState.update { StreamingState() }
         viewModelScope.launch {
+            // Warm-cache fast-path (desktop parity): paint the cached Room
+            // transcript immediately so the screen never sits blank, then load
+            // the fresh server transcript in parallel. If the cache is empty
+            // the spinner stays up until the server page lands.
+            loadCachedMessages(sessionId)
             // Resume the selected desktop session, then load its complete transcript.
             launch(Dispatchers.IO) {
                 wsClient.send(
@@ -1494,8 +1540,10 @@ class ChatViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val cachedMessages = repo.loadMessages(sessionId)
             _uiState.update { state ->
-                // Only replace if still showing this session
-                if (state.currentSessionId == sessionId) {
+                // Only paint if still showing this session AND no fresher server
+                // page has landed yet (a fast REST fetch must not be clobbered
+                // by a stale cache read that loses the race).
+                if (state.currentSessionId == sessionId && state.messages.isEmpty()) {
                     state.copy(messages = cachedMessages, isLoading = false)
                 } else {
                     state
@@ -1533,11 +1581,130 @@ class ChatViewModel(
                         it.copy(
                             isLoading = false,
                             isLoadingOlder = false,
-                            errorMessage = "Failed to load messages: ${result.error.message}",
                         )
                     }
+                    // Route the transcript failure through the bounded resume
+                    // retry (desktop parity) instead of a one-shot snackbar —
+                    // a transient backend/network blip recovers on its own,
+                    // and a persistent failure ends in an explicit Retry.
+                    handleResumeFailure(sessionId, "Failed to load messages: ${result.error.message}")
                 }
             }
+        }
+    }
+
+    // ── Session resume recovery (desktop parity) ─────────────────────────
+
+    private fun cancelResumeRetry() {
+        resumeRetryJob?.cancel()
+        resumeRetryJob = null
+        resumeRetrySessionId = null
+        resumeRetryAttempt = 0
+    }
+
+    private fun resumeRetryDelayMs(attempt: Int): Long =
+        minOf(RESUME_RETRY_MAX_MS, RESUME_RETRY_BASE_MS * (1L shl attempt))
+
+    /**
+     * Bounded auto-retry for a failed session resume (mirrors the desktop's
+     * use-route-resume). A failed resume — gateway RPC reject or REST
+     * transcript failure — retries with exponential backoff (1s→2s→4s→8s),
+     * capped at [MAX_RESUME_RETRIES]. After exhaustion the UI gets an
+     * explicit error + manual Retry ([retryResumeSession]) instead of an
+     * infinite spinner.
+     */
+    private fun handleResumeFailure(
+        sessionId: String,
+        errorMessage: String,
+    ) {
+        // Only handle if still on this session.
+        if (_uiState.value.currentSessionId != sessionId) return
+
+        // New session → reset the counter for a fresh backoff cycle.
+        if (resumeRetrySessionId != sessionId) {
+            resumeRetrySessionId = sessionId
+            resumeRetryAttempt = 0
+        }
+
+        if (resumeRetryAttempt >= MAX_RESUME_RETRIES) {
+            // Exhausted — surface the error + manual Retry affordance.
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isResumeRetrying = false,
+                    resumeError = errorMessage,
+                )
+            }
+            return
+        }
+
+        // A WS RPC reject and the REST transcript failure for the same resume
+        // land close together — treat them as ONE failure: if a retry is
+        // already armed for this session, don't double-count or re-schedule.
+        if (resumeRetrySessionId == sessionId && resumeRetryJob?.isActive == true) {
+            return
+        }
+
+        val delayMs = resumeRetryDelayMs(resumeRetryAttempt)
+        resumeRetryAttempt++
+
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                isResumeRetrying = true,
+                resumeError = null,
+            )
+        }
+
+        resumeRetryJob?.cancel()
+        resumeRetryJob =
+            viewModelScope.launch {
+                delay(delayMs)
+                // Re-check liveness at fire time: the user may have switched
+                // sessions or the gateway may have reconnected meanwhile.
+                if (_uiState.value.currentSessionId != sessionId) return@launch
+
+                _uiState.update { it.copy(isResumeRetrying = false) }
+                if (_uiState.value.messages.isEmpty()) {
+                    _uiState.update { it.copy(isLoading = true) }
+                }
+                // Retry the full resume: rebind the runtime via WS + refresh
+                // the transcript via REST. Both are idempotent.
+                launch(Dispatchers.IO) {
+                    wsClient.send(
+                        WsMethods.SESSION_RESUME,
+                        mapOf("session_id" to sessionId),
+                        onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                    )
+                }
+                loadSessionMessages(sessionId)
+            }
+    }
+
+    /**
+     * Manual retry after the bounded auto-retry exhausted. Clears the
+     * exhausted latch and starts a fresh backoff cycle (mirrors the desktop's
+     * resumeSession: reconnect / reselect / Retry all reset the counter).
+     */
+    fun retryResumeSession() {
+        val sessionId = _uiState.value.currentSessionId ?: return
+        cancelResumeRetry()
+        _uiState.update {
+            it.copy(
+                resumeError = null,
+                isResumeRetrying = false,
+                isLoading = true,
+            )
+        }
+        viewModelScope.launch {
+            launch(Dispatchers.IO) {
+                wsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to sessionId),
+                    onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                )
+            }
+            loadSessionMessages(sessionId)
         }
     }
 
@@ -2505,5 +2672,13 @@ class ChatViewModel(
     }
 
     companion object {
+        /** Max auto-retry attempts for a failed session.resume (desktop parity). */
+        const val MAX_RESUME_RETRIES = 4
+
+        /** Base backoff for resume retries — doubles per attempt, capped at 8s. */
+        const val RESUME_RETRY_BASE_MS = 1_000L
+
+        /** Upper bound for the resume retry backoff delay. */
+        const val RESUME_RETRY_MAX_MS = 8_000L
     }
 }

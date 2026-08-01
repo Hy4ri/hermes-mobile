@@ -78,6 +78,7 @@ import com.m57.hermescontrol.ui.chat.components.ChatInputBar
 import com.m57.hermescontrol.ui.chat.components.ChatLifecycleEffects
 import com.m57.hermescontrol.ui.chat.components.ChatLoadingOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatMessageList
+import com.m57.hermescontrol.ui.chat.components.ChatResumeErrorOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
@@ -517,7 +518,14 @@ fun ChatScreen(
                 )
 
                 // Loading overlay
-                ChatLoadingOverlay(isLoading = state.isLoading)
+                ChatLoadingOverlay(isLoading = state.isLoading && state.resumeError == null)
+
+                // Resume-exhausted overlay — explicit error + Retry instead
+                // of an infinite spinner (desktop parity).
+                ChatResumeErrorOverlay(
+                    errorMessage = state.resumeError,
+                    onRetry = viewModel::retryResumeSession,
+                )
 
                 // Scroll-to-bottom FAB (issue #682): shows while follow is
                 // paused and renders the unseen-message badge.

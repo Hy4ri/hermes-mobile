@@ -1255,6 +1255,99 @@ class ChatViewModelTest {
             assertFalse(viewModel.uiState.value.isResumeRetrying)
         }
 
+    /**
+     * Regression for the spurious "Error: JsonRpcError(code=4001, message=session
+     * not found, data=null)" snackbar when opening a session from history: the
+     * chat sync effect fires fetchContextUsage() immediately on session switch,
+     * BEFORE session.resume has registered the session on the gateway. The
+     * context/usage RPCs resolve against the gateway's LIVE runtime registry
+     * (_sess_nowait) and would 4001 on the storage id — so they must be skipped
+     * until the resume result confirms the runtime id (which is then used).
+     */
+    @Test
+    fun testSwitchSession_contextRpcSkippedUntilResumeConfirmsRuntimeId() =
+        runTest {
+            stubSession456Rests(success = true)
+
+            // Awaited live-registry RPCs (sendRpcAndAwait → HermesWsClient.request).
+            // Completed deferred so the awaits resolve; capture the params. Installed
+            // BEFORE createViewModelWithSession so the SESSION_CREATE-era
+            // fetchContextUsage() call is stubbed too (otherwise its unstubbed
+            // invocation is still recorded and pollutes the verify(exactly = 0)).
+            val paramsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.request(any(), capture(paramsSlot), any())
+            } returns CompletableDeferred<Any?>(emptyMap<String, Any?>())
+
+            val (viewModel, _) = createViewModelWithSession()
+
+            // Capture the session.resume request id so its result can be delivered.
+            var resumeRequestId: String? = null
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                reqCount++
+                val id = "resume-$reqCount"
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                resumeRequestId = id
+                id
+            }
+
+            // Switch to session-456: runtimeSessionId resets to null until the
+            // resume result lands — the storage id is not (yet) live on the
+            // gateway. ChatScreen's sync effect fires fetchContextUsage()
+            // immediately on session switch — simulate it while the resume
+            // result is still in flight. The live-registry RPCs must NOT fire
+            // with the stale storage id (the gateway would 4001).
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            viewModel.fetchContextUsage()
+            advanceUntilIdle()
+
+            verify(exactly = 0) {
+                HermesWsClient.request(
+                    WsMethods.SESSION_CONTEXT_BREAKDOWN,
+                    match { it["session_id"] == "session-456" },
+                    any(),
+                )
+            }
+            verify(exactly = 0) {
+                HermesWsClient.request(
+                    WsMethods.SESSION_USAGE,
+                    match { it["session_id"] == "session-456" },
+                    any(),
+                )
+            }
+
+            // Resume result lands → runtime id confirmed → the RPCs fire with it.
+            val resumeId = checkNotNull(resumeRequestId)
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeId,
+                    mapOf(
+                        "session_id" to "runtime-456",
+                        "resumed" to "session-456",
+                        "info" to emptyMap<String, Any?>(),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.request(
+                    WsMethods.SESSION_CONTEXT_BREAKDOWN,
+                    match { it["session_id"] == "runtime-456" },
+                    any(),
+                )
+            }
+            verify {
+                HermesWsClient.request(
+                    WsMethods.SESSION_USAGE,
+                    match { it["session_id"] == "runtime-456" },
+                    any(),
+                )
+            }
+            assertEquals("runtime-456", paramsSlot.captured["session_id"])
+        }
+
     @Test
     fun testSessionResume_boundedRetry_thenExplicitError() =
         runTest {

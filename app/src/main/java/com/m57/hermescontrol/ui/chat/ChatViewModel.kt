@@ -302,6 +302,13 @@ class ChatViewModel(
                     status == ConnectionStatus.AUTH_EXPIRED
                 ) {
                     _uiState.update { it.copy(isLoading = false) }
+                    // The runtime session id is only valid while the socket
+                    // owns it — a dropped connection may mean the gateway
+                    // closed/pruned the session (or restarted, wiping the
+                    // runtime registry). Clear it so session-scoped RPCs can't
+                    // fire with a stale id and 4001 "session not found";
+                    // handleGatewayReady rebinds it on the re-resume.
+                    runtimeSessionId = null
                     // Fail any in-flight awaited RPCs so callers don't hang
                     // across the disconnect (delegated to HermesWsClient, issue #526).
                     wsClient.rejectAllPending()
@@ -1853,42 +1860,52 @@ class ChatViewModel(
             // real current prompt size (drops after compression); `context_max`
             // is the compressor's actual window. Any failure keeps the last
             // known values — never blank the meter over a transient RPC error.
-            val rpcSessionId = runtimeSessionId ?: sessionId
-            try {
-                val result =
-                    sendRpcAndAwait(
-                        WsMethods.SESSION_CONTEXT_BREAKDOWN,
-                        mapOf("session_id" to rpcSessionId),
-                    )
-                val ctx = parseContextBreakdown(result)
-                if (ctx != null) {
-                    _uiState.update { current ->
-                        current.copy(
-                            usedContextTokens =
-                                ctx.contextUsed?.takeIf { it > 0L } ?: current.usedContextTokens,
-                            fullContextTokens =
-                                ctx.contextMax?.takeIf { it > 0L } ?: current.fullContextTokens,
+            //
+            // These RPCs resolve the session against the gateway's LIVE runtime
+            // registry (_sess_nowait) — the storage session id 4001s "session
+            // not found" until session.resume has registered it. ChatScreen's
+            // sync effect fires this immediately on session switch, before the
+            // resume result lands, so skip the RPCs until resume confirms the
+            // runtime id. The REST parts below stay live (they key on the
+            // storage id).
+            val rpcSessionId = runtimeSessionId
+            if (rpcSessionId != null) {
+                try {
+                    val result =
+                        sendRpcAndAwait(
+                            WsMethods.SESSION_CONTEXT_BREAKDOWN,
+                            mapOf("session_id" to rpcSessionId),
                         )
+                    val ctx = parseContextBreakdown(result)
+                    if (ctx != null) {
+                        _uiState.update { current ->
+                            current.copy(
+                                usedContextTokens =
+                                    ctx.contextUsed?.takeIf { it > 0L } ?: current.usedContextTokens,
+                                fullContextTokens =
+                                    ctx.contextMax?.takeIf { it > 0L } ?: current.fullContextTokens,
+                            )
+                        }
                     }
+                } catch (_: Exception) {
+                    // Best-effort: RPC error/timeout/disconnect — keep last values.
                 }
-            } catch (_: Exception) {
-                // Best-effort: RPC error/timeout/disconnect — keep last values.
-            }
-            // Compression count: how many times this session has been compacted
-            // (session.usage → compressions). Feeds the "compressed ×N" badge —
-            // the same usage snapshot the desktop status bar reads.
-            try {
-                val usage =
-                    sendRpcAndAwait(
-                        WsMethods.SESSION_USAGE,
-                        mapOf("session_id" to rpcSessionId),
-                    )
-                val snapshot = parseUsageSnapshot(usage)
-                if (snapshot != null && snapshot.compressions != null) {
-                    _uiState.update { it.copy(compressionCount = snapshot.compressions) }
+                // Compression count: how many times this session has been compacted
+                // (session.usage → compressions). Feeds the "compressed ×N" badge —
+                // the same usage snapshot the desktop status bar reads.
+                try {
+                    val usage =
+                        sendRpcAndAwait(
+                            WsMethods.SESSION_USAGE,
+                            mapOf("session_id" to rpcSessionId),
+                        )
+                    val snapshot = parseUsageSnapshot(usage)
+                    if (snapshot != null && snapshot.compressions != null) {
+                        _uiState.update { it.copy(compressionCount = snapshot.compressions) }
+                    }
+                } catch (_: Exception) {
+                    // Best-effort: keep the last known badge value.
                 }
-            } catch (_: Exception) {
-                // Best-effort: keep the last known badge value.
             }
             // Detail-sheet accounting (cumulative REST counters, informational).
             val usedResult =

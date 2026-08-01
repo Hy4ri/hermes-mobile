@@ -386,6 +386,13 @@ object ToolViewBuilder {
 
     // ── titles ───────────────────────────────────────────────────────────
 
+    /**
+     * The generic humanized title for a tool name ("fact_store" -> "Fact
+     * Store"). Exposed so the view can drop the title from the collapsed
+     * summary when it adds nothing over the header row's own tool name.
+     */
+    internal fun genericTitleFor(toolName: String?): String = titleForTool(toolName ?: "tool")
+
     private fun titleForTool(name: String): String {
         val normalized = name.replace(Regex("^browser_"), "").replace(Regex("^web_"), "")
 

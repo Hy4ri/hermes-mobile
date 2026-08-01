@@ -61,8 +61,52 @@ import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.DiffViewCard
 import com.m57.hermescontrol.ui.chat.tool.ToolView
+import com.m57.hermescontrol.ui.chat.tool.ToolViewBuilder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/**
+ * Composes the collapsed summary lines for a tool card.
+ *
+ * The header row already shows the tool name, so when the engine's title is
+ * just the generic humanized name ("Fact Store" for fact_store) it is
+ * dropped and the subtitle merges into the emoji line instead — one
+ * identity per bubble. Descriptive titles ("Searched \"cats\"", "Ran ls")
+ * stay on line one with the subtitle on line two.
+ *
+ * Returns null when there is nothing to show (lone emoji, no subtitle).
+ */
+internal fun composeToolSummaryLines(
+    view: ToolView,
+    toolName: String?,
+    emoji: String,
+): Pair<String, String?>? {
+    val titleIsGeneric = view.title.equals(ToolViewBuilder.genericTitleFor(toolName), ignoreCase = true)
+    val subtitle = view.subtitle.takeIf { it.isNotBlank() && it != view.title }
+
+    val firstLine: String
+    val secondLine: String?
+    if (titleIsGeneric) {
+        firstLine =
+            buildString {
+                append(emoji)
+                if (subtitle != null) {
+                    append(" $subtitle")
+                }
+                view.countLabel?.let { append(" ($it)") }
+            }
+        secondLine = null
+    } else {
+        firstLine =
+            buildString {
+                append("$emoji ${view.title}")
+                view.countLabel?.let { append(" ($it)") }
+            }
+        secondLine = subtitle
+    }
+
+    return firstLine.takeIf { it.trim() != emoji }?.let { it to secondLine }
+}
 
 @Composable
 internal fun ToolBubble(
@@ -136,38 +180,35 @@ internal fun ToolBubble(
                     SecurityRiskChip(riskData, contentColor)
                 }
 
-                // ── Collapsed summary: emoji + engine title, then subtitle ──
+                // ── Collapsed summary: emoji + title, then subtitle ──
                 if (!expanded && view != null) {
-                    val summaryText =
-                        buildString {
-                            append("${config.iconEmoji} ${view.title}")
-                            view.countLabel?.let { append(" ($it)") }
-                        }
-                    Text(
-                        text = summaryText,
-                        style =
-                            MaterialTheme.typography.bodySmall.copy(
-                                color = contentColor.copy(alpha = 0.7f),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                            ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp, start = 22.dp),
-                    )
-                    if (view.subtitle.isNotBlank() && view.subtitle != view.title) {
+                    composeToolSummaryLines(view, message.toolName, config.iconEmoji)?.let { (firstLine, secondLine) ->
                         Text(
-                            text = view.subtitle,
+                            text = firstLine,
                             style =
                                 MaterialTheme.typography.bodySmall.copy(
-                                    color = contentColor.copy(alpha = 0.5f),
+                                    color = contentColor.copy(alpha = 0.7f),
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 11.sp,
                                 ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 1.dp, start = 22.dp),
+                            modifier = Modifier.padding(top = 4.dp, start = 22.dp),
                         )
+                        if (secondLine != null) {
+                            Text(
+                                text = secondLine,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        color = contentColor.copy(alpha = 0.5f),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                    ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 1.dp, start = 22.dp),
+                            )
+                        }
                     }
                 }
 

@@ -28,12 +28,14 @@ import kotlin.math.min
  * window so the user sees compression pressure building before a turn silently
  * compacts.
  *
- * The denominator (`fullTokens`) comes from `GET /api/model/info` (PUBLIC) and
- * is always available. The numerator (`usedTokens`) comes from
- * `GET /api/sessions/{id}` (`input_tokens`) — gated, so it may lag or be absent
- * on first render. The chip shows as soon as `fullTokens` is known; when
- * `usedTokens` is still null it renders `— / <full>` (unknown used) rather than
- * hiding entirely, so a missing gated fetch never blanks the meter.
+ * The denominator (`fullTokens`) comes from the `session.context_breakdown`
+ * WS RPC's `context_max` (fallback `GET /api/model/info`), and the numerator
+ * (`usedTokens`) from the same RPC's `context_used` — the live agent's actual
+ * prompt occupancy, which drops after context compression (issue #756). The
+ * RPC may be absent on first render (WS still connecting); the chip shows as
+ * soon as `fullTokens` is known, and when `usedTokens` is still null it
+ * renders `— / <full>` (unknown used) rather than hiding entirely, so a
+ * missing fetch never blanks the meter.
  *
  * @param usedTokens tokens currently in the session prompt (numerator), or null
  * @param fullTokens the active model's full context window (denominator)

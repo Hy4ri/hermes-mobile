@@ -15,6 +15,9 @@ object WsMethods {
     const val SESSION_TITLE = "session.title"
     const val SESSION_BRANCH = "session.branch"
 
+    /** Live context-window occupancy for the chat meter (desktop-mirror). */
+    const val SESSION_CONTEXT_BREAKDOWN = "session.context_breakdown"
+
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
     const val CLARIFY_RESPOND = "clarify.respond"

@@ -18,6 +18,9 @@ object WsMethods {
     /** Live context-window occupancy for the chat meter (desktop-mirror). */
     const val SESSION_CONTEXT_BREAKDOWN = "session.context_breakdown"
 
+    /** Lifetime usage snapshot (calls, token totals, compression count). */
+    const val SESSION_USAGE = "session.usage"
+
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
     const val CLARIFY_RESPOND = "clarify.respond"

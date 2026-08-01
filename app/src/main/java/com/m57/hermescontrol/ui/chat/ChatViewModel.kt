@@ -15,6 +15,7 @@ import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.parseContextBreakdown
+import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.GatewayFile
 import com.m57.hermescontrol.data.remote.GatewayFileClient
@@ -99,7 +100,7 @@ data class ChatUiState(
     val currentSessionModel: String? = null,
     // Reasoning effort level for the current session
     val reasoningLevel: String? = null,
-    // Context-window meter (issue #XXX): tokens currently used by the session
+    // Context-window meter (issue #756): tokens currently used by the session
     // prompt (numerator) and the active model's full context window (denominator).
     // Both null until the first successful fetch.
     val usedContextTokens: Long? = null,
@@ -107,6 +108,10 @@ data class ChatUiState(
     // Detailed token breakdown for the context meter's detail sheet (null until
     // the first successful session-detail fetch).
     val contextBreakdown: ContextBreakdown? = null,
+    // How many times the current session has been context-compressed (null
+    // until the first successful session.usage fetch) — drives the
+    // "compressed ×N" badge on the context chip.
+    val compressionCount: Int? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     // Reaction animation — set when a reaction WS event arrives, auto-clears
@@ -602,6 +607,7 @@ class ChatViewModel(
                         usedContextTokens = null,
                         fullContextTokens = null,
                         contextBreakdown = null,
+                        compressionCount = null,
                     )
                 }
                 // Mirror the active session id app-wide so session-scoped
@@ -627,6 +633,7 @@ class ChatViewModel(
                         usedContextTokens = null,
                         fullContextTokens = null,
                         contextBreakdown = null,
+                        compressionCount = null,
                     )
                 }
                 ActiveSessionHolder.set(newId)
@@ -1463,6 +1470,7 @@ class ChatViewModel(
                 usedContextTokens = null,
                 fullContextTokens = null,
                 contextBreakdown = null,
+                compressionCount = null,
             )
         }
         // Mirror the active session id app-wide (issue #532).
@@ -1698,6 +1706,22 @@ class ChatViewModel(
                 }
             } catch (_: Exception) {
                 // Best-effort: RPC error/timeout/disconnect — keep last values.
+            }
+            // Compression count: how many times this session has been compacted
+            // (session.usage → compressions). Feeds the "compressed ×N" badge —
+            // the same usage snapshot the desktop status bar reads.
+            try {
+                val usage =
+                    sendRpcAndAwait(
+                        WsMethods.SESSION_USAGE,
+                        mapOf("session_id" to rpcSessionId),
+                    )
+                val snapshot = parseUsageSnapshot(usage)
+                if (snapshot != null && snapshot.compressions != null) {
+                    _uiState.update { it.copy(compressionCount = snapshot.compressions) }
+                }
+            } catch (_: Exception) {
+                // Best-effort: keep the last known badge value.
             }
             // Detail-sheet accounting (cumulative REST counters, informational).
             val usedResult =

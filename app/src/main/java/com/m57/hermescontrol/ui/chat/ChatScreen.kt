@@ -542,6 +542,7 @@ fun ChatScreen(
             ContextUsageChip(
                 usedTokens = state.usedContextTokens,
                 fullTokens = state.fullContextTokens,
+                compressionCount = state.compressionCount,
                 onClick =
                     if (state.contextBreakdown != null) {
                         { showContextSheet = true }

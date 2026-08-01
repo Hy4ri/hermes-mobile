@@ -39,11 +39,15 @@ import kotlin.math.min
  *
  * @param usedTokens tokens currently in the session prompt (numerator), or null
  * @param fullTokens the active model's full context window (denominator)
+ * @param compressionCount how many times the session has been context-compressed;
+ * when > 0 a "compressed ×N" badge renders next to the percentage — the badge
+ * explains a meter drop after auto-compaction or `/compress` (issue #756)
  */
 @Composable
 fun ContextUsageChip(
     usedTokens: Long?,
     fullTokens: Long?,
+    compressionCount: Int? = null,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -93,12 +97,25 @@ fun ContextUsageChip(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = "$pct%",
-                style = MaterialTheme.typography.labelSmall,
-                color = barColor,
-                maxLines = 1,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (compressionCount != null && compressionCount > 0) {
+                    Text(
+                        text = "compressed ×$compressionCount",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        maxLines = 1,
+                    )
+                }
+                Text(
+                    text = "$pct%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = barColor,
+                    maxLines = 1,
+                )
+            }
         }
         Box(
             modifier =

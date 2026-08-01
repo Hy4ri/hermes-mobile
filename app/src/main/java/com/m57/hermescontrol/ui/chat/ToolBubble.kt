@@ -60,133 +60,9 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.DiffViewCard
+import com.m57.hermescontrol.ui.chat.tool.ToolView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-@Composable
-private fun ExpandedToolContent(
-    parsed: ParsedToolData,
-    contentColor: Color,
-    statusColors: HermesStatusColors,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        // Summary line at top of expanded view
-        if (parsed.summaryText != null) {
-            Text(
-                text = parsed.summaryText,
-                style =
-                    MaterialTheme.typography.bodySmall.copy(
-                        color = contentColor.copy(alpha = 0.7f),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                    ),
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-        }
-
-        if (parsed.isTerminal) {
-            // ── Terminal output ──
-            parsed.stdout?.let {
-                Text(
-                    text = it,
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = contentColor.copy(alpha = 0.9f),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                        ),
-                )
-            }
-            parsed.error?.let {
-                Text(
-                    text = stringResource(R.string.chat_tool_execution_error, it),
-                    style =
-                        MaterialTheme.typography.bodySmall.copy(
-                            color = statusColors.error,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                        ),
-                )
-            }
-            parsed.exitCode?.let { code ->
-                if (code != 0) {
-                    Text(
-                        text = stringResource(R.string.chat_tool_exit_code, code),
-                        style =
-                            MaterialTheme.typography.labelSmall.copy(
-                                color = statusColors.error,
-                                fontWeight = FontWeight.Medium,
-                            ),
-                    )
-                }
-            }
-
-            // Duration footer for terminal
-            parsed.durationSec?.let { dur ->
-                Text(
-                    text = "Duration: ${"%.1f".format(dur)}s",
-                    style =
-                        MaterialTheme.typography.labelSmall.copy(
-                            color = contentColor.copy(alpha = 0.5f),
-                        ),
-                )
-            }
-        } else {
-            // ── Generic tool output / Diff view ──
-            if (parsed.diffOutput != null) {
-                DiffViewCard(
-                    diffText = parsed.diffOutput,
-                    filePath = parsed.diffPath,
-                )
-            } else {
-                parsed.mainOutput?.let {
-                    Text(
-                        text = it,
-                        style =
-                            MaterialTheme.typography.bodySmall.copy(
-                                color = contentColor.copy(alpha = 0.9f),
-                                fontSize = 12.sp,
-                            ),
-                    )
-                }
-                parsed.extraFields.forEach { (key, value) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "$key:",
-                            style =
-                                MaterialTheme.typography.labelSmall.copy(
-                                    color = contentColor.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                        )
-                        Text(
-                            text = value,
-                            style =
-                                MaterialTheme.typography.bodySmall.copy(
-                                    color = contentColor.copy(alpha = 0.9f),
-                                    fontSize = 11.sp,
-                                ),
-                        )
-                    }
-                }
-            }
-        }
-        // Duration footer
-        parsed.durationSec?.let { dur ->
-            Text(
-                text = "Duration: ${"%.1f".format(dur)}s",
-                style =
-                    MaterialTheme.typography.labelSmall.copy(
-                        color = contentColor.copy(alpha = 0.5f),
-                    ),
-            )
-        }
-    }
-}
 
 @Composable
 internal fun ToolBubble(
@@ -199,7 +75,7 @@ internal fun ToolBubble(
     val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
     val statusColors = LocalHermesStatusColors.current
 
-    val parsed =
+    val view =
         remember(message.content, message.toolName, message.toolStatus) {
             parseToolOutput(message.content, message.toolName, message.toolStatus == ToolStatus.RUNNING)
         }
@@ -260,10 +136,15 @@ internal fun ToolBubble(
                     SecurityRiskChip(riskData, contentColor)
                 }
 
-                // ── Summary line (always visible when collapsed) ──
-                if (!expanded && parsed?.summaryText != null) {
+                // ── Collapsed summary: emoji + engine title, then subtitle ──
+                if (!expanded && view != null) {
+                    val summaryText =
+                        buildString {
+                            append("${config.iconEmoji} ${view.title}")
+                            view.countLabel?.let { append(" ($it)") }
+                        }
                     Text(
-                        text = parsed.summaryText,
+                        text = summaryText,
                         style =
                             MaterialTheme.typography.bodySmall.copy(
                                 color = contentColor.copy(alpha = 0.7f),
@@ -274,6 +155,20 @@ internal fun ToolBubble(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 4.dp, start = 22.dp),
                     )
+                    if (view.subtitle.isNotBlank() && view.subtitle != view.title) {
+                        Text(
+                            text = view.subtitle,
+                            style =
+                                MaterialTheme.typography.bodySmall.copy(
+                                    color = contentColor.copy(alpha = 0.5f),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 1.dp, start = 22.dp),
+                        )
+                    }
                 }
 
                 // ── Expanded content ──
@@ -318,11 +213,11 @@ internal fun ToolBubble(
                                     .testTag("chat_tool_show_parsed")
                                     .clickable(role = Role.Button) { showRawJson = false },
                         )
-                    } else if (parsed != null) {
+                    } else if (view != null) {
                         // Clean structured expanded view
                         Box {
                             SelectionContainer {
-                                ExpandedToolContent(parsed, contentColor, statusColors)
+                                ExpandedToolContent(view, contentColor, statusColors)
                             }
                             CopyButton(
                                 visible = showCopyButton,
@@ -383,6 +278,173 @@ internal fun ToolBubble(
                     modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Renders the engine's [ToolView] — the expanded body of a tool card.
+ *
+ * Order: error line → terminal streams ($ command / stdout / stderr / exit
+ * code) → file diff → search hits → plain detail → duration footer.
+ */
+@Composable
+private fun ExpandedToolContent(
+    view: ToolView,
+    contentColor: Color,
+    statusColors: HermesStatusColors,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val isTerminal =
+            view.stdout != null ||
+                view.stderr != null ||
+                view.exitCode != null ||
+                view.terminalCommand != null
+
+        // ── Error line ──
+        view.error?.let {
+            Text(
+                text = stringResource(R.string.chat_tool_execution_error, it),
+                style =
+                    MaterialTheme.typography.bodySmall.copy(
+                        color = statusColors.error,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                    ),
+            )
+        }
+
+        // ── Terminal: $ command + streams + exit code ──
+        if (isTerminal) {
+            view.terminalCommand?.takeIf { it.isNotEmpty() }?.let { command ->
+                Text(
+                    text = "$ $command",
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = contentColor.copy(alpha = 0.7f),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                        ),
+                )
+            }
+            view.stdout?.let {
+                Text(
+                    text = it,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = contentColor.copy(alpha = 0.9f),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                        ),
+                )
+            }
+            view.stderr?.let {
+                Text(
+                    text = it,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = contentColor.copy(alpha = 0.6f),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                        ),
+                )
+            }
+            view.exitCode?.let { code ->
+                if (code != 0) {
+                    Text(
+                        text = stringResource(R.string.chat_tool_exit_code, code),
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = statusColors.error,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                    )
+                }
+            }
+        } else {
+            // ── File diff ──
+            if (view.inlineDiff != null) {
+                DiffViewCard(
+                    diffText = view.inlineDiff,
+                    filePath = view.diffPath,
+                )
+            }
+
+            // ── Search hits ──
+            if (!view.searchHits.isNullOrEmpty()) {
+                view.detailLabel?.let { label ->
+                    Text(
+                        text = label,
+                        style =
+                            MaterialTheme.typography.labelSmall.copy(
+                                color = contentColor.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Bold,
+                            ),
+                    )
+                }
+                view.searchHits.forEach { hit ->
+                    Column(modifier = Modifier.padding(top = 2.dp)) {
+                        if (hit.title.isNotEmpty()) {
+                            Text(
+                                text = hit.title,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        color = contentColor.copy(alpha = 0.9f),
+                                        fontWeight = FontWeight.Medium,
+                                    ),
+                            )
+                        }
+                        if (hit.snippet.isNotEmpty()) {
+                            Text(
+                                text = hit.snippet,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        color = contentColor.copy(alpha = 0.6f),
+                                        fontSize = 11.sp,
+                                    ),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (hit.url.isNotEmpty()) {
+                            Text(
+                                text = "🔗 ${hit.url}",
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        color = contentColor.copy(alpha = 0.7f),
+                                        fontSize = 11.sp,
+                                    ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Plain detail body ──
+            if (view.detail.isNotBlank() && view.inlineDiff == null) {
+                Text(
+                    text = view.detail,
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = contentColor.copy(alpha = 0.9f),
+                            fontSize = 12.sp,
+                        ),
+                )
+            }
+        }
+
+        // ── Duration footer ──
+        view.durationLabel?.let {
+            Text(
+                text = "Duration: $it",
+                style =
+                    MaterialTheme.typography.labelSmall.copy(
+                        color = contentColor.copy(alpha = 0.5f),
+                    ),
+            )
         }
     }
 }

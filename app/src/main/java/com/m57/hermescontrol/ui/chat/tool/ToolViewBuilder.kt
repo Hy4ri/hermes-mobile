@@ -47,10 +47,13 @@ object ToolViewBuilder {
         if (v is JsonNull) {
             return null
         }
-        if (v !is JsonPrimitive || v.isString) {
+        if (v !is JsonPrimitive) {
             return null
         }
 
+        // TS source does `Number(value)` — numeric STRINGS ("0.0", "12") are
+        // accepted, matching the desktop engine and the gateway's habit of
+        // shipping exit_code as a string or float.
         return v.content.toDoubleOrNull()
     }
 
@@ -946,12 +949,19 @@ object ToolViewBuilder {
                 }
             }
             "memory" -> {
-                when (firstString(args, listOf("action")).lowercase()) {
-                    "replace", "update" -> "Memory Updated"
-                    "remove", "delete" -> "Memory Removed"
-                    "add" -> "Memory Saved"
-                    else -> "Memory ${firstString(args, listOf("action"))}"
-                }
+                val action = firstString(args, listOf("action")).lowercase()
+                val target = firstString(args, listOf("target"))
+                val base =
+                    when (action) {
+                        "replace", "update" -> "Memory Updated"
+                        "remove", "delete" -> "Memory Removed"
+                        "add" -> "Memory Saved"
+                        else -> "Memory ${firstString(args, listOf("action"))}"
+                    }
+
+                // Keep the target visible — "Memory Saved (user)" — like the
+                // pre-engine mobile summary did.
+                if (target.isNotEmpty()) "$base ($target)" else base
             }
             "cronjob" -> "Cron ${firstString(args, listOf("action")).ifEmpty { "manage" }}"
             "edit_file", "patch", "write_file" -> {

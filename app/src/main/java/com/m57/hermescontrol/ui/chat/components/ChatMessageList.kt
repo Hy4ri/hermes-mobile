@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +23,8 @@ import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.ToolCallDivider
+import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
 
 /**
@@ -39,6 +42,7 @@ fun ChatMessageList(
     searchMatchIndices: List<Int>,
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
+    maxToolCallsPerTurn: Int? = null,
     isLoading: Boolean,
     isLoadingOlder: Boolean,
     isDark: Boolean,
@@ -62,6 +66,7 @@ fun ChatMessageList(
             )
         }
     } else {
+        val toolMilestones = toolCallMilestones(messages)
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -90,27 +95,33 @@ fun ChatMessageList(
                 val isLastMessage = index == messages.lastIndex
                 val isAssistant = message.role == MessageRole.ASSISTANT
 
-                if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
-                    lastAnimatedMessageId != message.id
-                ) {
-                    StreamingBubbleWithTypingEffect(
-                        streaming = message,
-                        typingDelayMs = typingEffectDelayMs,
-                        isDark = isDark,
-                        onAnimationComplete = {
-                            onLastAnimatedMessageIdChange(message.id)
-                        },
-                    )
-                } else {
-                    ChatBubble(
-                        message = message,
-                        isDarkTheme = isDark,
-                        searchQuery = if (isSearchActive) searchQuery else "",
-                        isCurrentMatch = isCurrentMatch,
-                        onRespondApproval = viewModel::respondToApproval,
-                        onOpenAttachment = viewModel::openAttachment,
-                        onImageClick = onImageClick,
-                    )
+                Column {
+                    if (typingEffectEnabled && isLastMessage && isAssistant && message.isStreaming &&
+                        lastAnimatedMessageId != message.id
+                    ) {
+                        StreamingBubbleWithTypingEffect(
+                            streaming = message,
+                            typingDelayMs = typingEffectDelayMs,
+                            isDark = isDark,
+                            onAnimationComplete = {
+                                onLastAnimatedMessageIdChange(message.id)
+                            },
+                        )
+                    } else {
+                        ChatBubble(
+                            message = message,
+                            isDarkTheme = isDark,
+                            searchQuery = if (isSearchActive) searchQuery else "",
+                            isCurrentMatch = isCurrentMatch,
+                            onRespondApproval = viewModel::respondToApproval,
+                            onOpenAttachment = viewModel::openAttachment,
+                            onImageClick = onImageClick,
+                        )
+                    }
+                    // Subtle beat counter after every 5th tool call (issue #767).
+                    toolMilestones[index]?.let { count ->
+                        ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
+                    }
                 }
             }
 

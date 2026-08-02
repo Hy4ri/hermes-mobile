@@ -44,7 +44,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -67,6 +70,12 @@ data class ChatUiState(
     val isLoading: Boolean = false,
     val isLoadingOlder: Boolean = false,
     val hasOlderMessages: Boolean = false,
+    /**
+     * Real per-turn tool-call budget (agent.max_turns) from GET /api/config.
+     * Null when it could not be fetched — the tool-call dividers then degrade
+     * to a bare count instead of a hardcoded default.
+     */
+    val maxToolCallsPerTurn: Int? = null,
     /** Standalone streaming message — rendered after the main list. */
     val streamingMessage: ChatMessage? = null,
     val errorMessage: String? = null,
@@ -281,6 +290,7 @@ class ChatViewModel(
 
     init {
         refreshSettings()
+        refreshMaxToolCallsPerTurn()
 
         connectWebSocket(setLoading = false)
         viewModelScope.launch {
@@ -1323,6 +1333,32 @@ class ChatViewModel(
                 typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
                 typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
             )
+        }
+    }
+
+    /**
+     * Fetch the real per-turn tool-call budget (`agent.max_turns` — falling back
+     * to the legacy top-level `max_turns`) from GET /api/config so the chat's
+     * tool-call dividers can render `count/max` against the actual backend
+     * limit. Never hardcoded. Null on failure — the divider degrades to a
+     * bare count.
+     */
+    private fun refreshMaxToolCallsPerTurn() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = ApiClient.hermesApi.getConfig()
+                if (!response.isSuccessful) return@launch
+                val config = response.body() ?: return@launch
+                val agent = config["agent"] as? JsonObject
+                val max =
+                    (agent?.get("max_turns")?.jsonPrimitive?.intOrNull)
+                        ?: config["max_turns"]?.jsonPrimitive?.intOrNull
+                if (max != null && max > 0) {
+                    _uiState.update { it.copy(maxToolCallsPerTurn = max) }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch max tool calls per turn", e)
+            }
         }
     }
 

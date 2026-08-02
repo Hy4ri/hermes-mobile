@@ -504,6 +504,7 @@ fun ChatScreen(
                     searchMatchIndices = state.searchMatchIndices,
                     typingEffectEnabled = state.typingEffectEnabled,
                     typingEffectDelayMs = state.typingEffectDelayMs,
+                    maxToolCallsPerTurn = state.maxToolCallsPerTurn,
                     isLoading = state.isLoading,
                     isLoadingOlder = state.isLoadingOlder,
                     isDark = isDark,

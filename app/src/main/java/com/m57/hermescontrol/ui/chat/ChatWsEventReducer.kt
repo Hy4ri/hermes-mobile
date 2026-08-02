@@ -247,11 +247,31 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.ReasoningAvailable,
-    ): ReducerResult =
-        ReducerResult(
-            state = state,
-            streamingState = streamingState.copy(isReasoning = true),
-        )
+    ): ReducerResult {
+        // The gateway sends the FULL reasoning trace in reasoning.available
+        // (payload `text`) once reasoning finishes streaming. When the text
+        // is present, use it as the authoritative fill — it survives even if
+        // per-token reasoning.delta events were dropped or wiped by a
+        // mid-turn tool.start. Attach it to the live streaming message so
+        // message.complete carries it into the finalized bubble.
+        val text = event.text
+        return if (!text.isNullOrBlank() && streamingState.streamingMessage != null) {
+            ReducerResult(
+                state = state,
+                streamingState =
+                    streamingState.copy(
+                        isReasoning = true,
+                        reasoningText = text,
+                        streamingMessage = streamingState.streamingMessage.copy(reasoningText = text),
+                    ),
+            )
+        } else {
+            ReducerResult(
+                state = state,
+                streamingState = streamingState.copy(isReasoning = true),
+            )
+        }
+    }
 
     // ── MessageComplete ───────────────────────────────────────────────
 
@@ -261,12 +281,15 @@ object ChatWsEventReducer {
         event: WsEvent.MessageComplete,
     ): ReducerResult {
         val streaming = streamingState.streamingMessage
+        // Prefer the authoritative reasoning carried in the message.complete
+        // payload (the gateway's assembled full trace), then fall back to
+        // whatever reasoning.delta deltas accumulated during streaming.
+        // Fixes: a mid-turn tool.start wiping the streaming reasoning used
+        // to leave the finalized bubble with no reasoning card at all.
         val reasoning =
-            if (streamingState.reasoningText.isNotBlank()) {
-                streamingState.reasoningText
-            } else {
-                streaming?.reasoningText ?: ""
-            }
+            event.reasoning
+                ?.takeIf { it.isNotBlank() }
+                ?: streamingState.reasoningText.ifBlank { streaming?.reasoningText ?: "" }
         val msg =
             streaming?.copy(
                 content = event.text,
@@ -392,11 +415,29 @@ object ChatWsEventReducer {
             effects.add(ReducerEffect.PersistMessage(toolMessage, sid))
         }
 
+        // Issue #771: KEEP the streaming state across a tool call instead of
+        // resetting it. A reasoning-model turn streams its thinking BEFORE the
+        // tool starts (content is still empty here) — wiping the streaming
+        // message at tool.start made the reasoning bubble vanish mid-turn and
+        // left the finalized answer with no reasoning card. The stream stays
+        // alive; post-tool message.delta continues the SAME message and
+        // message.complete finalizes it with the reasoning intact.
+        // When an orphan WAS sealed (interim text before the tool), the
+        // streaming message is done — null it, but keep the reasoning text in
+        // the shared state so the post-tool fallback message still picks it up.
+        val finalStreamingState =
+            if (orphanToPersist != null) {
+                streamingState.copy(streamingMessage = null)
+            } else {
+                streamingState
+            }
+
         val parsedTodos = if (event.name == "todo") extractTodosFromMap(event.data) else null
         val nextTodos = parsedTodos ?: newState.todos
 
         return ReducerResult(
             state = newState.copy(messages = newState.messages + toolMessage, todos = nextTodos),
+            streamingState = finalStreamingState,
             effects = effects,
         )
     }

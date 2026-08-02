@@ -37,11 +37,26 @@ sealed class WsEvent {
 
     data class ReasoningAvailable(
         val sessionId: String?,
+        /**
+         * Full reasoning text, emitted once reasoning finishes streaming
+         * (`reasoning.available` payload `text`). The gateway sends the
+         * complete trace here even when per-token `reasoning.delta` events
+         * were throttled, dropped, or wiped by a mid-turn tool.start — the
+         * client must use it as the authoritative fill for the card.
+         */
+        val text: String? = null,
     ) : WsEvent()
 
     data class MessageComplete(
         val text: String,
         val sessionId: String?,
+        /**
+         * Full reasoning trace for the completed message, carried in the
+         * `message.complete` payload (`reasoning` key). Authoritative
+         * fallback when per-token `reasoning.delta` events never arrived
+         * (e.g. a tool call wiped the streaming buffer mid-turn).
+         */
+        val reasoning: String? = null,
     ) : WsEvent()
 
     data class MessageDone(

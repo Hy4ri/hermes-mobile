@@ -55,6 +55,25 @@ class ChatStreamingController(
         streamingState.update { it.copy(isReasoning = false, reasoningText = "") }
     }
 
+    /**
+     * Clears ONLY the throttled token buffers (and their flush timers) —
+     * never touches `streamingMessage`, `isReasoning` or `reasoningText`.
+     *
+     * Used at tool.start: the reducer keeps the streaming message + its
+     * reasoning alive across the tool call (issue #771), and the VM must
+     * not undo that by resetting the shared streaming state. The buffers
+     * themselves are drained (flushPendingReasoning) before reduce, so a
+     * buffer-only clear is safe and prevents stale deltas from re-flushing.
+     */
+    fun clearStreamingBuffers() {
+        streamingBuffer.clear()
+        thinkingBuffer.clear()
+        reasoningBuffer.clear()
+        lastFlushMs = 0L
+        lastThinkingFlushMs = 0L
+        lastReasoningFlushMs = 0L
+    }
+
     /** Resets buffers and starts a fresh streaming message (called on MessageStart). */
     fun beginStreamingMessage() {
         resetStreaming()

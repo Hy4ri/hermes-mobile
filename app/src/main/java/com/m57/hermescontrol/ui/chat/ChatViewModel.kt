@@ -538,8 +538,12 @@ class ChatViewModel(
             }
 
             is WsEvent.ToolStart -> {
-                // Reset streaming state when a tool starts
-                streamingController.resetStreaming()
+                // Issue #771: the reducer keeps the streaming message (and its
+                // reasoning) alive across the tool call so the finalized answer
+                // retains the thinking card. Only the token buffers are cleared
+                // here — resetStreaming() would wipe streamingMessage +
+                // reasoningText and re-introduce the mid-turn reasoning vanish.
+                streamingController.clearStreamingBuffers()
             }
 
             is WsEvent.RpcResult -> {
@@ -2027,10 +2031,27 @@ class ChatViewModel(
                 .filter { it.reasoningText.isNotBlank() }
                 .associateBy { it.content }
 
+        // Tool rows in the REST transcript carry NO tool name — the live WS
+        // stream was the only source of `toolName`. When reloading the same
+        // session's transcript, carry the name over by position (the nth
+        // tool row in the transcript is the nth tool message in the live
+        // list) so tool bubbles keep their real title instead of degrading
+        // to the generic "tool" fallback. Issue #771.
+        val liveToolMessages = _uiState.value.messages.filter { it.role == MessageRole.TOOL }
+        var liveToolIndex = 0
+
         val baseUrl = AuthManager.getBaseUrl()
         val token = AuthManager.getToken().orEmpty()
 
-        return messages.mapIndexed { index, msg ->
+        val mapped = mutableListOf<ChatMessage>()
+        // The gateway stores a reasoning-model's thinking as its OWN assistant
+        // row (content = "", reasoning = trace) directly before the answer row.
+        // Rendering that as a standalone empty assistant bubble is the
+        // "reasoning box in a separate bubble" artifact — fold it into the
+        // next assistant message with content instead. Issue #771.
+        var pendingReasoning: String? = null
+
+        messages.forEachIndexed { index, msg ->
             val role =
                 when (msg.role?.lowercase()) {
                     "user" -> MessageRole.USER
@@ -2047,12 +2068,20 @@ class ChatViewModel(
                     ?: System.currentTimeMillis()
 
             val rawContent = msg.contentText
-            val reasoning =
+            val rowReasoning =
                 if (msg.reasoningText.isNotBlank()) {
                     msg.reasoningText
                 } else {
                     existingReasoningMap[rawContent]?.reasoningText.orEmpty()
                 }
+
+            // Reasoning-only assistant row (the gateway's split storage of a
+            // reasoning turn): stash the trace, skip the empty bubble, and
+            // attach it to the next assistant message that has content.
+            if (role == MessageRole.ASSISTANT && rawContent.isBlank() && rowReasoning.isNotBlank()) {
+                pendingReasoning = rowReasoning
+                return@forEachIndexed
+            }
 
             var finalContent = rawContent
             var attachments: List<Attachment>? = null
@@ -2081,16 +2110,49 @@ class ChatViewModel(
                 }
             }
 
-            ChatMessage(
-                id = "rest-$sessionId-$globalIndex",
-                role = role,
-                content = finalContent,
-                reasoningText = reasoning,
-                attachments = attachments,
-                timestamp = timestamp,
-                isStreaming = false,
+            val finalReasoning =
+                if (rowReasoning.isNotBlank()) {
+                    rowReasoning
+                } else if (role == MessageRole.ASSISTANT && pendingReasoning != null) {
+                    pendingReasoning.also { pendingReasoning = null }
+                } else {
+                    ""
+                }
+
+            val toolName =
+                if (role == MessageRole.TOOL) {
+                    liveToolMessages.getOrNull(liveToolIndex++)?.toolName
+                } else {
+                    null
+                }
+
+            mapped.add(
+                ChatMessage(
+                    id = "rest-$sessionId-$globalIndex",
+                    role = role,
+                    content = finalContent,
+                    reasoningText = finalReasoning,
+                    attachments = attachments,
+                    timestamp = timestamp,
+                    isStreaming = false,
+                    toolName = toolName,
+                ),
             )
         }
+
+        // A reasoning-only row with no following answer (interrupted turn):
+        // don't drop the trace — attach it to the last assistant message.
+        if (pendingReasoning != null) {
+            val lastAssistantIdx = mapped.indexOfLast { it.role == MessageRole.ASSISTANT }
+            if (lastAssistantIdx >= 0) {
+                val target = mapped[lastAssistantIdx]
+                if (target.reasoningText.isBlank()) {
+                    mapped[lastAssistantIdx] = target.copy(reasoningText = pendingReasoning!!)
+                }
+            }
+        }
+
+        return mapped
     }
 
     // ── Issue #724: attach host-path MEDIA: files as real attachments ────

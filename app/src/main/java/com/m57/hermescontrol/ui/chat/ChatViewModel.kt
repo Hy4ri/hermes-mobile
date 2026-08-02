@@ -58,6 +58,85 @@ import java.util.concurrent.ConcurrentHashMap
 private const val TAG = "ChatViewModel"
 private const val MESSAGE_PAGE_SIZE = 150
 
+/**
+ * Canonical comparison key for a tool message's result payload.
+ *
+ * WS tool messages store the full tool.complete payload
+ * (`{"tool_id":..., "name":..., "args":..., "result": {...}}`) while REST
+ * transcript rows store just the result object (`{"output":..., "exit_code":...}`).
+ * This key normalizes both sides — preferring the `result` field when present,
+ * and treating int/float JSON numbers as equal — so the two representations of
+ * the SAME tool call can be matched regardless of position or pagination.
+ * Returns null for unparseable content (no match possible).
+ */
+internal fun canonicalToolResultKey(content: String): String? {
+    val element =
+        try {
+            OkHttpProvider.json.parseToJsonElement(content)
+        } catch (_: Exception) {
+            return null
+        }
+
+    fun canon(e: kotlinx.serialization.json.JsonElement): String =
+        when (e) {
+            is kotlinx.serialization.json.JsonObject ->
+                e.entries.sortedBy { it.key }.joinToString("|") { "${it.key}=${canon(it.value)}" }
+            is kotlinx.serialization.json.JsonArray ->
+                e.joinToString(",") { canon(it) }
+            is kotlinx.serialization.json.JsonPrimitive -> {
+                // Canonicalize ALL numbers through double, collapsing int/float
+                // spellings of the same value (0 vs 0.0 → "i0", 0.5 → "d0.5").
+                val s = e.content
+                val d = s.toDoubleOrNull()
+                if (d != null) {
+                    if (d == d.toLong().toDouble()) "i${d.toLong()}" else "d$d"
+                } else {
+                    "s$s"
+                }
+            }
+        }
+    return when (element) {
+        is kotlinx.serialization.json.JsonObject ->
+            element["result"]?.let { canon(it) } ?: canon(element)
+        else -> canon(element)
+    }
+}
+
+/**
+ * True when [a] and [b] are the same logical message (the WS-persisted and
+ * REST-persisted copies of one row — they carry different ids, see #771).
+ * Tool messages match on their normalized result payload; other roles on
+ * exact content.
+ */
+internal fun sameLogicalMessage(
+    a: ChatMessage,
+    b: ChatMessage,
+): Boolean {
+    if (a.role != b.role) return false
+    if (a.role == MessageRole.TOOL) {
+        val ka = canonicalToolResultKey(a.content)
+        val kb = canonicalToolResultKey(b.content)
+        return ka != null && ka == kb
+    }
+    return a.content == b.content
+}
+
+/**
+ * Room accumulates BOTH the WS-persisted copy (UUID id, rich tool payload,
+ * tool name) and the REST-persisted copy (`rest-` id, result-only payload,
+ * no tool name) of every message. Painting the cache verbatim renders the
+ * same call twice. Drop the `rest-` copy whenever a WS copy of the same
+ * logical message exists (issue #771).
+ */
+internal fun dedupeCachedMessages(messages: List<ChatMessage>): List<ChatMessage> {
+    val rest = messages.filter { it.id.startsWith("rest-") }
+    if (rest.isEmpty()) return messages
+    val nonRest = messages.filterNot { it.id.startsWith("rest-") }
+    if (nonRest.isEmpty()) return messages
+    val keepRest = rest.filter { restMsg -> nonRest.none { sameLogicalMessage(it, restMsg) } }
+    return (nonRest + keepRest).sortedBy { it.timestamp }
+}
+
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val currentSessionId: String? = null,
@@ -1585,7 +1664,7 @@ class ChatViewModel(
 
     private fun loadCachedMessages(sessionId: String): Job =
         viewModelScope.launch(Dispatchers.IO) {
-            val cachedMessages = repo.loadMessages(sessionId)
+            val cachedMessages = dedupeCachedMessages(repo.loadMessages(sessionId))
             _uiState.update { state ->
                 // Only paint if still showing this session AND no fresher server
                 // page has landed yet (a fast REST fetch must not be clobbered
@@ -2032,13 +2111,22 @@ class ChatViewModel(
                 .associateBy { it.content }
 
         // Tool rows in the REST transcript carry NO tool name — the live WS
-        // stream was the only source of `toolName`. When reloading the same
-        // session's transcript, carry the name over by position (the nth
-        // tool row in the transcript is the nth tool message in the live
-        // list) so tool bubbles keep their real title instead of degrading
-        // to the generic "tool" fallback. Issue #771.
-        val liveToolMessages = _uiState.value.messages.filter { it.role == MessageRole.TOOL }
-        var liveToolIndex = 0
+        // stream was the only source of `toolName`. Match each REST tool row
+        // to its WS counterpart by RESULT CONTENT (not position — pagination
+        // and mixed cache state make positional mapping misalign, leaving
+        // the newest call with a null name → generic "tool" bubble). When a
+        // match is found the live message is reused wholesale (same id +
+        // toolName + rich payload), so persistence upserts the same row
+        // instead of accumulating a second `rest-` copy in Room. Issue #771.
+        val liveToolByResult = linkedMapOf<String, ChatMessage>()
+        _uiState.value.messages
+            .filter { it.role == MessageRole.TOOL }
+            .sortedBy { it.id.startsWith("rest-") } // prefer live WS copies
+            .forEach { msg ->
+                canonicalToolResultKey(msg.content)?.let { key ->
+                    liveToolByResult.putIfAbsent(key, msg)
+                }
+            }
 
         val baseUrl = AuthManager.getBaseUrl()
         val token = AuthManager.getToken().orEmpty()
@@ -2119,12 +2207,18 @@ class ChatViewModel(
                     ""
                 }
 
-            val toolName =
-                if (role == MessageRole.TOOL) {
-                    liveToolMessages.getOrNull(liveToolIndex++)?.toolName
-                } else {
-                    null
+            // Tool rows in the REST transcript carry no tool name. When the
+            // result payload matches a live WS tool message, reuse it whole —
+            // keeps the real name, the rich WS payload, AND the same id so
+            // Room upserts instead of accumulating a duplicate `rest-` row.
+            if (role == MessageRole.TOOL) {
+                canonicalToolResultKey(rawContent)?.let { key ->
+                    liveToolByResult[key]?.let { live ->
+                        mapped.add(live)
+                        return@forEachIndexed
+                    }
                 }
+            }
 
             mapped.add(
                 ChatMessage(
@@ -2135,7 +2229,6 @@ class ChatViewModel(
                     attachments = attachments,
                     timestamp = timestamp,
                     isStreaming = false,
-                    toolName = toolName,
                 ),
             )
         }

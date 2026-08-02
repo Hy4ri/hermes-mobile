@@ -25,7 +25,21 @@
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/chat.png" width="180" alt="Hermes Mobile chat screen" />
+  <img src="docs/screenshots/cron.png" width="180" alt="Hermes Mobile cron jobs screen" />
+  <img src="docs/screenshots/kanban.png" width="180" alt="Hermes Mobile Kanban screen" />
+  <img src="docs/screenshots/skills.png" width="180" alt="Hermes Mobile skills screen" />
+</p>
+
+<p align="center"><em>Chat, automation, productivity, and agent configuration — from your phone.</em></p>
+
+---
+
 ## Features
+
 
 - **Real-Time Chat:** Message your agent with Room-backed local database history and inline reply notifications.
 - **System Config:** Manage active profiles, installed skills, plugins, toolsets, and LLM model/provider selections.

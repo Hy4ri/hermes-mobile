@@ -124,4 +124,107 @@ class ChatToolDedupeTest {
         val result = dedupeCachedMessages(listOf(wsTool))
         assertEquals(1, result.size)
     }
+
+    // ── mergeTranscriptWithLive ────────────────────────────────────────────
+
+    @Test
+    fun merge_midTurnReload_keepsInFlightToolBubble() {
+        // Reload lands while the tool is RUNNING — the REST page has the
+        // user row only (server persists the tool row at completion).
+        val current =
+            listOf(
+                ChatMessage(role = MessageRole.USER, content = "run echo meow", timestamp = 1),
+                ChatMessage(
+                    role = MessageRole.TOOL,
+                    content = wsToolContent,
+                    toolName = "terminal",
+                    toolStatus = ToolStatus.RUNNING,
+                    timestamp = 2,
+                ),
+            )
+        val restPage =
+            listOf(ChatMessage(role = MessageRole.USER, content = "run echo meow", id = "rest-s-0", timestamp = 1))
+
+        val merged = mergeTranscriptWithLive(restPage, current)
+
+        assertEquals(2, merged.size)
+        // The RUNNING tool bubble survives the reload
+        assertEquals(ToolStatus.RUNNING, merged[1].toolStatus)
+        assertEquals("terminal", merged[1].toolName)
+    }
+
+    @Test
+    fun merge_reusedLiveToolId_noDuplicate() {
+        // Post-completion reload: mapServerMessages reuses the live WS tool
+        // message (same id) — the old copy is covered by id, no duplicate.
+        val liveTool =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = wsToolContent,
+                toolName = "terminal",
+                toolStatus = ToolStatus.COMPLETED,
+                timestamp = 2,
+            )
+        val current = listOf(liveTool)
+        val restPage =
+            listOf(
+                ChatMessage(role = MessageRole.USER, content = "run echo meow", id = "rest-s-0", timestamp = 1),
+                liveTool,
+            )
+
+        val merged = mergeTranscriptWithLive(restPage, current)
+
+        assertEquals(2, merged.size)
+        assertEquals(1, merged.count { it.role == MessageRole.TOOL })
+    }
+
+    @Test
+    fun merge_restToolCopyWithCanonicalMatch_noDuplicate() {
+        // Rest- copy + WS copy of the same call (canonical match) — the WS
+        // copy is dropped from the tail, only the REST row stays.
+        val wsTool =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = wsToolContent,
+                toolName = "terminal",
+                toolStatus = ToolStatus.COMPLETED,
+                timestamp = 2,
+            )
+        val restTool =
+            ChatMessage(role = MessageRole.TOOL, content = restToolContent, id = "rest-s-1", timestamp = 2)
+        val current = listOf(wsTool)
+        val restPage =
+            listOf(
+                ChatMessage(role = MessageRole.USER, content = "run echo meow", id = "rest-s-0", timestamp = 1),
+                restTool,
+            )
+
+        val merged = mergeTranscriptWithLive(restPage, current)
+
+        assertEquals(2, merged.size)
+        assertEquals(1, merged.count { it.role == MessageRole.TOOL })
+        assertEquals("rest-s-1", merged.single { it.role == MessageRole.TOOL }.id)
+    }
+
+    @Test
+    fun merge_preservesChronologicalOrder() {
+        val current =
+            listOf(
+                ChatMessage(role = MessageRole.USER, content = "run echo meow", timestamp = 1),
+                ChatMessage(
+                    role = MessageRole.TOOL,
+                    content = wsToolContent,
+                    toolName = "terminal",
+                    toolStatus = ToolStatus.RUNNING,
+                    timestamp = 2,
+                ),
+            )
+        val restPage =
+            listOf(ChatMessage(role = MessageRole.USER, content = "run echo meow", id = "rest-s-0", timestamp = 1))
+
+        val merged = mergeTranscriptWithLive(restPage, current)
+
+        assertEquals(1, merged[0].timestamp)
+        assertEquals(2, merged[1].timestamp)
+    }
 }

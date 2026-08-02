@@ -137,6 +137,32 @@ internal fun dedupeCachedMessages(messages: List<ChatMessage>): List<ChatMessage
     return (nonRest + keepRest).sortedBy { it.timestamp }
 }
 
+/**
+ * A transcript reload must NOT yank live WS bubbles the server has not
+ * persisted yet. The gateway stores a tool row only once the tool
+ * COMPLETES server-side, so a reload that lands while a tool is running
+ * (app background/foreground mid-turn, reconnect re-resume, pull-refresh)
+ * returns a page without the tool row — replacing the list outright made
+ * the in-flight tool bubble vanish and left tool.complete with no RUNNING
+ * message to update (issue #771).
+ *
+ * Merge instead of replace: append any current message the REST page does
+ * not already cover (checked by id AND logical content via
+ * [sameLogicalMessage]) and keep chronological order.
+ */
+internal fun mergeTranscriptWithLive(
+    restMessages: List<ChatMessage>,
+    currentMessages: List<ChatMessage>,
+): List<ChatMessage> {
+    val restIds = restMessages.map { it.id }.toSet()
+    val liveTail =
+        currentMessages.filter { old ->
+            old.id !in restIds && restMessages.none { sameLogicalMessage(it, old) }
+        }
+    if (liveTail.isEmpty()) return restMessages
+    return (restMessages + liveTail).sortedBy { it.timestamp }
+}
+
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val currentSessionId: String? = null,
@@ -1692,8 +1718,12 @@ class ChatViewModel(
                     }
                     _uiState.update { state ->
                         if (state.currentSessionId != sessionId) return@update state
+                        // Merge, don't replace: a reload mid-turn must not
+                        // drop live WS bubbles (running tool call, streaming
+                        // answer) the server hasn't persisted yet. Issue #771.
+                        val merged = mergeTranscriptWithLive(chatMessages, state.messages)
                         state.copy(
-                            messages = chatMessages,
+                            messages = merged,
                             isLoading = false,
                             hasOlderMessages = serverOffset > 0 && chatMessages.isNotEmpty(),
                             isLoadingOlder = false,

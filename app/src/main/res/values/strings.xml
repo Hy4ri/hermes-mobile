@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HermesMobile</string>
+    <string name="app_name">Hermes Mobile</string>
 
     <!-- Chat -->
     <string name="chat_send_desc">Send</string>

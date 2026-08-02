@@ -1722,7 +1722,6 @@ class ChatViewModel(
                         // drop live WS bubbles (running tool call, streaming
                         // answer) the server hasn't persisted yet. Issue #771.
                         val merged = mergeTranscriptWithLive(chatMessages, state.messages)
-                        Log.d("ChatVM771", "loadSessionMessages: rest=${chatMessages.size} current=${state.messages.size} merged=${merged.size} tools=${merged.count { it.role == MessageRole.TOOL }} roles=${merged.map { it.role.name }}")
                         state.copy(
                             messages = merged,
                             isLoading = false,
@@ -1905,7 +1904,6 @@ class ChatViewModel(
         ) {
             return
         }
-        Log.d("ChatVM771", "syncCurrentSession: messages.size=${state.messages.size} tools=${state.messages.count { it.role == MessageRole.TOOL }}")
         val nextOffset =
             state.messages
                 .mapNotNull { serverMessageIndex(it.id, sessionId) }
@@ -1922,6 +1920,16 @@ class ChatViewModel(
                         withContext(Dispatchers.IO) { repo.persistMessages(incoming, sessionId) }
                         _uiState.update { current ->
                             if (current.currentSessionId != sessionId) return@update current
+                            // Issue #771: the sync merge was dropping the
+                            // newest tool bubble — the incoming REST page
+                            // didn't include it yet (server persists tool rows
+                            // at completion, but the sync offset may predate
+                            // that), and the fragile toolName/content match
+                            // consumed the WRONG incoming tool for an existing
+                            // one, leaving the newest WS tool with no match
+                            // → dropped. Use sameLogicalMessage (canonical
+                            // result-key match) and always preserve any WS
+                            // message that has no REST counterpart.
                             val unmatchedIncoming = incoming.toMutableList()
                             val mergedList = mutableListOf<ChatMessage>()
 
@@ -1935,27 +1943,28 @@ class ChatViewModel(
                                         mergedList.add(existing)
                                     }
                                 } else {
+                                    // WS message (UUID id, no server index):
+                                    // match by canonical content, not fragile
+                                    // toolName/content equality.
                                     val matchIdx =
                                         unmatchedIncoming.indexOfFirst { inc ->
-                                            inc.role == existing.role && (
-                                                inc.content == existing.content ||
-                                                    (
-                                                        existing.role == MessageRole.TOOL &&
-                                                            inc.toolName != null &&
-                                                            inc.toolName == existing.toolName
-                                                    )
-                                            )
+                                            sameLogicalMessage(inc, existing)
                                         }
                                     if (matchIdx >= 0) {
-                                        mergedList.add(unmatchedIncoming.removeAt(matchIdx))
+                                        // Prefer the WS copy (richer payload,
+                                        // real tool name) when available.
+                                        val inc = unmatchedIncoming[matchIdx]
+                                        mergedList.add(existing)
+                                        unmatchedIncoming.removeAt(matchIdx)
                                     } else {
+                                        // No REST counterpart (server hasn't
+                                        // persisted yet) — KEEP the WS message.
                                         mergedList.add(existing)
                                     }
                                 }
                             }
                             mergedList.addAll(unmatchedIncoming)
                             val merged = mergedList.distinctBy { it.id }
-                            Log.d("ChatVM771", "sync merge: before=${current.messages.size} after=${merged.size} tools=${merged.count { it.role == MessageRole.TOOL }} roles=${merged.map { it.role.name }}")
                             if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
                         }
                     }

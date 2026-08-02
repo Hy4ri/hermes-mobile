@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -226,5 +227,74 @@ class ChatToolDedupeTest {
 
         assertEquals(1, merged[0].timestamp)
         assertEquals(2, merged[1].timestamp)
+    }
+
+    // ── end-to-end: full turn + mid-turn reload (the user's exact scenario) ──
+
+    @Test
+    fun fullTurn_withMidTurnReload_toolBubbleSurvivesUntilStreamEnd() {
+        val state = ChatUiState(currentSessionId = "session-1")
+
+        // 1. WS turn: user → reasoning → tool.start → tool.complete
+        val userMsg = ChatMessage(role = MessageRole.USER, content = "echo meow", timestamp = 1)
+        var s = state.copy(messages = listOf(userMsg))
+        var stream = StreamingState()
+        stream = ChatWsEventReducer.reduce(s, stream, WsEvent.MessageStart("session-1"), "session-1").streamingState
+        stream =
+            ChatWsEventReducer.reduce(
+                s,
+                stream,
+                WsEvent.ReasoningDelta("thinking about meow", "session-1"),
+                "session-1",
+            ).streamingState
+        var r =
+            ChatWsEventReducer.reduce(
+                s,
+                stream,
+                WsEvent.ToolStart("terminal", mapOf("args_text" to "echo meow"), "session-1"),
+                "session-1",
+            )
+        s = r.state
+        stream = r.streamingState
+        r =
+            ChatWsEventReducer.reduce(
+                s,
+                stream,
+                WsEvent.ToolComplete("terminal", mapOf("output" to "meow"), "session-1"),
+                "session-1",
+            )
+        s = r.state
+        stream = r.streamingState
+
+        // 2. MID-TURN reload lands while the tool is still running server-side
+        //    (server persists the tool row only at completion → page has no tool).
+        val restPage =
+            listOf(
+                ChatMessage(role = MessageRole.USER, content = "echo meow", id = "rest-s-0", timestamp = 1),
+                // assistant reasoning carrier row skipped by mapper; tool row ABSENT
+            )
+        val merged = mergeTranscriptWithLive(restPage, s.messages)
+        s = s.copy(messages = merged)
+
+        // Tool bubble survived the reload
+        assertEquals(1, s.messages.count { it.role == MessageRole.TOOL })
+        assertEquals(ToolStatus.COMPLETED, s.messages.single { it.role == MessageRole.TOOL }.toolStatus)
+        assertEquals("terminal", s.messages.single { it.role == MessageRole.TOOL }.toolName)
+
+        // 3. Rest of the turn: answer streams → message.complete
+        stream = ChatWsEventReducer.reduce(s, stream, WsEvent.MessageStart("session-1"), "session-1").streamingState
+        r =
+            ChatWsEventReducer.reduce(
+                s,
+                stream,
+                WsEvent.MessageComplete(text = "meow, done!", sessionId = "session-1"),
+                "session-1",
+            )
+        s = r.state
+
+        // Final list: user + tool + assistant — tool bubble STILL there
+        assertEquals(3, s.messages.size)
+        assertEquals(listOf(MessageRole.USER, MessageRole.TOOL, MessageRole.ASSISTANT), s.messages.map { it.role })
+        assertEquals("terminal", s.messages[1].toolName)
     }
 }

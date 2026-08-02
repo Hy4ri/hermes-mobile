@@ -1722,6 +1722,7 @@ class ChatViewModel(
                         // drop live WS bubbles (running tool call, streaming
                         // answer) the server hasn't persisted yet. Issue #771.
                         val merged = mergeTranscriptWithLive(chatMessages, state.messages)
+                        Log.d("ChatVM771", "loadSessionMessages: rest=${chatMessages.size} current=${state.messages.size} merged=${merged.size} tools=${merged.count { it.role == MessageRole.TOOL }} roles=${merged.map { it.role.name }}")
                         state.copy(
                             messages = merged,
                             isLoading = false,
@@ -1904,6 +1905,7 @@ class ChatViewModel(
         ) {
             return
         }
+        Log.d("ChatVM771", "syncCurrentSession: messages.size=${state.messages.size} tools=${state.messages.count { it.role == MessageRole.TOOL }}")
         val nextOffset =
             state.messages
                 .mapNotNull { serverMessageIndex(it.id, sessionId) }
@@ -1953,6 +1955,7 @@ class ChatViewModel(
                             }
                             mergedList.addAll(unmatchedIncoming)
                             val merged = mergedList.distinctBy { it.id }
+                            Log.d("ChatVM771", "sync merge: before=${current.messages.size} after=${merged.size} tools=${merged.count { it.role == MessageRole.TOOL }} roles=${merged.map { it.role.name }}")
                             if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
                         }
                     }

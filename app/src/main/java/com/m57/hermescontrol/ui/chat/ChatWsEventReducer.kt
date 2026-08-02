@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import android.util.Log
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.toJsonElement
@@ -281,6 +282,9 @@ object ChatWsEventReducer {
         event: WsEvent.MessageComplete,
     ): ReducerResult {
         val streaming = streamingState.streamingMessage
+        // DEBUG: log messages before and after for issue #771 vanishing tool
+        val toolCountBefore = state.messages.count { it.role == MessageRole.TOOL }
+        Log.d("ChatReducer771", "MessageComplete: messages.size=${state.messages.size} tools=$toolCountBefore roles=${state.messages.map { it.role.name }}")
         // Prefer the authoritative reasoning carried in the message.complete
         // payload (the gateway's assembled full trace), then fall back to
         // whatever reasoning.delta deltas accumulated during streaming.

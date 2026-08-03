@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,7 +48,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -60,46 +58,10 @@ import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import kotlinx.coroutines.launch
 
-private enum class LogSeverity {
-    ERROR,
-    WARN,
-    INFO,
-    DEBUG,
-}
-
-private fun detectSeverity(line: String): LogSeverity? {
-    val upper = line.uppercase()
-    return when {
-        Regex("\\[ERROR\\]|\\bERROR\\b|\\|ERROR\\||^ERROR[\\s:]").containsMatchIn(upper) -> {
-            LogSeverity.ERROR
-        }
-
-        Regex("\\[WARN(?:ING)?\\]|\\bWARN\\b|\\|WARN(?:ING)?\\||^WARN(?:ING)?[\\s:]").containsMatchIn(upper) -> {
-            LogSeverity.WARN
-        }
-
-        Regex("\\[INFO\\]|\\bINFO\\b|\\|INFO\\||^INFO[\\s:]").containsMatchIn(upper) -> {
-            LogSeverity.INFO
-        }
-
-        Regex("\\[DEBUG\\]|\\bDEBUG\\b|\\|DEBUG\\||^DEBUG[\\s:]").containsMatchIn(upper) -> {
-            LogSeverity.DEBUG
-        }
-
-        else -> {
-            null
-        }
-    }
-}
-
-private val LogSeverity.labelRes: Int
-    get() =
-        when (this) {
-            LogSeverity.ERROR -> R.string.logs_filter_error
-            LogSeverity.WARN -> R.string.logs_filter_warn
-            LogSeverity.INFO -> R.string.logs_filter_info
-            LogSeverity.DEBUG -> R.string.logs_filter_debug
-        }
+private data class LogsFilterOption(
+    val value: String,
+    val label: String,
+)
 
 @Composable
 fun LogsScreen(
@@ -112,23 +74,44 @@ fun LogsScreen(
     val listState = rememberLazyListState()
 
     var query by remember { mutableStateOf("") }
-    var severityFilter by remember { mutableStateOf<LogSeverity?>(null) }
+    var filters by remember { mutableStateOf(LogsFilters()) }
     var pauseScroll by remember { mutableStateOf(false) }
 
-    // Build severity-indexed sets for fast lookup
-    val severityMap =
-        remember(state.logs) {
-            state.logs.map { line -> detectSeverity(line) }
-        }
+    // Server-side filter options, mirroring the desktop LogsPage toolbar
+    // (files: agent/errors/gateway, levels: ALL/DEBUG/INFO/WARNING/ERROR,
+    // components: gateway/agent/tools/cli/cron, lines: 50-500).
+    val fileOptions =
+        listOf(
+            LogsFilterOption("agent", stringResource(R.string.logs_filter_agent)),
+            LogsFilterOption("errors", stringResource(R.string.logs_filter_errors)),
+            LogsFilterOption("gateway", stringResource(R.string.logs_filter_gateway)),
+        )
+    val levelOptions =
+        listOf(
+            LogsFilterOption("ALL", stringResource(R.string.logs_filter_all)),
+            LogsFilterOption("DEBUG", stringResource(R.string.logs_filter_debug)),
+            LogsFilterOption("INFO", stringResource(R.string.logs_filter_info)),
+            LogsFilterOption("WARNING", stringResource(R.string.logs_filter_warning)),
+            LogsFilterOption("ERROR", stringResource(R.string.logs_filter_error)),
+        )
+    val componentOptions =
+        listOf(
+            LogsFilterOption("all", stringResource(R.string.logs_filter_all)),
+            LogsFilterOption("gateway", stringResource(R.string.logs_filter_gateway)),
+            LogsFilterOption("agent", stringResource(R.string.logs_filter_agent)),
+            LogsFilterOption("tools", stringResource(R.string.logs_filter_tools)),
+            LogsFilterOption("cli", stringResource(R.string.logs_filter_cli)),
+            LogsFilterOption("cron", stringResource(R.string.logs_filter_cron)),
+        )
+    val lineOptions = listOf("50", "100", "200", "500").map { LogsFilterOption(it, it) }
 
-    // Filter by query + severity
+    // Client-side free-text filter over the server-returned lines
     val filteredLogs =
-        remember(query, severityFilter, state.logs) {
-            state.logs.filterIndexed { index, logLine ->
-                val matchesQuery = logLine.contains(query, ignoreCase = true)
-                val matchesSeverity =
-                    severityFilter == null || severityMap.getOrNull(index) == severityFilter
-                matchesQuery && matchesSeverity
+        remember(query, state.logs) {
+            if (query.isBlank()) {
+                state.logs
+            } else {
+                state.logs.filter { it.contains(query, ignoreCase = true) }
             }
         }
 
@@ -233,11 +216,36 @@ fun LogsScreen(
                             )
                         }
 
-                        // Severity filter chips
+                        // Server-side filter chips
                         item {
-                            SeverityFilterRow(
-                                selected = severityFilter,
-                                onSelected = { severityFilter = it },
+                            FilterChipRow(
+                                options = fileOptions,
+                                selected = filters.file,
+                                onSelected = { viewModel.setFilters(filters.copy(file = it)) },
+                                modifier = Modifier.padding(bottom = spacing.xs),
+                            )
+                        }
+                        item {
+                            FilterChipRow(
+                                options = levelOptions,
+                                selected = filters.level,
+                                onSelected = { viewModel.setFilters(filters.copy(level = it)) },
+                                modifier = Modifier.padding(bottom = spacing.xs),
+                            )
+                        }
+                        item {
+                            FilterChipRow(
+                                options = componentOptions,
+                                selected = filters.component,
+                                onSelected = { viewModel.setFilters(filters.copy(component = it)) },
+                                modifier = Modifier.padding(bottom = spacing.xs),
+                            )
+                        }
+                        item {
+                            FilterChipRow(
+                                options = lineOptions,
+                                selected = filters.lines.toString(),
+                                onSelected = { viewModel.setFilters(filters.copy(lines = it.toInt())) },
                                 modifier = Modifier.padding(bottom = spacing.sm),
                             )
                         }
@@ -284,61 +292,33 @@ fun LogsScreen(
 }
 
 @Composable
-private fun SeverityFilterRow(
-    selected: LogSeverity?,
-    onSelected: (LogSeverity?) -> Unit,
+private fun FilterChipRow(
+    options: List<LogsFilterOption>,
+    selected: String,
+    onSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val statusColors = LocalHermesStatusColors.current
-    val chipColors = FilterChipDefaults.filterChipColors()
-
     Row(
         modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // "All" chip
-        FilterChip(
-            selected = selected == null,
-            onClick = { onSelected(null) },
-            label = { Text(stringResource(R.string.logs_filter_all)) },
-            colors = chipColors,
-        )
-
-        LogSeverity.entries.forEach { severity ->
-            val color =
-                when (severity) {
-                    LogSeverity.ERROR -> statusColors.error
-                    LogSeverity.WARN -> statusColors.warning
-                    LogSeverity.INFO -> statusColors.info
-                    LogSeverity.DEBUG -> statusColors.success
-                }
+        options.forEach { option ->
+            val isSelected = selected == option.value
             FilterChip(
-                selected = selected == severity,
-                onClick = {
-                    onSelected(if (selected == severity) null else severity)
-                },
-                label = {
-                    Text(
-                        text = stringResource(severity.labelRes),
-                        color = if (selected == severity) color else MaterialTheme.colorScheme.onSurface,
-                    )
-                },
+                selected = isSelected,
+                onClick = { onSelected(option.value) },
+                label = { Text(option.label) },
                 leadingIcon =
-                    if (selected == severity) {
+                    if (isSelected) {
                         {
                             Icon(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = null,
-                                tint = color,
                             )
                         }
                     } else {
                         null
                     },
-                colors =
-                    FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = color.copy(alpha = 0.12f),
-                    ),
             )
         }
     }

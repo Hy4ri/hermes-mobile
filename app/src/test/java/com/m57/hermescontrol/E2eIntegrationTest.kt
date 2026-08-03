@@ -1050,7 +1050,7 @@ class E2eIntegrationTest {
     @Test
     fun testLogsListing_success() =
         runTest {
-            coEvery { mockApiService.getLogs(lines = 1000) } returns
+            coEvery { mockApiService.getLogs(file = "agent", lines = 100, level = "ALL", component = "all") } returns
                 Response.success(LogResponse(listOf("Log line 1", "Log line 2")))
 
             val viewModel = LogsViewModel()

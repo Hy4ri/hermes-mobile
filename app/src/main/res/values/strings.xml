@@ -299,10 +299,16 @@
     <string name="logs_action_export">Share</string>
     <string name="logs_content_desc_jump_bottom">Scroll to bottom</string>
     <string name="logs_filter_all">All</string>
+    <string name="logs_filter_agent">Agent</string>
+    <string name="logs_filter_errors">Errors</string>
+    <string name="logs_filter_gateway">Gateway</string>
+    <string name="logs_filter_warning">Warning</string>
     <string name="logs_filter_error">Error</string>
-    <string name="logs_filter_warn">Warn</string>
     <string name="logs_filter_info">Info</string>
     <string name="logs_filter_debug">Debug</string>
+    <string name="logs_filter_tools">Tools</string>
+    <string name="logs_filter_cli">CLI</string>
+    <string name="logs_filter_cron">Cron</string>
 
     <!-- System Screen -->
     <string name="system_empty_title">No system data</string>

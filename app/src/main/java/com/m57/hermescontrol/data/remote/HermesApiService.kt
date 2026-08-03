@@ -495,8 +495,10 @@ interface HermesApiService {
 
     @GET("api/logs")
     suspend fun getLogs(
-        @Query("limit") limit: Int? = null,
-        @Query("lines") lines: Int? = null,
+        @Query("file") file: String = "agent",
+        @Query("lines") lines: Int = 100,
+        @Query("level") level: String = "ALL",
+        @Query("component") component: String = "all",
     ): Response<LogResponse>
 
     @GET("api/dashboard/plugins/hub")

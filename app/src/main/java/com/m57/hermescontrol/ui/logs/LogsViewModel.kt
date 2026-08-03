@@ -15,11 +15,23 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+/**
+ * Server-side log filters, mirroring the desktop dashboard's LogsPage
+ * (`GET /api/logs?file=&lines=&level=&component=`).
+ */
+data class LogsFilters(
+    val file: String = "agent",
+    val level: String = "ALL",
+    val component: String = "all",
+    val lines: Int = 100,
+)
+
 data class LogsUiState(
     val isLoading: Boolean = false,
     val logs: List<String> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val filters: LogsFilters = LogsFilters(),
 )
 
 class LogsViewModel :
@@ -36,8 +48,18 @@ class LogsViewModel :
     fun loadLogs() {
         if (loadInProgress) return
         loadInProgress = true
+        val filters = _uiState.value.filters
         safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getLogs(lines = 1000) } },
+            apiCall = {
+                safeApiCall {
+                    ApiClient.hermesApi.getLogs(
+                        file = filters.file,
+                        lines = filters.lines,
+                        level = filters.level,
+                        component = filters.component,
+                    )
+                }
+            },
             onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
             onSuccess = { data ->
                 val body = data
@@ -55,6 +77,12 @@ class LogsViewModel :
                 loadInProgress = false
             },
         )
+    }
+
+    /** Update the server-side filters and immediately reload. */
+    fun setFilters(filters: LogsFilters) {
+        _uiState.update { it.copy(filters = filters) }
+        loadLogs()
     }
 
     /** Start auto-refreshing logs every 5 seconds. */

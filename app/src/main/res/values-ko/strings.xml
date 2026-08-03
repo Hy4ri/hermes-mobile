@@ -250,10 +250,16 @@
     <string name="logs_action_export">공유</string>
     <string name="logs_content_desc_jump_bottom">맨 아래로</string>
     <string name="logs_filter_all">전체</string>
+    <string name="logs_filter_agent">에이전트</string>
+    <string name="logs_filter_errors">오류</string>
+    <string name="logs_filter_gateway">게이트웨이</string>
+    <string name="logs_filter_warning">경고</string>
     <string name="logs_filter_error">에러</string>
-    <string name="logs_filter_warn">경고</string>
     <string name="logs_filter_info">정보</string>
     <string name="logs_filter_debug">디버그</string>
+    <string name="logs_filter_tools">도구</string>
+    <string name="logs_filter_cli">CLI</string>
+    <string name="logs_filter_cron">크론</string>
 
     <!-- System Screen -->
     <string name="system_empty_title">시스템 데이터 없음</string>

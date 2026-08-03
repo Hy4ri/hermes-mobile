@@ -1239,6 +1239,13 @@ class E2eIntegrationTest {
                 viewModel.uiState.value.tasks[0]
                     .status,
             )
+
+            // Create path: the wrapped {"task": ...} response must not
+            // break deserialization — the API layer reads it as Unit.
+            coEvery { mockApiService.createKanbanTask(any(), any()) } returns Response.success(Unit)
+            viewModel.createTask("Fresh task", null, "todo")
+            advanceUntilIdle()
+            assertEquals("Task created successfully", viewModel.uiState.value.toastMessage)
         }
 
     @Test

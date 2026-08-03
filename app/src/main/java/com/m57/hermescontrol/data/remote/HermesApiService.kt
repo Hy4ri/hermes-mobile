@@ -33,7 +33,6 @@ import com.m57.hermescontrol.data.model.HealthStatus
 import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
-import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.LearningGraphResponse
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
@@ -663,7 +662,7 @@ interface HermesApiService {
     suspend fun createKanbanTask(
         @Query("board") board: String?,
         @Body task: CreateTaskBody,
-    ): Response<KanbanTask>
+    ): Response<Unit>
 
     // ── Admin: Hermes update ──────────────────────────────────────────
     @GET("api/hermes/update/check")

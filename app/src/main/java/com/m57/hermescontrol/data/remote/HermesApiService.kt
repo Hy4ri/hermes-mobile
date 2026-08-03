@@ -525,7 +525,7 @@ interface HermesApiService {
         @Path("name", encoded = true) name: String,
     ): Response<Unit>
 
-    @POST("api/dashboard/plugins/rescan")
+    @GET("api/dashboard/plugins/rescan")
     suspend fun rescanPlugins(): Response<Unit>
 
     @PUT("api/dashboard/plugin-providers")

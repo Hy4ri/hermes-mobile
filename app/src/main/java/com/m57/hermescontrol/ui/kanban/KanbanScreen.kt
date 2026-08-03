@@ -25,8 +25,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
@@ -166,6 +166,14 @@ fun KanbanScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     LiveStatusPill(isLive = state.isLive)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(onClick = { showAddTaskDialog = true }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Add,
+                                            contentDescription = stringResource(R.string.kanban_add_task),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
                                 LazyRow(
                                     modifier = Modifier.fillMaxSize(),
@@ -174,7 +182,7 @@ fun KanbanScreen(
                                             start = 16.dp,
                                             top = 16.dp,
                                             end = 16.dp,
-                                            bottom = 88.dp,
+                                            bottom = 16.dp,
                                         ),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
@@ -231,21 +239,6 @@ fun KanbanScreen(
                                     }
                                 }
                             }
-                        }
-                    }
-
-                    if (state.selectedBoard != null) {
-                        FloatingActionButton(
-                            onClick = { showAddTaskDialog = true },
-                            modifier =
-                                Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(16.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = stringResource(R.string.kanban_add_task),
-                            )
                         }
                     }
 

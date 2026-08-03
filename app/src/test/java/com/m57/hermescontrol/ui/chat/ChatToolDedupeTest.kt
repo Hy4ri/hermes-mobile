@@ -4,6 +4,7 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -152,6 +153,17 @@ class ChatToolDedupeTest {
         // The RUNNING tool bubble survives the reload
         assertEquals(ToolStatus.RUNNING, merged[1].toolStatus)
         assertEquals("terminal", merged[1].toolName)
+    }
+
+    @Test
+    fun merge_matchingUser_keepsLiveOnlyMetadata() {
+        val live = ChatMessage(role = MessageRole.USER, content = "redirect", isStreaming = true, timestamp = 1)
+        val rest = ChatMessage(role = MessageRole.USER, content = "redirect", id = "rest-s-0", timestamp = 1)
+
+        val merged = mergeTranscriptWithLive(listOf(rest), listOf(live))
+
+        // Preserves cache/live-only user flags such as continuesActiveTurn.
+        assertSame(live, merged.single())
     }
 
     @Test
@@ -404,5 +416,24 @@ class ChatToolDedupeTest {
         // With the NEW match, the WS tool has no canonical match in incoming
         // → it's kept. Verify sameLogicalMessage returns false for all incoming.
         assertTrue(incoming.none { sameLogicalMessage(it, existingTool) })
+    }
+
+    @Test
+    fun incrementalMerge_keepsEarlierDuplicateContent() {
+        val live = ChatMessage(role = MessageRole.USER, content = "retry", isStreaming = true, timestamp = 2)
+        val current =
+            listOf(
+                ChatMessage(id = "rest-s-0", role = MessageRole.USER, content = "retry", timestamp = 1),
+                live,
+            )
+        val incoming =
+            listOf(
+                ChatMessage(id = "rest-s-1", role = MessageRole.USER, content = "retry", timestamp = 2),
+            )
+
+        val merged = mergeIncrementalTranscriptPage(incoming, current, "s", 1)
+
+        assertEquals(listOf("retry", "retry"), merged.map { it.content })
+        assertSame(live, merged.last())
     }
 }

@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.GatewayFile
 import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.GatewayFileResult
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
@@ -89,6 +90,7 @@ class ChatViewModelTest {
 
         app = mockk(relaxed = true)
         fakeRepo = FakeChatPersistenceRepository()
+        ActiveSessionHolder.set(null)
 
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
@@ -1165,6 +1167,317 @@ class ChatViewModelTest {
             verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456"), any()) }
         }
 
+    @Test
+    fun testSwitchSession_ignoresLateResumeResultFromPreviousSelection() =
+        runTest {
+            stubEmptySessionRests("session-a", "session-b")
+            val (viewModel, _) = createViewModelWithSession()
+            val resumeRequests = mutableMapOf<String, String>()
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                val sessionId = arg<Map<String, String>>(1).getValue("session_id")
+                val requestId = "resume-$sessionId"
+                resumeRequests[sessionId] = requestId
+                arg<((String) -> Unit)?>(2)?.invoke(requestId)
+                requestId
+            }
+
+            viewModel.switchSession("session-a")
+            runCurrent()
+            viewModel.switchSession("session-b")
+            runCurrent()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequests.getValue("session-b"),
+                    mapOf("session_id" to "runtime-b", "resumed" to "session-b"),
+                ),
+            )
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    resumeRequests.getValue("session-a"),
+                    mapOf("session_id" to "runtime-a", "resumed" to "session-a"),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("session-b", viewModel.uiState.value.currentSessionId)
+            assertEquals("runtime-b", ActiveSessionHolder.activeSessionId.value)
+        }
+
+    @Test
+    fun testReconnect_ignoresSupersededResumeForSameSession() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            val resumeRequests = mutableListOf<String>()
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                val requestId = "resume-${resumeRequests.size + 1}"
+                resumeRequests += requestId
+                arg<((String) -> Unit)?>(2)?.invoke(requestId)
+                requestId
+            }
+
+            viewModel.switchSession("session-a")
+            runCurrent()
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            runCurrent()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(resumeRequests[1], mapOf("session_id" to "runtime-new")),
+            )
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(resumeRequests[0], mapOf("session_id" to "runtime-old")),
+            )
+            advanceUntilIdle()
+
+            assertEquals("session-a", viewModel.uiState.value.currentSessionId)
+            assertEquals("runtime-new", ActiveSessionHolder.activeSessionId.value)
+        }
+
+    @Test
+    fun testSwitchSession_ignoresLateResumeErrorBeforeReducerMutation() =
+        runTest {
+            val mockApi = ApiClient.hermesApi
+            val messagesA =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            val messagesB =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            every { AuthManager.getBaseUrl() } returns "http://test.local/"
+            coEvery { mockApi.getSessions(any(), any(), any()) } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionListResponse(sessions = emptyList(), total = 0),
+                )
+            coEvery { mockApi.getSessionMessages("session-a", any(), any(), any()) } coAnswers { messagesA.await() }
+            coEvery { mockApi.getSessionMessages("session-b", any(), any(), any()) } coAnswers { messagesB.await() }
+
+            val (viewModel, _) = createViewModelWithSession()
+            val resumeRequests = mutableMapOf<String, String>()
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                val sessionId = arg<Map<String, String>>(1).getValue("session_id")
+                val requestId = "resume-$sessionId"
+                resumeRequests[sessionId] = requestId
+                arg<((String) -> Unit)?>(2)?.invoke(requestId)
+                requestId
+            }
+
+            viewModel.switchSession("session-a")
+            runCurrent()
+            viewModel.switchSession("session-b")
+            runCurrent()
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    resumeRequests.getValue("session-a"),
+                    JsonRpcError(code = -32000, message = "stale resume failure"),
+                ),
+            )
+            runCurrent()
+
+            assertEquals("session-b", viewModel.uiState.value.currentSessionId)
+            assertTrue(viewModel.uiState.value.isLoading)
+            assertNull(viewModel.uiState.value.errorMessage)
+            assertNull(viewModel.uiState.value.resumeError)
+
+            val empty =
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
+                )
+            messagesA.complete(empty)
+            messagesB.complete(empty)
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun testSwitchSession_ignoresLateRestHydrationFromPreviousGeneration() =
+        runTest {
+            val mockApi = ApiClient.hermesApi
+            val messagesA =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            val messagesB =
+                CompletableDeferred<retrofit2.Response<com.m57.hermescontrol.data.model.SessionMessagesResponse>>()
+            every { AuthManager.getBaseUrl() } returns "http://test.local/"
+            coEvery { mockApi.getSessions(any(), any(), any()) } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionListResponse(sessions = emptyList(), total = 0),
+                )
+            coEvery { mockApi.getSessionMessages("session-a", any(), any(), any()) } coAnswers { messagesA.await() }
+            coEvery { mockApi.getSessionMessages("session-b", any(), any(), any()) } coAnswers { messagesB.await() }
+
+            val (viewModel, _) = createViewModelWithSession()
+            viewModel.switchSession("session-a")
+            runCurrent()
+            viewModel.switchSession("session-b")
+            runCurrent()
+
+            messagesB.complete(
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    role = "assistant",
+                                    content = JsonPrimitive("message-b"),
+                                ),
+                            ),
+                    ),
+                ),
+            )
+            runCurrent()
+            messagesA.complete(
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    role = "assistant",
+                                    content = JsonPrimitive("stale-message-a"),
+                                ),
+                            ),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("session-b", viewModel.uiState.value.currentSessionId)
+            assertEquals(listOf("message-b"), viewModel.uiState.value.messages.map { it.content })
+        }
+
+    @Test
+    fun testSwitchSession_clearsSessionBoundUiState() =
+        runTest {
+            stubEmptySessionRests("session-b")
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest("Choose", listOf("A"), "clarify-1", sessionId),
+            )
+            mockEventsFlow.emit(WsEvent.SudoRequest("sudo-1", sessionId))
+            mockEventsFlow.emit(WsEvent.SecretRequest("secret-1", sessionId))
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "model-a", "provider" to "provider-a", "reasoning_effort" to "high"),
+                ),
+            )
+            mockEventsFlow.emit(
+                WsEvent.SubagentEvent(
+                    type = "subagent.start",
+                    payload = mapOf("subagent_id" to "sub-1", "goal" to "work"),
+                    sessionId = sessionId,
+                ),
+            )
+            mockEventsFlow.emit(
+                WsEvent.ToolStart(
+                    name = "todo",
+                    data = mapOf("todos" to listOf(mapOf("id" to "todo-1", "content" to "work"))),
+                    sessionId = sessionId,
+                ),
+            )
+            mockEventsFlow.emit(WsEvent.GatewayError("old error"))
+            viewModel.openModelPicker()
+            runCurrent()
+
+            val oldState = viewModel.uiState.value
+            assertNotNull(oldState.clarifyRequest)
+            assertNotNull(oldState.sudoPrompt)
+            assertNotNull(oldState.secretPrompt)
+            assertNotNull(oldState.currentSessionModel)
+            assertTrue(oldState.subagentIndicators.isNotEmpty())
+            assertTrue(oldState.todos.isNotEmpty())
+            assertTrue(oldState.showModelPicker)
+            assertNotNull(oldState.errorMessage)
+
+            viewModel.switchSession("session-b")
+            runCurrent()
+            val state = viewModel.uiState.value
+
+            assertEquals("session-b", state.currentSessionId)
+            assertTrue(state.messages.isEmpty())
+            assertNull(state.clarifyRequest)
+            assertNull(state.sudoPrompt)
+            assertNull(state.secretPrompt)
+            assertNull(state.currentSessionModel)
+            assertNull(state.reasoningLevel)
+            assertTrue(state.subagentIndicators.isEmpty())
+            assertTrue(state.todos.isEmpty())
+            assertFalse(state.showModelPicker)
+            assertNull(state.errorMessage)
+            assertNull(state.resumeError)
+        }
+
+    @Test
+    fun testCreateNewSession_invalidatesResumeAndClearsSessionStateBeforeSend() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            var resumeRequestId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                resumeRequestId = "resume-a"
+                arg<((String) -> Unit)?>(2)?.invoke(resumeRequestId)
+                resumeRequestId
+            }
+            viewModel.switchSession("session-a")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.SudoRequest("sudo-1", "session-a"))
+            mockEventsFlow.emit(WsEvent.GatewayError("old error"))
+            runCurrent()
+
+            viewModel.createNewSession()
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    resumeRequestId,
+                    JsonRpcError(code = -32000, message = "stale resume failure"),
+                ),
+            )
+            runCurrent()
+
+            val state = viewModel.uiState.value
+            assertNull(state.currentSessionId)
+            assertNull(state.sudoPrompt)
+            assertNull(state.errorMessage)
+            assertNull(state.resumeError)
+            assertTrue(state.isLoading)
+        }
+
+    @Test
+    fun testSessionBranchResult_clearsSessionBoundUiState() =
+        runTest {
+            stubEmptySessionRests("branch-1")
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val captured = captureSends()
+            mockEventsFlow.emit(WsEvent.SecretRequest("secret-1", sessionId))
+            mockEventsFlow.emit(
+                WsEvent.SubagentEvent(
+                    type = "subagent.start",
+                    payload = mapOf("subagent_id" to "sub-1", "goal" to "work"),
+                    sessionId = sessionId,
+                ),
+            )
+            mockEventsFlow.emit(
+                WsEvent.ToolStart(
+                    name = "todo",
+                    data = mapOf("todos" to listOf(mapOf("id" to "todo-1", "content" to "work"))),
+                    sessionId = sessionId,
+                ),
+            )
+            mockEventsFlow.emit(WsEvent.SessionInfo(mapOf("model" to "model-a", "provider" to "provider-a")))
+            runCurrent()
+
+            viewModel.sendMessage("/fork")
+            runCurrent()
+            val branchRequest = captured.last { it.first == WsMethods.SESSION_BRANCH }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    branchRequest,
+                    mapOf("session_id" to "branch-1", "title" to "Branch"),
+                ),
+            )
+            runCurrent()
+
+            val state = viewModel.uiState.value
+            assertEquals("branch-1", state.currentSessionId)
+            assertNull(state.secretPrompt)
+            assertNull(state.currentSessionModel)
+            assertTrue(state.subagentIndicators.isEmpty())
+            assertTrue(state.todos.isEmpty())
+            assertNull(state.errorMessage)
+        }
+
     // ── Session resume recovery (desktop parity: warm cache + bounded retry) ──
 
     /** Override the send stub to capture (method → id) pairs. */
@@ -1221,6 +1534,31 @@ class ChatViewModelTest {
                 retrofit2.Response.error(
                     500,
                     okhttp3.ResponseBody.create(null, "{\"detail\":\"boom\"}"),
+                )
+        }
+    }
+
+    private fun stubEmptySessionRests(vararg sessionIds: String) {
+        val mockApi = ApiClient.hermesApi
+        every { AuthManager.getBaseUrl() } returns "http://test.local/"
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            retrofit2.Response.success(
+                com.m57.hermescontrol.data.model.SessionListResponse(
+                    sessions =
+                        sessionIds.map {
+                            com.m57.hermescontrol.data.model.SessionInfo(
+                                id = it,
+                                title = it,
+                                message_count = 0,
+                            )
+                        },
+                    total = sessionIds.size,
+                ),
+            )
+        sessionIds.forEach { sessionId ->
+            coEvery { mockApi.getSessionMessages(sessionId, any(), any(), any()) } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
                 )
         }
     }

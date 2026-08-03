@@ -279,6 +279,57 @@ object HermesWsClient {
             return true
         }
 
+        val ticketResult = requestWsTicket()
+        if (!ticketResult.ticket.isNullOrBlank()) {
+            AuthManager.setToken(ticketResult.ticket)
+            if (BuildConfig.DEBUG) Log.d(TAG, "WS ticket refreshed")
+            return true
+        }
+        val status =
+            when (ticketResult.httpCode) {
+                401, 403 -> ConnectionStatus.AUTH_EXPIRED
+                408, 429 -> ConnectionStatus.RECONNECTING
+                in 500..599 -> ConnectionStatus.RECONNECTING
+                else -> ConnectionStatus.DISCONNECTED
+            }
+        return handleWsTicketRefreshFailure(status)
+    }
+
+    /**
+     * Mint a fresh WS ticket for a *secondary* consumer (e.g. the kanban
+     * events stream) WITHOUT touching the shared token slot.
+     *
+     * The shared slot is a single-use ticket that the chat WebSocket consumes
+     * at handshake. If two clients mint and stash into the same slot on their
+     * own schedules, each can grab the other's just-consumed ticket and the
+     * pair starves each other into a permanent reconnect loop. Secondary
+     * consumers must use their own ticket per connection.
+     *
+     * Gated mode: cookie-auth'd POST to /api/auth/ws-ticket, returns the
+     * ticket. Loopback mode: refresh the dashboard token and return it.
+     * Returns null when a ticket could not be obtained.
+     */
+    internal fun mintWsTicket(): String? {
+        val isGated =
+            try {
+                AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"
+            } catch (_: IllegalStateException) {
+                false
+            }
+        if (!isGated) {
+            DashboardSessionTokenRefresher.refresh()
+            return AuthManager.getToken()
+        }
+        return requestWsTicket().ticket
+    }
+
+    private data class TicketRequestResult(
+        val ticket: String?,
+        val httpCode: Int?,
+    )
+
+    /** POST /api/auth/ws-ticket (cookie-auth'd via the shared CookieJar) and parse the ticket. */
+    private fun requestWsTicket(): TicketRequestResult {
         try {
             val client = OkHttpProvider.probe
             val request =
@@ -300,29 +351,18 @@ object HermesWsClient {
                     val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
                     val ticket = ticketMatch?.groupValues?.getOrNull(1)
                     if (!ticket.isNullOrBlank()) {
-                        AuthManager.setToken(ticket)
-                        if (BuildConfig.DEBUG) Log.d(TAG, "WS ticket refreshed")
-                        return true
-                    } else {
-                        Log.w(TAG, "WS ticket refresh failed: response body did not contain ticket")
-                        return handleWsTicketRefreshFailure(ConnectionStatus.DISCONNECTED)
+                        return TicketRequestResult(ticket, null)
                     }
+                    Log.w(TAG, "WS ticket mint failed: response body did not contain ticket")
                 } else {
-                    Log.w(TAG, "WS ticket refresh failed: HTTP ${response.code}")
-                    val status =
-                        when {
-                            response.code == 401 || response.code == 403 -> ConnectionStatus.AUTH_EXPIRED
-                            response.code == 408 || response.code == 429 || response.code >= 500 ->
-                                ConnectionStatus.RECONNECTING
-                            else -> ConnectionStatus.DISCONNECTED
-                        }
-                    return handleWsTicketRefreshFailure(status)
+                    Log.w(TAG, "WS ticket mint failed: HTTP ${response.code}")
+                    return TicketRequestResult(null, response.code)
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "WS ticket refresh failed: ${e.javaClass.simpleName}")
-            return handleWsTicketRefreshFailure(ConnectionStatus.RECONNECTING)
+            Log.w(TAG, "WS ticket mint failed: ${e.javaClass.simpleName}")
         }
+        return TicketRequestResult(null, null)
     }
 
     private fun handleWsTicketRefreshFailure(status: ConnectionStatus): Boolean {

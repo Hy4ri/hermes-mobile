@@ -129,7 +129,8 @@ class KanbanEventsClient {
     ) {
         if (closed || gen != generation) return
 
-        if (!HermesWsClient.refreshWsTicketIfNeeded()) {
+        val credential = HermesWsClient.mintWsTicket()
+        if (credential.isNullOrBlank()) {
             onStatus(KanbanLiveStatus.AUTH_FAILED)
             return
         }
@@ -140,7 +141,7 @@ class KanbanEventsClient {
             AuthManager.endpointForBuild().webSocketUrl(
                 path = KANBAN_EVENTS_PATH,
                 authParameter = authParam,
-                credential = AuthManager.getToken().orEmpty(),
+                credential = credential,
                 extraParams = mapOf("since" to cursor.toString(), "board" to board),
             )
         val safeUrl = url.replace(Regex("(token|ticket)=[^&]+"), "$1=REDACTED")

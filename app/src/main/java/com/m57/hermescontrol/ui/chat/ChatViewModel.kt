@@ -320,6 +320,25 @@ class ChatViewModel(
 
     /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
     private var runtimeSessionId: String? = null
+
+    /**
+     * Whether the gateway has confirmed a persisted DB row for the current
+     * session. `session.create` does NOT persist a row until the first prompt
+     * (the gateway creates it lazily), so a freshly created session that has
+     * never been prompted CANNOT be resumed — `session.resume` on its storage
+     * key returns 4007 "session not found" and the REST transcript 404s.
+     * The flag is cleared on create/switch and set once the row is confirmed
+     * (REST 200, resume success, or a MessageStart = the server accepted a
+     * prompt). Reconnects skip the doomed resume while it is false (issue:
+     * 4007 "failed to load session" popup after tab switches).
+     */
+    private var sessionHasServerPresence = false
+
+    /** Dedupe guard for [recoverGoneSession] (WS reject + REST 404 land together). */
+    private var sessionGoneRecoveryInFlight = false
+
+    /** Show the "session gone" notice once the recovery create lands (create wipes messages). */
+    private var pendingGoneSessionNotice = false
     private var loadedMessageOffset = 0
     private var isSyncingMessages = false
 
@@ -500,14 +519,20 @@ class ChatViewModel(
         preloadModelOptions()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
-                wsClient.send(
-                    WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to currentId),
-                    onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
-                )
+            if (sessionHasServerPresence) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    wsClient.send(
+                        WsMethods.SESSION_RESUME,
+                        mapOf("session_id" to currentId),
+                        onSent = { id -> trackRequest(id, WsMethods.SESSION_RESUME) },
+                    )
+                }
+                loadSessionMessages(currentId)
             }
-            loadSessionMessages(currentId)
+            // No server-side row yet (session created but never prompted):
+            // resuming would 4007 and the REST transcript would 404. Keep the
+            // in-memory chat as-is — the first prompt persists the row, and a
+            // later reconnect resumes it normally.
         } else {
             val initial = initialSessionId
             if (!initial.isNullOrBlank()) {
@@ -630,6 +655,10 @@ class ChatViewModel(
             }
 
             is WsEvent.MessageStart -> {
+                // The server accepted a prompt for this session — its DB row
+                // now exists (created lazily at prompt.submit), so a reconnect
+                // resume will succeed.
+                sessionHasServerPresence = true
                 streamingController.beginStreamingMessage()
             }
 
@@ -741,6 +770,10 @@ class ChatViewModel(
                 val runtimeId = resultMap["session_id"] as? String ?: return
                 val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
                 runtimeSessionId = runtimeId
+                // The gateway persists the row lazily on the first prompt —
+                // do not resume this key until presence is confirmed.
+                sessionHasServerPresence = false
+                sessionGoneRecoveryInFlight = false
                 _uiState.update {
                     it.copy(
                         currentSessionId = storageId,
@@ -752,6 +785,12 @@ class ChatViewModel(
                         contextBreakdown = null,
                         compressionCount = null,
                     )
+                }
+                // A gone-session recovery just landed — announce it now that
+                // the message list has been reset by the create.
+                if (pendingGoneSessionNotice) {
+                    pendingGoneSessionNotice = false
+                    addSystemMessage("Previous session is no longer available on the server — starting a new chat")
                 }
                 // Mirror the active session id app-wide so session-scoped
                 // drawer screens (e.g. Processes, issue #532) can issue
@@ -765,11 +804,19 @@ class ChatViewModel(
 
             WsMethods.SESSION_BRANCH -> {
                 val resultMap = result as? Map<String, Any?> ?: return
-                val newId = resultMap["session_id"] as? String ?: return
-                runtimeSessionId = newId
+                // The result carries BOTH ids: `session_id` is the runtime
+                // registry id, `stored_session_id` is the DB key. currentSessionId
+                // must stay the storage key — storing the runtime id here made
+                // every later resume 4007 "session not found" (the DB lookup
+                // misses) and the REST transcript 404.
+                val runtimeId = resultMap["session_id"] as? String ?: return
+                val storageId = resultMap["stored_session_id"] as? String ?: runtimeId
+                runtimeSessionId = runtimeId
+                sessionHasServerPresence = false
+                sessionGoneRecoveryInFlight = false
                 _uiState.update {
                     it.copy(
-                        currentSessionId = newId,
+                        currentSessionId = storageId,
                         isLoading = false,
                         messages = emptyList(),
                         chatTitle = (resultMap["title"] as? String)?.takeIf { t -> t.isNotBlank() } ?: "Hermes",
@@ -779,10 +826,10 @@ class ChatViewModel(
                         compressionCount = null,
                     )
                 }
-                ActiveSessionHolder.set(newId)
+                ActiveSessionHolder.set(runtimeId)
                 _streamingState.update { StreamingState() }
                 addSystemMessage("Session branched", persist = true)
-                loadSessionMessages(newId)
+                loadSessionMessages(storageId)
                 loadSessions()
                 fetchContextUsage()
             }
@@ -810,6 +857,8 @@ class ChatViewModel(
             WsMethods.SESSION_RESUME -> {
                 val resultMap = result as? Map<String, Any?>
                 runtimeSessionId = resultMap?.get("session_id") as? String
+                // Resume succeeded — the gateway confirmed the DB row.
+                sessionHasServerPresence = true
                 val sessionId =
                     (resultMap?.get("resumed") as? String)
                         ?: _uiState.value.currentSessionId
@@ -1383,6 +1432,8 @@ class ChatViewModel(
     private var sessionCreateCounter = 0L
 
     fun createNewSession(setLoading: Boolean = true) {
+        // A fresh create has no persisted row until the first prompt.
+        sessionHasServerPresence = false
         _uiState.update {
             it.copy(
                 isLoading = setLoading,
@@ -1433,6 +1484,9 @@ class ChatViewModel(
 
     fun refreshCurrentSession() {
         val sessionId = _uiState.value.currentSessionId ?: return
+        // No server-side copy yet (created but never prompted): the REST
+        // transcript 404s and would burn the resume retry budget for nothing.
+        if (!sessionHasServerPresence) return
         loadSessionMessages(sessionId)
     }
 
@@ -1645,6 +1699,14 @@ class ChatViewModel(
         // resuming the Desktop session.
         cancelResumeRetry()
         runtimeSessionId = null
+        // The id came from the gateway's own session list / picker — its row
+        // is expected to exist, so resume it optimistically on reconnect even
+        // before the REST page confirms (a transient 500 must not strand the
+        // user on an un-resumable session). Only VM-created (never prompted)
+        // sessions stay unconfirmed: see createNewSession.
+        sessionHasServerPresence = true
+        sessionGoneRecoveryInFlight = false
+        pendingGoneSessionNotice = false
         loadedMessageOffset = 0
         streamingController.resetStreaming()
         _uiState.update {
@@ -1710,6 +1772,8 @@ class ChatViewModel(
             val result = fetchMessagePage(sessionId, offset, MESSAGE_PAGE_SIZE)
             when (result) {
                 is NetworkResult.Success -> {
+                    // REST 200 — the gateway has the row for this session.
+                    sessionHasServerPresence = true
                     val serverOffset = result.data.offset ?: offset
                     val chatMessages = mapServerMessages(sessionId, result.data.messages.orEmpty(), serverOffset)
                     loadedMessageOffset = serverOffset
@@ -1768,7 +1832,45 @@ class ChatViewModel(
      * capped at [MAX_RESUME_RETRIES]. After exhaustion the UI gets an
      * explicit error + manual Retry ([retryResumeSession]) instead of an
      * infinite spinner.
+     *
+     * Failures that PROVE the session is gone server-side — the resume RPC's
+     * 4007 "session not found" (DB miss) and the REST transcript's 404 — are
+     * terminal: retrying can never succeed, so they recover immediately with
+     * a fresh chat ([recoverGoneSession]) instead of burning the budget.
      */
+
+    private fun isDefinitiveSessionGone(message: String): Boolean =
+        message.contains("session not found", ignoreCase = true) ||
+            message.contains("404", ignoreCase = true)
+
+    /**
+     * The gateway definitively has no row for this session. Recover by
+     * starting a fresh chat instead of dead-ending on a Retry button that
+     * re-sends the same doomed key (the pre-fix behavior: 4007 popup whose
+     * Retry never fixed anything). Dedupe: the WS reject and the REST 404 for
+     * the same resume land close together — the first recovery switches
+     * currentSessionId (on the create result), so a second call no-ops on the
+     * sessionId guard; [sessionGoneRecoveryInFlight] closes the window before
+     * that result lands.
+     */
+    private fun recoverGoneSession(sessionId: String) {
+        if (_uiState.value.currentSessionId != sessionId) return
+        if (sessionGoneRecoveryInFlight) return
+        sessionGoneRecoveryInFlight = true
+        cancelResumeRetry()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                isResumeRetrying = false,
+                resumeError = null,
+            )
+        }
+        // createNewSession() clears messages immediately — queue the notice
+        // until its result lands so the user actually sees it.
+        pendingGoneSessionNotice = true
+        createNewSession(setLoading = false)
+    }
+
     private fun handleResumeFailure(
         sessionId: String,
         errorMessage: String,
@@ -1780,6 +1882,13 @@ class ChatViewModel(
         if (resumeRetrySessionId != sessionId) {
             resumeRetrySessionId = sessionId
             resumeRetryAttempt = 0
+        }
+
+        // A definitive "session not found" (4007 RPC / 404 REST) is permanent:
+        // no backoff will fix it — recover with a fresh chat right away.
+        if (isDefinitiveSessionGone(errorMessage)) {
+            recoverGoneSession(sessionId)
+            return
         }
 
         if (resumeRetryAttempt >= MAX_RESUME_RETRIES) {

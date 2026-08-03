@@ -1417,6 +1417,152 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testReconnectOnUnconfirmedSession_skipsDoomedResume() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+
+            // Simulate a WS reconnect while sitting on the freshly created
+            // session (never prompted — the gateway persists the DB row
+            // lazily on the first prompt). The old code re-resumed the
+            // storage key and the gateway 4007'd "session not found"
+            // permanently; the retry could never fix it because the row only
+            // appears once a prompt lands.
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            verify(exactly = 0) {
+                HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any())
+            }
+            assertNull(
+                "reconnect on an unconfirmed session must not error",
+                viewModel.uiState.value.resumeError,
+            )
+
+            // Positive control: once the session HAS server presence (REST
+            // 200 confirmed the row), a reconnect resumes it as before.
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to "session-456"),
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testResumeNotFound_recoversWithNewSession() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            val resumeId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            val createsBefore = captured.count { it.first == WsMethods.SESSION_CREATE }
+
+            // Gateway definitively has no row for this session (RPC 4007) —
+            // e.g. the session was deleted or pruned server-side.
+            mockEventsFlow.emit(
+                WsEvent.RpcError(resumeId, JsonRpcError(code = 4007, message = "session not found")),
+            )
+            advanceUntilIdle()
+
+            // No dead-end popup: the app recovered by creating a fresh session.
+            assertNull("4007 must not dead-end on resumeError", viewModel.uiState.value.resumeError)
+            assertEquals(createsBefore + 1, captured.count { it.first == WsMethods.SESSION_CREATE })
+
+            // A second reject for the same resume (the paired REST 404 lands
+            // just after the WS reject) must not double-create.
+            mockEventsFlow.emit(
+                WsEvent.RpcError(resumeId, JsonRpcError(code = 4007, message = "session not found")),
+            )
+            advanceUntilIdle()
+            assertEquals(createsBefore + 1, captured.count { it.first == WsMethods.SESSION_CREATE })
+
+            // Land the recovery create → the user lands on the new session
+            // with an explanatory notice (queued until the create result so
+            // the create's message wipe can't swallow it).
+            val createId = captured.last { it.first == WsMethods.SESSION_CREATE }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createId,
+                    mapOf(
+                        "session_id" to "runtime-new",
+                        "stored_session_id" to "session-new",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("session-new", viewModel.uiState.value.currentSessionId)
+            assertTrue(
+                "recovery notice must be visible",
+                viewModel.uiState.value.messages.any { it.content.contains("no longer available") },
+            )
+        }
+
+    @Test
+    fun testBranchResult_keepsStorageIdAsCurrentSession() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+
+            // mapServerMessages reads AuthManager.getBaseUrl() unconditionally
+            // on the REST-success path (mockkObject spy fall-through → real
+            // uninitialized AuthManager throws). Stub it — same pattern as
+            // stubSession456Rests / E2eIntegrationTest.
+            every { AuthManager.getBaseUrl() } returns "http://test.local/"
+
+            // Stub the transcript fetch explicitly (relaxed mocks return null
+            // and muddy the retry path) and capture which session id it is
+            // requested with.
+            val fetchedSessions = mutableListOf<String>()
+            coEvery {
+                ApiClient.hermesApi.getSessionMessages(capture(fetchedSessions), any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
+                )
+
+            // /fork sends session.branch keyed on the runtime id.
+            viewModel.sendMessage("/fork")
+            advanceUntilIdle()
+
+            val branchId = captured.last { it.first == WsMethods.SESSION_BRANCH }.second
+            val branchStorage = "branch-storage-1"
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    branchId,
+                    mapOf(
+                        "session_id" to "branch-runtime-1",
+                        "stored_session_id" to branchStorage,
+                        "title" to "Branch",
+                        "message_count" to 0,
+                        "messages" to emptyList<Any>(),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            // The DB key must stay in currentSessionId — storing the runtime
+            // id here made every later resume 4007 and the transcript 404.
+            assertEquals(branchStorage, viewModel.uiState.value.currentSessionId)
+            // And the transcript must be fetched by the storage key, not the
+            // runtime registry id (which the gateway 404s on).
+            assertTrue(
+                "transcript must be fetched by the storage key",
+                fetchedSessions.contains(branchStorage),
+            )
+        }
+
+    @Test
     fun testRetryResumeSession_clearsErrorAndResends() =
         runTest {
             stubSession456Rests(success = true)

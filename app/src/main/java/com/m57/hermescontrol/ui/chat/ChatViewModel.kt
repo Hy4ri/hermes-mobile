@@ -362,6 +362,8 @@ class ChatViewModel(
     private var activeResumeRequestSequence = 0L
     private var hydrationRequestSequence = 0L
     private var activeHydrationRequestSequence = 0L
+    private var resumedGeneration = -1L
+    private var hydratedGeneration = -1L
 
     /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
     private var runtimeSessionId: String? = null
@@ -915,15 +917,9 @@ class ChatViewModel(
                 // the WS round-trip. Calling loadCachedMessages() here would
                 // overwrite any message the user sent between switchSession() and
                 // the server ack, making the chat appear to go blank.
-                // A successful resume also retires any pending retry job and
-                // clears the retry indicators (a reconnect re-resume landing
-                // while a backoff timer was armed must not double-fire).
-                cancelResumeRetry()
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        isResumeRetrying = false,
-                        resumeError = null,
                         errorMessage = null,
                         currentSessionId = sessionId,
                         currentSessionModel =
@@ -944,6 +940,9 @@ class ChatViewModel(
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId)
                 addSystemMessage("Session resumed")
                 fetchContextUsage()
+                val generation = request?.generation ?: sessionGeneration
+                resumedGeneration = generation
+                finishResumeWhenHydrated(generation)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -1037,7 +1036,9 @@ class ChatViewModel(
         if (method == WsMethods.SESSION_RESUME) {
             val sessionId = request?.sessionId ?: _uiState.value.currentSessionId
             if (sessionId != null) {
-                handleResumeFailure(sessionId, request?.generation ?: sessionGeneration, errorMsg)
+                val generation = request?.generation ?: sessionGeneration
+                if (resumedGeneration == generation) resumedGeneration = -1L
+                handleResumeFailure(sessionId, generation, errorMsg)
             }
             return
         }
@@ -1807,9 +1808,12 @@ class ChatViewModel(
                             isLoadingOlder = false,
                         )
                     }
+                    hydratedGeneration = generation
+                    finishResumeWhenHydrated(generation)
                 }
 
                 is NetworkResult.Failure -> {
+                    if (hydratedGeneration == generation) hydratedGeneration = -1L
                     _uiState.update {
                         if (!isCurrentHydration(sessionId, generation, requestSequence)) return@update it
                         it.copy(
@@ -1840,6 +1844,8 @@ class ChatViewModel(
     ): Long {
         val generation = ++sessionGeneration
         cancelResumeRetry()
+        resumedGeneration = -1L
+        hydratedGeneration = -1L
         runtimeSessionId = null
         ActiveSessionHolder.set(sessionId)
         loadedMessageOffset = 0
@@ -1916,6 +1922,24 @@ class ChatViewModel(
         resumeRetryJob = null
         resumeRetrySessionId = null
         resumeRetryAttempt = 0
+    }
+
+    private fun finishResumeWhenHydrated(generation: Long) {
+        if (generation != sessionGeneration ||
+            resumedGeneration != generation ||
+            hydratedGeneration != generation
+        ) {
+            return
+        }
+        cancelResumeRetry()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                isResumeRetrying = false,
+                resumeError = null,
+                errorMessage = null,
+            )
+        }
     }
 
     private fun resumeRetryDelayMs(attempt: Int): Long =

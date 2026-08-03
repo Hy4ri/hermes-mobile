@@ -36,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -43,6 +44,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -1898,6 +1900,49 @@ class ChatViewModelTest {
                 "transcript must be fetched by the storage key",
                 fetchedSessions.contains(branchStorage),
             )
+        }
+
+    @Test
+    fun testSessionResume_wsSuccessWaitsForRestRetry() =
+        runTest {
+            stubSession456Rests(success = true)
+            val mockApi = ApiClient.hermesApi
+            var restCalls = 0
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any())
+            } coAnswers {
+                val call = restCalls++
+                if (call < 3) {
+                    retrofit2.Response.error(
+                        500,
+                        okhttp3.ResponseBody.create(null, "{\"detail\":\"boom\"}"),
+                    )
+                } else {
+                    retrofit2.Response.success(
+                        com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
+                    )
+                }
+            }
+            val (viewModel, _) = createViewModelWithSession()
+            val captured = captureSends()
+
+            viewModel.switchSession("session-456")
+            withTimeout(2_000) { viewModel.uiState.first { it.isResumeRetrying } }
+
+            val resumeId = captured.last { it.first == WsMethods.SESSION_RESUME }.second
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(resumeId, mapOf("session_id" to "runtime-456")),
+            )
+            runCurrent()
+
+            assertTrue("WS success must leave the REST retry armed", viewModel.uiState.value.isResumeRetrying)
+            assertEquals(1, captured.count { it.first == WsMethods.SESSION_RESUME })
+
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.isResumeRetrying)
+            assertNull(viewModel.uiState.value.resumeError)
+            assertEquals(2, captured.count { it.first == WsMethods.SESSION_RESUME })
         }
 
     @Test

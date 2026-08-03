@@ -47,6 +47,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.ui.channels.ChannelsViewModel
 import com.m57.hermescontrol.ui.connect.ConnectViewModel
 import com.m57.hermescontrol.ui.cron.CronJobsViewModel
@@ -1208,7 +1209,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.updateKanbanTask("task-1", mapOf("status" to "in_progress")) } returns
                 Response.success(Unit)
 
-            val viewModel = KanbanViewModel()
+            val viewModel = KanbanViewModel(eventsClientProvider = { mockk<KanbanEventsClient>(relaxed = true) })
             viewModel.loadBoards()
             advanceUntilIdle()
 

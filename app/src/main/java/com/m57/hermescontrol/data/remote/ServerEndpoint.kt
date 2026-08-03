@@ -33,15 +33,31 @@ class ServerEndpoint private constructor(
     fun webSocketUrl(
         authParameter: String,
         credential: String,
+    ): String =
+        webSocketUrl(
+            path = "api/ws",
+            authParameter = authParameter,
+            credential = credential,
+        )
+
+    /**
+     * Build a WebSocket URL for an arbitrary dashboard WS endpoint (e.g. the
+     * kanban plugin's live-events stream), preserving the reverse-proxy path
+     * prefix, converting http(s) to ws(s), and appending the auth parameter
+     * plus any extra query parameters (e.g. `since`, `board`).
+     */
+    fun webSocketUrl(
+        path: String,
+        authParameter: String,
+        credential: String,
+        extraParams: Map<String, String> = emptyMap(),
     ): String {
         require(authParameter == "token" || authParameter == "ticket") {
             "Unsupported WebSocket authentication parameter"
         }
-        val socketHttpUrl =
-            resolve("api/ws")
-                .newBuilder()
-                .addQueryParameter(authParameter, credential)
-                .build()
+        val builder = resolve(path).newBuilder().addQueryParameter(authParameter, credential)
+        extraParams.forEach { (key, value) -> builder.addQueryParameter(key, value) }
+        val socketHttpUrl = builder.build()
         val socketScheme = if (baseUrl.isHttps) "wss" else "ws"
         return replaceScheme(socketHttpUrl.toString(), socketScheme)
     }

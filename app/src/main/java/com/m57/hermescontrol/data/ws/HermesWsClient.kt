@@ -260,7 +260,7 @@ object HermesWsClient {
      * or because ticket refresh succeeded). Returns false if we are in gated mode
      * and ticket refresh failed or cannot be performed.
      */
-    private fun refreshWsTicketIfNeeded(): Boolean {
+    internal fun refreshWsTicketIfNeeded(): Boolean {
         val isGated =
             try {
                 AuthManager.serverStore.getLatestState().wsAuthParam == "ticket"

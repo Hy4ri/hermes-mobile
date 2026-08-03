@@ -242,6 +242,10 @@
     <string name="kanban_add_new_task">Add New Task</string>
     <string name="kanban_task_title">Task Title</string>
     <string name="kanban_task_desc">Task Description</string>
+    <string name="kanban_add_task">Add task</string>
+    <string name="kanban_live">Live</string>
+    <string name="kanban_offline">Offline</string>
+    <string name="kanban_no_tasks">No tasks</string>
     <string name="action_add">Add</string>
     <string name="content_desc_move_left">Move Left</string>
     <string name="content_desc_move_right">Move Right</string>

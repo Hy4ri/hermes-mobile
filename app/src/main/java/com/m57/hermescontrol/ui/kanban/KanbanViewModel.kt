@@ -8,9 +8,13 @@ import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.KanbanEventsClient
+import com.m57.hermescontrol.data.ws.KanbanLiveStatus
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,15 +28,20 @@ data class KanbanUiState(
     val selectedBoard: KanbanBoard? = null,
     val columns: List<KanbanColumn> = emptyList(),
     val tasks: List<KanbanTask> = emptyList(),
+    val isLive: Boolean = false,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
 )
 
-class KanbanViewModel :
-    ViewModel(),
-    ToastHost {
+class KanbanViewModel(
+    private val eventsClientProvider: () -> KanbanEventsClient = { KanbanEventsClient() },
+) : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(KanbanUiState())
     val uiState: StateFlow<KanbanUiState> = _uiState.asStateFlow()
+
+    private var eventsClient: KanbanEventsClient? = null
+    private var eventsBoard: String? = null
+    private var reloadJob: Job? = null
 
     fun loadBoards() {
         safeLaunchLoad(
@@ -75,32 +84,8 @@ class KanbanViewModel :
                 return@launch
             }
 
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getKanbanBoard() }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val body = result.data
-                    val allTasks = body.columns.flatMap { it.tasks }
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            columns = body.columns,
-                            tasks = allTasks,
-                        )
-                    }
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = "Failed to load Kanban tasks: ${result.error.message}",
-                        )
-                    }
-                }
-            }
+            loadBoardIntoState(board)
+            connectEvents(board)
         }
     }
 
@@ -165,6 +150,90 @@ class KanbanViewModel :
         }
     }
 
+    override fun onCleared() {
+        eventsClient?.disconnect()
+        super.onCleared()
+    }
+
+    // ── Live events (issue #775) ─────────────────────────────────────────
+
+    /**
+     * Tail the kanban events WebSocket for [board]. The backend pins the board
+     * at the WS handshake, so a board switch opens a fresh stream; re-selecting
+     * the already-live board is a no-op (the REST load already refreshed it).
+     */
+    private fun connectEvents(board: KanbanBoard) {
+        if (eventsBoard == board.id && _uiState.value.isLive) return
+        eventsBoard = board.id
+        val client = eventsClient ?: eventsClientProvider().also { eventsClient = it }
+        client.connect(
+            scope = viewModelScope,
+            board = board.id,
+            onEvents = { scheduleBoardReload() },
+            onStatus = { status ->
+                _uiState.update { it.copy(isLive = status == KanbanLiveStatus.CONNECTED) }
+            },
+        )
+    }
+
+    /** Debounced REST refresh after an events batch — mirrors the desktop pattern. */
+    private fun scheduleBoardReload() {
+        reloadJob?.cancel()
+        reloadJob =
+            viewModelScope.launch {
+                delay(RELOAD_DEBOUNCE_MS)
+                reloadBoardSilently()
+            }
+    }
+
+    /** Re-fetch the current board without touching the loading spinner. */
+    private fun reloadBoardSilently() {
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getKanbanBoard() }
+                }
+            if (result is NetworkResult.Success) {
+                val body = result.data
+                _uiState.update {
+                    it.copy(
+                        columns = body.columns,
+                        tasks = body.columns.flatMap { it.tasks },
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun loadBoardIntoState(board: KanbanBoard) {
+        val result =
+            withContext(Dispatchers.IO) {
+                safeApiCall { ApiClient.hermesApi.getKanbanBoard() }
+            }
+        when (result) {
+            is NetworkResult.Success -> {
+                val body = result.data
+                val allTasks = body.columns.flatMap { it.tasks }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        columns = body.columns,
+                        tasks = allTasks,
+                    )
+                }
+            }
+
+            is NetworkResult.Failure -> {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = "Failed to load Kanban tasks: ${result.error.message}",
+                    )
+                }
+            }
+        }
+    }
+
     private fun revertTaskMove(
         taskId: String,
         originalStatus: String,
@@ -183,5 +252,9 @@ class KanbanViewModel :
 
     override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
+    }
+
+    private companion object {
+        const val RELOAD_DEBOUNCE_MS = 250L
     }
 }

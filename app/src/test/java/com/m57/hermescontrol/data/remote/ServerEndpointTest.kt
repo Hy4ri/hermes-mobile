@@ -49,6 +49,26 @@ class ServerEndpointTest {
     }
 
     @Test
+    fun `webSocketUrl with custom path and extra params`() {
+        val ep = ServerEndpoint.parse("https://example.com/hermes", CleartextPolicy.ALLOW_WITH_WARNING)
+        val url =
+            ep.webSocketUrl(
+                path = "api/plugins/kanban/events",
+                authParameter = "token",
+                credential = "secret",
+                extraParams = mapOf("since" to "0", "board" to "work"),
+            )
+        assertEquals("wss://example.com/hermes/api/plugins/kanban/events?token=secret&since=0&board=work", url)
+    }
+
+    @Test
+    fun `webSocketUrl with custom path keeps http scheme as ws`() {
+        val ep = ServerEndpoint.parse("http://127.0.0.1:9119/", CleartextPolicy.ALLOW_WITH_WARNING)
+        val url = ep.webSocketUrl("api/plugins/kanban/events", "ticket", "t1", mapOf("board" to "default"))
+        assertEquals("ws://127.0.0.1:9119/api/plugins/kanban/events?ticket=t1&board=default", url)
+    }
+
+    @Test
     fun `DENY policy rejects http`() {
         assertThrows<IllegalArgumentException> {
             ServerEndpoint.parse("http://127.0.0.1:9119/", CleartextPolicy.DENY)

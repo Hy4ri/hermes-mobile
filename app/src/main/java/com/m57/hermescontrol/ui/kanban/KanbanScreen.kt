@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.kanban
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,13 +16,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -150,9 +156,25 @@ fun KanbanScreen(
                                     Text(stringResource(R.string.kanban_no_columns))
                                 }
                             } else {
+                                Row(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    LiveStatusPill(isLive = state.isLive)
+                                }
                                 LazyRow(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(16.dp),
+                                    contentPadding =
+                                        PaddingValues(
+                                            start = 16.dp,
+                                            top = 16.dp,
+                                            end = 16.dp,
+                                            bottom = 88.dp,
+                                        ),
                                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
                                     items(state.columns.size, key = { index ->
@@ -179,28 +201,59 @@ fun KanbanScreen(
                                                 modifier = Modifier.padding(bottom = 8.dp),
                                             )
 
-                                            LazyColumn(
-                                                modifier = Modifier.weight(1f),
-                                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                            ) {
-                                                items(colTasks, key = { it.id }) { task ->
-                                                    TaskCard(
-                                                        task = task,
-                                                        onMoveLeft =
-                                                            prevColumn?.let {
-                                                                { viewModel.moveTask(task, it.name) }
-                                                            },
-                                                        onMoveRight =
-                                                            nextColumn?.let {
-                                                                { viewModel.moveTask(task, it.name) }
-                                                            },
+                                            if (colTasks.isEmpty()) {
+                                                Box(
+                                                    modifier =
+                                                        Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 16.dp),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(R.string.kanban_no_tasks),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                     )
+                                                }
+                                            } else {
+                                                LazyColumn(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                ) {
+                                                    items(colTasks, key = { it.id }) { task ->
+                                                        TaskCard(
+                                                            task = task,
+                                                            onMoveLeft =
+                                                                prevColumn?.let {
+                                                                    { viewModel.moveTask(task, it.name) }
+                                                                },
+                                                            onMoveRight =
+                                                                nextColumn?.let {
+                                                                    { viewModel.moveTask(task, it.name) }
+                                                                },
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    if (state.selectedBoard != null) {
+                        FloatingActionButton(
+                            onClick = { showAddTaskDialog = true },
+                            modifier =
+                                Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(16.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = stringResource(R.string.kanban_add_task),
+                            )
                         }
                     }
 
@@ -230,7 +283,29 @@ fun TaskCard(
             Text(text = task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(4.dp))
             task.description?.let {
-                Text(text = it, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            task.assignedTo?.let { assignee ->
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = assignee,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -261,6 +336,30 @@ fun TaskCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LiveStatusPill(isLive: Boolean) {
+    val color =
+        if (isLive) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier =
+                Modifier
+                    .size(8.dp)
+                    .background(color = color, shape = CircleShape),
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = stringResource(if (isLive) R.string.kanban_live else R.string.kanban_offline),
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+        )
     }
 }
 

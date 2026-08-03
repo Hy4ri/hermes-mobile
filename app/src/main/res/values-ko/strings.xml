@@ -70,6 +70,7 @@
     <string name="screen_config">설정</string>
     <string name="screen_mcp_servers">MCP 서버</string>
     <string name="screen_models">모델</string>
+    <string name="screen_pairing">페어링</string>
     <string name="screen_keys">키</string>
     <string name="screen_channels">채널</string>
     <string name="screen_logs">로그</string>
@@ -616,6 +617,19 @@
     <string name="channels_action_test">테스트</string>
     <string name="channels_action_restart_now">지금 재시작</string>
     <string name="channels_restart_banner">변경사항이 저장되었습니다. 게이트웨이를 재시작하면 적용됩니다.</string>
+
+    <!-- Pairing Screen -->
+    <string name="pairing_sec_pending">승인 대기</string>
+    <string name="pairing_sec_approved">승인된 사용자</string>
+    <string name="pairing_action_clear_all">모두 지우기</string>
+    <string name="pairing_action_approve">승인</string>
+    <string name="pairing_action_revoke">해제</string>
+    <string name="pairing_empty_title">페어링 요청 없음</string>
+    <string name="pairing_empty_desc">메시징 채널에 대한 접근을 요청한 사용자가 여기에 표시됩니다.</string>
+    <string name="pairing_empty_approved">아직 승인된 사용자가 없습니다.</string>
+    <string name="pairing_label_unknown_user">알 수 없는 사용자</string>
+    <string name="pairing_label_request_age_m">%1$d분 전</string>
+    <string name="pairing_label_request_age_hm">%1$d시간 %2$d분 전</string>
 
     <!-- Settings -->
     <string name="settings_saved_profiles">저장된 프로필 (%1$d)</string>

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
@@ -41,6 +42,7 @@ import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
 import com.m57.hermescontrol.ui.logs.LogsScreen as LogsScreenContent
 import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
+import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
 import com.m57.hermescontrol.ui.process.ProcessesScreen as ProcessesScreenContent
 import com.m57.hermescontrol.ui.profiles.ProfilesScreen as ProfilesScreenContent
@@ -144,6 +146,12 @@ object ScreenRegistry {
                 Icons.Filled.Psychology,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> ModelScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                PairingScreen,
+                R.string.screen_pairing,
+                Icons.Filled.Devices,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> PairingScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 KeysScreen,
                 R.string.screen_keys,

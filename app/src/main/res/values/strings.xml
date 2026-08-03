@@ -82,6 +82,7 @@
     <string name="screen_config">Config</string>
     <string name="screen_mcp_servers">MCP Servers</string>
     <string name="screen_models">Models</string>
+    <string name="screen_pairing">Pairing</string>
     <string name="screen_keys">Keys</string>
     <string name="screen_channels">Channels</string>
     <string name="screen_logs">Logs</string>
@@ -811,6 +812,19 @@
     <string name="channels_action_test">Test</string>
     <string name="channels_action_restart_now">Restart now</string>
     <string name="channels_restart_banner">Changes saved. Restart the gateway for them to take effect.</string>
+
+    <!-- Pairing Screen -->
+    <string name="pairing_sec_pending">Pending Approvals</string>
+    <string name="pairing_sec_approved">Approved Users</string>
+    <string name="pairing_action_clear_all">Clear All</string>
+    <string name="pairing_action_approve">Approve</string>
+    <string name="pairing_action_revoke">Revoke</string>
+    <string name="pairing_empty_title">No pairing requests</string>
+    <string name="pairing_empty_desc">Users who request access to your messaging channels will appear here for approval.</string>
+    <string name="pairing_empty_approved">No approved users yet.</string>
+    <string name="pairing_label_unknown_user">Unknown user</string>
+    <string name="pairing_label_request_age_m">%1$dm ago</string>
+    <string name="pairing_label_request_age_hm">%1$dh %2$dm ago</string>
 
     <!-- Settings -->
     <string name="settings_saved_profiles">Saved Profiles (%1$d)</string>

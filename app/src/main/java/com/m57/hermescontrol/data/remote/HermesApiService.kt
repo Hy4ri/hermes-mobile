@@ -63,6 +63,9 @@ import com.m57.hermescontrol.data.model.OAuthProvidersResponse
 import com.m57.hermescontrol.data.model.OAuthStartResponse
 import com.m57.hermescontrol.data.model.OAuthSubmitRequest
 import com.m57.hermescontrol.data.model.OAuthSubmitResponse
+import com.m57.hermescontrol.data.model.PairingApproveRequest
+import com.m57.hermescontrol.data.model.PairingResponse
+import com.m57.hermescontrol.data.model.PairingRevokeRequest
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.PortalResponse
@@ -579,6 +582,28 @@ interface HermesApiService {
     suspend fun cancelTelegramOnboarding(
         @Path("pairing_id") pairingId: String,
     ): Response<Unit>
+
+    // ── DM pairing management (issue #776) ──────────────────────────────
+    // Approve/revoke messaging users who requested access via pairing
+    // codes. Pending requests are approved by `request_id` (as returned by
+    // GET /api/pairing); the `code` field is the one-time code a user
+    // relays from their DM.
+
+    @GET("api/pairing")
+    suspend fun getPairing(): Response<PairingResponse>
+
+    @POST("api/pairing/approve")
+    suspend fun approvePairing(
+        @Body body: PairingApproveRequest,
+    ): Response<Unit>
+
+    @POST("api/pairing/revoke")
+    suspend fun revokePairing(
+        @Body body: PairingRevokeRequest,
+    ): Response<Unit>
+
+    @POST("api/pairing/clear-pending")
+    suspend fun clearPendingPairing(): Response<Unit>
 
     // ── OAuth provider management (issue #534) ──────────────────────────
     // Auth: the dashboard gates /start, /submit, /disconnect, /cancel via

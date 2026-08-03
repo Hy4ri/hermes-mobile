@@ -33,6 +33,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object ModelScreen : NavKey
 
+@Serializable data object PairingScreen : NavKey
+
 @Serializable data object LogsScreen : NavKey
 
 @Serializable data object PluginsScreen : NavKey

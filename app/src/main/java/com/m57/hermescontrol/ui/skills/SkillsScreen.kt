@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.skills
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,12 +31,14 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -69,6 +73,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.Skill
+import com.m57.hermescontrol.data.model.SkillHubSource
+import com.m57.hermescontrol.data.model.SkillScanFinding
+import com.m57.hermescontrol.data.model.SkillScanResponse
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.DetailDialog
 import com.m57.hermescontrol.ui.common.DetailRow
@@ -174,6 +181,9 @@ fun SkillsScreen(
                         onClearSearch = viewModel::clearHubSearch,
                         onInstall = viewModel::installSkill,
                         onPreviewHubSkill = viewModel::previewHubSkill,
+                        onScanHubSkill = viewModel::scanHubSkill,
+                        onClearHubScan = viewModel::clearHubScan,
+                        onLoadHubSources = viewModel::loadHubSources,
                         isInstalling = state.isInstalling,
                         installingSkillName = state.installingSkillName,
                     )
@@ -533,6 +543,9 @@ private fun HubBrowseView(
     onClearSearch: () -> Unit,
     onInstall: (String) -> Unit,
     onPreviewHubSkill: (String) -> Unit,
+    onScanHubSkill: (String) -> Unit,
+    onClearHubScan: () -> Unit,
+    onLoadHubSources: () -> Unit,
     isInstalling: Boolean,
     installingSkillName: String?,
 ) {
@@ -629,9 +642,16 @@ private fun HubBrowseView(
             }
 
             else -> {
-                EmptyState(
-                    icon = Icons.Filled.Search,
-                    title = stringResource(R.string.skills_hub_search_hint),
+                HubLandingView(
+                    state = state,
+                    onLoadHubSources = onLoadHubSources,
+                    onInstall = onInstall,
+                    isInstalling = isInstalling,
+                    installingSkillName = installingSkillName,
+                    onOpenDetail = { skill ->
+                        hubShowDetail = skill
+                        skill.identifier?.let { onPreviewHubSkill(it) }
+                    },
                 )
             }
         }
@@ -655,14 +675,432 @@ private fun HubBrowseView(
                     DetailRow(stringResource(R.string.detail_dialog_tags), hubSkill.tags.orEmpty().joinToString(", ")),
                     DetailRow(stringResource(R.string.detail_dialog_trust_level), hubSkill.trustLevel),
                 ),
-            actions =
-                if (previewReady && state.isHubPreviewing) {
-                    { CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp)) }
-                } else {
-                    null
-                },
-            onDismiss = { hubShowDetail = null },
+            actions = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (previewReady && state.isHubPreviewing) {
+                        CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                    }
+                    hubSkill.identifier?.let { identifier ->
+                        SkillScanSection(
+                            scanResult =
+                                state.hubScanResult.takeIf {
+                                    state.hubScanIdentifier == identifier
+                                },
+                            isScanning =
+                                state.isHubScanning &&
+                                    state.hubScanIdentifier == identifier,
+                            scanError =
+                                state.hubScanError.takeIf {
+                                    state.hubScanIdentifier == identifier
+                                },
+                            onScan = { onScanHubSkill(identifier) },
+                        )
+                    }
+                }
+            },
+            onDismiss = {
+                hubShowDetail = null
+                onClearHubScan()
+            },
         )
+    }
+}
+
+// ── Hub Landing (sources + featured) ───────────────────────────────────
+
+@Composable
+private fun HubLandingView(
+    state: SkillsUiState,
+    onLoadHubSources: () -> Unit,
+    onInstall: (String) -> Unit,
+    isInstalling: Boolean,
+    installingSkillName: String?,
+    onOpenDetail: (HubSkill) -> Unit,
+) {
+    when {
+        state.isHubSourcesLoading -> {
+            SkeletonListState()
+        }
+
+        state.hubSourcesError != null -> {
+            ErrorState(
+                message = state.hubSourcesError,
+                onRetry = onLoadHubSources,
+            )
+        }
+
+        state.hubSources.isEmpty() && state.hubFeatured.isEmpty() -> {
+            EmptyState(
+                icon = Icons.Filled.Extension,
+                title = stringResource(R.string.skills_hub_landing_hint),
+            )
+        }
+
+        else -> {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                verticalArrangement = listItemSpacing,
+            ) {
+                if (state.hubSources.isNotEmpty()) {
+                    item(key = "hub_sources_header") {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.skills_hub_sources_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier =
+                                    Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                state.hubSources.forEach { source ->
+                                    SourceChip(source = source)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (state.hubFeatured.isNotEmpty()) {
+                    item(key = "hub_featured_header") {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.skills_hub_featured_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Text(
+                                text = stringResource(R.string.skills_hub_featured_subtitle),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    itemsIndexed(
+                        state.hubFeatured,
+                        key = { index, hubSkill ->
+                            "featured:${hubSkill.name}:${hubSkill.source ?: "unknown"}:$index"
+                        },
+                    ) { _, hubSkill ->
+                        HubSkillCard(
+                            hubSkill = hubSkill,
+                            onInstall = { onInstall(hubSkill.name) },
+                            isInstalling =
+                                isInstalling && installingSkillName == hubSkill.name,
+                            onClick = { onOpenDetail(hubSkill) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceChip(source: SkillHubSource) {
+    val statusColors = LocalHermesStatusColors.current
+    val label =
+        buildString {
+            append(source.label ?: source.id)
+            when {
+                source.rateLimited == true -> {
+                    append(" · ")
+                    append(stringResource(R.string.skills_hub_source_rate_limited))
+                }
+
+                source.available == false -> {
+                    append(" · ")
+                    append(stringResource(R.string.skills_hub_source_offline))
+                }
+
+                source.searchable == false -> {
+                    append(" · ")
+                    append(stringResource(R.string.skills_hub_source_via_index))
+                }
+            }
+        }
+    val color =
+        when {
+            source.rateLimited == true -> statusColors.warning
+            source.available == false -> statusColors.error
+            else -> MaterialTheme.colorScheme.primary
+        }
+    Surface(
+        color = color.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(50),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+        )
+    }
+}
+
+// ── Hub security scan ──────────────────────────────────────────────────
+
+@Composable
+private fun SkillScanSection(
+    scanResult: SkillScanResponse?,
+    isScanning: Boolean,
+    scanError: String?,
+    onScan: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(
+            onClick = onScan,
+            enabled = !isScanning,
+        ) {
+            if (isScanning) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Shield,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.skills_hub_scan))
+            }
+        }
+
+        when {
+            isScanning -> Unit
+
+            scanError != null -> {
+                Surface(
+                    color = LocalHermesStatusColors.current.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        text = scanError,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
+
+            scanResult != null -> {
+                ScanResultCard(result = scanResult)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScanResultCard(result: SkillScanResponse) {
+    val statusColors = LocalHermesStatusColors.current
+    val verdictColor =
+        when (result.verdict) {
+            "safe" -> statusColors.success
+            "dangerous" -> statusColors.error
+            else -> statusColors.warning
+        }
+    val policyLabel =
+        when (result.policy) {
+            "allow" -> stringResource(R.string.skills_hub_scan_policy_allow)
+            "ask" -> stringResource(R.string.skills_hub_scan_policy_ask)
+            "block" -> stringResource(R.string.skills_hub_scan_policy_block)
+            else -> result.policy.orEmpty()
+        }
+    val policyColor =
+        when (result.policy) {
+            "allow" -> statusColors.success
+            "ask" -> statusColors.warning
+            "block" -> statusColors.error
+            else -> statusColors.neutral
+        }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // ── Verdict header ──
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Shield,
+                    contentDescription = null,
+                    tint = verdictColor,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.skills_hub_scan_verdict_label, result.verdict.orEmpty()),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = verdictColor,
+                    modifier = Modifier.weight(1f),
+                )
+                Surface(
+                    color = policyColor.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(50),
+                ) {
+                    Text(
+                        text = policyLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = policyColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+            }
+
+            // ── Trust + finding count ──
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (!result.trustLevel.isNullOrBlank()) {
+                    Text(
+                        text = result.trustLevel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text =
+                        pluralStringResource(
+                            R.plurals.skills_hub_scan_findings_count,
+                            result.findings.size,
+                            result.findings.size,
+                        ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // ── Severity tally ──
+            val severityColors =
+                mapOf(
+                    "critical" to statusColors.error,
+                    "high" to statusColors.error,
+                    "medium" to statusColors.warning,
+                    "low" to statusColors.neutral,
+                )
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                listOf("critical", "high", "medium", "low").forEach { sev ->
+                    val count = result.severityCounts[sev] ?: 0
+                    if (count > 0) {
+                        val sevColor = severityColors[sev] ?: statusColors.neutral
+                        Surface(
+                            color = sevColor.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(50),
+                        ) {
+                            Text(
+                                text = "$count $sev",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sevColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            )
+                        }
+                    }
+                }
+                if (result.findings.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.skills_hub_scan_no_findings),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColors.success,
+                    )
+                }
+            }
+
+            // ── Policy reason ──
+            if (!result.policyReason.isNullOrBlank()) {
+                Text(
+                    text = result.policyReason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // ── Findings ──
+            if (result.findings.isNotEmpty()) {
+                HorizontalDivider()
+                result.findings.forEach { finding ->
+                    ScanFindingRow(finding = finding)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScanFindingRow(finding: SkillScanFinding) {
+    val statusColors = LocalHermesStatusColors.current
+    val severityColor =
+        when (finding.severity) {
+            "critical", "high" -> statusColors.error
+            "medium" -> statusColors.warning
+            else -> statusColors.neutral
+        }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Surface(
+                color = severityColor.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(4.dp),
+            ) {
+                Text(
+                    text = finding.severity,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = severityColor,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            Text(
+                text = finding.category,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            val location =
+                buildString {
+                    finding.file?.let { append(it) }
+                    finding.line?.let { append(":").append(it) }
+                }
+            if (location.isNotEmpty()) {
+                Text(
+                    text = location,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        finding.description?.let { description ->
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

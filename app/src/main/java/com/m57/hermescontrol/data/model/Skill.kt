@@ -56,7 +56,39 @@ data class SkillHubUninstallRequest(
 @Serializable
 data class SkillScanResponse(
     val identifier: String,
-    val passed: Boolean? = null,
-    val issues: List<String>? = null,
-    val warnings: List<String>? = null,
+    val name: String? = null,
+    val source: String? = null,
+    @SerialName("trust_level") val trustLevel: String? = null,
+    val verdict: String? = null,
+    val summary: String? = null,
+    val policy: String? = null,
+    @SerialName("policy_reason") val policyReason: String? = null,
+    val findings: List<SkillScanFinding> = emptyList(),
+    @SerialName("severity_counts") val severityCounts: Map<String, Int> = emptyMap(),
+)
+
+@Serializable
+data class SkillScanFinding(
+    val severity: String,
+    val category: String,
+    val file: String? = null,
+    val line: Int? = null,
+    val description: String? = null,
+)
+
+@Serializable
+data class SkillHubSource(
+    val id: String,
+    val label: String? = null,
+    @SerialName("rate_limited") val rateLimited: Boolean? = null,
+    val available: Boolean? = null,
+    val searchable: Boolean? = null,
+)
+
+@Serializable
+data class SkillHubSourcesResponse(
+    val sources: List<SkillHubSource> = emptyList(),
+    @SerialName("index_available") val indexAvailable: Boolean? = null,
+    val featured: List<HubSkill> = emptyList(),
+    val installed: Map<String, SkillHubInstalledEntry>? = null,
 )

@@ -277,6 +277,23 @@
     <string name="skills_hub_empty_results">No skills found in hub</string>
     <string name="skills_hub_search_hint">Type a search term to browse the skill hub</string>
     <string name="skills_hub_install">Install</string>
+    <string name="skills_hub_sources_title">Connected sources</string>
+    <string name="skills_hub_source_rate_limited">rate limited</string>
+    <string name="skills_hub_source_offline">offline</string>
+    <string name="skills_hub_source_via_index">via index</string>
+    <string name="skills_hub_featured_title">Featured skills</string>
+    <string name="skills_hub_featured_subtitle">from the Hermes index — search above for more</string>
+    <string name="skills_hub_landing_hint">Search the hub above to browse installable skills from the connected sources</string>
+    <string name="skills_hub_scan">Scan</string>
+    <string name="skills_hub_scan_verdict_label">Verdict: %1$s</string>
+    <string name="skills_hub_scan_policy_allow">Install allowed</string>
+    <string name="skills_hub_scan_policy_ask">Needs confirmation</string>
+    <string name="skills_hub_scan_policy_block">Install blocked</string>
+    <string name="skills_hub_scan_no_findings">No risky patterns detected</string>
+    <plurals name="skills_hub_scan_findings_count">
+        <item quantity="one">%1$d finding</item>
+        <item quantity="other">%1$d findings</item>
+    </plurals>
     <string name="skills_content_placeholder">Enter skill content\u2026</string>
     <string name="skills_empty_message">No skills found</string>
     <string name="skills_discard_title">Discard changes?</string>

@@ -8,7 +8,9 @@ import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.SkillHubInstallRequest
+import com.m57.hermescontrol.data.model.SkillHubSource
 import com.m57.hermescontrol.data.model.SkillHubUninstallRequest
+import com.m57.hermescontrol.data.model.SkillScanResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -58,6 +60,16 @@ data class SkillsUiState(
     val hubResults: List<HubSkill> = emptyList(),
     val isHubSearching: Boolean = false,
     val hubSearchError: String? = null,
+    // Hub sources + featured (landing, before any search)
+    val hubSources: List<SkillHubSource> = emptyList(),
+    val hubFeatured: List<HubSkill> = emptyList(),
+    val isHubSourcesLoading: Boolean = false,
+    val hubSourcesError: String? = null,
+    // Hub security scan
+    val hubScanIdentifier: String? = null,
+    val hubScanResult: SkillScanResponse? = null,
+    val isHubScanning: Boolean = false,
+    val hubScanError: String? = null,
     // Hub detail preview (full description/content via preview endpoint)
     val hubPreviewIdentifier: String? = null,
     val hubPreviewContent: String? = null,
@@ -111,6 +123,9 @@ class SkillsViewModel(
         if (mode == SkillsViewMode.INSTALLED && _uiState.value.skills.isEmpty()) {
             loadSkills()
         }
+        if (mode == SkillsViewMode.HUB && _uiState.value.hubSources.isEmpty()) {
+            loadHubSources()
+        }
     }
 
     fun setSourceFilter(source: String?) {
@@ -157,6 +172,94 @@ class SkillsViewModel(
                 hubQuery = "",
                 hubResults = emptyList(),
                 hubSearchError = null,
+            )
+        }
+    }
+
+    // ── Hub sources + featured landing ────────────────────────────────────
+
+    /**
+     * Loads the configured hub sources and featured skills (the browse-hub
+     * landing state shown before any search runs).
+     */
+    fun loadHubSources() {
+        safeLaunchLoad(
+            apiCall = { safeApiCall { ApiClient.hermesApi.getSkillHubSources() } },
+            onStart = {
+                _uiState.update {
+                    it.copy(isHubSourcesLoading = true, hubSourcesError = null)
+                }
+            },
+            onSuccess = { data ->
+                _uiState.update {
+                    it.copy(
+                        isHubSourcesLoading = false,
+                        hubSources = data.sources,
+                        hubFeatured = data.featured,
+                    )
+                }
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        isHubSourcesLoading = false,
+                        hubSourcesError = "Failed to load hub sources: $errorMsg",
+                    )
+                }
+            },
+        )
+    }
+
+    // ── Hub security scan ─────────────────────────────────────────────────
+
+    /**
+     * Runs the install-time security scan on a hub skill WITHOUT installing
+     * it, so the user sees the safety verdict before deciding.
+     */
+    fun scanHubSkill(identifier: String) {
+        if (identifier.isBlank()) return
+        _uiState.update {
+            it.copy(
+                hubScanIdentifier = identifier,
+                isHubScanning = true,
+                hubScanResult = null,
+                hubScanError = null,
+            )
+        }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.scanHubSkill(identifier = identifier) }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isHubScanning = false,
+                            hubScanResult = result.data,
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isHubScanning = false,
+                            hubScanError = result.error.message,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearHubScan() {
+        _uiState.update {
+            it.copy(
+                hubScanIdentifier = null,
+                hubScanResult = null,
+                isHubScanning = false,
+                hubScanError = null,
             )
         }
     }

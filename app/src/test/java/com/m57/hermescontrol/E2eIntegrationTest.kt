@@ -51,6 +51,7 @@ import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.ui.channels.ChannelsViewModel
 import com.m57.hermescontrol.ui.connect.ConnectViewModel
 import com.m57.hermescontrol.ui.cron.CronJobsViewModel
+import com.m57.hermescontrol.ui.kanban.KanbanTaskAction
 import com.m57.hermescontrol.ui.kanban.KanbanViewModel
 import com.m57.hermescontrol.ui.keys.KeysViewModel
 import com.m57.hermescontrol.ui.logs.LogsViewModel
@@ -1219,6 +1220,22 @@ class E2eIntegrationTest {
             assertEquals(1, viewModel.uiState.value.tasks.size)
             assertEquals(
                 "todo",
+                viewModel.uiState.value.tasks[0]
+                    .status,
+            )
+
+            // Desktop-style transition: todo -> ready is a direct write the
+            // backend accepts; the VM PATCHes the target status.
+            coEvery {
+                mockApiService.updateKanbanTask(
+                    "task-1",
+                    mapOf("status" to "ready"),
+                )
+            } returns Response.success(Unit)
+            viewModel.moveTask(viewModel.uiState.value.tasks[0], KanbanTaskAction.READY)
+            advanceUntilIdle()
+            assertEquals(
+                "ready",
                 viewModel.uiState.value.tasks[0]
                     .status,
             )

@@ -26,6 +26,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -176,5 +177,84 @@ class KanbanViewModelTest {
         method.isAccessible = true
         method.invoke(vm)
         verify { mockEventsClient.disconnect() }
+    }
+
+    @Test
+    fun `kanbanActionsForStatus gates transitions like the desktop`() {
+        assertEquals(
+            listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE),
+            kanbanActionsForStatus("todo"),
+        )
+        assertEquals(
+            listOf(
+                KanbanTaskAction.TRIAGE,
+                KanbanTaskAction.UNBLOCK,
+                KanbanTaskAction.COMPLETE,
+                KanbanTaskAction.ARCHIVE,
+            ),
+            kanbanActionsForStatus("blocked"),
+        )
+        assertEquals(
+            listOf(
+                KanbanTaskAction.TRIAGE,
+                KanbanTaskAction.READY,
+                KanbanTaskAction.BLOCK,
+                KanbanTaskAction.COMPLETE,
+                KanbanTaskAction.ARCHIVE,
+            ),
+            kanbanActionsForStatus("running"),
+        )
+        assertEquals(
+            listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE),
+            kanbanActionsForStatus("done"),
+        )
+        // Backend-rejected targets are never offered.
+        assertFalse(kanbanActionsForStatus("todo").any { it.targetStatus == "review" })
+        assertFalse(kanbanActionsForStatus("todo").any { it.targetStatus == "running" })
+        assertFalse(kanbanActionsForStatus("ready").any { it.targetStatus == "running" })
+    }
+
+    @Test
+    fun `moveTask updates status and PATCHes the target`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.success(Unit)
+        vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
+        settle()
+        assertEquals("ready", vm.uiState.value.tasks.first { it.id == "t1" }.status)
+        coVerify { mockApi.updateKanbanTask("t1", mapOf("status" to "ready")) }
+    }
+
+    @Test
+    fun `moveTask failure reverts status and shows toast`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.error(409, "".toResponseBody())
+        vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
+        settle()
+        assertEquals("todo", vm.uiState.value.tasks.first { it.id == "t1" }.status)
+        assertTrue(vm.uiState.value.toastMessage?.contains("Move failed") == true)
+    }
+
+    @Test
+    fun `moveTask complete sends the completion summary`() {
+        val vm = createViewModel()
+        vm.loadBoards()
+        settle()
+        coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.success(Unit)
+        vm.moveTask(
+            KanbanTask(id = "t1", title = "Task 1", status = "ready"),
+            KanbanTaskAction.COMPLETE,
+            summary = "Shipped it",
+        )
+        settle()
+        coVerify {
+            mockApi.updateKanbanTask(
+                "t1",
+                mapOf("status" to "done", "result" to "Shipped it", "summary" to "Shipped it"),
+            )
+        }
     }
 }

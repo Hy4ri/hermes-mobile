@@ -23,6 +23,7 @@
     <!-- Actions -->
     <string name="action_retry">Retry</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_confirm">Confirm</string>
     <string name="action_clear">Clear</string>
     <string name="action_ok">OK</string>
     <string name="action_delete">Delete</string>
@@ -243,6 +244,19 @@
     <string name="kanban_task_title">Task Title</string>
     <string name="kanban_task_desc">Task Description</string>
     <string name="kanban_add_task">Add task</string>
+    <string name="kanban_action_triage">Triage</string>
+    <string name="kanban_action_ready">Ready</string>
+    <string name="kanban_action_block">Block</string>
+    <string name="kanban_action_unblock">Unblock</string>
+    <string name="kanban_action_complete">Complete</string>
+    <string name="kanban_action_archive">Archive</string>
+    <string name="kanban_confirm_blocked">Mark this task as blocked? The worker\'s claim is released.</string>
+    <string name="kanban_confirm_done">Complete this task? The worker\'s claim is released.</string>
+    <string name="kanban_confirm_archive">Archive this task? It disappears from the default board view.</string>
+    <string name="kanban_complete_title">Complete task</string>
+    <string name="kanban_complete_summary_label">Completion summary</string>
+    <string name="kanban_complete_summary_hint">Stored as the task result</string>
+    <string name="kanban_move_failed">Move failed: %1$s</string>
     <string name="kanban_live">Live</string>
     <string name="kanban_offline">Offline</string>
     <string name="kanban_no_tasks">No tasks</string>

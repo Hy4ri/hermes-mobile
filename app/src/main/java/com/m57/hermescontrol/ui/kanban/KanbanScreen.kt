@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -82,6 +83,9 @@ fun KanbanScreen(
             filteredTasks.groupBy { it.status.lowercase() }
         }
     var showAddTaskDialog by remember { mutableStateOf(false) }
+    var taskForActions by remember { mutableStateOf<KanbanTask?>(null) }
+    var confirmTarget by remember { mutableStateOf<Pair<KanbanTask, KanbanTaskAction>?>(null) }
+    var summaryTarget by remember { mutableStateOf<Pair<KanbanTask, KanbanTaskAction>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadBoards()
@@ -216,7 +220,10 @@ fun KanbanScreen(
                                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                                 ) {
                                                     items(colTasks, key = { it.id }) { task ->
-                                                        TaskCard(task = task)
+                                                        TaskCard(
+                                                            task = task,
+                                                            onTaskClick = { taskForActions = it },
+                                                        )
                                                     }
                                                 }
                                             }
@@ -251,6 +258,47 @@ fun KanbanScreen(
                             },
                         )
                     }
+
+                    taskForActions?.let { task ->
+                        val actions = kanbanActionsForStatus(task.status)
+                        if (actions.isNotEmpty()) {
+                            TaskActionSheet(
+                                task = task,
+                                actions = actions,
+                                onAction = { action ->
+                                    taskForActions = null
+                                    when {
+                                        action.needsSummary -> summaryTarget = task to action
+                                        action.needsConfirm -> confirmTarget = task to action
+                                        else -> viewModel.moveTask(task, action)
+                                    }
+                                },
+                                onDismiss = { taskForActions = null },
+                            )
+                        }
+                    }
+
+                    confirmTarget?.let { (task, action) ->
+                        ConfirmActionDialog(
+                            message = stringResource(action.confirmRes()),
+                            onConfirm = {
+                                confirmTarget = null
+                                if (action.needsSummary) {
+                                    summaryTarget = task to action
+                                } else {
+                                    viewModel.moveTask(task, action)
+                                }
+                            },
+                            onDismiss = { confirmTarget = null },
+                        )
+                    }
+
+                    summaryTarget?.let { (task, action) ->
+                        CompleteTaskDialog(
+                            onConfirm = { summary -> viewModel.moveTask(task, action, summary) },
+                            onDismiss = { summaryTarget = null },
+                        )
+                    }
                 }
             }
         }
@@ -258,8 +306,11 @@ fun KanbanScreen(
 }
 
 @Composable
-fun TaskCard(task: KanbanTask) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+fun TaskCard(
+    task: KanbanTask,
+    onTaskClick: (KanbanTask) -> Unit,
+) {
+    Card(onClick = { onTaskClick(task) }, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(text = task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(4.dp))
@@ -351,6 +402,114 @@ fun AddTaskDialog(
                 enabled = title.isNotBlank(),
             ) {
                 Text(stringResource(R.string.action_add))
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+private fun KanbanTaskAction.labelRes(): Int =
+    when (this) {
+        KanbanTaskAction.TRIAGE -> R.string.kanban_action_triage
+        KanbanTaskAction.READY -> R.string.kanban_action_ready
+        KanbanTaskAction.UNBLOCK -> R.string.kanban_action_unblock
+        KanbanTaskAction.BLOCK -> R.string.kanban_action_block
+        KanbanTaskAction.COMPLETE -> R.string.kanban_action_complete
+        KanbanTaskAction.ARCHIVE -> R.string.kanban_action_archive
+    }
+
+private fun KanbanTaskAction.confirmRes(): Int =
+    when (this) {
+        KanbanTaskAction.BLOCK -> R.string.kanban_confirm_blocked
+        KanbanTaskAction.COMPLETE -> R.string.kanban_confirm_done
+        KanbanTaskAction.ARCHIVE -> R.string.kanban_confirm_archive
+        else -> error("Action $this has no confirm message")
+    }
+
+@Composable
+private fun TaskActionSheet(
+    task: KanbanTask,
+    actions: List<KanbanTaskAction>,
+    onAction: (KanbanTaskAction) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(task.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        text = {
+            Column {
+                actions.forEach { action ->
+                    Button(
+                        onClick = { onAction(action) },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                    ) {
+                        Text(stringResource(action.labelRes()))
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ConfirmActionDialog(
+    message: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        text = { Text(message) },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(stringResource(R.string.action_confirm))
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun CompleteTaskDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var summary by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.kanban_complete_title)) },
+        text = {
+            OutlinedTextField(
+                value = summary,
+                onValueChange = { summary = it },
+                label = { Text(stringResource(R.string.kanban_complete_summary_label)) },
+                supportingText = { Text(stringResource(R.string.kanban_complete_summary_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(summary.trim()) },
+                enabled = summary.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.kanban_action_complete))
             }
         },
         dismissButton = {

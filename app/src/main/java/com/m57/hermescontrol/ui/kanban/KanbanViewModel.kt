@@ -33,6 +33,59 @@ data class KanbanUiState(
     val toastMessage: String? = null,
 )
 
+/**
+ * Task actions mirroring the desktop kanban's transition-gated buttons.
+ * Only moves the backend PATCH route accepts are offered: never `running`
+ * (dispatcher-only, backend rejects with 400) and never `review` (not in
+ * the dashboard whitelist).
+ */
+enum class KanbanTaskAction(
+    val targetStatus: String,
+    val needsConfirm: Boolean = false,
+    val needsSummary: Boolean = false,
+) {
+    TRIAGE(targetStatus = "triage"),
+    READY(targetStatus = "ready"),
+    UNBLOCK(targetStatus = "ready"),
+    BLOCK(targetStatus = "blocked", needsConfirm = true),
+    COMPLETE(targetStatus = "done", needsConfirm = true, needsSummary = true),
+    ARCHIVE(targetStatus = "archived", needsConfirm = true),
+}
+
+/** Desktop parity: which actions are valid from a given status. */
+fun kanbanActionsForStatus(status: String): List<KanbanTaskAction> =
+    when (status) {
+        "triage" -> listOf(KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        "todo" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        "scheduled" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        "ready" ->
+            listOf(
+                KanbanTaskAction.TRIAGE,
+                KanbanTaskAction.BLOCK,
+                KanbanTaskAction.COMPLETE,
+                KanbanTaskAction.ARCHIVE,
+            )
+        "running" ->
+            listOf(
+                KanbanTaskAction.TRIAGE,
+                KanbanTaskAction.READY,
+                KanbanTaskAction.BLOCK,
+                KanbanTaskAction.COMPLETE,
+                KanbanTaskAction.ARCHIVE,
+            )
+        "blocked" ->
+            listOf(
+                KanbanTaskAction.TRIAGE,
+                KanbanTaskAction.UNBLOCK,
+                KanbanTaskAction.COMPLETE,
+                KanbanTaskAction.ARCHIVE,
+            )
+        "review" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        "done" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        "archived" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY)
+        else -> emptyList()
+    }
+
 class KanbanViewModel(
     private val eventsClientProvider: () -> KanbanEventsClient = { KanbanEventsClient() },
 ) : ViewModel(), ToastHost {
@@ -119,6 +172,57 @@ class KanbanViewModel(
                     _uiState.update { it.copy(toastMessage = "Failed to create task: ${result.error.message}") }
                 }
             }
+        }
+    }
+
+    fun moveTask(
+        task: KanbanTask,
+        action: KanbanTaskAction,
+        summary: String? = null,
+    ) {
+        val originalStatus = task.status
+        // Optimistically update, desktop-style
+        _uiState.update { state ->
+            state.copy(
+                tasks =
+                    state.tasks.map {
+                        if (it.id == task.id) it.copy(status = action.targetStatus) else it
+                    },
+            )
+        }
+
+        viewModelScope.launch {
+            val body =
+                buildMap<String, String?> {
+                    put("status", action.targetStatus)
+                    if (action.needsSummary && !summary.isNullOrBlank()) {
+                        put("result", summary)
+                        put("summary", summary)
+                    }
+                }
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.updateKanbanTask(task.id, body) }
+                }
+            if (result is NetworkResult.Failure) {
+                revertTaskMove(task.id, originalStatus, "Move failed: ${result.error.message}")
+            }
+        }
+    }
+
+    private fun revertTaskMove(
+        taskId: String,
+        originalStatus: String,
+        errorMsg: String,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                tasks =
+                    state.tasks.map {
+                        if (it.id == taskId) it.copy(status = originalStatus) else it
+                    },
+                toastMessage = errorMsg,
+            )
         }
     }
 

@@ -1206,8 +1206,6 @@ class E2eIntegrationTest {
             coEvery { mockApiService.switchKanbanBoard("board-1") } returns Response.success(Unit)
             coEvery { mockApiService.getKanbanBoard() } returns
                 Response.success(KanbanBoardResponse(listOf(KanbanColumn("todo", listOf(task))), null, null))
-            coEvery { mockApiService.updateKanbanTask("task-1", mapOf("status" to "in_progress")) } returns
-                Response.success(Unit)
 
             val viewModel = KanbanViewModel(eventsClientProvider = { mockk<KanbanEventsClient>(relaxed = true) })
             viewModel.loadBoards()
@@ -1221,21 +1219,6 @@ class E2eIntegrationTest {
             assertEquals(1, viewModel.uiState.value.tasks.size)
             assertEquals(
                 "todo",
-                viewModel.uiState.value.tasks[0]
-                    .status,
-            )
-
-            viewModel.moveTask(viewModel.uiState.value.tasks[0], "in_progress")
-            // Optimistic move check
-            assertEquals(
-                "in_progress",
-                viewModel.uiState.value.tasks[0]
-                    .status,
-            )
-
-            advanceUntilIdle()
-            assertEquals(
-                "in_progress",
                 viewModel.uiState.value.tasks[0]
                     .status,
             )

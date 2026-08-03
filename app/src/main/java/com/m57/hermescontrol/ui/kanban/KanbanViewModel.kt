@@ -122,34 +122,6 @@ class KanbanViewModel(
         }
     }
 
-    fun moveTask(
-        task: KanbanTask,
-        newStatus: String,
-    ) {
-        val originalStatus = task.status
-        val board = _uiState.value.selectedBoard ?: return
-
-        // Optimistically update
-        _uiState.update { state ->
-            state.copy(
-                tasks =
-                    state.tasks.map {
-                        if (it.id == task.id) it.copy(status = newStatus) else it
-                    },
-            )
-        }
-
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.updateKanbanTask(task.id, mapOf("status" to newStatus)) }
-                }
-            if (result is NetworkResult.Failure) {
-                revertTaskMove(task.id, originalStatus, "Failed to move task: ${result.error.message}")
-            }
-        }
-    }
-
     override fun onCleared() {
         eventsClient?.disconnect()
         super.onCleared()
@@ -231,22 +203,6 @@ class KanbanViewModel(
                     )
                 }
             }
-        }
-    }
-
-    private fun revertTaskMove(
-        taskId: String,
-        originalStatus: String,
-        errorMsg: String,
-    ) {
-        _uiState.update { state ->
-            state.copy(
-                tasks =
-                    state.tasks.map {
-                        if (it.id == taskId) it.copy(status = originalStatus) else it
-                    },
-                toastMessage = errorMsg,
-            )
         }
     }
 

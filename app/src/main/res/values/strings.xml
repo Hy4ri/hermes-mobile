@@ -247,9 +247,6 @@
     <string name="kanban_offline">Offline</string>
     <string name="kanban_no_tasks">No tasks</string>
     <string name="action_add">Add</string>
-    <string name="content_desc_move_left">Move Left</string>
-    <string name="content_desc_move_right">Move Right</string>
-
     <!-- Skills Screen -->
     <string name="skills_status_all">All Statuses</string>
     <string name="skills_status_enabled">Enabled</string>

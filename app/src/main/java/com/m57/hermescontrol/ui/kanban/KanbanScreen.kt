@@ -18,8 +18,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
@@ -28,7 +26,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
@@ -183,8 +180,6 @@ fun KanbanScreen(
                                         val column = state.columns[columnIndex]
                                         val colName = column.name
                                         val colTasks = tasksByColumn[colName.lowercase()] ?: emptyList()
-                                        val prevColumn = state.columns.getOrNull(columnIndex - 1)
-                                        val nextColumn = state.columns.getOrNull(columnIndex + 1)
 
                                         Column(
                                             modifier =
@@ -221,17 +216,7 @@ fun KanbanScreen(
                                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                                 ) {
                                                     items(colTasks, key = { it.id }) { task ->
-                                                        TaskCard(
-                                                            task = task,
-                                                            onMoveLeft =
-                                                                prevColumn?.let {
-                                                                    { viewModel.moveTask(task, it.name) }
-                                                                },
-                                                            onMoveRight =
-                                                                nextColumn?.let {
-                                                                    { viewModel.moveTask(task, it.name) }
-                                                                },
-                                                        )
+                                                        TaskCard(task = task)
                                                     }
                                                 }
                                             }
@@ -273,11 +258,7 @@ fun KanbanScreen(
 }
 
 @Composable
-fun TaskCard(
-    task: KanbanTask,
-    onMoveLeft: (() -> Unit)?,
-    onMoveRight: (() -> Unit)?,
-) {
+fun TaskCard(task: KanbanTask) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(text = task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -305,34 +286,6 @@ fun TaskCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (onMoveLeft != null) {
-                    IconButton(onClick = onMoveLeft) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.content_desc_move_left),
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.size(48.dp))
-                }
-
-                if (onMoveRight != null) {
-                    IconButton(onClick = onMoveRight) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = stringResource(R.string.content_desc_move_right),
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.size(48.dp))
                 }
             }
         }

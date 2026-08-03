@@ -114,7 +114,6 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.HTTP
 import retrofit2.http.Multipart
-import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Part
@@ -650,12 +649,6 @@ interface HermesApiService {
     @POST("api/plugins/kanban/boards/{slug}/switch")
     suspend fun switchKanbanBoard(
         @Path("slug") slug: String,
-    ): Response<Unit>
-
-    @PATCH("api/plugins/kanban/tasks/{id}")
-    suspend fun updateKanbanTask(
-        @Path("id") taskId: String,
-        @Body body: Map<String, String?>,
     ): Response<Unit>
 
     @POST("api/plugins/kanban/tasks")

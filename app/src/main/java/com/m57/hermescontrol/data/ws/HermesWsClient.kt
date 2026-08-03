@@ -286,10 +286,11 @@ object HermesWsClient {
             return true
         }
         val status =
-            when (ticketResult.httpCode) {
-                401, 403 -> ConnectionStatus.AUTH_EXPIRED
-                408, 429 -> ConnectionStatus.RECONNECTING
-                in 500..599 -> ConnectionStatus.RECONNECTING
+            when {
+                ticketResult.exception -> ConnectionStatus.RECONNECTING
+                ticketResult.httpCode == 401 || ticketResult.httpCode == 403 -> ConnectionStatus.AUTH_EXPIRED
+                ticketResult.httpCode == 408 || ticketResult.httpCode == 429 -> ConnectionStatus.RECONNECTING
+                ticketResult.httpCode != null && ticketResult.httpCode >= 500 -> ConnectionStatus.RECONNECTING
                 else -> ConnectionStatus.DISCONNECTED
             }
         return handleWsTicketRefreshFailure(status)
@@ -326,6 +327,7 @@ object HermesWsClient {
     private data class TicketRequestResult(
         val ticket: String?,
         val httpCode: Int?,
+        val exception: Boolean = false,
     )
 
     /** POST /api/auth/ws-ticket (cookie-auth'd via the shared CookieJar) and parse the ticket. */
@@ -361,6 +363,7 @@ object HermesWsClient {
             }
         } catch (e: Exception) {
             Log.w(TAG, "WS ticket mint failed: ${e.javaClass.simpleName}")
+            return TicketRequestResult(null, null, exception = true)
         }
         return TicketRequestResult(null, null)
     }

@@ -211,8 +211,6 @@
     <string name="kanban_task_title">작업 제목</string>
     <string name="kanban_task_desc">작업 설명</string>
     <string name="action_add">추가</string>
-    <string name="content_desc_move_left">왼쪽으로</string>
-    <string name="content_desc_move_right">오른쪽으로</string>
 
     <!-- Skills Screen -->
     <string name="skills_status_all">모든 상태</string>

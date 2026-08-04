@@ -253,6 +253,30 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSessionBranch_publishesRuntimeSessionId() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            every { HermesWsClient.send(any(), any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke("branch-request")
+                "branch-request"
+            }
+
+            viewModel.sendMessage("/fork")
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "branch-request",
+                    mapOf(
+                        "session_id" to "runtime-branch",
+                        "stored_session_id" to "stored-branch",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("runtime-branch", ActiveSessionHolder.activeSessionId.value)
+        }
+
+    @Test
     fun testSlashCommand_fork_withoutName_omitsNameParam() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

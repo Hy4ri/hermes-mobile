@@ -24,10 +24,11 @@ import kotlinx.serialization.json.JsonPrimitive
  *   as a human summary instead of a raw JSON dump
  */
 object ToolViewBuilder {
-    private val HTML_PATH_REGEX = Regex(
-        "(?:^|\\s)(?:[ab]/)?([^\\s]+\\.html?)(?=\\s|$)",
-        RegexOption.IGNORE_CASE,
-    )
+    private val HTML_PATH_REGEX =
+        Regex(
+            "(?:^|\\s)(?:[ab]/)?([^\\s]+\\.html?)(?=\\s|$)",
+            RegexOption.IGNORE_CASE,
+        )
 
     // ── shared field helpers ─────────────────────────────────────────────
 

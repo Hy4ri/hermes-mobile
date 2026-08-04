@@ -134,6 +134,7 @@ class ChatNotificationService : Service() {
             val replyIntent =
                 Intent(this, NotificationReplyReceiver::class.java).apply {
                     action = "$packageName.ACTION_NOTIFICATION_REPLY"
+                    setPackage(packageName)
                     putExtra(NotificationReplyReceiver.EXTRA_SESSION_ID, sessionId)
                 }
 

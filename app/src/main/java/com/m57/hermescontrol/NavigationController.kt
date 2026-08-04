@@ -58,6 +58,10 @@ object NavigationController {
      */
     fun goBack(fallback: NavKey = ChatScreen) {
         val stack = backStack ?: return
+        if (stack.lastOrNull() == ChatScreen) {
+            resetTo(HistoryScreen)
+            return
+        }
         if (stack.size > 1) {
             stack.removeLastOrNull()
         } else if (stack.size == 1) {

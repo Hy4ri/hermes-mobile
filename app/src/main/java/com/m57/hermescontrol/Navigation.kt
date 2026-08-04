@@ -1,5 +1,6 @@
 package com.m57.hermescontrol
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -155,6 +156,10 @@ fun MainNavigation(sessionId: String? = null) {
         }
 
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
+
+    BackHandler(enabled = currentScreen == ChatScreen && backStack.size == 1) {
+        NavigationController.goBack()
+    }
 
     CompositionLocalProvider(LocalDrawerGestureController provides gestureController) {
         ModalNavigationDrawer(

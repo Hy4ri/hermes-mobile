@@ -162,6 +162,17 @@ class NavigationControllerTest {
     }
 
     @Test
+    fun `goBack from chat opens history`() {
+        val backStack = NavBackStack<NavKey>(ChatScreen)
+        NavigationController.backStack = backStack
+
+        NavigationController.goBack()
+
+        assertEquals(1, backStack.size)
+        assertEquals(HistoryScreen, backStack.lastOrNull())
+    }
+
+    @Test
     fun `goBack falls back to default screen when stack has one item`() {
         val backStack = NavBackStack<NavKey>(ProfilesScreen)
         NavigationController.backStack = backStack

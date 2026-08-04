@@ -10,7 +10,6 @@ import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -39,7 +38,6 @@ class PersistentCookieJar(
     // serverId -> (host -> cookies)
     private val cache = ConcurrentHashMap<String, MutableMap<String, MutableList<Cookie>>>()
     private val loadedScopes = ConcurrentHashMap.newKeySet<String>()
-    private val loadLatches = ConcurrentHashMap<String, CountDownLatch>()
 
     @Volatile private var currentServerId = AtomicReference(initialServerId)
 

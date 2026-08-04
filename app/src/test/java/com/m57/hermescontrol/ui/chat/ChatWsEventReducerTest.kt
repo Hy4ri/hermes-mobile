@@ -378,6 +378,34 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun testMessageComplete_replacesExistingStreamingMessageWithSameId() {
+        val streaming =
+            ChatMessage(
+                id = "037cae0c-494e-4a36-862f-3f3e8a235950",
+                role = MessageRole.ASSISTANT,
+                content = "partial",
+                isStreaming = true,
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state =
+                    ChatUiState(
+                        messages =
+                            listOf(
+                                streaming.copy(content = "stale", isStreaming = false),
+                                streaming.copy(isStreaming = false),
+                            ),
+                    ),
+                streamingState = StreamingState(streamingMessage = streaming),
+                event = WsEvent.MessageComplete(text = "complete", sessionId = "session-1"),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(1, result.state.messages.size)
+        assertEquals("complete", result.state.messages.single().content)
+    }
+
+    @Test
     fun testMessageStart_prunesCompletedSubagents() {
         val completedSubagent =
             SubagentIndicator(

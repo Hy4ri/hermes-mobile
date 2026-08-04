@@ -68,6 +68,16 @@ class ChatViewModelTest {
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
 
+    @Test
+    fun mergeTranscriptWithLive_collapsesDuplicateIdsKeepingLatestMessage() {
+        val stale = ChatMessage(id = "duplicate-id", role = MessageRole.ASSISTANT, content = "stale")
+        val latest = stale.copy(content = "latest")
+
+        val merged = mergeTranscriptWithLive(emptyList(), listOf(stale, latest))
+
+        assertEquals(listOf(latest), merged)
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)

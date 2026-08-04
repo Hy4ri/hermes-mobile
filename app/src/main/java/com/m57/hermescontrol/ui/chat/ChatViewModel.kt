@@ -154,25 +154,27 @@ internal fun mergeTranscriptWithLive(
     restMessages: List<ChatMessage>,
     currentMessages: List<ChatMessage>,
 ): List<ChatMessage> {
+    val dedupedRest = restMessages.dedupeById()
+    val dedupedCurrent = currentMessages.dedupeById()
     // User rows can carry live/cache-only metadata (for example whether the
     // bubble continues the active turn). Keep that richer copy when REST
     // returns the same logical row.
-    val currentUsers = currentMessages.filter { it.role == MessageRole.USER }.toMutableList()
+    val currentUsers = dedupedCurrent.filter { it.role == MessageRole.USER }.toMutableList()
     val mergedRest =
-        restMessages.map { rest ->
+        dedupedRest.map { rest ->
             if (rest.role != MessageRole.USER) return@map rest
             val matchIndex =
                 currentUsers.indexOfFirst { it.id == rest.id }.takeIf { it >= 0 }
                     ?: currentUsers.indexOfFirst { sameLogicalMessage(rest, it) }
             if (matchIndex >= 0) currentUsers.removeAt(matchIndex) else rest
         }
-    val restIds = restMessages.map { it.id }.toSet()
+    val restIds = dedupedRest.map { it.id }.toSet()
     val liveTail =
-        currentMessages.filter { old ->
-            old.id !in restIds && restMessages.none { sameLogicalMessage(it, old) }
+        dedupedCurrent.filter { old ->
+            old.id !in restIds && mergedRest.none { sameLogicalMessage(it, old) }
         }
-    if (liveTail.isEmpty()) return mergedRest
-    return (mergedRest + liveTail).sortedBy { it.timestamp }
+    if (liveTail.isEmpty()) return mergedRest.dedupeById()
+    return (mergedRest + liveTail).dedupeById().sortedBy { it.timestamp }
 }
 
 /** Merge a REST page without matching it against already-settled transcript rows. */
@@ -186,14 +188,18 @@ internal fun mergeIncrementalTranscriptPage(
         currentMessages.indexOfLast { message ->
             serverMessageIndex(message.id, sessionId)?.let { it < offset } == true
         }
-    return currentMessages.take(settledEnd + 1) +
-        mergeTranscriptWithLive(restMessages, currentMessages.drop(settledEnd + 1))
+    return (
+        currentMessages.take(settledEnd + 1) +
+            mergeTranscriptWithLive(restMessages, currentMessages.drop(settledEnd + 1))
+    ).dedupeById()
 }
 
 private fun serverMessageIndex(
     id: String,
     sessionId: String,
 ): Int? = id.removePrefix("rest-$sessionId-").takeIf { it != id }?.toIntOrNull()
+
+internal fun List<ChatMessage>.dedupeById(): List<ChatMessage> = associateBy { it.id }.values.toList()
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),

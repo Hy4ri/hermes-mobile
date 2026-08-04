@@ -8,6 +8,10 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
+private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage> {
+    return (this + message).dedupeById()
+}
+
 /**
  * Pure state reducer for WebSocket events.
  *
@@ -168,7 +172,7 @@ object ChatWsEventReducer {
                 val finalized = streamingState.streamingMessage.copy(isStreaming = false)
                 orphan = finalized
                 state.copy(
-                    messages = state.messages + finalized,
+                    messages = state.messages.upsertById(finalized),
                     isAgentTyping = true,
                     subagentIndicators = cleanedSubagents,
                 )
@@ -319,7 +323,7 @@ object ChatWsEventReducer {
         return ReducerResult(
             state =
                 state.copy(
-                    messages = state.messages + msg,
+                    messages = state.messages.upsertById(msg),
                     isAgentTyping = false,
                 ),
             effects = effects,
@@ -358,7 +362,7 @@ object ChatWsEventReducer {
         return ReducerResult(
             state =
                 state.copy(
-                    messages = state.messages + msg,
+                    messages = state.messages.upsertById(msg),
                     isAgentTyping = false,
                 ),
             effects = effects,
@@ -401,7 +405,7 @@ object ChatWsEventReducer {
                     )
                 orphanToPersist = finalized
                 state.copy(
-                    messages = state.messages + finalized,
+                    messages = state.messages.upsertById(finalized),
                 )
             } else {
                 state

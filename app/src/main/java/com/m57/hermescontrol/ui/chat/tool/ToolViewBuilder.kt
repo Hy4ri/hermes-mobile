@@ -24,6 +24,11 @@ import kotlinx.serialization.json.JsonPrimitive
  *   as a human summary instead of a raw JSON dump
  */
 object ToolViewBuilder {
+    private val HTML_PATH_REGEX = Regex(
+        "(?:^|\\s)(?:[ab]/)?([^\\s]+\\.html?)(?=\\s|$)",
+        RegexOption.IGNORE_CASE,
+    )
+
     // ── shared field helpers ─────────────────────────────────────────────
 
     private fun firstString(
@@ -257,10 +262,7 @@ object ToolViewBuilder {
     private fun htmlPathFromInlineDiff(value: String): String {
         val cleaned = stripInlineDiffChrome(value)
 
-        for (match in Regex(
-            "(?:^|\\s)(?:[ab]/)?([^\\s]+\\.html?)(?=\\s|$)",
-            RegexOption.IGNORE_CASE,
-        ).findAll(cleaned)) {
+        for (match in HTML_PATH_REGEX.findAll(cleaned)) {
             val candidate = match.groupValues[1].trim()
 
             if (candidate.isNotEmpty()) {

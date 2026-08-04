@@ -2039,15 +2039,24 @@ class ChatViewModel(
                             // → dropped. Use sameLogicalMessage (canonical
                             // result-key match) and always preserve any WS
                             // message that has no REST counterpart.
-                            val unmatchedIncoming = incoming.toMutableList()
+                            val unmatchedIncoming: MutableList<ChatMessage?> = incoming.toMutableList()
+                            val incomingById = HashMap<String, Int>(unmatchedIncoming.size)
+                            for (i in unmatchedIncoming.indices) {
+                                val id = unmatchedIncoming[i]?.id
+                                if (id != null && !incomingById.containsKey(id)) {
+                                    incomingById[id] = i
+                                }
+                            }
+
                             val mergedList = mutableListOf<ChatMessage>()
 
                             for (existing in current.messages) {
                                 val existingServerIndex = serverMessageIndex(existing.id, sessionId)
                                 if (existingServerIndex != null) {
-                                    val matchIdx = unmatchedIncoming.indexOfFirst { it.id == existing.id }
-                                    if (matchIdx >= 0) {
-                                        mergedList.add(unmatchedIncoming.removeAt(matchIdx))
+                                    val matchIdx = incomingById[existing.id]
+                                    if (matchIdx != null && unmatchedIncoming[matchIdx] != null) {
+                                        mergedList.add(unmatchedIncoming[matchIdx]!!)
+                                        unmatchedIncoming[matchIdx] = null
                                     } else {
                                         mergedList.add(existing)
                                     }
@@ -2057,14 +2066,13 @@ class ChatViewModel(
                                     // toolName/content equality.
                                     val matchIdx =
                                         unmatchedIncoming.indexOfFirst { inc ->
-                                            sameLogicalMessage(inc, existing)
+                                            inc != null && sameLogicalMessage(inc, existing)
                                         }
                                     if (matchIdx >= 0) {
                                         // Prefer the WS copy (richer payload,
                                         // real tool name) when available.
-                                        val inc = unmatchedIncoming[matchIdx]
                                         mergedList.add(existing)
-                                        unmatchedIncoming.removeAt(matchIdx)
+                                        unmatchedIncoming[matchIdx] = null
                                     } else {
                                         // No REST counterpart (server hasn't
                                         // persisted yet) — KEEP the WS message.
@@ -2072,7 +2080,12 @@ class ChatViewModel(
                                     }
                                 }
                             }
-                            mergedList.addAll(unmatchedIncoming)
+
+                            for (inc in unmatchedIncoming) {
+                                if (inc != null) {
+                                    mergedList.add(inc)
+                                }
+                            }
                             val merged = mergedList.distinctBy { it.id }
                             if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
                         }

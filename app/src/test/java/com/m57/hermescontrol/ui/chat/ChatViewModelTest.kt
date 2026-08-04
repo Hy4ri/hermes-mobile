@@ -93,6 +93,7 @@ class ChatViewModelTest {
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
 
         every { AuthManager.getToken() } returns "test-token"
+        every { AuthManager.getBaseUrl() } returns "http://test.local/"
         every { AuthManager.getSelectedProfileId() } returns null
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
@@ -1187,7 +1188,6 @@ class ChatViewModelTest {
         // unless another test class happened to init it earlier in the JVM
         // (the order-dependent flakiness). Stub it for determinism — same
         // pattern as E2eIntegrationTest / ApiClientTest.
-        every { AuthManager.getBaseUrl() } returns "http://test.local/"
         if (success) {
             coEvery {
                 mockApi.getSessions(any(), any(), any())
@@ -1518,7 +1518,6 @@ class ChatViewModelTest {
             // on the REST-success path (mockkObject spy fall-through → real
             // uninitialized AuthManager throws). Stub it — same pattern as
             // stubSession456Rests / E2eIntegrationTest.
-            every { AuthManager.getBaseUrl() } returns "http://test.local/"
 
             // Stub the transcript fetch explicitly (relaxed mocks return null
             // and muddy the retry path) and capture which session id it is

@@ -7,25 +7,22 @@ on:
   push:
     branches: [main]
 
-# Cancel in-progress runs when a new commit lands — no point checking stale state
+# Cancel in-progress runs when a new event lands — protects the expensive
+# bulk-check path. github.ref is stable per PR (refs/pull/N/merge) AND stable
+# for pushes to main (refs/heads/main), so one expression covers both triggers
+# and actually cancels a stale bulk run when a newer push arrives.
 concurrency:
-  group: merge-conflict-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: merge-conflict-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   detect-and-label:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       pull-requests: write
       issues: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
       - name: Ensure label exists
         uses: actions/github-script@v9
         with:
@@ -34,15 +31,21 @@ jobs:
             const { data: labels } = await github.rest.issues.listLabelsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
+              per_page: 100,
             });
             if (!labels.some(l => l.name === LABEL)) {
-              await github.rest.issues.createLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                name: LABEL,
-                color: 'd73a4a',
-                description: 'This PR has merge conflicts that need to be resolved',
-              });
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: LABEL,
+                  color: 'd73a4a',
+                  description: 'This PR has merge conflicts that need to be resolved',
+                });
+              } catch (e) {
+                // 422 = label already exists (race with another run) — fine.
+                if (e.status !== 422) throw e;
+              }
             }
 
       - name: Check PRs and label conflicts
@@ -55,7 +58,8 @@ jobs:
             // it returns `null` ("still computing") and can stay null for minutes.
             // The previous version treated `null` as "leave as-is" and never
             // re-checked, so conflicting PRs were never labeled. This polls until
-            // GitHub resolves the merge state (or we time out).
+            // GitHub resolves the merge state (or we time out), returning the full
+            // PR object so callers don't need to re-fetch for labels.
             async function getMergeable(prNumber, retries = 12, delayMs = 5000) {
               for (let i = 0; i < retries; i++) {
                 const { data: pr } = await github.rest.pulls.get({
@@ -63,7 +67,7 @@ jobs:
                   repo: context.repo.repo,
                   pull_number: prNumber,
                 });
-                if (pr.mergeable !== null) return pr.mergeable;
+                if (pr.mergeable !== null) return pr;
                 core.info(`PR #${prNumber}: mergeable still null, retrying (${i + 1}/${retries})...`);
                 await new Promise(r => setTimeout(r, delayMs));
               }
@@ -71,26 +75,22 @@ jobs:
               return null;
             }
 
-            async function checkAndLabel(prNumber) {
-              const mergeable = await getMergeable(prNumber);
+            async function checkAndLabel(pr) {
+              const prNumber = pr.number;
+              const resolved = await getMergeable(prNumber);
 
-              if (mergeable === null) {
+              if (resolved === null) {
                 // Couldn't determine state in time — leave label as-is.
                 core.info(`PR #${prNumber}: mergeable unknown, label left unchanged.`);
                 return;
               }
 
-              const { data: pr } = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-              });
-              const hasConflicts = mergeable === false;
-              const currentLabels = pr.labels.map(l => l.name);
+              const hasConflicts = resolved.mergeable === false;
+              const currentLabels = resolved.labels.map(l => l.name);
               const hasLabel = currentLabels.includes(LABEL);
 
               core.info(
-                `PR #${prNumber}: mergeable=${mergeable}, ` +
+                `PR #${prNumber}: mergeable=${resolved.mergeable}, ` +
                 `hasLabel=${hasLabel}, conflicts=${hasConflicts}`
               );
 
@@ -103,23 +103,32 @@ jobs:
                 });
                 core.info(`✅ Added "${LABEL}" to PR #${prNumber}`);
               } else if (!hasConflicts && hasLabel) {
-                await github.rest.issues.removeLabel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: prNumber,
-                  name: LABEL,
-                });
-                core.info(`✅ Removed "${LABEL}" from PR #${prNumber}`);
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    name: LABEL,
+                  });
+                  core.info(`✅ Removed "${LABEL}" from PR #${prNumber}`);
+                } catch (e) {
+                  // 404 = label already gone (race with another run) — fine.
+                  if (e.status !== 404) throw e;
+                }
               }
             }
 
             // ── Single PR (pull_request event) ─────────────────────────
             if (context.eventName === 'pull_request') {
-              await checkAndLabel(context.issue.number);
+              // For a single PR we already have the number; fetch resolves mergeable.
+              await checkAndLabel({ number: context.issue.number });
               return;
             }
 
             // ── Bulk check all open PRs (push to main event) ───────────
+            // GitHub usually recomputes mergeable for every open PR at once after a
+            // push, so most hit the retry loop simultaneously. Batch a few at a time
+            // with Promise.all to bound wall-clock without hammering the API.
             if (context.eventName === 'push') {
               const { data: prs } = await github.rest.pulls.list({
                 owner: context.repo.owner,
@@ -129,7 +138,9 @@ jobs:
                 per_page: 100,
               });
               core.info(`Checking ${prs.length} open PR(s) base on main...`);
-              for (const pr of prs) {
-                await checkAndLabel(pr.number);
+              const CHUNK = 5;
+              for (let i = 0; i < prs.length; i += CHUNK) {
+                const batch = prs.slice(i, i + CHUNK);
+                await Promise.all(batch.map(p => checkAndLabel(p)));
               }
             }

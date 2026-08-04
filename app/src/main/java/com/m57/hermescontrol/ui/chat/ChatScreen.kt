@@ -85,7 +85,6 @@ import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
-import com.m57.hermescontrol.ui.chat.components.StickySubagentBar
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
@@ -477,15 +476,6 @@ fun ChatScreen(
                     }
                 }
             }
-
-            StickySubagentBar(
-                indicators = state.subagentIndicators,
-                todos = state.todos,
-                onClick = {
-                    showSubagentInspectionSheet = true
-                    scrollController.resumeFollowing()
-                },
-            )
 
             Box(
                 modifier =

@@ -868,6 +868,7 @@ class ChatViewModel(
                         isLoading = false,
                     )
                 runtimeSessionId = runtimeId
+                ActiveSessionHolder.set(runtimeId)
                 sessionHasServerPresence = false
                 sessionGoneRecoveryInFlight = false
                 addSystemMessage("Session branched", persist = true)

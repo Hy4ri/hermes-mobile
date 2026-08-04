@@ -51,21 +51,46 @@ jobs:
           script: |
             const LABEL = 'has-conflicts';
 
+            // GitHub computes `mergeable` asynchronously. Immediately after a push
+            // it returns `null` ("still computing") and can stay null for minutes.
+            // The previous version treated `null` as "leave as-is" and never
+            // re-checked, so conflicting PRs were never labeled. This polls until
+            // GitHub resolves the merge state (or we time out).
+            async function getMergeable(prNumber, retries = 12, delayMs = 5000) {
+              for (let i = 0; i < retries; i++) {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                });
+                if (pr.mergeable !== null) return pr.mergeable;
+                core.info(`PR #${prNumber}: mergeable still null, retrying (${i + 1}/${retries})...`);
+                await new Promise(r => setTimeout(r, delayMs));
+              }
+              core.warning(`PR #${prNumber}: mergeable never resolved after ${retries} tries.`);
+              return null;
+            }
+
             async function checkAndLabel(prNumber) {
-              // Fetch PR with mergeable status
+              const mergeable = await getMergeable(prNumber);
+
+              if (mergeable === null) {
+                // Couldn't determine state in time — leave label as-is.
+                core.info(`PR #${prNumber}: mergeable unknown, label left unchanged.`);
+                return;
+              }
+
               const { data: pr } = await github.rest.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: prNumber,
               });
-
-              // mergeable: true = clean, false = conflicts, null = still computing
-              const hasConflicts = pr.mergeable === false;
+              const hasConflicts = mergeable === false;
               const currentLabels = pr.labels.map(l => l.name);
               const hasLabel = currentLabels.includes(LABEL);
 
               core.info(
-                `PR #${prNumber}: mergeable=${pr.mergeable}, ` +
+                `PR #${prNumber}: mergeable=${mergeable}, ` +
                 `hasLabel=${hasLabel}, conflicts=${hasConflicts}`
               );
 
@@ -85,11 +110,6 @@ jobs:
                   name: LABEL,
                 });
                 core.info(`✅ Removed "${LABEL}" from PR #${prNumber}`);
-              } else if (pr.mergeable === null) {
-                core.warning(
-                  `PR #${prNumber}: mergeable is null (still computing). ` +
-                  `Label left as-is. The next event will recheck.`
-                );
               }
             }
 

@@ -1,0 +1,11 @@
+--- app/src/main/java/com/m57/hermescontrol/data/remote/PersistentCookieJar.kt
++++ app/src/main/java/com/m57/hermescontrol/data/remote/PersistentCookieJar.kt
+@@ -104,9 +104,6 @@
+     override fun loadForRequest(url: HttpUrl): List<Cookie> {
+         val serverId = currentServerId.get()
+-        // Best-effort synchronous load on first touch (tests/first call).
+-        if (!loadedScopes.contains(serverId)) {
+-            kotlinx.coroutines.runBlocking { ensureLoaded(serverId) }
+-        }
+         val hostKey = url.host
+         val hosts = cache[serverId] ?: return emptyList()

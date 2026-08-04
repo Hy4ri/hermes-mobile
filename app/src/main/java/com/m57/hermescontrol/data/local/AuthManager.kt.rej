@@ -1,0 +1,9 @@
+--- app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt
++++ app/src/main/java/com/m57/hermescontrol/data/local/AuthManager.kt
+@@ -332,7 +332,7 @@
+         }
+         _tokenFlow.value = getToken()
+         // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
+-        syncCookieStoreForProfile(id)
++        appScope?.launch { syncCookieStoreForProfile(id) }
+     }

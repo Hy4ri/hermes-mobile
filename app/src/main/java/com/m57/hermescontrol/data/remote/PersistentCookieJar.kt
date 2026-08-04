@@ -61,9 +61,6 @@ class PersistentCookieJar(
      */
     fun getCookie(name: String): Cookie? {
         val serverId = currentServerId.get()
-        if (!loadedScopes.contains(serverId)) {
-            kotlinx.coroutines.runBlocking { ensureLoaded(serverId) }
-        }
         val hosts = cache[serverId] ?: return null
         for (bucket in hosts.values) {
             synchronized(bucket) {
@@ -106,10 +103,6 @@ class PersistentCookieJar(
 
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         val serverId = currentServerId.get()
-        // Best-effort synchronous load on first touch (tests/first call).
-        if (!loadedScopes.contains(serverId)) {
-            kotlinx.coroutines.runBlocking { ensureLoaded(serverId) }
-        }
         val hostKey = url.host
         val hosts = cache[serverId] ?: return emptyList()
         val now = System.currentTimeMillis()

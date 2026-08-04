@@ -92,6 +92,15 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                             val repliedNotification = buildReplyNotification(context)
                             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                             manager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, repliedNotification)
+
+                            // The follow-up turn is now pending — keep the
+                            // foreground service alive if it retired after the
+                            // previous reply completed, so the next
+                            // MessageComplete still notifies while backgrounded
+                            // (issue #794). No-op when the app is foreground.
+                            if (!NotificationHelper.isAppInForeground()) {
+                                NotificationHelper.start(context)
+                            }
                         }
                     }
                 } catch (e: Exception) {

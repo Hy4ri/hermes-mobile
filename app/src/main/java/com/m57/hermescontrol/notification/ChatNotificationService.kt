@@ -42,11 +42,16 @@ import java.util.concurrent.atomic.AtomicBoolean
  * message notifications, which is correct.
  *
  * Lifecycle:
- * - Started by [NotificationHelper.start] when the user sends a message and
- *   the app is about to go to the background (called from ChatScreen's
- *   onStop / onPause).
+ * - Started by [NotificationHelper.start] when the app goes to the
+ *   background while a reply is still pending (the user sent a message or
+ *   replied from a notification and the agent has not finished yet).
+ *   [NotificationHelper.start] is a no-op when nothing is pending, so the
+ *   service — and its mandatory persistent notification — only exists
+ *   while the user is actually waiting for a reply (issue #794).
  * - Stopped by [NotificationHelper.stop] when the app returns to the
- *   foreground (called from ChatScreen's onStart / onResume).
+ *   foreground (called from ChatScreen's onStart / onResume), or by the
+ *   service itself once the pending reply completes in the background
+ *   (the reply notification replaces the persistent "waiting" one).
  *
  * The service collects [WsEvent]s from [HermesWsClient] — the same stream
  * the ChatViewModel collects — and watches for [WsEvent.MessageComplete]
@@ -64,6 +69,8 @@ class ChatNotificationService : Service() {
         fun setAppForeground(foreground: Boolean) {
             isAppInForeground.set(foreground)
         }
+
+        fun isAppInForeground(): Boolean = isAppInForeground.get()
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -92,6 +99,15 @@ class ChatNotificationService : Service() {
                                                 .replace("\n", " ")
                                                 .ifBlank { getString(R.string.notif_new_message) }
                                         showReplyNotification(preview, event.sessionId)
+                                        // The wait is over — retire the foreground
+                                        // service. The reply notification above
+                                        // replaces the persistent "waiting" one,
+                                        // and the pendingReply flag is cleared by
+                                        // HermesWsClient's own collector, so the
+                                        // service is not restarted on the next
+                                        // ON_STOP (issue #794).
+                                        stopForeground(STOP_FOREGROUND_REMOVE)
+                                        stopSelf()
                                     }
 
                                     is WsEvent.ClarifyRequest -> {
@@ -235,6 +251,11 @@ class ChatNotificationService : Service() {
 object NotificationHelper {
     fun start(context: Context) {
         if (AuthManager.getToken().isNullOrBlank()) return
+        // Only run the foreground service while a reply is actually pending
+        // (issue #794) — otherwise the mandatory persistent "Waiting for
+        // Hermes replies" notification appears on every background even
+        // when nothing is in flight.
+        if (!HermesWsClient.pendingReply) return
         val intent = Intent(context, ChatNotificationService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent)
@@ -253,4 +274,6 @@ object NotificationHelper {
     ) {
         ChatNotificationService.setAppForeground(foreground)
     }
+
+    fun isAppInForeground(): Boolean = ChatNotificationService.isAppInForeground()
 }

@@ -157,6 +157,15 @@ object HermesWsClient {
     /** Observable connection status */
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
+    // ── Reply-pending tracking ─────────────────────────────────────────
+    // True while at least one agent turn is in flight. Drives the chat
+    // notification foreground service: it only runs while a reply is
+    // actually pending, instead of for the whole time the app is
+    // backgrounded (issue #794).
+    @Volatile
+    var pendingReply: Boolean = false
+        private set
+
     // ── Credential warning (issue #534) ─────────────────────────────────
     // Backend surfaces `credential_warning` in `gateway.ready` / `session.info`
     // WS payloads (desktop `requestDesktopOnboarding`). Mobile has no equivalent
@@ -204,6 +213,25 @@ object HermesWsClient {
                 val warning = data?.get("credential_warning") as? String
                 if (!warning.isNullOrBlank()) {
                     _credentialWarning.value = warning
+                }
+            }
+        }
+        // Track whether a reply is actually in flight so the chat notification
+        // foreground service only runs while the user is waiting for one
+        // (issue #794), instead of for the whole time the app is backgrounded.
+        // Also covers turns started from other devices on the same session.
+        wsScope.launch {
+            events.collect { event ->
+                when (event) {
+                    is WsEvent.MessageStart,
+                    is WsEvent.MessageToken,
+                    is WsEvent.ThinkingDelta,
+                    is WsEvent.ReasoningDelta,
+                    is WsEvent.ToolStart,
+                    -> pendingReply = true
+
+                    is WsEvent.MessageComplete -> pendingReply = false
+                    else -> {}
                 }
             }
         }
@@ -584,12 +612,17 @@ object HermesWsClient {
         sessionId: String,
         text: String,
         onSent: ((String) -> Unit)? = null,
-    ): String =
-        send(
+    ): String {
+        // A reply is now pending — even before the first MessageStart event
+        // (the agent may be in its tool phase), so backgrounding the app in
+        // that window still arms the notification service (issue #794).
+        pendingReply = true
+        return send(
             method = WsMethods.PROMPT_SUBMIT,
             params = mapOf("session_id" to sessionId, "text" to text),
             onSent = onSent,
         )
+    }
 
     /**
      * Convenience: redirect the active model turn while it is still generating

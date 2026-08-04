@@ -1,5 +1,8 @@
 package com.m57.hermescontrol
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 
@@ -16,7 +19,8 @@ import androidx.navigation3.runtime.NavKey
  */
 object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
-    var pendingSessionId: String? = null
+    var pendingSessionId: String? by mutableStateOf(null)
+        private set
 
     // Top-level primary screens (Chat, Skills, Cron, System, Settings)
     private val primaryScreens: MutableSet<NavKey> =
@@ -44,6 +48,14 @@ object NavigationController {
         // itself via SideEffect. No synchronous closeDrawer callback here.
         stack.add(key)
     }
+
+    fun openChatSession(sessionId: String) {
+        if (sessionId.isBlank()) return
+        pendingSessionId = sessionId
+        navigateTo(ChatScreen)
+    }
+
+    fun consumePendingSessionId(): String? = pendingSessionId.also { pendingSessionId = null }
 
     /** Clear the stack and navigate to the given screen atomically. */
     fun resetTo(screen: NavKey) {

@@ -10,7 +10,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -48,20 +47,13 @@ fun ChatLifecycleEffects(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Publish the notification session ID to the ViewModel synchronously
-    SideEffect {
-        viewModel.initialSessionId = sessionId
-    }
-
     // Switch to session from notification/history
-    LaunchedEffect(sessionId, NavigationController.pendingSessionId, connectionStatus) {
+    val pendingSessionId = NavigationController.pendingSessionId
+    LaunchedEffect(sessionId, pendingSessionId, connectionStatus) {
         if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
-        val target = if (!sessionId.isNullOrBlank()) sessionId else NavigationController.pendingSessionId
+        val target = NavigationController.consumePendingSessionId() ?: sessionId
         if (!target.isNullOrBlank()) {
             viewModel.switchSession(target)
-            if (target == NavigationController.pendingSessionId) {
-                NavigationController.pendingSessionId = null
-            }
         }
     }
 

@@ -14,6 +14,7 @@ import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.MainActivity
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import kotlinx.coroutines.CoroutineScope
@@ -98,7 +99,10 @@ class ChatNotificationService : Service() {
                                                 .take(100)
                                                 .replace("\n", " ")
                                                 .ifBlank { getString(R.string.notif_new_message) }
-                                        showReplyNotification(preview, event.sessionId)
+                                        showReplyNotification(
+                                            preview,
+                                            ActiveSessionHolder.resolveStoredSessionId(event.sessionId),
+                                        )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above
                                         // replaces the persistent "waiting" one,

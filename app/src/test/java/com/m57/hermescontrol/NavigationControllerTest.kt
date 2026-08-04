@@ -27,11 +27,13 @@ class NavigationControllerTest {
     fun setUp() {
         // Start fresh — no pinned back stack from a previous test
         NavigationController.backStack = null
+        NavigationController.consumePendingSessionId()
     }
 
     @After
     fun tearDown() {
         NavigationController.backStack = null
+        NavigationController.consumePendingSessionId()
     }
 
     // ── Dedup guard: navigateTo with same key ──────────────────────────────
@@ -119,6 +121,29 @@ class NavigationControllerTest {
         NavigationController.navigateTo(KeysScreen)
         assertEquals(3, backStack.size)
         assertEquals(KeysScreen, backStack.lastOrNull())
+    }
+
+    @Test
+    fun `openChatSession navigates once and exposes a consumable session id`() {
+        val backStack = NavBackStack<NavKey>(HistoryScreen)
+        NavigationController.backStack = backStack
+
+        NavigationController.openChatSession("stored-session")
+
+        assertEquals(ChatScreen, backStack.lastOrNull())
+        assertEquals("stored-session", NavigationController.consumePendingSessionId())
+        assertNull(NavigationController.consumePendingSessionId())
+    }
+
+    @Test
+    fun `openChatSession ignores blank ids`() {
+        val backStack = NavBackStack<NavKey>(HistoryScreen)
+        NavigationController.backStack = backStack
+
+        NavigationController.openChatSession("   ")
+
+        assertEquals(HistoryScreen, backStack.lastOrNull())
+        assertNull(NavigationController.consumePendingSessionId())
     }
 
     // ── resetTo: atomic clear + navigate ──────────────────────────────────

@@ -8,7 +8,9 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.WsMethods
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +22,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
     companion object {
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val EXTRA_SESSION_ID = "extra_session_id"
+        private const val REPLY_TIMEOUT_MS = 5_000L
     }
 
     // Reusable scope for async reply processing — avoids creating a new
@@ -74,7 +77,15 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                                 return@withContext
                             }
 
-                            HermesWsClient.sendMessage(sessionId, replyText)
+                            val runtimeSessionId =
+                                ActiveSessionHolder.resolveRuntimeSessionId(sessionId)
+                                    ?: resumeSession(sessionId)
+                            HermesWsClient
+                                .request(
+                                    WsMethods.PROMPT_SUBMIT,
+                                    mapOf("session_id" to runtimeSessionId, "text" to replyText),
+                                    timeoutMs = REPLY_TIMEOUT_MS,
+                                ).await()
 
                             val entity =
                                 com.m57.hermescontrol.data.local.ChatMessageEntity(
@@ -110,5 +121,20 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
                 }
             }
         }
+    }
+
+    private suspend fun resumeSession(storedSessionId: String): String {
+        val result =
+            HermesWsClient
+                .request(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to storedSessionId),
+                    timeoutMs = REPLY_TIMEOUT_MS,
+                ).await() as? Map<*, *>
+        val runtimeSessionId =
+            (result?.get("session_id") as? String)?.takeIf { it.isNotBlank() }
+                ?: error("Resume returned no runtime session id")
+        ActiveSessionHolder.set(runtimeSessionId, storedSessionId)
+        return runtimeSessionId
     }
 }

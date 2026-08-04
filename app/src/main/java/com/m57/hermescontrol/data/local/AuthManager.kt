@@ -16,6 +16,7 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.CoroutineScope
@@ -310,6 +311,7 @@ object AuthManager {
     ) {
         requirePrefs().edit().putString("token_$profileId", token).apply()
         if (getSelectedProfileId() == profileId) {
+            if (token == null) ActiveSessionHolder.clear()
             // B7 (Jul 08 2026, kanban t_470): sync in-memory cachedToken
             // to prevent stale tokens during ticket refresh
             synchronized(this) {
@@ -326,6 +328,9 @@ object AuthManager {
     }
 
     fun setSelectedProfileId(id: String?) {
+        if (getSelectedProfileId() != id?.takeIf { it.isNotBlank() }) {
+            ActiveSessionHolder.clear()
+        }
         serverStore.update { it.copy(selectedProfileId = id) }
         synchronized(this) {
             tokenInitialized = false

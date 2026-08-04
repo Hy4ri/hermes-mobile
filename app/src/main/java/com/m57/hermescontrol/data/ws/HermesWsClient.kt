@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -452,6 +453,7 @@ object HermesWsClient {
 
     /** Cleanly close the WebSocket and stop auto-reconnect. */
     fun disconnect(clearPendingMessages: Boolean = false) {
+        ActiveSessionHolder.clear()
         synchronized(outboundLock) {
             intentionalClose.set(true)
             acceptQueuedMessages.set(!clearPendingMessages)
@@ -885,6 +887,7 @@ object HermesWsClient {
                 // reason is still inspected internally to detect auth failures.
                 Log.i(TAG, "WebSocket closed: $code")
                 connected.set(false)
+                ActiveSessionHolder.clear()
                 stopHealthTracking()
                 if (code == 4001 || code == 4401 ||
                     reason.contains("unauthorized", ignoreCase = true) ||
@@ -915,6 +918,7 @@ object HermesWsClient {
                 // detection.
                 Log.e(TAG, "WebSocket failure: ${t.javaClass.simpleName}", t)
                 connected.set(false)
+                ActiveSessionHolder.clear()
                 stopHealthTracking()
                 val code = response?.code ?: 0
                 if (code == 401 || t.message?.contains(

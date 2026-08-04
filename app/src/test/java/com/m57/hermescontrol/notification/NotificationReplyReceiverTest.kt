@@ -9,7 +9,9 @@ import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.data.local.ChatMessageDao
 import com.m57.hermescontrol.data.local.ChatMessageEntity
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.WsMethods
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -18,6 +20,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,7 +34,7 @@ import org.junit.Test
  * handles inline reply actions on chat notifications.
  *
  * Issue #291 (Critical Test Coverage): Verifies the full flow —
- *   (a) WS message is sent via [HermesWsClient.sendMessage]
+ *   (a) WS message is confirmed via [HermesWsClient.request]
  *   (b) Reply is persisted to Room via [ChatMessageDao.upsert]
  *   (c) A "Replied" confirmation notification is posted
  *   (d) Invalid/missing input is handled gracefully (no crash)
@@ -59,6 +62,7 @@ class NotificationReplyReceiverTest {
     @Before
     fun setUp() {
         upsertCallCount = 0
+        ActiveSessionHolder.clear()
 
         // Mock Android framework statics (same pattern as HermesWsClientTest)
         mockkStatic(android.util.Log::class)
@@ -97,7 +101,17 @@ class NotificationReplyReceiverTest {
 
         // Mock HermesWsClient singleton
         mockkObject(HermesWsClient)
-        every { HermesWsClient.sendMessage(any(), any()) } returns "mock-req-id"
+        every { HermesWsClient.request(any(), any(), any()) } answers {
+            val method = arg<String>(0)
+            val params = arg<Map<String, Any>>(1)
+            val result =
+                if (method == WsMethods.SESSION_RESUME) {
+                    mapOf("session_id" to "runtime-${params["session_id"]}")
+                } else {
+                    mapOf("accepted" to true)
+                }
+            CompletableDeferred<Any?>(result)
+        }
 
         // Create receiver with overridden goAsyncCompat() and buildReplyNotification()
         // — BroadcastReceiver.goAsync() is final (Java) and cannot be mocked via spyk,
@@ -113,6 +127,7 @@ class NotificationReplyReceiverTest {
 
     @After
     fun tearDown() {
+        ActiveSessionHolder.clear()
         HermesDatabase.setForTest(null)
         unmockkAll()
     }
@@ -126,7 +141,13 @@ class NotificationReplyReceiverTest {
         receiver.onReceive(mockContext, mockIntent)
         Thread.sleep(500) // Need to wait for coroutine
 
-        verify { HermesWsClient.sendMessage("session-abc", "Hello") }
+        verify {
+            HermesWsClient.request(
+                WsMethods.PROMPT_SUBMIT,
+                match { it["session_id"] == "runtime-session-abc" && it["text"] == "Hello" },
+                any(),
+            )
+        }
     }
 
     @Test
@@ -273,6 +294,88 @@ class NotificationReplyReceiverTest {
 
         // Pending result must still finish even on Room failure
         verify { mockPendingResult.finish() }
+    }
+
+    @Test
+    fun `reply after reconnect resumes stored id and never sends stale runtime id`() {
+        ActiveSessionHolder.set("stale-runtime", "session-abc")
+        ActiveSessionHolder.clear()
+        givenValidReply("session-abc", "Hello")
+
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500)
+
+        verify {
+            HermesWsClient.request(WsMethods.SESSION_RESUME, match { it["session_id"] == "session-abc" }, any())
+            HermesWsClient.request(
+                WsMethods.PROMPT_SUBMIT,
+                match { it["session_id"] == "runtime-session-abc" },
+                any(),
+            )
+        }
+        verify(inverse = true) {
+            HermesWsClient.request(
+                WsMethods.PROMPT_SUBMIT,
+                match { it["session_id"] == "stale-runtime" },
+                any(),
+            )
+        }
+    }
+
+    @Test
+    fun `reply is persisted and confirmed only after send succeeds`() {
+        val sendResult = CompletableDeferred<Any?>()
+        every { HermesWsClient.request(WsMethods.PROMPT_SUBMIT, any(), any()) } returns sendResult
+        givenValidReply("session-abc", "Hello")
+
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(100)
+
+        assertEquals(0, upsertCallCount)
+        verify(inverse = true) { mockNotificationManager.notify(any(), any()) }
+
+        sendResult.complete(mapOf("accepted" to true))
+        Thread.sleep(500)
+
+        assertEquals(1, upsertCallCount)
+        verify { mockNotificationManager.notify(ChatNotificationService.PENDING_NOTIFICATION_ID, any()) }
+    }
+
+    @Test
+    fun `failed send is neither persisted nor confirmed`() {
+        every { HermesWsClient.request(WsMethods.PROMPT_SUBMIT, any(), any()) } returns
+            CompletableDeferred<Any?>().apply { completeExceptionally(IllegalStateException("rejected")) }
+        givenValidReply("session-abc", "Hello")
+
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500)
+
+        assertEquals(0, upsertCallCount)
+        verify(inverse = true) { mockNotificationManager.notify(any(), any()) }
+        verify { mockPendingResult.finish() }
+    }
+
+    @Test
+    fun `failed resume remains retryable on the next reply`() {
+        var resumeAttempts = 0
+        every { HermesWsClient.request(WsMethods.SESSION_RESUME, any(), any()) } answers {
+            resumeAttempts++
+            if (resumeAttempts == 1) {
+                CompletableDeferred<Any?>().apply { completeExceptionally(IllegalStateException("rejected")) }
+            } else {
+                CompletableDeferred<Any?>(mapOf("session_id" to "runtime-session-abc"))
+            }
+        }
+        givenValidReply("session-abc", "Hello")
+
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500)
+        receiver.onReceive(mockContext, mockIntent)
+        Thread.sleep(500)
+
+        assertEquals(2, resumeAttempts)
+        assertEquals(1, upsertCallCount)
+        assertEquals("runtime-session-abc", ActiveSessionHolder.resolveRuntimeSessionId("session-abc"))
     }
 
     @Test

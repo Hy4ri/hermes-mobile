@@ -555,8 +555,7 @@ fun SessionsScreen(
                                                         if (state.isSelecting) {
                                                             viewModel.toggleSessionSelection(session.id)
                                                         } else {
-                                                            NavigationController.pendingSessionId = session.id
-                                                            NavigationController.navigateTo(ChatScreen)
+                                                            NavigationController.openChatSession(session.id)
                                                         }
                                                     },
                                                     onCardLongClick = {
@@ -691,8 +690,7 @@ fun SessionsScreen(
                                             if (state.isSelecting) {
                                                 viewModel.toggleSessionSelection(session.id)
                                             } else {
-                                                NavigationController.pendingSessionId = session.id
-                                                NavigationController.navigateTo(ChatScreen)
+                                                NavigationController.openChatSession(session.id)
                                             }
                                         },
                                         onCardLongClick = {

@@ -11,8 +11,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
@@ -20,9 +18,6 @@ import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.util.LocaleContextWrapper
 
 class MainActivity : ComponentActivity() {
-    // Observable state so both onCreate and onNewIntent updates flow to Compose
-    private var notificationSessionId by mutableStateOf<String?>(null)
-
     /**
      * Apply the user-selected display language before any view is inflated.
      * Reads the persisted code from [AuthManager]; an uninitialized store
@@ -38,8 +33,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Read notification tap sessionId (if any) from the intent that launched us
-        notificationSessionId = intent?.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
+        consumeNotificationIntent(intent)
 
         enableEdgeToEdge()
         setContent {
@@ -55,7 +49,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    MainNavigation(sessionId = notificationSessionId)
+                    MainNavigation()
                 }
             }
         }
@@ -63,10 +57,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // When a notification tap arrives while the app is already running
-        // (task exists in background), Android delivers the intent here instead
-        // of onCreate. Update the observable state so Compose recomposes
-        // and ChatScreen's LaunchedEffect switches to the correct session.
-        notificationSessionId = intent.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
+        setIntent(intent)
+        consumeNotificationIntent(intent)
+    }
+
+    private fun consumeNotificationIntent(intent: Intent?) {
+        val sessionId = intent?.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
+        intent?.removeExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
+        sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSession)
     }
 }

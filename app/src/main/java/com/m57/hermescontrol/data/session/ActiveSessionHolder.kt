@@ -17,12 +17,32 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object ActiveSessionHolder {
     private val _activeSessionId = MutableStateFlow<String?>(null)
+    private var activeStoredSessionId: String? = null
 
     /** The currently active chat session id, or null if none is known yet. */
     val activeSessionId: StateFlow<String?> = _activeSessionId.asStateFlow()
 
     /** Update the active session id. Pass null to clear (e.g. on logout). */
-    fun set(sessionId: String?) {
+    @Synchronized
+    fun set(
+        sessionId: String?,
+        storedSessionId: String? = null,
+    ) {
         _activeSessionId.value = sessionId
+        activeStoredSessionId = storedSessionId
+    }
+
+    @Synchronized
+    fun resolveStoredSessionId(sessionId: String?): String? =
+        if (sessionId == _activeSessionId.value) activeStoredSessionId ?: sessionId else sessionId
+
+    @Synchronized
+    fun resolveRuntimeSessionId(sessionId: String): String? =
+        _activeSessionId.value.takeIf { activeStoredSessionId == sessionId }
+
+    @Synchronized
+    fun clear() {
+        _activeSessionId.value = null
+        activeStoredSessionId = null
     }
 }

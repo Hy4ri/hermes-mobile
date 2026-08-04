@@ -2887,9 +2887,7 @@ class ChatViewModel(
         onResult: (Boolean, String?) -> Unit,
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val host = AuthManager.getHost()
-            val port = AuthManager.getPort()
-            val baseUrl = "http://$host:$port"
+            val endpoint = AuthManager.endpointForBuild()
             val jsonMediaType = "application/json; charset=utf-8".toMediaType()
             val jsonBody =
                 JSONObject()
@@ -2910,7 +2908,7 @@ class ChatViewModel(
                 val loginReq =
                     Request
                         .Builder()
-                        .url("$baseUrl/auth/password-login")
+                        .url(endpoint.resolve("auth/password-login").toString())
                         .header("Content-Type", "application/json")
                         .post(jsonBody.toRequestBody(jsonMediaType))
                         .build()
@@ -2939,7 +2937,7 @@ class ChatViewModel(
                 val ticketReq =
                     Request
                         .Builder()
-                        .url("$baseUrl/api/auth/ws-ticket")
+                        .url(endpoint.resolve("api/auth/ws-ticket").toString())
                         .post("{}".toRequestBody(jsonMediaType))
                         .build()
                 ticketClient.newCall(ticketReq).execute().use { ticketResp ->

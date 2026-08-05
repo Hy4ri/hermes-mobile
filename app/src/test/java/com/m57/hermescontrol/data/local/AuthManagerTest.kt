@@ -199,12 +199,13 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_returnsNullWhenProfileHasNoToken() {
+    fun testGetToken_profileWithoutToken_fallsBackToDefault() {
         val profile1 = ConnectionProfile(id = "prof-1", name = "Profile 1", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profile1))
         every { mockPrefs.getString("token_prof-1", null) } returns null
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "connection-token"
         AuthManager.setSelectedProfileId("prof-1")
-        assertNull(AuthManager.getToken())
+        assertEquals("connection-token", AuthManager.getToken())
     }
 
     @Test
@@ -325,40 +326,50 @@ class AuthManagerTest {
     }
 
     @Test
-    fun testGetToken_profileWithNoTokenReturnsNull() {
+    fun testGetToken_profileWithoutToken_fallsBackToDefaultToken() {
         val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
         val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB))
 
-        // Profile A is selected but has no token → null (no global fallback)
+        // The default profile carries the connection token.
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "conn-token"
+
+        // Profile A is selected but has no token → inherits the connection token
         every { mockPrefs.getString("token_prof-a", null) } returns null
         AuthManager.setSelectedProfileId("prof-a")
-        assertNull(AuthManager.getToken())
+        assertEquals("conn-token", AuthManager.getToken())
 
-        // Switch to Profile B, which also has no token → still null
+        // Profile B also has no token → same fallback
         every { mockPrefs.getString("token_prof-b", null) } returns null
         AuthManager.setSelectedProfileId("prof-b")
+        assertEquals("conn-token", AuthManager.getToken())
+
+        // When even the default has no token → null
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns null
+        AuthManager.setSelectedProfileId("prof-a")
         assertNull(AuthManager.getToken())
     }
 
     @Test
-    fun testGetToken_selectiveProfileTokens_someNull() {
+    fun testGetToken_selectiveProfileTokens_fallsBackWhenMissing() {
         val profileA = ConnectionProfile(id = "prof-a", name = "Profile A", baseUrl = "http://127.0.0.1:9119/")
         val profileB = ConnectionProfile(id = "prof-b", name = "Profile B", baseUrl = "http://127.0.0.1:9119/")
         val profileC = ConnectionProfile(id = "prof-c", name = "Profile C", baseUrl = "http://127.0.0.1:9119/")
         AuthManager.saveConnectionProfiles(listOf(profileA, profileB, profileC))
 
-        // Profile A has a token
+        every { mockPrefs.getString("token_${AuthManager.DEFAULT_PROFILE_ID}", null) } returns "conn-token"
+
+        // Profile A has a token → its own wins
         every { mockPrefs.getString("token_prof-a", null) } returns "token-a"
         AuthManager.setSelectedProfileId("prof-a")
         assertEquals("token-a", AuthManager.getToken())
 
-        // Profile B has no token → null
+        // Profile B has no token → inherits the connection (default) token
         every { mockPrefs.getString("token_prof-b", null) } returns null
         AuthManager.setSelectedProfileId("prof-b")
-        assertNull(AuthManager.getToken())
+        assertEquals("conn-token", AuthManager.getToken())
 
-        // Profile C has its own token too
+        // Profile C has its own token too → its own wins
         every { mockPrefs.getString("token_prof-c", null) } returns "token-c"
         AuthManager.setSelectedProfileId("prof-c")
         assertEquals("token-c", AuthManager.getToken())

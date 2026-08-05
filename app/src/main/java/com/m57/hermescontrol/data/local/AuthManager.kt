@@ -25,8 +25,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -77,6 +80,30 @@ object AuthManager {
     private val _selectedProfileFlow = MutableStateFlow<String?>(null)
     val selectedProfileFlow: StateFlow<String?> = _selectedProfileFlow.asStateFlow()
 
+    private val _baseUrlFlow = MutableStateFlow("")
+    val baseUrlFlow: StateFlow<String> = _baseUrlFlow.asStateFlow()
+
+    private val contextScope = CoroutineScope(Dispatchers.Default)
+
+    /**
+     * The single source of truth for connection state: server URL + token +
+     * selected profile. Emits on login, logout, profile switch, or URL change,
+     * so reactive consumers (screens, switch coordinator) re-home off ONE
+     * flow instead of tracking the pieces separately.
+     */
+    val contextFlow: StateFlow<ProfileContext?> =
+        combine(tokenFlow, baseUrlFlow, selectedProfileFlow) { token, baseUrl, profileId ->
+            if (baseUrl.isBlank()) {
+                null
+            } else {
+                ProfileContext(baseUrl = baseUrl, token = token, profileId = profileId)
+            }
+        }.stateIn(
+            scope = contextScope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
+
     /**
      * Initialise the encrypted preferences.
      * Call this once from Application.onCreate() or MainActivity.onCreate().
@@ -103,6 +130,7 @@ object AuthManager {
             val store = ServerStore(dataStore, scope)
             _serverStore = store
             _selectedProfileFlow.value = store.getLatestState().selectedProfileId
+            _baseUrlFlow.value = store.getLatestState().resolvedBaseUrl
 
             if (prefsDeferred == null) {
                 prefsDeferred =
@@ -394,8 +422,7 @@ object AuthManager {
         if (tokenInitialized) return cachedToken
         synchronized(this) {
             if (tokenInitialized) return cachedToken
-            val selectedId = getSelectedProfileId()
-            val token = if (selectedId != null) getProfileToken(selectedId) else null
+            val token = resolveConnectionToken(getSelectedProfileId(), ::getProfileToken)
             cachedToken = token
             tokenInitialized = true
             return token
@@ -403,12 +430,24 @@ object AuthManager {
     }
 
     private fun getTokenInternal(p: SharedPreferences): String? {
-        val selectedId = serverStore.getLatestState().selectedProfileId?.takeIf { it.isNotBlank() }
-        return if (selectedId != null) {
-            p.getString("token_$selectedId", null)
-        } else {
-            null
-        }
+        val selectedId = serverStore.getLatestState().selectedProfileId
+        return resolveConnectionToken(selectedId) { id -> p.getString("token_$id", null) }
+    }
+
+    /**
+     * Per-server token semantics: a profile that has no token of its own
+     * inherits the connection (default) token — same dashboard = same auth.
+     * This is what makes profile switching never require a re-login, and it
+     * is restart-safe (the fallback applies on every resolution, not just
+     * at switch time). Profiles with their own token (a different server
+     * connection) keep it untouched.
+     */
+    internal fun resolveConnectionToken(
+        selectedId: String?,
+        tokenFor: (String) -> String?,
+    ): String? {
+        val id = selectedId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        return tokenFor(id) ?: tokenFor(DEFAULT_PROFILE_ID)
     }
 
     fun setToken(token: String?) {
@@ -444,6 +483,7 @@ object AuthManager {
                     CleartextPolicy.ALLOW_WITH_WARNING,
                 ).baseUrl
                 .toString()
+        _baseUrlFlow.value = normalized
         val selectedId =
             getSelectedProfileId() ?: run {
                 ensureDefaultSelected()

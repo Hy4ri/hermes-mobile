@@ -247,6 +247,45 @@ class WsProfileParamsTest {
         assertTrue("verification.status" in WsMethods.PROFILE_SCOPED_METHODS)
     }
 
+    /**
+     * Phase-3 audit guard: EVERY scope-selecting RPC the app sends must be in
+     * the scoped set. If a future WS method selects a profile (list/create/
+     * resume/status/delete of sessions, or anything reading the profile's own
+     * home) without being listed here, this test fails — the set cannot drift.
+     *
+     * Methods that operate on an ALREADY-BOUND session (session.usage,
+     * session.interrupt, session.branch, session.redirect,
+     * session.context_breakdown, prompt.submit, slash/command dispatch,
+     * approval/clarify/secret/sudo responses, file attach, process.*,
+     * subscription.*, commands_catalog, usage.bars) resolve via the
+     * connection's session, which carries profile_home from create/resume —
+     * they are profile-correct by construction and must NOT be listed here
+     * (server evidence: methods_session.py — session.get() based).
+     */
+    @Test
+    fun `every scope-selecting method the app sends is in the scoped set`() {
+        val scopeSelectingMethods =
+            setOf(
+                WsMethods.SESSION_CREATE,
+                WsMethods.SESSION_LIST,
+                WsMethods.SESSION_RESUME,
+                WsMethods.SESSION_DELETE,
+                WsMethods.SESSION_STATUS,
+                "verification.status",
+                "pet.info",
+                "pet.info.meta",
+                "pet.cells",
+                "pet.gallery",
+                "pet.select",
+            )
+        for (method in scopeSelectingMethods) {
+            assertTrue(
+                "$method is scope-selecting but missing from PROFILE_SCOPED_METHODS",
+                method in WsMethods.PROFILE_SCOPED_METHODS,
+            )
+        }
+    }
+
     // ── Interaction: sendMessage() flows through send() ─────────────────
     // sendMessage() calls send(PROMPT_SUBMIT, ...) — PROMPT_SUBMIT is NOT
     // in the scoped set, so profile is correctly NOT injected.  The server

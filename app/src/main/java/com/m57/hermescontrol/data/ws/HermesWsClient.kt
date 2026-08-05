@@ -580,7 +580,13 @@ object HermesWsClient {
         onSent: ((String) -> Unit)? = null,
     ): String {
         val id = requestId.incrementAndGet().toString()
-        val request = JsonRpcRequest(id = id, method = method, params = params.mapValues { it.value.toJsonElement() })
+        val decoratedParams = WsProfileParams.decorate(method, params)
+        val request =
+            JsonRpcRequest(
+                id = id,
+                method = method,
+                params = decoratedParams.mapValues { it.value.toJsonElement() },
+            )
         val json = OkHttpProvider.json.encodeToString(request)
         if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
         synchronized(outboundLock) {

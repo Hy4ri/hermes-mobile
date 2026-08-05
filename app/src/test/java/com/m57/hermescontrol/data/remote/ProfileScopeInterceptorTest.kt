@@ -79,14 +79,31 @@ class ProfileScopeInterceptorTest {
 
     @Test
     fun nonScopedEndpoint_untouched() {
+        // Pairing is machine-global (not profile-scoped on the backend).
         every { AuthManager.getSelectedProfileId() } returns "work"
         val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-        val req = Request.Builder().url(server.url("api/cron/jobs")).build()
+        val req = Request.Builder().url(server.url("api/pairing")).build()
         client.newCall(req).execute().close()
         val url = server.takeRequest().requestUrl!!
         assertNull(url.queryParameter("profile"))
-        assertEquals("/api/cron/jobs", url.encodedPath)
+        assertEquals("/api/pairing", url.encodedPath)
+    }
+
+    @Test
+    fun cronSessionsPluginsEndpoints_areScoped() {
+        // Issue #781 follow-up: cron, sessions and plugin REST are all
+        // profile-scoped on the backend — switching profiles must switch
+        // what these screens show, so the interceptor rewrites them too.
+        val client = clientFor("work")
+        for (path in listOf("api/cron/jobs", "api/sessions", "api/plugins/hermes-achievements/achievements")) {
+            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+            val req = Request.Builder().url(server.url(path)).build()
+            client.newCall(req).execute().close()
+            val url = server.takeRequest().requestUrl!!
+            assertEquals("work", url.queryParameter("profile"))
+            assertEquals("/$path", url.encodedPath)
+        }
     }
 
     @Test

@@ -13,6 +13,7 @@ import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RenameProfileRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -20,6 +21,7 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -50,6 +52,7 @@ class ProfilesViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApi: HermesApiService
     private var storedPinnedModels: MutableList<PinnedModel> = mutableListOf()
+    private var storedSelectedProfile: String? = null
 
     private fun stubProfilesLoad() {
         coEvery { mockApi.getProfiles() } returns
@@ -68,10 +71,19 @@ class ProfilesViewModelTest {
 
         mockkObject(AuthManager)
         storedPinnedModels = mutableListOf()
+        storedSelectedProfile = null
         every { AuthManager.getPinnedModels() } answers { storedPinnedModels.toList() }
         every { AuthManager.savePinnedModels(any()) } answers {
             storedPinnedModels = firstArg<List<PinnedModel>>().toMutableList()
         }
+        every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfile }
+        every { AuthManager.setSelectedProfileId(any()) } answers {
+            storedSelectedProfile = firstArg<String?>()
+        }
+
+        mockkObject(HermesWsClient)
+        every { HermesWsClient.disconnect() } returns Unit
+        every { HermesWsClient.connect() } returns Unit
 
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
@@ -261,5 +273,36 @@ class ProfilesViewModelTest {
         vm.togglePinModel("openai", "gpt-4")
         assertTrue(vm.uiState.value.modelPickerPinned.isEmpty())
         assertTrue(storedPinnedModels.isEmpty())
+    }
+
+    @Test
+    fun `selectActiveProfile success persists selection and rehomes websocket`() {
+        coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
+
+        val vm = createViewModel()
+        vm.selectActiveProfile("work")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Local selection persisted → ProfileScopeInterceptor now scopes all
+        // management REST calls (?profile=work) to the new profile.
+        assertEquals("work", storedSelectedProfile)
+        // WebSocket re-homed so the live gateway follows the new profile.
+        verify { HermesWsClient.disconnect() }
+        verify { HermesWsClient.connect() }
+        assertTrue(vm.uiState.value.toastMessage!!.contains("Switched to profile work"))
+        coVerify { mockApi.getProfiles() }
+    }
+
+    @Test
+    fun `selectActiveProfile failure rolls back and keeps local selection`() {
+        coEvery { mockApi.setActiveProfile(any()) } returns errorResponse(500)
+
+        val vm = createViewModel()
+        vm.selectActiveProfile("work")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(storedSelectedProfile)
+        assertNull(vm.uiState.value.activeProfileName)
+        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to switch profile"))
     }
 }

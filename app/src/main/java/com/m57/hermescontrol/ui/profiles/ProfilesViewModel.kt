@@ -19,6 +19,7 @@ import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -111,6 +112,13 @@ class ProfilesViewModel :
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    // Persist the LOCAL selection so ProfileScopeInterceptor scopes
+                    // every management REST call (?profile=) to the new profile,
+                    // and re-home the WebSocket so the live gateway follows too
+                    // (mirrors desktop's re-home-on-switch).
+                    AuthManager.setSelectedProfileId(name)
+                    HermesWsClient.disconnect()
+                    HermesWsClient.connect()
                     _uiState.update { it.copy(toastMessage = "Switched to profile $name") }
                     loadProfiles()
                 }

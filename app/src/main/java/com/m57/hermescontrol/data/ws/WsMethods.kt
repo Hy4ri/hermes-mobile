@@ -72,4 +72,54 @@ object WsMethods {
 
     /** Usage bars (token/cost breakdown the legacy credits block rendered). */
     const val USAGE_BARS = "usage.bars"
+
+    // ── Profile-scoped method set ────────────────────────────────────────
+    // Methods that the TUI gateway resolves against the per-profile
+    // HERMES_HOME / state.db when `params.profile` is present.
+    //
+    // Two categories on the server:
+    //   (a) @_profile_scoped (method_ctx.py) — binds HERMES_HOME via
+    //       ContextVar for the handler's lifetime.
+    //   (b) Manual params.get("profile") / _profile_db(params) — opens
+    //       the named profile's state.db explicitly.
+    //
+    // This set is the union of both.  Only methods the mobile app
+    // actually calls are listed (pet.* are included for completeness
+    // since they read per-profile config).  The set is intentionally an
+    // explicit allowlist: unknown / new methods default to un-scoped,
+    // which is safe — the server ignores an unrecognised `profile` key.
+
+    /**
+     * Methods whose server handler reads `params["profile"]` to resolve the
+     * correct per-profile data.  Used by [WsProfileParams] to decide which
+     * RPCs get the active profile injected automatically.
+     */
+    val PROFILE_SCOPED_METHODS: Set<String> =
+        setOf(
+            // Category (b): manual params.get("profile") / _profile_db
+            // Evidence: methods_session.py lines 42, 164, 232, 317, 845
+            SESSION_CREATE, // session.create
+            SESSION_LIST, // session.list
+            SESSION_RESUME, // session.resume
+            SESSION_DELETE, // session.delete
+            SESSION_STATUS, // session.status
+            // session.most_recent uses _profile_db(params) too, but
+            // mobile doesn't call it; documented for completeness.
+            // Category (a): @_profile_scoped decorator
+            // Evidence: methods_session.py @_profile_scoped at each @method
+            // Binds HERMES_HOME so config/skills/pets resolve to the
+            // focused profile.
+            "verification.status", // line 282
+            "pet.info", // line 1253
+            "pet.info.meta", // line 1279
+            "pet.cells", // line 1302
+            "pet.gallery", // line 1407
+            "pet.select", // line 1490
+            "pet.remove", // line 1517
+            "pet.export", // line 1547
+            "pet.rename", // line 1574
+            "pet.thumb", // line 1612
+            "pet.disable", // line 1647
+            "pet.scale", // line 1661
+        )
 }

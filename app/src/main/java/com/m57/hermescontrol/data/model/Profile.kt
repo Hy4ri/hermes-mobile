@@ -58,6 +58,29 @@ data class UpdateProfileDescriptionRequest(
 )
 
 @Serializable
+data class RenameProfileRequest(
+    val new_name: String,
+)
+
+@Serializable
+data class ProfileDescribeAutoRequest(
+    val overwrite: Boolean = false,
+)
+
+@Serializable
+data class ProfileDescribeAutoResponse(
+    val ok: Boolean,
+    val reason: String? = null,
+    val description: String? = null,
+    val description_auto: Boolean? = null,
+)
+
+@Serializable
+data class ProfileSetupCommandResponse(
+    val command: String,
+)
+
+@Serializable
 data class CreateProfileRequest(
     val name: String,
     val description: String? = null,

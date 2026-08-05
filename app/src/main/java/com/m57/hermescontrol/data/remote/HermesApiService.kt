@@ -69,11 +69,15 @@ import com.m57.hermescontrol.data.model.PairingRevokeRequest
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.PortalResponse
+import com.m57.hermescontrol.data.model.ProfileDescribeAutoRequest
+import com.m57.hermescontrol.data.model.ProfileDescribeAutoResponse
+import com.m57.hermescontrol.data.model.ProfileSetupCommandResponse
 import com.m57.hermescontrol.data.model.ProfileSoulResponse
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.RawConfigResponse
 import com.m57.hermescontrol.data.model.RecentUnlock
+import com.m57.hermescontrol.data.model.RenameProfileRequest
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionDetailResponse
@@ -357,6 +361,28 @@ interface HermesApiService {
         @Path("name") name: String,
         @Body body: UpdateProfileDescriptionRequest,
     ): Response<Unit>
+
+    @PATCH("api/profiles/{name}")
+    suspend fun renameProfile(
+        @Path("name") name: String,
+        @Body body: RenameProfileRequest,
+    ): Response<Unit>
+
+    @DELETE("api/profiles/{name}")
+    suspend fun deleteProfile(
+        @Path("name") name: String,
+    ): Response<Unit>
+
+    @POST("api/profiles/{name}/describe-auto")
+    suspend fun describeProfileAuto(
+        @Path("name") name: String,
+        @Body body: ProfileDescribeAutoRequest,
+    ): Response<ProfileDescribeAutoResponse>
+
+    @GET("api/profiles/{name}/setup-command")
+    suspend fun getProfileSetupCommand(
+        @Path("name") name: String,
+    ): Response<ProfileSetupCommandResponse>
 
     @GET("api/tools/toolsets")
     suspend fun getToolsets(): Response<List<Toolset>>

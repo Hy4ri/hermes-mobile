@@ -6,7 +6,9 @@ import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.ProfileDescribeAutoRequest
 import com.m57.hermescontrol.data.model.ProfileInfo
+import com.m57.hermescontrol.data.model.RenameProfileRequest
 import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
@@ -34,6 +36,10 @@ data class ProfilesUiState(
     val isLoadingSoul: Boolean = false,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    // Rename / delete / auto-describe / setup-command states
+    val isAutoDescribing: Boolean = false,
+    val setupCommand: String? = null,
+    val isLoadingSetupCommand: Boolean = false,
     // Profile Builder states
     val modelProviders: List<ModelProvider> = emptyList(),
     val isLoadingBuilderData: Boolean = false,
@@ -289,6 +295,151 @@ class ProfilesViewModel :
                         it.copy(
                             isLoading = false,
                             toastMessage = "Failed to update description for '$profileName': ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun renameProfile(
+        oldName: String,
+        newName: String,
+    ) {
+        if (oldName == newName) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.renameProfile(
+                            oldName,
+                            RenameProfileRequest(newName),
+                        )
+                    }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Profile '$oldName' renamed to '$newName'",
+                        )
+                    }
+                    loadProfiles()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to rename profile '$oldName': ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun deleteProfile(name: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.deleteProfile(name) }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            toastMessage = "Profile '$name' deleted",
+                        )
+                    }
+                    loadProfiles()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to delete profile '$name': ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun autoDescribeProfile(name: String) {
+        _uiState.update { it.copy(isAutoDescribing = true) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.describeProfileAuto(
+                            name,
+                            ProfileDescribeAutoRequest(overwrite = true),
+                        )
+                    }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    val body = result.data
+                    if (body.ok) {
+                        _uiState.update {
+                            it.copy(
+                                isAutoDescribing = false,
+                                toastMessage = "Auto-described profile '$name'",
+                            )
+                        }
+                        loadProfiles()
+                    } else {
+                        // Backend returns generation failures as ok:false + reason,
+                        // NOT an HTTP error — surface the reason to the user.
+                        _uiState.update {
+                            it.copy(
+                                isAutoDescribing = false,
+                                toastMessage =
+                                    "Auto-describe failed for '$name': " +
+                                        (body.reason ?: "unknown reason"),
+                            )
+                        }
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isAutoDescribing = false,
+                            toastMessage = "Failed to auto-describe profile '$name': ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun fetchSetupCommand(name: String) {
+        _uiState.update { it.copy(isLoadingSetupCommand = true, setupCommand = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getProfileSetupCommand(name) }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingSetupCommand = false,
+                            setupCommand = result.data.command,
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingSetupCommand = false,
+                            toastMessage = "Failed to fetch setup command: ${result.error.message}",
                         )
                     }
                 }

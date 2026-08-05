@@ -28,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -79,6 +83,16 @@ fun ProfilesScreen(
 
     var descEditProfileName by remember { mutableStateOf<String?>(null) }
     var tempDescription by remember { mutableStateOf("") }
+
+    var renameProfileName by remember { mutableStateOf<String?>(null) }
+    var newRenameName by remember { mutableStateOf("") }
+
+    var deleteProfileName by remember { mutableStateOf<String?>(null) }
+
+    var setupCmdProfileName by remember { mutableStateOf<String?>(null) }
+    var copiedSetupCmd by remember { mutableStateOf(false) }
+
+    val clipboardManager = LocalClipboardManager.current
 
     var isBuildingProfile by remember { mutableStateOf(false) }
 
@@ -380,6 +394,36 @@ fun ProfilesScreen(
                                                         expanded = showMenu,
                                                         onDismissRequest = { showMenu = false },
                                                     ) {
+                                                        if (profile.is_default != true) {
+                                                            DropdownMenuItem(
+                                                                text = {
+                                                                    Text(
+                                                                        stringResource(
+                                                                            R.string.profiles_action_rename,
+                                                                        ),
+                                                                    )
+                                                                },
+                                                                onClick = {
+                                                                    showMenu = false
+                                                                    renameProfileName = profile.name
+                                                                    newRenameName = profile.name
+                                                                },
+                                                            )
+                                                        }
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    stringResource(
+                                                                        R.string.profiles_action_auto_describe,
+                                                                    ),
+                                                                )
+                                                            },
+                                                            enabled = !state.isAutoDescribing,
+                                                            onClick = {
+                                                                showMenu = false
+                                                                viewModel.autoDescribeProfile(profile.name)
+                                                            },
+                                                        )
                                                         DropdownMenuItem(
                                                             text = {
                                                                 Text(
@@ -406,6 +450,34 @@ fun ProfilesScreen(
                                                                 newCloneName = ""
                                                             },
                                                         )
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    stringResource(
+                                                                        R.string.profiles_action_setup_command,
+                                                                    ),
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                showMenu = false
+                                                                setupCmdProfileName = profile.name
+                                                            },
+                                                        )
+                                                        if (profile.is_default != true) {
+                                                            HorizontalDivider()
+                                                            DropdownMenuItem(
+                                                                text = {
+                                                                    Text(
+                                                                        stringResource(R.string.action_delete),
+                                                                        color = MaterialTheme.colorScheme.error,
+                                                                    )
+                                                                },
+                                                                onClick = {
+                                                                    showMenu = false
+                                                                    deleteProfileName = profile.name
+                                                                },
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -627,6 +699,205 @@ fun ProfilesScreen(
             dismissButton = {
                 TextButton(
                     onClick = { descEditProfileName = null },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (renameProfileName != null) {
+        AlertDialog(
+            onDismissRequest = { renameProfileName = null },
+            title = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.profiles_title_rename,
+                            renameProfileName.orEmpty(),
+                        ),
+                )
+            },
+            text = {
+                val errorMsg = if (newRenameName.isNotEmpty()) validateProfileName(newRenameName) else null
+                OutlinedTextField(
+                    value = newRenameName,
+                    onValueChange = { newRenameName = it },
+                    label = { Text(stringResource(R.string.profiles_label_new_name_input)) },
+                    isError = errorMsg != null,
+                    supportingText = errorMsg?.let { { Text(it) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val oldName = renameProfileName
+                        if (oldName != null) {
+                            viewModel.renameProfile(oldName, newRenameName.trim())
+                        }
+                        renameProfileName = null
+                    },
+                    enabled =
+                        newRenameName.isNotBlank() &&
+                            newRenameName != renameProfileName &&
+                            validateProfileName(newRenameName) == null,
+                ) {
+                    Text(stringResource(R.string.profiles_action_rename))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { renameProfileName = null },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (deleteProfileName != null) {
+        val profileToDelete = state.profiles.firstOrNull { it.name == deleteProfileName }
+        AlertDialog(
+            onDismissRequest = { deleteProfileName = null },
+            title = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.profiles_title_delete,
+                            deleteProfileName.orEmpty(),
+                        ),
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.profiles_delete_warning,
+                                deleteProfileName.orEmpty(),
+                            ),
+                    )
+                    profileToDelete?.path?.let {
+                        Text(
+                            text = stringResource(R.string.profiles_delete_path, it),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (profileToDelete?.gateway_running == true) {
+                        Text(
+                            text = stringResource(R.string.profiles_delete_gateway_warning),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val name = deleteProfileName
+                        if (name != null) {
+                            viewModel.deleteProfile(name)
+                        }
+                        deleteProfileName = null
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { deleteProfileName = null },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (setupCmdProfileName != null) {
+        LaunchedEffect(setupCmdProfileName) {
+            copiedSetupCmd = false
+            setupCmdProfileName?.let { viewModel.fetchSetupCommand(it) }
+        }
+        AlertDialog(
+            onDismissRequest = { setupCmdProfileName = null },
+            title = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.profiles_title_setup_command,
+                            setupCmdProfileName.orEmpty(),
+                        ),
+                )
+            },
+            text = {
+                if (state.isLoadingSetupCommand) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.profiles_setup_command_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(12.dp),
+                        ) {
+                            Text(
+                                text = state.setupCommand.orEmpty(),
+                                style =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                    ),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (!state.isLoadingSetupCommand && state.setupCommand != null) {
+                    Button(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(state.setupCommand.orEmpty()))
+                            copiedSetupCmd = true
+                        },
+                    ) {
+                        Text(
+                            text =
+                                stringResource(
+                                    if (copiedSetupCmd) {
+                                        R.string.profiles_action_copied
+                                    } else {
+                                        R.string.profiles_action_copy
+                                    },
+                                ),
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { setupCmdProfileName = null },
                 ) {
                     Text(stringResource(R.string.action_cancel))
                 }

@@ -284,99 +284,6 @@ fun ProfilesScreen(
                                                         modifier = Modifier.padding(start = 8.dp),
                                                     )
                                                 }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(12.dp))
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically,
-                                            ) {
-                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Text(
-                                                        text =
-                                                            stringResource(
-                                                                R.string.profiles_label_model,
-                                                                profile.model ?: "None",
-                                                            ),
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                    )
-                                                    Text(
-                                                        text =
-                                                            stringResource(
-                                                                R.string.profiles_label_provider,
-                                                                profile.provider ?: "None",
-                                                            ),
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    )
-                                                    Text(
-                                                        text =
-                                                            stringResource(
-                                                                R.string.profiles_label_skills,
-                                                                profile.skill_count ?: 0,
-                                                            ),
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    )
-                                                    profile.path?.let {
-                                                        Text(
-                                                            text = stringResource(R.string.profiles_label_path, it),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color =
-                                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                                    alpha = 0.8f,
-                                                                ),
-                                                        )
-                                                    }
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(16.dp))
-
-                                            if (!isActive) {
-                                                Button(
-                                                    onClick = { viewModel.selectActiveProfile(profile.name) },
-                                                    modifier =
-                                                        Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(bottom = 8.dp),
-                                                ) {
-                                                    Text(stringResource(R.string.profiles_action_activate))
-                                                }
-                                            }
-
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.End,
-                                                verticalAlignment = Alignment.CenterVertically,
-                                            ) {
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        soulEditProfileName = profile.name
-                                                        viewModel.loadSoul(profile.name)
-                                                    },
-                                                    modifier = Modifier.padding(end = 8.dp),
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Edit,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.width(16.dp),
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(stringResource(R.string.profiles_action_edit_soul))
-                                                }
-
-                                                Button(
-                                                    onClick = {
-                                                        modelEditProfileName = profile.name
-                                                        viewModel.loadModelOptions()
-                                                    },
-                                                    modifier = Modifier.padding(end = 8.dp),
-                                                ) {
-                                                    Text(stringResource(R.string.profiles_action_set_model))
-                                                }
 
                                                 var showMenu by remember { mutableStateOf(false) }
 
@@ -477,6 +384,99 @@ fun ProfilesScreen(
                                                             )
                                                         }
                                                     }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(12.dp))
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(
+                                                        text =
+                                                            stringResource(
+                                                                R.string.profiles_label_model,
+                                                                profile.model ?: "None",
+                                                            ),
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                    )
+                                                    Text(
+                                                        text =
+                                                            stringResource(
+                                                                R.string.profiles_label_provider,
+                                                                profile.provider ?: "None",
+                                                            ),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                    Text(
+                                                        text =
+                                                            stringResource(
+                                                                R.string.profiles_label_skills,
+                                                                profile.skill_count ?: 0,
+                                                            ),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                    profile.path?.let {
+                                                        Text(
+                                                            text = stringResource(R.string.profiles_label_path, it),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color =
+                                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                                    alpha = 0.8f,
+                                                                ),
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(16.dp))
+
+                                            if (!isActive) {
+                                                Button(
+                                                    onClick = { viewModel.selectActiveProfile(profile.name) },
+                                                    modifier =
+                                                        Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(bottom = 8.dp),
+                                                ) {
+                                                    Text(stringResource(R.string.profiles_action_activate))
+                                                }
+                                            }
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        soulEditProfileName = profile.name
+                                                        viewModel.loadSoul(profile.name)
+                                                    },
+                                                    modifier = Modifier.padding(end = 8.dp),
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Edit,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.width(16.dp),
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(stringResource(R.string.profiles_action_edit_soul))
+                                                }
+
+                                                Button(
+                                                    onClick = {
+                                                        modelEditProfileName = profile.name
+                                                        viewModel.loadModelOptions()
+                                                    },
+                                                    modifier = Modifier.padding(end = 8.dp),
+                                                ) {
+                                                    Text(stringResource(R.string.profiles_action_set_model))
                                                 }
                                             }
                                         }

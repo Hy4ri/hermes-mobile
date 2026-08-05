@@ -13,6 +13,9 @@ import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.model.RenameProfileRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.remote.NetworkError
+import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -21,7 +24,6 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -91,6 +93,9 @@ class ProfilesViewModelTest {
         mockkObject(HermesWsClient)
         every { HermesWsClient.disconnect() } returns Unit
         every { HermesWsClient.connect() } returns Unit
+
+        mockkObject(ProfileSwitchCoordinator)
+        coEvery { ProfileSwitchCoordinator.switchProfile(any()) } returns NetworkResult.Success(Unit)
 
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
@@ -283,52 +288,28 @@ class ProfilesViewModelTest {
     }
 
     @Test
-    fun `selectActiveProfile success persists selection and rehomes websocket`() {
-        coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
+    fun `selectActiveProfile success delegates to coordinator and reloads`() {
+        coEvery { ProfileSwitchCoordinator.switchProfile("work") } returns NetworkResult.Success(Unit)
 
         val vm = createViewModel()
         vm.selectActiveProfile("work")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Local selection persisted → ProfileScopeInterceptor now scopes all
-        // management REST calls (?profile=work) to the new profile.
-        assertEquals("work", storedSelectedProfile)
-        // Token inherited from the current connection so switching to a
-        // same-dashboard profile doesn't force a re-login (token_<profile>
-        // is keyed per profile and a freshly-created profile has none).
-        assertEquals("tok-abc", storedProfileToken)
-        // WebSocket re-homed so the live gateway follows the new profile.
-        verify { HermesWsClient.disconnect() }
-        verify { HermesWsClient.connect() }
+        coVerify { ProfileSwitchCoordinator.switchProfile("work") }
         assertTrue(vm.uiState.value.toastMessage!!.contains("Switched to profile work"))
         coVerify { mockApi.getProfiles() }
     }
 
     @Test
-    fun `selectActiveProfile keeps existing token for the target profile`() {
-        storedProfileToken = "tok-meow"
-        coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
-
-        val vm = createViewModel()
-        vm.selectActiveProfile("meow")
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        // A profile that already has its own token (e.g. connected elsewhere)
-        // must NOT be clobbered by inheritance.
-        assertEquals("tok-meow", storedProfileToken)
-        assertEquals("meow", storedSelectedProfile)
-    }
-
-    @Test
-    fun `selectActiveProfile failure rolls back and keeps local selection`() {
-        coEvery { mockApi.setActiveProfile(any()) } returns errorResponse(500)
+    fun `selectActiveProfile failure rolls back optimistic state`() {
+        coEvery {
+            ProfileSwitchCoordinator.switchProfile("work")
+        } returns NetworkResult.Failure(NetworkError.Http(code = 500, message = "boom"))
 
         val vm = createViewModel()
         vm.selectActiveProfile("work")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertNull(storedSelectedProfile)
-        assertNull(storedProfileToken)
         assertNull(vm.uiState.value.activeProfileName)
         assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to switch profile"))
     }

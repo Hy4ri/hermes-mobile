@@ -11,7 +11,6 @@ import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProfileDescribeAutoRequest
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.RenameProfileRequest
-import com.m57.hermescontrol.data.model.SetActiveProfileRequest
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
@@ -19,7 +18,7 @@ import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
-import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -106,30 +105,11 @@ class ProfilesViewModel :
         _uiState.update { it.copy(activeProfileName = name) }
 
         viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.setActiveProfile(SetActiveProfileRequest(name)) }
-                }
-            when (result) {
+            // The coordinator performs the whole re-home atomically: server
+            // flip → local selection persist → switch broadcast → socket
+            // re-dial (desktop's requestFreshSession + socket swap).
+            when (val result = ProfileSwitchCoordinator.switchProfile(name)) {
                 is NetworkResult.Success -> {
-                    // Persist the LOCAL selection so ProfileScopeInterceptor scopes
-                    // every management REST call (?profile=) to the new profile,
-                    // and re-home the WebSocket so the live gateway follows too
-                    // (mirrors desktop's re-home-on-switch).
-                    //
-                    // Token inheritance: the app keys tokens per profile
-                    // (token_<profileId>) because connections can point at
-                    // different dashboards, but profiles listed on THIS screen
-                    // are all served by the SAME connected dashboard — so a
-                    // profile created/selected in-app inherits the current
-                    // connection's token instead of forcing a re-login.
-                    val currentToken = AuthManager.getToken()
-                    if (currentToken != null && AuthManager.getProfileToken(name) == null) {
-                        AuthManager.setProfileToken(name, currentToken)
-                    }
-                    AuthManager.setSelectedProfileId(name)
-                    HermesWsClient.disconnect()
-                    HermesWsClient.connect()
                     _uiState.update { it.copy(toastMessage = "Switched to profile $name") }
                     loadProfiles()
                 }

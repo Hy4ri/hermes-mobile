@@ -24,6 +24,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.data.ws.ConnectionStatus
@@ -39,7 +40,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -505,16 +505,15 @@ class ChatViewModel(
                 }
             }
         }
-        // Desktop parity (requestFreshSession): when the selected profile
-        // changes, wipe the open conversation and reload the session list so
-        // the previous profile's context never leaks into the new profile's
-        // chat (the gateway re-homes on profile switch).
+        // Desktop parity (requestFreshSession): when the profile switch
+        // coordinator fires, wipe the open conversation. The re-dialed socket
+        // then delivers gateway.ready → handleGatewayReady loads the new
+        // profile's session list and auto-creates a FRESH session, so the
+        // previous profile's context never leaks into the new profile's chat.
         viewModelScope.launch {
-            AuthManager.selectedProfileFlow
-                .drop(1)
+            ProfileSwitchCoordinator.switched
                 .collect { _ ->
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
-                    loadSessions()
                 }
         }
         if (wsClient.connectionStatus.value == ConnectionStatus.CONNECTED) {

@@ -15,6 +15,7 @@ import com.m57.hermescontrol.data.remote.GatewayFile
 import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.data.remote.GatewayFileResult
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
@@ -63,7 +64,7 @@ class ChatViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockEventsFlow = MutableSharedFlow<WsEvent>(extraBufferCapacity = 64)
     private val mockConnectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
-    private val mockSelectedProfileFlow = MutableStateFlow<String?>(null)
+    private val mockSwitchFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private lateinit var app: Application
     private lateinit var fakeRepo: FakeChatPersistenceRepository
 
@@ -111,7 +112,8 @@ class ChatViewModelTest {
         every { AuthManager.getToken() } returns "test-token"
         every { AuthManager.getBaseUrl() } returns "http://test.local/"
         every { AuthManager.getSelectedProfileId() } returns null
-        every { AuthManager.selectedProfileFlow } returns mockSelectedProfileFlow
+        mockkObject(ProfileSwitchCoordinator)
+        every { ProfileSwitchCoordinator.switched } returns mockSwitchFlow
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isAutoReconnect() } returns false
@@ -244,21 +246,20 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun profileSwitch_resetsOpenSessionAndReloadsSessionList() =
+    fun profileSwitch_wipesOpenSessionForFreshStart() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
             assertEquals(sessionId, viewModel.uiState.value.currentSessionId)
 
-            // Selected profile changes (switch in ProfilesScreen) → chat must
-            // wipe the stale conversation and reload the session list
-            // (desktop's requestFreshSession parity — the gateway re-homes
-            // on profile switch and the old session id is no longer valid).
-            mockSelectedProfileFlow.value = "meow"
+            // Profile switch fires → chat wipes the stale conversation. The
+            // re-dialed socket's gateway.ready then auto-creates a FRESH
+            // session in the new profile (handleGatewayReady, desktop
+            // requestFreshSession parity).
+            mockSwitchFlow.emit("meow")
             advanceUntilIdle()
 
             assertNull(viewModel.uiState.value.currentSessionId)
             assertEquals("Hermes", viewModel.uiState.value.chatTitle)
-            verify(atLeast = 1) { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
         }
 
     @Test

@@ -911,6 +911,11 @@ class HermesWsClientTest {
         // that flaked this test on loaded CI runners (1s backoff + fixed
         // 5-6s latch windows routinely overshoot under parallel load).
         HermesWsClient.setReconnectBackoffForTest(0L)
+        // The reconnect path refreshes the WS token over the network before
+        // opening the socket. Stub it so no real HTTP call sits inside the
+        // test's timing window (CI network latency was the dominant flake).
+        mockkObject(DashboardSessionTokenRefresher)
+        every { DashboardSessionTokenRefresher.fetch(any(), any()) } returns null
 
         var serverSocket1: WebSocket? = null
         var serverSocket2: WebSocket? = null
@@ -948,8 +953,10 @@ class HermesWsClientTest {
 
         HermesWsClient.connect()
 
-        assertTrue("Failed initial connection", connect1Latch.await(5, TimeUnit.SECONDS))
-        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
+        assertTrue("Failed initial connection", connect1Latch.await(15, TimeUnit.SECONDS))
+        runBlocking {
+            withTimeout(15_000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } }
+        }
         assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
 
         // Force server to close socket 1 to trigger reconnect
@@ -958,13 +965,14 @@ class HermesWsClientTest {
         // Wait for status to become RECONNECTING
         runBlocking {
             withTimeout(
-                5000,
+                15_000,
             ) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.RECONNECTING } }
         }
 
         // The client should now attempt to reconnect after initial backoff (1000ms)
-        // Wait for the second connection to hit the server
-        assertTrue("Failed to reconnect", connect2Latch.await(6, TimeUnit.SECONDS))
+        // Wait for the second connection to hit the server. Generous ceiling:
+        // loaded CI runners routinely stretch short wall-clock windows.
+        assertTrue("Failed to reconnect", connect2Latch.await(30, TimeUnit.SECONDS))
 
         // Restore production backoff so later tests see the default.
         HermesWsClient.setReconnectBackoffForTest(1_000L)

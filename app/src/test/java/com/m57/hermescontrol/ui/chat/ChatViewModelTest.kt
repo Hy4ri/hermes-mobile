@@ -263,6 +263,44 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun profileSwitch_endToEnd_recreatesFreshSessionInNewProfile() =
+        runTest {
+            val (viewModel, oldSessionId) = createViewModelWithSession()
+            assertEquals(oldSessionId, viewModel.uiState.value.currentSessionId)
+
+            // 1. Switch fires → stale conversation wiped.
+            mockSwitchFlow.emit("meow")
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.currentSessionId)
+
+            // 2. The coordinator re-dials the socket: disconnect first (status
+            //    transition), then gateway.ready → handleGatewayReady:
+            //    loadSessions (req-id-4), fetchCommandCatalog (req-id-5),
+            //    then createNewSession (req-id-6) — desktop requestFreshSession.
+            //    (The first ready cycle consumed req-ids 1-3.)
+            mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
+            advanceUntilIdle()
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            // 3. Fresh session created → a NEW session id, not the old one.
+            //    createNewSession is the LAST WS send of the ready cycle, so
+            //    its id is the current counter value (robust against extra
+            //    sends from the reconnect path).
+            mockEventsFlow.emit(
+                WsEvent.RpcResult("req-id-$reqCount", mapOf("session_id" to "session-meow")),
+            )
+            advanceUntilIdle()
+
+            assertEquals("session-meow", viewModel.uiState.value.currentSessionId)
+            assertTrue(viewModel.uiState.value.currentSessionId != oldSessionId)
+            // The fresh session create goes through send() → WsProfileParams
+            // injects the active profile (the WS profile-scoping seam).
+            verify(atLeast = 1) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+        }
+
+    @Test
     fun testSlashCommand_fork_sendsSessionBranch() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

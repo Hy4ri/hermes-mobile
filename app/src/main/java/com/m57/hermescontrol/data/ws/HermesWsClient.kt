@@ -65,9 +65,21 @@ object HermesWsClient {
 
     // ── Backoff settings ─────────────────────────────────────────────────
 
-    private const val INITIAL_BACKOFF_MS = 1_000L
+    private var initialBackoffMs = 1_000L
     private const val MAX_BACKOFF_MS = 30_000L
     private const val BACKOFF_MULTIPLIER = 2.0
+
+    /**
+     * Test hook: the initial reconnect backoff, overridable so reconnect
+     * tests are deterministic instead of racing real time (CI runners
+     * routinely exceed fixed latch windows). Production keeps 1s.
+     */
+    @VisibleForTesting
+    internal fun setReconnectBackoffForTest(initialMillis: Long) {
+        initialBackoffMs = initialMillis
+        currentBackoff = initialMillis
+    }
+
     private const val MAX_OUTBOUND_MESSAGE_BYTES = 16 * 1024 * 1024
     private const val OUTBOUND_DRAIN_TIMEOUT_MS = 60_000L
 
@@ -89,7 +101,7 @@ object HermesWsClient {
     private var closingSocket: WebSocket? = null
 
     @Volatile
-    private var currentBackoff = INITIAL_BACKOFF_MS
+    private var currentBackoff = initialBackoffMs
 
     private val wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -260,7 +272,7 @@ object HermesWsClient {
                 // therefore allowed to leave the terminal AUTH_EXPIRED state.
                 intentionalClose.set(false)
                 _connectionStatus.value = ConnectionStatus.CONNECTING
-                currentBackoff = INITIAL_BACKOFF_MS
+                currentBackoff = initialBackoffMs
                 true
             }
         if (socketToCancel != null) {
@@ -282,7 +294,7 @@ object HermesWsClient {
                 return
             }
             Log.d(TAG, "Default network changed — reconnecting WebSocket")
-            currentBackoff = INITIAL_BACKOFF_MS
+            currentBackoff = initialBackoffMs
             reconnectJob?.cancel()
             reconnectJob = null
             outboundDrainJob?.cancel()
@@ -796,7 +808,7 @@ object HermesWsClient {
                 Log.i(TAG, "WebSocket opened")
                 connected.set(true)
                 _connectionStatus.value = ConnectionStatus.CONNECTED
-                currentBackoff = INITIAL_BACKOFF_MS
+                currentBackoff = initialBackoffMs
                 startHealthTracking()
 
                 while (true) {

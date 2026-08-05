@@ -907,6 +907,10 @@ class HermesWsClientTest {
     @Test
     fun testAutoReconnect() {
         every { AuthManager.isAutoReconnect() } returns true
+        // Deterministic reconnect: zero backoff removes the real-time race
+        // that flaked this test on loaded CI runners (1s backoff + fixed
+        // 5-6s latch windows routinely overshoot under parallel load).
+        HermesWsClient.setReconnectBackoffForTest(0L)
 
         var serverSocket1: WebSocket? = null
         var serverSocket2: WebSocket? = null
@@ -961,6 +965,9 @@ class HermesWsClientTest {
         // The client should now attempt to reconnect after initial backoff (1000ms)
         // Wait for the second connection to hit the server
         assertTrue("Failed to reconnect", connect2Latch.await(6, TimeUnit.SECONDS))
+
+        // Restore production backoff so later tests see the default.
+        HermesWsClient.setReconnectBackoffForTest(1_000L)
     }
 
     // ── TEST-10: WS reconnect state recovery ────────────────────────────
@@ -968,6 +975,9 @@ class HermesWsClientTest {
     @Test
     fun testBackoffResetsOnSuccessfulConnect() {
         every { AuthManager.isAutoReconnect() } returns true
+        // Pin the initial backoff so this test's reset assertion is
+        // deterministic regardless of what earlier tests configured.
+        HermesWsClient.setReconnectBackoffForTest(1_000L)
 
         val serverLatch = CountDownLatch(1)
         mockWebServer.enqueue(

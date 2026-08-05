@@ -19,10 +19,12 @@ import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateWebhookRequest
 import com.m57.hermescontrol.data.model.CredentialPoolResponse
+import com.m57.hermescontrol.data.model.CronBlueprintListResponse
 import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.CuratorResponse
 import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DeleteWebhookResponse
+import com.m57.hermescontrol.data.model.DeliveryTargetsResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.EnvVarDeleteRequest
@@ -31,6 +33,7 @@ import com.m57.hermescontrol.data.model.EnvVarRevealResponse
 import com.m57.hermescontrol.data.model.EnvVarUpdate
 import com.m57.hermescontrol.data.model.HealthStatus
 import com.m57.hermescontrol.data.model.HookResponse
+import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.LearningGraphResponse
@@ -307,6 +310,17 @@ interface HermesApiService {
     suspend fun deleteCronJob(
         @Path("id") id: String,
     ): Response<Unit>
+
+    @GET("api/cron/blueprints")
+    suspend fun getCronBlueprints(): Response<CronBlueprintListResponse>
+
+    @POST("api/cron/blueprints/instantiate")
+    suspend fun instantiateBlueprint(
+        @Body body: InstantiateBlueprintRequest,
+    ): Response<CronJob>
+
+    @GET("api/cron/delivery-targets")
+    suspend fun getCronDeliveryTargets(): Response<DeliveryTargetsResponse>
 
     @POST("api/gateway/start")
     suspend fun startGateway(): Response<Unit>

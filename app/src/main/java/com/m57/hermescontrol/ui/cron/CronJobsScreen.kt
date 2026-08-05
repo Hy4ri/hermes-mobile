@@ -27,6 +27,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,10 +55,14 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.CronBlueprint
+import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.DeliveryTarget
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
+import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -241,6 +250,8 @@ fun CronJobsScreen(
             state = state.editorState,
             onFieldChange = { name, value -> viewModel.updateEditorField(name, value) },
             onToggleNoAgent = { viewModel.toggleNoAgent() },
+            onSelectBlueprint = { viewModel.selectBlueprint(it) },
+            onBlueprintFieldChange = { name, value -> viewModel.updateBlueprintValue(name, value) },
             onSave = { viewModel.saveEditor() },
             onDismiss = { viewModel.closeEditor() },
             onClearToast = { viewModel.clearEditorToast() },
@@ -275,6 +286,8 @@ fun CronJobEditorDialog(
     state: CronJobEditorState,
     onFieldChange: (String, String) -> Unit,
     onToggleNoAgent: () -> Unit,
+    onSelectBlueprint: (String?) -> Unit,
+    onBlueprintFieldChange: (String, String) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
     onClearToast: () -> Unit,
@@ -360,127 +373,155 @@ fun CronJobEditorDialog(
                                 .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        // Name
-                        OutlinedTextField(
-                            value = state.name,
-                            onValueChange = { onFieldChange("name", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_name)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
+                        val blueprint = state.selectedBlueprint
 
-                        // Schedule (required)
-                        OutlinedTextField(
-                            value = state.schedule,
-                            onValueChange = { onFieldChange("schedule", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_schedule)) },
-                            placeholder = { Text(stringResource(R.string.cron_edit_hint_schedule)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-
-                        // Prompt
-                        OutlinedTextField(
-                            value = state.prompt,
-                            onValueChange = { onFieldChange("prompt", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_prompt)) },
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(120.dp),
-                            textStyle =
-                                MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                ),
-                        )
-
-                        // Delivery
-                        OutlinedTextField(
-                            value = state.deliver,
-                            onValueChange = { onFieldChange("deliver", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_deliver)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = {
+                        // Start-from blueprint picker (new jobs only; hidden when the
+                        // catalog failed to load)
+                        if (state.isNew && state.blueprints.isNotEmpty()) {
+                            BlueprintStartFromDropdown(
+                                blueprints = state.blueprints,
+                                selectedKey = state.selectedBlueprintKey,
+                                onSelect = onSelectBlueprint,
+                            )
+                            blueprint?.let {
                                 Text(
-                                    stringResource(R.string.cron_edit_hint_deliver),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    text = it.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                            },
-                        )
+                            }
+                        }
 
-                        // Skills
-                        OutlinedTextField(
-                            value = state.skills,
-                            onValueChange = { onFieldChange("skills", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_skills)) },
-                            placeholder = { Text(stringResource(R.string.cron_edit_hint_skills)) },
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(100.dp),
-                            textStyle = MaterialTheme.typography.bodySmall,
-                        )
-
-                        // Model
-                        OutlinedTextField(
-                            value = state.model,
-                            onValueChange = { onFieldChange("model", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_model)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-
-                        // Provider
-                        OutlinedTextField(
-                            value = state.provider,
-                            onValueChange = { onFieldChange("provider", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_provider)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-
-                        // Base URL
-                        OutlinedTextField(
-                            value = state.base_url,
-                            onValueChange = { onFieldChange("base_url", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_base_url)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-
-                        // Script path
-                        OutlinedTextField(
-                            value = state.script,
-                            onValueChange = { onFieldChange("script", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_script)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-
-                        // Work directory
-                        OutlinedTextField(
-                            value = state.workdir,
-                            onValueChange = { onFieldChange("workdir", it) },
-                            label = { Text(stringResource(R.string.cron_edit_field_workdir)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-
-                        // No Agent toggle
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = state.no_agent,
-                                onCheckedChange = { onToggleNoAgent() },
+                        if (blueprint != null) {
+                            // Blueprint mode: typed slots only — the backend renders the
+                            // prompt and schedule from the filled values.
+                            blueprint.fields.forEach { field ->
+                                BlueprintSlotField(
+                                    field = field,
+                                    value = state.blueprintValues[field.name].orEmpty(),
+                                    deliveryOptions = state.deliveryOptions,
+                                    deliveryTargets = state.deliveryTargets,
+                                    onValueChange = { onBlueprintFieldChange(field.name, it) },
+                                )
+                            }
+                        } else {
+                            // Name
+                            OutlinedTextField(
+                                value = state.name,
+                                onValueChange = { onFieldChange("name", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_name)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.cron_edit_field_no_agent),
-                                style = MaterialTheme.typography.bodyMedium,
+
+                            // Schedule (required)
+                            OutlinedTextField(
+                                value = state.schedule,
+                                onValueChange = { onFieldChange("schedule", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_schedule)) },
+                                placeholder = { Text(stringResource(R.string.cron_edit_hint_schedule)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
                             )
+
+                            // Prompt
+                            OutlinedTextField(
+                                value = state.prompt,
+                                onValueChange = { onFieldChange("prompt", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_prompt)) },
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(120.dp),
+                                textStyle =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                    ),
+                            )
+
+                            // Delivery
+                            DeliverField(
+                                label = stringResource(R.string.cron_edit_field_deliver),
+                                value = state.deliver,
+                                options = state.deliveryOptions,
+                                deliveryTargets = state.deliveryTargets,
+                                onValueChange = { onFieldChange("deliver", it) },
+                                hint = stringResource(R.string.cron_edit_hint_deliver),
+                            )
+
+                            // Skills
+                            OutlinedTextField(
+                                value = state.skills,
+                                onValueChange = { onFieldChange("skills", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_skills)) },
+                                placeholder = { Text(stringResource(R.string.cron_edit_hint_skills)) },
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(100.dp),
+                                textStyle = MaterialTheme.typography.bodySmall,
+                            )
+
+                            // Model
+                            OutlinedTextField(
+                                value = state.model,
+                                onValueChange = { onFieldChange("model", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_model)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+
+                            // Provider
+                            OutlinedTextField(
+                                value = state.provider,
+                                onValueChange = { onFieldChange("provider", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_provider)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+
+                            // Base URL
+                            OutlinedTextField(
+                                value = state.base_url,
+                                onValueChange = { onFieldChange("base_url", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_base_url)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+
+                            // Script path
+                            OutlinedTextField(
+                                value = state.script,
+                                onValueChange = { onFieldChange("script", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_script)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+
+                            // Work directory
+                            OutlinedTextField(
+                                value = state.workdir,
+                                onValueChange = { onFieldChange("workdir", it) },
+                                label = { Text(stringResource(R.string.cron_edit_field_workdir)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                            )
+
+                            // No Agent toggle
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = state.no_agent,
+                                    onCheckedChange = { onToggleNoAgent() },
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(R.string.cron_edit_field_no_agent),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -535,5 +576,177 @@ private fun RunDetailRow(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(0.65f),
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BlueprintStartFromDropdown(
+    blueprints: List<CronBlueprint>,
+    selectedKey: String?,
+    onSelect: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedTitle =
+        blueprints.firstOrNull { it.key == selectedKey }?.title
+            ?: stringResource(R.string.cron_edit_blank_job)
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = selectedTitle,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.cron_edit_start_from)) },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            singleLine = true,
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.cron_edit_blank_job)) },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                },
+            )
+            blueprints.forEach { blueprint ->
+                DropdownMenuItem(
+                    text = { Text(blueprint.title) },
+                    onClick = {
+                        onSelect(blueprint.key)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BlueprintSlotField(
+    field: CronBlueprintField,
+    value: String,
+    deliveryOptions: List<String>,
+    deliveryTargets: List<DeliveryTarget>,
+    onValueChange: (String) -> Unit,
+) {
+    when {
+        field.name == "deliver" -> {
+            DeliverField(
+                label = field.label,
+                value = value,
+                options = deliveryOptions,
+                deliveryTargets = deliveryTargets,
+                onValueChange = onValueChange,
+            )
+        }
+
+        field.type == "enum" || field.type == "weekdays" -> {
+            ExposedDropdownField(
+                label = field.label,
+                options = field.options,
+                selectedValue = value,
+                onOptionSelected = onValueChange,
+            )
+        }
+
+        else -> {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                label = { Text(field.label) },
+                placeholder =
+                    if (field.type == "time") {
+                        { Text(stringResource(R.string.cron_edit_hint_time)) }
+                    } else {
+                        null
+                    },
+                supportingText =
+                    if (field.help.isNotBlank()) {
+                        {
+                            Text(
+                                text = field.help,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        }
+    }
+}
+
+/**
+ * Delivery target picker: an editable dropdown fed by the backend's
+ * delivery-targets endpoint (origin + local + connected platforms). Picking
+ * fills the field; typing keeps the legacy free-text behaviour (e.g.
+ * `telegram:chat_id`).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeliverField(
+    label: String,
+    value: String,
+    options: List<String>,
+    deliveryTargets: List<DeliveryTarget>,
+    onValueChange: (String) -> Unit,
+    hint: String? = null,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayNames =
+        deliveryTargets.associate { it.id to it.name.ifBlank { it.id } } + ("origin" to "origin")
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            supportingText =
+                hint?.let {
+                    {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                },
+            singleLine = true,
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { id ->
+                DropdownMenuItem(
+                    text = { Text(displayNames[id] ?: id) },
+                    onClick = {
+                        onValueChange(id)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }

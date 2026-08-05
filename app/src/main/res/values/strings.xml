@@ -743,6 +743,8 @@
     <string name="cron_action_add">Add cron job</string>
     <string name="cron_edit_title">Edit Cron Job</string>
     <string name="cron_edit_title_new">New Cron Job</string>
+    <string name="cron_edit_start_from">Start from</string>
+    <string name="cron_edit_blank_job">Blank job</string>
     <string name="cron_edit_field_name">Name</string>
     <string name="cron_edit_field_schedule">Schedule</string>
     <string name="cron_edit_field_prompt">Prompt</string>
@@ -756,6 +758,7 @@
     <string name="cron_edit_field_no_agent">No agent (script-only)</string>
     <string name="cron_edit_hint_schedule">e.g. 0 9 * * * or every 2h</string>
     <string name="cron_edit_hint_deliver">e.g. origin, local, all, or telegram:chat_id</string>
+    <string name="cron_edit_hint_time">HH:MM</string>
     <string name="cron_edit_hint_skills">One per line</string>
     <string name="cron_edit_action_save">Save</string>
     <string name="cron_discard_title">Discard changes?</string>

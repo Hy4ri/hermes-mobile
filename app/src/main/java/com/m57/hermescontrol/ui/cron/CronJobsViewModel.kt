@@ -3,7 +3,10 @@ package com.m57.hermescontrol.ui.cron
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.CreateCronJobRequest
+import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.DeliveryTarget
+import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -51,7 +54,26 @@ data class CronJobEditorState(
     val workdir: String = "",
     val enabled: Boolean = true,
     val no_agent: Boolean = false,
-)
+    // Blueprint start-from state (new jobs only)
+    val blueprints: List<CronBlueprint> = emptyList(),
+    val deliveryTargets: List<DeliveryTarget> = emptyList(),
+    val selectedBlueprintKey: String? = null,
+    val blueprintValues: Map<String, String> = emptyMap(),
+) {
+    val selectedBlueprint: CronBlueprint?
+        get() = blueprints.firstOrNull { it.key == selectedBlueprintKey }
+
+    /** Delivery ids offered by the picker: origin, then local + connected platforms. */
+    val deliveryOptions: List<String>
+        get() =
+            buildList {
+                add("origin")
+                addAll(deliveryTargets.map { it.id })
+                if (deliveryTargets.none { it.id == "local" }) {
+                    add("local")
+                }
+            }
+}
 
 class CronJobsViewModel :
     ViewModel(),
@@ -169,6 +191,50 @@ class CronJobsViewModel :
                     ),
             )
         }
+        loadEditorBlueprints()
+        loadDeliveryTargets()
+    }
+
+    fun loadEditorBlueprints() {
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getCronBlueprints() }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(editorState = it.editorState.copy(blueprints = result.data.blueprints))
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            editorState =
+                                it.editorState.copy(
+                                    toastMessage = "Failed to load blueprints: ${result.error.message}",
+                                ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun loadDeliveryTargets() {
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getCronDeliveryTargets() }
+                }
+            if (result is NetworkResult.Success) {
+                _uiState.update {
+                    it.copy(editorState = it.editorState.copy(deliveryTargets = result.data.targets))
+                }
+            }
+            // Failure: editor keeps working; the deliver picker falls back to origin/local.
+        }
     }
 
     fun openEditJobDialog(id: String) {
@@ -230,10 +296,43 @@ class CronJobsViewModel :
                 }
             }
         }
+        loadDeliveryTargets()
     }
 
     fun closeEditor() {
         _uiState.update { it.copy(editorState = CronJobEditorState()) }
+    }
+
+    /** Pick a start-from blueprint (null = blank job); seeds its slot defaults. */
+    fun selectBlueprint(key: String?) {
+        _uiState.update { state ->
+            val editor = state.editorState
+            val blueprint = key?.let { k -> editor.blueprints.firstOrNull { it.key == k } }
+            val values = blueprint?.fields?.associate { it.name to it.defaultText }.orEmpty()
+            state.copy(
+                editorState =
+                    editor.copy(
+                        selectedBlueprintKey = key,
+                        blueprintValues = values,
+                        toastMessage = null,
+                    ),
+            )
+        }
+    }
+
+    fun updateBlueprintValue(
+        name: String,
+        value: String,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                editorState =
+                    state.editorState.copy(
+                        blueprintValues = state.editorState.blueprintValues + (name to value),
+                        toastMessage = null,
+                    ),
+            )
+        }
     }
 
     fun updateEditorField(
@@ -252,7 +351,7 @@ class CronJobsViewModel :
 
     fun saveEditor() {
         val editor = _uiState.value.editorState
-        if (editor.schedule.isBlank()) {
+        if (editor.selectedBlueprintKey == null && editor.schedule.isBlank()) {
             _uiState.update { it.copy(editorState = editor.copy(toastMessage = "Schedule is required")) }
             return
         }
@@ -261,7 +360,16 @@ class CronJobsViewModel :
         viewModelScope.launch {
             val result =
                 withContext(Dispatchers.IO) {
-                    if (editor.isNew) {
+                    if (editor.isNew && editor.selectedBlueprintKey != null) {
+                        safeApiCall {
+                            ApiClient.hermesApi.instantiateBlueprint(
+                                InstantiateBlueprintRequest(
+                                    blueprint = editor.selectedBlueprintKey,
+                                    values = editor.blueprintValues,
+                                ),
+                            )
+                        }
+                    } else if (editor.isNew) {
                         safeApiCall {
                             ApiClient.hermesApi.createCronJob(
                                 CreateCronJobRequest(

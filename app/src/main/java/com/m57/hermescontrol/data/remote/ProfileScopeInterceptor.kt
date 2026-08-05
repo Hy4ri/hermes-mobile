@@ -19,19 +19,20 @@ import okhttp3.Response
  *  - If the URL already carries an explicit `profile=` query, leave it
  *    untouched — explicit beats global.
  *  - Only the endpoint families below honor `?profile=` on the backend;
- *    everything else (ops, pairing, cron, profiles themselves) is
- *    machine-global or self-scoped and must NOT be rewritten.
+ *    everything else (ops, pairing, profiles themselves) is machine-global
+ *    or self-scoped and must NOT be rewritten. Cron, sessions and plugins
+ *    are profile-scoped on the backend (`/api/cron/jobs?profile=`,
+ *    `/api/sessions?profile=`, plugin REST) and ARE rewritten here so
+ *    switching profiles actually switches what the app shows.
  */
 object ProfileScopeInterceptor : Interceptor {
     private val PROFILE_SCOPED_PREFIXES =
         listOf(
-            "/api/status",
-            "/api/gateway",
             "/api/analytics",
-            "/api/skills",
-            "/api/tools/toolsets",
             "/api/config",
+            "/api/cron",
             "/api/env",
+            "/api/gateway",
             "/api/mcp",
             "/api/messaging/platforms",
             "/api/messaging/telegram/onboarding",
@@ -41,6 +42,11 @@ object ProfileScopeInterceptor : Interceptor {
             "/api/model/auxiliary",
             "/api/model/moa",
             "/api/model/options",
+            "/api/plugins",
+            "/api/sessions",
+            "/api/skills",
+            "/api/status",
+            "/api/tools/toolsets",
         )
 
     /**

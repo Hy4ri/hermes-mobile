@@ -63,6 +63,7 @@ class ChatViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockEventsFlow = MutableSharedFlow<WsEvent>(extraBufferCapacity = 64)
     private val mockConnectionStatus = MutableStateFlow(ConnectionStatus.DISCONNECTED)
+    private val mockSelectedProfileFlow = MutableStateFlow<String?>(null)
     private lateinit var app: Application
     private lateinit var fakeRepo: FakeChatPersistenceRepository
 
@@ -110,6 +111,7 @@ class ChatViewModelTest {
         every { AuthManager.getToken() } returns "test-token"
         every { AuthManager.getBaseUrl() } returns "http://test.local/"
         every { AuthManager.getSelectedProfileId() } returns null
+        every { AuthManager.selectedProfileFlow } returns mockSelectedProfileFlow
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isAutoReconnect() } returns false
@@ -239,6 +241,24 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             verify(atLeast = 1) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+        }
+
+    @Test
+    fun profileSwitch_resetsOpenSessionAndReloadsSessionList() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            assertEquals(sessionId, viewModel.uiState.value.currentSessionId)
+
+            // Selected profile changes (switch in ProfilesScreen) → chat must
+            // wipe the stale conversation and reload the session list
+            // (desktop's requestFreshSession parity — the gateway re-homes
+            // on profile switch and the old session id is no longer valid).
+            mockSelectedProfileFlow.value = "meow"
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.currentSessionId)
+            assertEquals("Hermes", viewModel.uiState.value.chatTitle)
+            verify(atLeast = 1) { HermesWsClient.send(WsMethods.SESSION_LIST, any(), any()) }
         }
 
     @Test

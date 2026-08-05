@@ -59,7 +59,7 @@ class ConnectViewModel(
                 baseUrl = selectedProfile?.resolveBaseUrl(savedBaseUrl) ?: savedBaseUrl,
                 profiles = profiles,
                 selectedProfile = selectedProfile,
-                profileName = selectedProfile?.name ?: "",
+                profileName = selectedProfile?.name ?: selectedId ?: "",
             )
         }
         loadHealth()

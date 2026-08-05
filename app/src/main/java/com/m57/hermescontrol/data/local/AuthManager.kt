@@ -73,6 +73,10 @@ object AuthManager {
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
 
+    /** Current profile scope (mirrors serverStore.selectedProfileId). */
+    private val _selectedProfileFlow = MutableStateFlow<String?>(null)
+    val selectedProfileFlow: StateFlow<String?> = _selectedProfileFlow.asStateFlow()
+
     /**
      * Initialise the encrypted preferences.
      * Call this once from Application.onCreate() or MainActivity.onCreate().
@@ -98,6 +102,7 @@ object AuthManager {
             appScope = scope
             val store = ServerStore(dataStore, scope)
             _serverStore = store
+            _selectedProfileFlow.value = store.getLatestState().selectedProfileId
 
             if (prefsDeferred == null) {
                 prefsDeferred =
@@ -332,6 +337,7 @@ object AuthManager {
             ActiveSessionHolder.clear()
         }
         serverStore.update { it.copy(selectedProfileId = id) }
+        _selectedProfileFlow.value = id
         synchronized(this) {
             tokenInitialized = false
         }

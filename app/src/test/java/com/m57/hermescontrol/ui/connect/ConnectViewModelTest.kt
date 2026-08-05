@@ -392,7 +392,7 @@ class ConnectViewModelTest {
     }
 
     @Test
-    fun testLoadSavedValues_withStaleSelectedId_fallsBackToDefaults() {
+    fun testLoadSavedValues_withStaleSelectedId_prefillsSelectedId() {
         val profile =
             ConnectionProfile(
                 id = "prof-1",
@@ -407,7 +407,10 @@ class ConnectViewModelTest {
         val state = viewModel.uiState.value
 
         assertNull(state.selectedProfile)
-        assertEquals("", state.profileName)
+        // Profile name prefills the selected id so a re-login after switching
+        // to a profile created in-app (no saved connection yet) stays on that
+        // profile instead of silently landing back on default.
+        assertEquals("nonexistent-id", state.profileName)
         assertEquals("https://127.0.0.1:9119/", state.baseUrl)
     }
 

@@ -2,10 +2,12 @@ package com.m57.hermescontrol.ui.profiles
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProfileDescribeAutoRequest
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.RenameProfileRequest
@@ -40,6 +42,8 @@ data class ProfilesUiState(
     val isAutoDescribing: Boolean = false,
     val setupCommand: String? = null,
     val isLoadingSetupCommand: Boolean = false,
+    // Model picker (issue #781 — Set Model uses the shared ModelPickerDialog)
+    val modelPickerPinned: List<PinnedModel> = emptyList(),
     // Profile Builder states
     val modelProviders: List<ModelProvider> = emptyList(),
     val isLoadingBuilderData: Boolean = false,
@@ -445,6 +449,53 @@ class ProfilesViewModel :
                 }
             }
         }
+    }
+
+    fun loadModelOptions() {
+        _uiState.update { it.copy(isLoadingBuilderData = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.getModelOptions() }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingBuilderData = false,
+                            modelProviders = result.data.providers,
+                            modelPickerPinned = AuthManager.getPinnedModels(),
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    // Toast, not errorMessage — a picker-load failure must NOT
+                    // blank the profiles list with the ErrorState branch.
+                    _uiState.update {
+                        it.copy(
+                            isLoadingBuilderData = false,
+                            toastMessage = "Failed to load models: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun togglePinModel(
+        providerSlug: String,
+        modelName: String,
+    ) {
+        val target = PinnedModel(providerSlug, modelName)
+        val current = AuthManager.getPinnedModels().toMutableList()
+        if (target in current) {
+            current.remove(target)
+        } else {
+            current.add(target)
+        }
+        AuthManager.savePinnedModels(current)
+        _uiState.update { it.copy(modelPickerPinned = current) }
     }
 
     fun loadBuilderData() {

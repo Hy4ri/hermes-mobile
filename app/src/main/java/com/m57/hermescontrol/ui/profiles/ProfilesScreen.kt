@@ -61,6 +61,7 @@ import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import com.m57.hermescontrol.ui.profiles.components.ProfileBuilderView
 import com.m57.hermescontrol.ui.profiles.components.validateProfileName
 
@@ -75,8 +76,6 @@ fun ProfilesScreen(
 
     var soulEditProfileName by remember { mutableStateOf<String?>(null) }
     var modelEditProfileName by remember { mutableStateOf<String?>(null) }
-    var tempModelProvider by remember { mutableStateOf("") }
-    var tempModelName by remember { mutableStateOf("") }
 
     var cloneProfileName by remember { mutableStateOf<String?>(null) }
     var newCloneName by remember { mutableStateOf("") }
@@ -372,8 +371,7 @@ fun ProfilesScreen(
                                                 Button(
                                                     onClick = {
                                                         modelEditProfileName = profile.name
-                                                        tempModelProvider = profile.provider ?: ""
-                                                        tempModelName = profile.model ?: ""
+                                                        viewModel.loadModelOptions()
                                                     },
                                                     modifier = Modifier.padding(end = 8.dp),
                                                 ) {
@@ -558,57 +556,20 @@ fun ProfilesScreen(
     }
 
     if (modelEditProfileName != null) {
-        AlertDialog(
-            onDismissRequest = { modelEditProfileName = null },
-            title = {
-                Text(
-                    text =
-                        stringResource(
-                            R.string.profiles_title_set_model,
-                            modelEditProfileName.orEmpty(),
-                        ),
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = tempModelProvider,
-                        onValueChange = { tempModelProvider = it },
-                        label = { Text(stringResource(R.string.profiles_label_provider_input)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = tempModelName,
-                        onValueChange = { tempModelName = it },
-                        label = { Text(stringResource(R.string.profiles_label_model_input)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
+        ModelPickerDialog(
+            providers = state.modelProviders,
+            title = stringResource(R.string.profiles_title_set_model, modelEditProfileName.orEmpty()),
+            isLoading = state.isLoadingBuilderData && state.modelProviders.isEmpty(),
+            pinnedModels = state.modelPickerPinned,
+            onPinToggle = viewModel::togglePinModel,
+            onSelect = { provider, model ->
+                val profileName = modelEditProfileName
+                if (profileName != null) {
+                    viewModel.updateModel(profileName, provider, model)
                 }
+                modelEditProfileName = null
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val profileName = modelEditProfileName
-                        if (profileName != null) {
-                            viewModel.updateModel(profileName, tempModelProvider, tempModelName)
-                        }
-                        modelEditProfileName = null
-                    },
-                ) {
-                    Text(stringResource(R.string.action_ok))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { modelEditProfileName = null },
-                ) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
+            onDismiss = { modelEditProfileName = null },
         )
     }
 

@@ -397,8 +397,6 @@
     <string name="profiles_title_set_model">모델 설정: %1$s</string>
     <string name="profiles_title_clone">프로필 복제: %1$s</string>
     <string name="profiles_title_edit_description">설명 편집: %1$s</string>
-    <string name="profiles_label_provider_input">제공자</string>
-    <string name="profiles_label_model_input">모델명</string>
     <string name="profiles_label_new_name_input">새 프로필명</string>
     <string name="profiles_label_description_input">설명</string>
     <string name="profiles_description_placeholder">설명이 없습니다. 이 프로필의 역할을 설명해주세요.</string>

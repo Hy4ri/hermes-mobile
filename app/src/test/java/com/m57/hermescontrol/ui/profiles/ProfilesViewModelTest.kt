@@ -1,6 +1,10 @@
 package com.m57.hermescontrol.ui.profiles
 
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
+import com.m57.hermescontrol.data.model.ModelOptionsResponse
+import com.m57.hermescontrol.data.model.ModelProvider
+import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.ProfileDescribeAutoRequest
 import com.m57.hermescontrol.data.model.ProfileDescribeAutoResponse
 import com.m57.hermescontrol.data.model.ProfileInfo
@@ -45,6 +49,7 @@ import retrofit2.Response
 class ProfilesViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApi: HermesApiService
+    private var storedPinnedModels: MutableList<PinnedModel> = mutableListOf()
 
     private fun stubProfilesLoad() {
         coEvery { mockApi.getProfiles() } returns
@@ -60,6 +65,13 @@ class ProfilesViewModelTest {
         mockkStatic(Dispatchers::class)
         every { Dispatchers.IO } returns testDispatcher
         every { Dispatchers.Main } returns testMainDispatcher
+
+        mockkObject(AuthManager)
+        storedPinnedModels = mutableListOf()
+        every { AuthManager.getPinnedModels() } answers { storedPinnedModels.toList() }
+        every { AuthManager.savePinnedModels(any()) } answers {
+            storedPinnedModels = firstArg<List<PinnedModel>>().toMutableList()
+        }
 
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
@@ -197,5 +209,57 @@ class ProfilesViewModelTest {
 
         assertNull(vm.uiState.value.setupCommand)
         assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to fetch setup command"))
+    }
+
+    @Test
+    fun `loadModelOptions success populates providers and pins`() {
+        storedPinnedModels.add(PinnedModel("openai", "gpt-4"))
+        coEvery { mockApi.getModelOptions() } returns
+            Response.success(
+                ModelOptionsResponse(
+                    listOf(
+                        ModelProvider(
+                            slug = "openai",
+                            name = "OpenAI",
+                            models = listOf("gpt-4o", "gpt-4o-mini"),
+                        ),
+                    ),
+                ),
+            )
+
+        val vm = createViewModel()
+        vm.loadModelOptions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, vm.uiState.value.modelProviders.size)
+        assertEquals("gpt-4o", vm.uiState.value.modelProviders[0].models!![0])
+        assertEquals(listOf(PinnedModel("openai", "gpt-4")), vm.uiState.value.modelPickerPinned)
+        assertFalse(vm.uiState.value.isLoadingBuilderData)
+    }
+
+    @Test
+    fun `loadModelOptions failure toasts without blanking errorMessage`() {
+        coEvery { mockApi.getModelOptions() } returns errorResponse(500)
+
+        val vm = createViewModel()
+        vm.loadModelOptions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to load models"))
+        assertNull(vm.uiState.value.errorMessage)
+        assertFalse(vm.uiState.value.isLoadingBuilderData)
+    }
+
+    @Test
+    fun `togglePinModel adds then removes pinned model`() {
+        val vm = createViewModel()
+
+        vm.togglePinModel("openai", "gpt-4")
+        assertEquals(listOf(PinnedModel("openai", "gpt-4")), vm.uiState.value.modelPickerPinned)
+        assertEquals(listOf(PinnedModel("openai", "gpt-4")), storedPinnedModels)
+
+        vm.togglePinModel("openai", "gpt-4")
+        assertTrue(vm.uiState.value.modelPickerPinned.isEmpty())
+        assertTrue(storedPinnedModels.isEmpty())
     }
 }

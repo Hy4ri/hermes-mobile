@@ -572,8 +572,6 @@
     <string name="profiles_title_set_model">Set Model: %1$s</string>
     <string name="profiles_title_clone">Clone Profile: %1$s</string>
     <string name="profiles_title_edit_description">Edit Description: %1$s</string>
-    <string name="profiles_label_provider_input">Provider</string>
-    <string name="profiles_label_model_input">Model Name</string>
     <string name="profiles_label_new_name_input">New Profile Name</string>
     <string name="profiles_label_description_input">Description</string>
     <string name="profiles_description_placeholder">No description provided. Describe this profile\'s role.</string>

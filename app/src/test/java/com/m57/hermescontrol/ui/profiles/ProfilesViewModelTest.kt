@@ -53,6 +53,7 @@ class ProfilesViewModelTest {
     private lateinit var mockApi: HermesApiService
     private var storedPinnedModels: MutableList<PinnedModel> = mutableListOf()
     private var storedSelectedProfile: String? = null
+    private var storedProfileToken: String? = null
 
     private fun stubProfilesLoad() {
         coEvery { mockApi.getProfiles() } returns
@@ -72,6 +73,7 @@ class ProfilesViewModelTest {
         mockkObject(AuthManager)
         storedPinnedModels = mutableListOf()
         storedSelectedProfile = null
+        storedProfileToken = null
         every { AuthManager.getPinnedModels() } answers { storedPinnedModels.toList() }
         every { AuthManager.savePinnedModels(any()) } answers {
             storedPinnedModels = firstArg<List<PinnedModel>>().toMutableList()
@@ -79,6 +81,11 @@ class ProfilesViewModelTest {
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfile }
         every { AuthManager.setSelectedProfileId(any()) } answers {
             storedSelectedProfile = firstArg<String?>()
+        }
+        every { AuthManager.getToken() } answers { "tok-abc" }
+        every { AuthManager.getProfileToken(any()) } answers { storedProfileToken }
+        every { AuthManager.setProfileToken(any(), any()) } answers {
+            storedProfileToken = secondArg<String?>()
         }
 
         mockkObject(HermesWsClient)
@@ -286,11 +293,30 @@ class ProfilesViewModelTest {
         // Local selection persisted → ProfileScopeInterceptor now scopes all
         // management REST calls (?profile=work) to the new profile.
         assertEquals("work", storedSelectedProfile)
+        // Token inherited from the current connection so switching to a
+        // same-dashboard profile doesn't force a re-login (token_<profile>
+        // is keyed per profile and a freshly-created profile has none).
+        assertEquals("tok-abc", storedProfileToken)
         // WebSocket re-homed so the live gateway follows the new profile.
         verify { HermesWsClient.disconnect() }
         verify { HermesWsClient.connect() }
         assertTrue(vm.uiState.value.toastMessage!!.contains("Switched to profile work"))
         coVerify { mockApi.getProfiles() }
+    }
+
+    @Test
+    fun `selectActiveProfile keeps existing token for the target profile`() {
+        storedProfileToken = "tok-meow"
+        coEvery { mockApi.setActiveProfile(any()) } returns Response.success(Unit)
+
+        val vm = createViewModel()
+        vm.selectActiveProfile("meow")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // A profile that already has its own token (e.g. connected elsewhere)
+        // must NOT be clobbered by inheritance.
+        assertEquals("tok-meow", storedProfileToken)
+        assertEquals("meow", storedSelectedProfile)
     }
 
     @Test
@@ -302,6 +328,7 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNull(storedSelectedProfile)
+        assertNull(storedProfileToken)
         assertNull(vm.uiState.value.activeProfileName)
         assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to switch profile"))
     }

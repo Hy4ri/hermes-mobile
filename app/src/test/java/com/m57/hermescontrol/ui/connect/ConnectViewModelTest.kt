@@ -415,6 +415,32 @@ class ConnectViewModelTest {
     }
 
     @Test
+    fun testLoadSavedValues_restartWithScopedProfile_resolvesTokenViaFallback() {
+        val meow =
+            ConnectionProfile(
+                id = "meow",
+                name = "meow",
+                baseUrl = "https://127.0.0.1:9119/",
+            )
+        // Restart seam (phase 1): the app was killed while meow was selected;
+        // only the default profile holds the connection token. The per-server
+        // token fallback resolves it, so the restart lands on meow WITHOUT a
+        // login screen — desktop-equivalent "kill + reopen → still meow".
+        every { AuthManager.getToken() } returns "conn-token"
+        every { AuthManager.getBaseUrl() } returns "https://127.0.0.1:9119/"
+        every { AuthManager.getConnectionProfiles() } returns listOf(meow)
+        every { AuthManager.getSelectedProfileId() } returns "meow"
+
+        val viewModel = ConnectViewModel(mockApp)
+        val state = viewModel.uiState.value
+
+        assertEquals("conn-token", state.token)
+        assertEquals("meow", state.profileName)
+        assertEquals(meow, state.selectedProfile)
+        assertEquals("https://127.0.0.1:9119/", state.baseUrl)
+    }
+
+    @Test
     fun testSelectProfile_withoutToken_usesEmptyString() {
         every { AuthManager.getProfileToken(any()) } returns null
 

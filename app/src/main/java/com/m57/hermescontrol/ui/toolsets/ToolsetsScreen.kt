@@ -233,4 +233,3 @@ fun ToolsetsScreen(
         }
     }
 }
-renamed '/tmp/hermes-snap-210ab1a5cfc7.sh.tmp.iKcyYTAtLN' -> '/tmp/hermes-snap-210ab1a5cfc7.sh'

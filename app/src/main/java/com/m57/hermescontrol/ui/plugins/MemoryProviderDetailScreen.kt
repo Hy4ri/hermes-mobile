@@ -90,14 +90,14 @@ fun MemoryProviderDetailScreen(
     ) { paddingValues ->
         when {
             state.isLoading && config == null -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState(modifier = Modifier)
             }
 
             state.errorMessage != null && config == null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.load() },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -107,7 +107,7 @@ fun MemoryProviderDetailScreen(
                     subtitle = stringResource(R.string.memory_provider_empty_desc),
                     onAction = { viewModel.load() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -118,7 +118,7 @@ fun MemoryProviderDetailScreen(
                     onFieldValue = viewModel::setFieldValue,
                     onSave = viewModel::saveConfig,
                     onRunSetup = viewModel::runSetup,
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
         }

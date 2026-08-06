@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.memory
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.model.LearningGraphResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 data class MemoryUiState(
     val isLoading: Boolean = false,
     val memory: MemoryResponse? = null,
+    val learningGraph: LearningGraphResponse? = null,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
     val resetting: String? = null,
@@ -47,6 +49,16 @@ class MemoryViewModel : ViewModel(), ToastHost {
                             errorMessage = result.error.message,
                         )
                     }
+            }
+            loadLearningGraph()
+        }
+    }
+
+    private fun loadLearningGraph() {
+        viewModelScope.launch {
+            val result = safeApiCall { ApiClient.hermesApi.getLearningGraph() }
+            if (result is NetworkResult.Success) {
+                _uiState.update { it.copy(learningGraph = result.data) }
             }
         }
     }

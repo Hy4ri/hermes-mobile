@@ -78,6 +78,18 @@ class MemoryViewModelTest {
     }
 
     @Test
+    fun `load also fetches learning graph for self-improvement section`() {
+        val graph = com.m57.hermescontrol.data.model.LearningGraphResponse(nodes = emptyList())
+        coEvery { mockApi.getLearningGraph() } returns Response.success(graph)
+        val vm = MemoryViewModel()
+        vm.load()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { mockApi.getLearningGraph() }
+        assertEquals(graph, vm.uiState.value.learningGraph)
+    }
+
+    @Test
     fun `load failure surfaces error message`() {
         coEvery { mockApi.getMemory() } returns
             Response.error(500, "boom".toResponseBody())

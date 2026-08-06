@@ -48,11 +48,4 @@ class SystemViewModelTest {
         viewModel.closeUpdateConfirm()
         assertFalse(viewModel.uiState.value.updateConfirmOpen)
     }
-
-    @Test
-    fun `initial uiState has null learningGraph`() {
-        val viewModel = SystemViewModel()
-
-        org.junit.Assert.assertNull(viewModel.uiState.value.learningGraph)
-    }
 }

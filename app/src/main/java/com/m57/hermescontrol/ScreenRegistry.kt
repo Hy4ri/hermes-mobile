@@ -3,28 +3,30 @@ package com.m57.hermescontrol
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HistoryEdu
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.PsychologyAlt
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material.icons.filled.Webhook
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -109,13 +111,13 @@ object ScreenRegistry {
             ScreenDefinition(
                 KanbanScreen,
                 R.string.screen_kanban,
-                Icons.Filled.Dashboard,
+                Icons.Filled.ViewKanban,
                 DrawerSection.AUTOMATE,
             ) { sessionId, openDrawer -> KanbanScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 SkillsScreen,
                 R.string.screen_skills,
-                Icons.Filled.Extension,
+                Icons.Filled.Inventory2,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> SkillsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
@@ -127,7 +129,7 @@ object ScreenRegistry {
             ScreenDefinition(
                 PluginsScreen,
                 R.string.screen_plugins,
-                Icons.Filled.Memory,
+                Icons.Filled.Extension,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> PluginsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
@@ -139,13 +141,13 @@ object ScreenRegistry {
             ScreenDefinition(
                 McpServersScreen,
                 R.string.screen_mcp_servers,
-                Icons.Filled.Dashboard,
+                Icons.Filled.Power,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> McpServersScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 MemoryScreen,
                 R.string.screen_memory,
-                Icons.Filled.AutoStories,
+                Icons.Filled.PsychologyAlt,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> MemoryScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
@@ -169,7 +171,7 @@ object ScreenRegistry {
             ScreenDefinition(
                 ChannelsScreen,
                 R.string.screen_channels,
-                Icons.AutoMirrored.Filled.ListAlt,
+                Icons.Filled.Sensors,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> ChannelsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
@@ -187,7 +189,7 @@ object ScreenRegistry {
             ScreenDefinition(
                 SystemScreen,
                 R.string.screen_system,
-                Icons.Filled.Info,
+                Icons.Filled.Dns,
                 DrawerSection.INSPECT,
             ) { sessionId, openDrawer -> SystemScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(

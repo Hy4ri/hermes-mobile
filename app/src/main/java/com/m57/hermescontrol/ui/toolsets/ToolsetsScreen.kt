@@ -1,10 +1,10 @@
 package com.m57.hermescontrol.ui.toolsets
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
@@ -190,9 +191,15 @@ fun ToolsetsScreen(
                                             toolset.tools?.let { tools ->
                                                 if (tools.isNotEmpty()) {
                                                     Spacer(modifier = Modifier.height(8.dp))
-                                                    FlowRow(
+                                                    // Single-line chip strip — toolsets can carry a dozen+
+                                                    // tools, and a wrapping FlowRow stacks chips vertically
+                                                    // (huge cards on large font scales). Scroll instead.
+                                                    Row(
+                                                        modifier =
+                                                            Modifier
+                                                                .fillMaxWidth()
+                                                                .horizontalScroll(rememberScrollState()),
                                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                        verticalArrangement = Arrangement.spacedBy(4.dp),
                                                     ) {
                                                         tools.forEach { tool ->
                                                             SuggestionChip(
@@ -201,6 +208,7 @@ fun ToolsetsScreen(
                                                                     Text(
                                                                         text = tool,
                                                                         style = MaterialTheme.typography.labelSmall,
+                                                                        maxLines = 1,
                                                                     )
                                                                 },
                                                             )
@@ -225,3 +233,4 @@ fun ToolsetsScreen(
         }
     }
 }
+renamed '/tmp/hermes-snap-210ab1a5cfc7.sh.tmp.iKcyYTAtLN' -> '/tmp/hermes-snap-210ab1a5cfc7.sh'

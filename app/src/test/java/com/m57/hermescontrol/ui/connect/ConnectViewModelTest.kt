@@ -35,11 +35,6 @@ class ConnectViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        val testMainDispatcher = Dispatchers.Main
-        mockkStatic(Dispatchers::class)
-        every { Dispatchers.IO } returns testDispatcher
-        every { Dispatchers.Main } returns testMainDispatcher
-
         mockkObject(AuthManager)
         mockkObject(ApiClient)
         mockkStatic(android.util.Base64::class)

@@ -102,6 +102,16 @@ class SlashCommandDispatchRpcTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+        // Catch-all for tests that don't stub request() explicitly: the real
+        // implementation leaks a 120s timeout job on the singleton's real-IO
+        // wsScope that fires after unmockkAll and crashes a later test with
+        // MockK's "can't find stub". Mirror the real send() delegation (so
+        // send-based verifications still see the call) but skip the timer.
+        // Specific per-test request() stubs registered later take precedence.
+        every { HermesWsClient.request(any(), any(), any()) } answers {
+            HermesWsClient.send(arg(0), arg(1)) {}
+            CompletableDeferred<Any?>()
+        }
     }
 
     @After

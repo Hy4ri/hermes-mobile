@@ -15,13 +15,11 @@ import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 data class ConnectUiState(
     val token: String = "",
@@ -77,9 +75,8 @@ class ConnectViewModel(
         if (endpoint == null || state.token.isBlank()) return
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
-                    val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), state.token)
-                    safeApiCall { tempApi.getHealth() }
+                safeApiCall {
+                    ApiClient.createTempService(endpoint.baseUrl.toString(), state.token).getHealth()
                 }
             if (result is NetworkResult.Success) {
                 _uiState.update { it.copy(health = result.data) }
@@ -138,9 +135,8 @@ class ConnectViewModel(
 
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
-                    val tempApi = ApiClient.createTempService(endpoint.baseUrl.toString(), state.token)
-                    safeApiCall { tempApi.getStatus() }
+                safeApiCall {
+                    ApiClient.createTempService(endpoint.baseUrl.toString(), state.token).getStatus()
                 }
             when (result) {
                 is NetworkResult.Success -> {

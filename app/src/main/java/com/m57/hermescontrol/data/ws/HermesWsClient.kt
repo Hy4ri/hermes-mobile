@@ -105,6 +105,15 @@ object HermesWsClient {
 
     private val wsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    /**
+     * Started lazily on the first [connect] instead of in [init]: the
+     * reconnect-on-network-change subscription only matters once a socket
+     * has actually been opened. init-time subscription also leaks a live
+     * real-IO collector into the unit-test JVM (class load), where
+     * NetworkMonitor emissions crashed it after unmockkAll.
+     */
+    private val networkCollectorStarted = AtomicBoolean(false)
+
     @Volatile
     private var reconnectJob: Job? = null
 
@@ -194,11 +203,6 @@ object HermesWsClient {
     }
 
     init {
-        wsScope.launch {
-            NetworkMonitor.networkChanges.collect { networkAvailable ->
-                reconnectForNetworkChange(networkAvailable)
-            }
-        }
         // Extract credential_warning from gateway.ready / session.info payloads.
         wsScope.launch {
             events.collect { event ->
@@ -242,6 +246,13 @@ object HermesWsClient {
 
     /** Open a WebSocket connection using settings from [AuthManager]. */
     fun connect() {
+        if (networkCollectorStarted.compareAndSet(false, true)) {
+            wsScope.launch {
+                NetworkMonitor.networkChanges.collect { networkAvailable ->
+                    reconnectForNetworkChange(networkAvailable)
+                }
+            }
+        }
         var socketToCancel: WebSocket? = null
         val shouldOpen =
             synchronized(outboundLock) {

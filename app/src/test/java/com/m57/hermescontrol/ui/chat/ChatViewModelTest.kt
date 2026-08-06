@@ -84,7 +84,6 @@ class ChatViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        val testMainDispatcher = Dispatchers.Main
         reqCount = 0
 
         mockkStatic(Log::class)
@@ -93,13 +92,21 @@ class ChatViewModelTest {
         every { Log.w(any(), any<String>()) } returns 0
         every { Log.e(any(), any(), any()) } returns 0
 
-        mockkStatic(Dispatchers::class)
-        every { Dispatchers.IO } returns testDispatcher
-        every { Dispatchers.Main } returns testMainDispatcher
-
         mockkObject(AuthManager)
         every { AuthManager.getPinnedModels() } returns emptyList()
         mockkObject(HermesWsClient)
+        // Catch-all for unstubbed request() calls: the real implementation
+        // registers a pending call and launches a 120s timeout job on the
+        // singleton's real-IO wsScope. The timer outlives the test class,
+        // fires after unmockkAll and crashes an unrelated later test with
+        // MockK's "can't find stub" (UncaughtExceptionsBeforeTest). Mirror
+        // the real request()'s send() delegation (tests verify send calls)
+        // but return a never-completing deferred — same unanswered behavior,
+        // no leaked timer.
+        every { HermesWsClient.request(any(), any(), any()) } answers {
+            HermesWsClient.send(arg(0), arg(1)) {}
+            CompletableDeferred<Any?>()
+        }
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
 
@@ -173,7 +180,9 @@ class ChatViewModelTest {
 
     /** Create a ViewModel with the fake repo injected directly. */
     private fun createViewModel(startCleanup: Boolean = false): ChatViewModel =
-        ChatViewModel(app, startCleanup, fakeRepo, testDispatcher)
+        // Both dispatchers injected — a real ioDispatcher would race the
+        // test scheduler (repo writes hop it) and shuffle RPC ordering.
+        ChatViewModel(app, startCleanup, fakeRepo, testDispatcher, testDispatcher)
 
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,

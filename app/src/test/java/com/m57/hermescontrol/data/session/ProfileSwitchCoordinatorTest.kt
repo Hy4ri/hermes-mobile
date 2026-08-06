@@ -12,18 +12,13 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -40,14 +35,16 @@ import retrofit2.Response
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileSwitchCoordinatorTest {
-    private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApi: HermesApiService
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(testDispatcher)
-        mockkStatic(Dispatchers::class)
-        every { Dispatchers.IO } returns testDispatcher
+        // NOTE: no mockkStatic(Dispatchers) here — a static Dispatchers mock
+        // bleeds into later test classes in the same JVM (it hijacks
+        // Dispatchers.IO for HermesWsClient's reconnect coroutines), which
+        // deterministically broke HermesWsClientTest.testAutoReconnect in
+        // full-suite runs. Real Dispatchers.IO is fine: the network layer is
+        // mocked, so withContext(Dispatchers.IO) hops are instant.
 
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
@@ -63,7 +60,6 @@ class ProfileSwitchCoordinatorTest {
 
     @After
     fun tearDown() {
-        Dispatchers.resetMain()
         unmockkAll()
     }
 

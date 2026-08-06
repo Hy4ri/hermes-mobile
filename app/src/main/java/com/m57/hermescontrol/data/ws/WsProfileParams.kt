@@ -11,7 +11,7 @@ import com.m57.hermescontrol.data.local.AuthManager
  * (usually "default"), even after the user switches profiles in the app.
  *
  * Rules (mirror the REST interceptor contract):
- *  - If [AuthManager.getActiveProfileId] is `null` → pass through unchanged
+ *  - If [AuthManager.activeProfileId] is `null` → pass through unchanged
  *    (legacy single-profile behavior).
  *  - If the caller already supplied an explicit `"profile"` key in [params] →
  *    explicit wins; do **not** overwrite.
@@ -29,7 +29,7 @@ object WsProfileParams {
         params: Map<String, Any>,
     ): Map<String, Any> {
         // No active profile → legacy single-profile behavior.
-        val profile = AuthManager.getActiveProfileId() ?: return params
+        val profile = AuthManager.activeProfileId.value ?: return params
 
         // Only scoped methods get the profile key.
         if (method !in WsMethods.PROFILE_SCOPED_METHODS) return params

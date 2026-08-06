@@ -64,10 +64,11 @@ class SlashCommandDispatchRpcTest {
         every { android.util.Log.e(any(), any(), any()) } returns 0
 
         // NOTE: no mockkStatic(Dispatchers) here — a static Dispatchers mock
-        // bleeds JVM-wide and breaks later classes (CI 2026-08-06: this
-        // class's own static IO mock cross-wired COMMAND_DISPATCH captures in
-        // suite order). setMain alone is safe — the slash-dispatch send path
-        // is synchronous (no IO hop).
+        // bleeds JVM-wide and breaks later classes (the same poison removed
+        // from ProfileSwitchCoordinatorTest / ProfilesViewModelTest; CI
+        // 2026-08-06: this class's own static IO mock cross-wired
+        // COMMAND_DISPATCH captures in suite order). setMain alone is safe —
+        // the slash-dispatch send path is synchronous (no IO hop).
         mockkObject(AuthManager)
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)

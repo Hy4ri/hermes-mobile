@@ -392,18 +392,19 @@ object AuthManager {
     }
 
     /**
-     * The active server-side Hermes profile used for REST `?profile=` and WS
-     * `params.profile` scoping. Null = legacy single-profile behavior.
+     * Set the active server-side Hermes profile scope.
      *
      * Unlike [setSelectedProfileId], this does NOT touch the server store —
      * it is prefs-backed and immune to [ServerStoreState.selfHealed], so a
      * server profile that has no local [ConnectionProfile] (the normal case)
      * survives the switch instead of being clamped to null/default.
+     *
+     * NOTE: read the value via [activeProfileId].value — a JVM getter named
+     * `getActiveProfileId()` would collide with the property's generated
+     * getter (same name, different return type) and silently resolve to the
+     * property getter at runtime (ClassCastException: ReadonlyStateFlow ->
+     * String, 2026-08-06 CI).
      */
-    fun getActiveProfileId(): String? {
-        return _activeProfileId.value
-    }
-
     fun setActiveProfileId(id: String?) {
         val normalized = id?.takeIf { it.isNotBlank() }
         _activeProfileId.value = normalized

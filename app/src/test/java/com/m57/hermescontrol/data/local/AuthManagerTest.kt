@@ -491,7 +491,7 @@ class AuthManagerTest {
         assertNull(AuthManager.getSelectedProfileId())
 
         AuthManager.setActiveProfileId("meow")
-        assertEquals("meow", AuthManager.getActiveProfileId())
+        assertEquals("meow", AuthManager.activeProfileId.value)
         // Connection-level selection is untouched by the scope change — the
         // clamp already nulled it, and setActiveProfileId does not revive it.
         assertNull(AuthManager.getSelectedProfileId())
@@ -516,7 +516,7 @@ class AuthManagerTest {
             (field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>)?.await()
         }
 
-        assertEquals("meow", AuthManager.getActiveProfileId())
+        assertEquals("meow", AuthManager.activeProfileId.value)
 
         // Cancel the second init's appScope so its DataStore collector does
         // not leak into later test classes (leaked scopes re-touch mocked
@@ -530,10 +530,10 @@ class AuthManagerTest {
     fun testActiveProfileId_blankAndNullClear() {
         AuthManager.setActiveProfileId("meow")
         AuthManager.setActiveProfileId("")
-        assertNull(AuthManager.getActiveProfileId())
+        assertNull(AuthManager.activeProfileId.value)
 
         AuthManager.setActiveProfileId("meow")
         AuthManager.setActiveProfileId(null)
-        assertNull(AuthManager.getActiveProfileId())
+        assertNull(AuthManager.activeProfileId.value)
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
@@ -144,7 +145,7 @@ object ScreenRegistry {
             ScreenDefinition(
                 MemoryScreen,
                 R.string.screen_memory,
-                Icons.Filled.Memory,
+                Icons.Filled.AutoStories,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> MemoryScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(

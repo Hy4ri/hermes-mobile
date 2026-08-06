@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.PsychologyAlt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
@@ -31,6 +30,7 @@ import androidx.compose.material.icons.filled.Webhook
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavKey
+import com.m57.hermescontrol.ui.common.NeurologyIcon
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
 import com.m57.hermescontrol.ui.analytics.AnalyticsScreen as AnalyticsScreenContent
 import com.m57.hermescontrol.ui.billing.BillingScreen as BillingScreenContent
@@ -147,7 +147,7 @@ object ScreenRegistry {
             ScreenDefinition(
                 MemoryScreen,
                 R.string.screen_memory,
-                Icons.Filled.PsychologyAlt,
+                NeurologyIcon,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> MemoryScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(

@@ -347,6 +347,7 @@ class ChatViewModel(
             HermesDatabase.get(application).chatMessageDao(),
         ),
     searchDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
 ) : AndroidViewModel(application) {
     constructor(application: Application) : this(application, startCleanup = true)
 
@@ -556,7 +557,7 @@ class ChatViewModel(
             _uiState.update { it.copy(isLoading = true) }
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.connect()
         }
 
@@ -642,7 +643,7 @@ class ChatViewModel(
         for (effect in result.effects) {
             when (effect) {
                 is ReducerEffect.PersistMessage -> {
-                    viewModelScope.launch(Dispatchers.IO) {
+                    viewModelScope.launch(ioDispatcher) {
                         repo.persistMessage(effect.message, effect.sessionId)
                     }
                 }
@@ -670,7 +671,7 @@ class ChatViewModel(
                     // attachments (images inline, every other file tappable)
                     // via the gateway /api/files/download endpoint. Works on a
                     // remote phone too.
-                    viewModelScope.launch(Dispatchers.IO) {
+                    viewModelScope.launch(ioDispatcher) {
                         attachHostMedia(effect.sessionId, effect.messageId)
                     }
                 }
@@ -1127,12 +1128,12 @@ class ChatViewModel(
         }
 
         // Persist under the original Desktop session ID.
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             repo.persistMessage(userMessage, storageSessionId)
         }
 
         // Upload attachments then submit prompt
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val fileRefs = mutableListOf<String>()
 
             for (attachment in attachments) {
@@ -1286,7 +1287,7 @@ class ChatViewModel(
 
         // Persist — OUTSIDE update{}
         if (sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher) {
                 repo.persistMessage(userMsg, sessionId)
             }
         }
@@ -1341,7 +1342,7 @@ class ChatViewModel(
         val params = mutableMapOf<String, Any>("session_id" to sessionId)
         if (arg.isNotBlank()) params["name"] = arg
         val generation = sessionGeneration
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_BRANCH,
                 params,
@@ -1359,7 +1360,7 @@ class ChatViewModel(
         val parts = command.split(" ", limit = 2)
         val name = parts[0].lowercase().removePrefix("/")
         val arg = parts.getOrElse(1) { "" }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             try {
                 // Primary path: command.dispatch handles quick/plugin/bundle/
                 // skill commands + a few hardcoded ones. It returns a hard 4018
@@ -1442,7 +1443,7 @@ class ChatViewModel(
             } else {
                 command.trim()
             }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.CONFIG_SET,
                 mapOf("key" to "model", "value" to spec, "session_id" to sessionId),
@@ -1460,7 +1461,7 @@ class ChatViewModel(
         if (text.isBlank()) return
         val sessionId = runtimeSessionId ?: return
         _uiState.update { it.copy(isAgentTyping = true) }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.sendMessage(
                 sessionId,
                 text,
@@ -1476,7 +1477,7 @@ class ChatViewModel(
         // Persist — OUTSIDE update{}
         val sessionId = _uiState.value.currentSessionId
         if (sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher) {
                 repo.persistMessage(msg, sessionId)
             }
         }
@@ -1486,7 +1487,7 @@ class ChatViewModel(
 
     fun interruptSession() {
         val sessionId = runtimeSessionId ?: return
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_INTERRUPT,
                 mapOf("session_id" to sessionId),
@@ -1499,7 +1500,7 @@ class ChatViewModel(
         // A fresh create has no persisted row until the first prompt.
         sessionHasServerPresence = false
         val generation = resetSessionState(sessionId = null, title = "Hermes", isLoading = setLoading)
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_CREATE,
                 params = mapOf("source" to "desktop"),
@@ -1520,7 +1521,7 @@ class ChatViewModel(
     }
 
     fun loadSessions() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_LIST,
                 onSent = { id -> trackRequest(id, WsMethods.SESSION_LIST) },
@@ -1529,7 +1530,7 @@ class ChatViewModel(
     }
 
     private fun fetchCommandCatalog() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.COMMANDS_CATALOG,
                 onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
@@ -1562,7 +1563,7 @@ class ChatViewModel(
      * bare count.
      */
     private fun refreshMaxToolCallsPerTurn() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             try {
                 val response = ApiClient.hermesApi.getConfig()
                 if (!response.isSuccessful) return@launch
@@ -1612,7 +1613,7 @@ class ChatViewModel(
 
     /** Preload model options so the picker opens instantly (no spinner on /model). */
     private fun preloadModelOptions() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val result =
                 safeApiCall {
                     ApiClient.hermesApi.getModelOptions(refresh = false)
@@ -1648,7 +1649,7 @@ class ChatViewModel(
     /** Re-fetch options (pull-to-refresh style) when the picker is already open. */
     fun refreshModelOptions() {
         _uiState.update { it.copy(modelPickerLoading = true) }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val result =
                 safeApiCall {
                     ApiClient.hermesApi.getModelOptions(refresh = true)
@@ -1734,7 +1735,7 @@ class ChatViewModel(
         _uiState.update { it.copy(reasoningLevel = level) }
         val sessionId = runtimeSessionId ?: return
         if (level == null) return // null = model default, no need to send WS
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.CONFIG_SET,
                 mapOf(
@@ -1776,7 +1777,7 @@ class ChatViewModel(
         sessionId: String,
         generation: Long,
     ): Job =
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val cachedMessages = dedupeCachedMessages(repo.loadMessages(sessionId))
             _uiState.update { state ->
                 // Only paint if still showing this session AND no fresher server
@@ -1812,7 +1813,7 @@ class ChatViewModel(
                     val serverOffset = result.data.offset ?: offset
                     val chatMessages = mapServerMessages(sessionId, result.data.messages.orEmpty(), serverOffset)
                     loadedMessageOffset = serverOffset
-                    withContext(Dispatchers.IO) {
+                    withContext(ioDispatcher) {
                         repo.persistMessages(chatMessages, sessionId)
                     }
                     if (!isCurrentHydration(sessionId, generation, requestSequence)) return@launch
@@ -1920,7 +1921,7 @@ class ChatViewModel(
     ) {
         val requestSequence = ++resumeRequestSequence
         activeResumeRequestSequence = requestSequence
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_RESUME,
                 mapOf("session_id" to sessionId),
@@ -2119,7 +2120,7 @@ class ChatViewModel(
                     val returnedOffset = result.data.offset ?: newOffset
                     val older = mapServerMessages(sessionId, result.data.messages.orEmpty(), returnedOffset)
                     loadedMessageOffset = returnedOffset
-                    withContext(Dispatchers.IO) { repo.persistMessages(older, sessionId) }
+                    withContext(ioDispatcher) { repo.persistMessages(older, sessionId) }
                     _uiState.update { current ->
                         if (!isCurrentSessionRequest(sessionId, generation)) return@update current
                         current.copy(
@@ -2166,7 +2167,7 @@ class ChatViewModel(
                         if (!isCurrentSessionRequest(sessionId, generation)) return@launch
                         val incoming = mapServerMessages(sessionId, result.data.messages.orEmpty(), nextOffset)
                         if (incoming.isEmpty()) return@launch
-                        withContext(Dispatchers.IO) { repo.persistMessages(incoming, sessionId) }
+                        withContext(ioDispatcher) { repo.persistMessages(incoming, sessionId) }
                         _uiState.update { current ->
                             if (!isCurrentSessionRequest(sessionId, generation)) return@update current
                             // Issue #771: the sync merge was dropping the
@@ -2264,7 +2265,7 @@ class ChatViewModel(
     fun fetchContextUsage() {
         val sessionId = _uiState.value.currentSessionId ?: return
         val profile = AuthManager.getSelectedProfileId()
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             // Denominator fallback: full context window (cheap, public, rarely
             // changes). The RPC's context_max below overrides it when present.
             val fullResult =
@@ -2366,7 +2367,7 @@ class ChatViewModel(
                 ?.messageCount
         if (known != null) return known
         val result =
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 safeApiCall { ApiClient.hermesApi.getSessions(limit = 500, offset = 0, order = "recent") }
             }
         if (result is NetworkResult.Success) {
@@ -2404,7 +2405,7 @@ class ChatViewModel(
         sessionId: String,
         offset: Int,
         limit: Int,
-    ) = withContext(Dispatchers.IO) {
+    ) = withContext(ioDispatcher) {
         safeApiCall {
             ApiClient.hermesApi.getSessionMessages(
                 sessionId = sessionId,
@@ -2661,7 +2662,7 @@ class ChatViewModel(
         }
         // GATEWAY, or LOCAL direct-open failed → fetch/copy then open.
         val path = gatewayPathFor(attachment)
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             when (val result = GatewayFileClient.fetch(path)) {
                 is GatewayFileResult.Success -> {
                     openBytes(ctx, result.file)
@@ -2698,7 +2699,7 @@ class ChatViewModel(
         if (_uiState.value.savingAttachmentPath != null) return
         val path = gatewayPathFor(attachment)
         _uiState.update { it.copy(savingAttachmentPath = path) }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             try {
                 when (val result = GatewayFileClient.fetch(path)) {
                     is GatewayFileResult.Success -> {
@@ -2837,7 +2838,7 @@ class ChatViewModel(
 
         addSystemMessage("Clarify dismissed — no answer sent", persist = true)
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val params =
                 mutableMapOf<String, Any>(
                     "session_id" to sessionId,
@@ -2874,11 +2875,11 @@ class ChatViewModel(
             )
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             repo.persistMessage(userMessage, sessionId)
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val params =
                 mutableMapOf<String, Any>(
                     "session_id" to sessionId,
@@ -2948,7 +2949,7 @@ class ChatViewModel(
             )
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 method = WsMethods.APPROVAL_RESPOND,
                 params =
@@ -3010,7 +3011,7 @@ class ChatViewModel(
 
         _uiState.update { it.copy(sudoPrompt = null) }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val params =
                 mutableMapOf<String, Any>(
                     "session_id" to sessionId,
@@ -3035,7 +3036,7 @@ class ChatViewModel(
 
         _uiState.update { it.copy(secretPrompt = null) }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val params =
                 mutableMapOf<String, Any>(
                     "session_id" to sessionId,
@@ -3057,7 +3058,7 @@ class ChatViewModel(
                 errorMessage = null,
             )
         }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             wsClient.rejectAllPending()
             wsClient.disconnect()
         }
@@ -3072,7 +3073,7 @@ class ChatViewModel(
         password: String,
         onResult: (Boolean, String?) -> Unit,
     ) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val endpoint = AuthManager.endpointForBuild()
             val jsonMediaType = "application/json; charset=utf-8".toMediaType()
             val jsonBody =
@@ -3175,7 +3176,7 @@ class ChatViewModel(
 
         // Persist — OUTSIDE update{}
         if (persist && sessionId != null) {
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher) {
                 repo.persistMessage(msg, sessionId)
             }
         }

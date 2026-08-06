@@ -55,7 +55,6 @@ class SlashCommandDispatchRpcTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        val testMainDispatcher = Dispatchers.Main
         reqCount = 0
 
         mockkStatic(android.util.Log::class)
@@ -64,10 +63,11 @@ class SlashCommandDispatchRpcTest {
         every { android.util.Log.w(any(), any<String>()) } returns 0
         every { android.util.Log.e(any(), any(), any()) } returns 0
 
-        mockkStatic(Dispatchers::class)
-        every { Dispatchers.IO } returns testDispatcher
-        every { Dispatchers.Main } returns testMainDispatcher
-
+        // NOTE: no mockkStatic(Dispatchers) here — a static Dispatchers mock
+        // bleeds JVM-wide and breaks later classes (CI 2026-08-06: this
+        // class's own static IO mock cross-wired COMMAND_DISPATCH captures in
+        // suite order). setMain alone is safe — the slash-dispatch send path
+        // is synchronous (no IO hop).
         mockkObject(AuthManager)
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
@@ -110,7 +110,7 @@ class SlashCommandDispatchRpcTest {
     }
 
     private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
-        val vm = ChatViewModel(app, false, fakeRepo)
+        val vm = ChatViewModel(app, false, fakeRepo, ioDispatcher = testDispatcher)
         advanceUntilIdle()
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
         mockEventsFlow.emit(WsEvent.GatewayReady(null))

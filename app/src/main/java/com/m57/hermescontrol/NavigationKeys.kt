@@ -28,6 +28,11 @@ import kotlinx.serialization.Serializable
     val label: String? = null,
 ) : NavKey
 
+@Serializable data class MemoryProviderDetailKey(
+    val name: String,
+    val label: String? = null,
+) : NavKey
+
 @Serializable data object AchievementsScreen : NavKey
 
 @Serializable data object ConfigScreen : NavKey

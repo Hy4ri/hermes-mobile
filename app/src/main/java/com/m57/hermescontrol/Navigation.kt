@@ -50,6 +50,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.DisableDrawerGestures
 import com.m57.hermescontrol.ui.common.DrawerGestureController
 import com.m57.hermescontrol.ui.common.LocalDrawerGestureController
+import com.m57.hermescontrol.ui.plugins.MemoryProviderDetailScreen
 import com.m57.hermescontrol.ui.settings.SettingsAboutPage
 import com.m57.hermescontrol.ui.settings.SettingsAppearancePage
 import com.m57.hermescontrol.ui.settings.SettingsBehaviorPage
@@ -134,6 +135,15 @@ private fun appEntryProvider(
     // ── Toolset detail drill-down (issue #782) ────────────────────────
     entry<ToolsetDetailKey> { key ->
         ToolsetDetailScreen(
+            name = key.name,
+            label = key.label,
+            onBack = { NavigationController.goBack() },
+        )
+    }
+
+    // ── Memory provider detail drill-down (issue #783) ─────────────────
+    entry<MemoryProviderDetailKey> { key ->
+        MemoryProviderDetailScreen(
             name = key.name,
             label = key.label,
             onBack = { NavigationController.goBack() },

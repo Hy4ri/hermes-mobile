@@ -50,6 +50,11 @@ import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
+import com.m57.hermescontrol.data.model.MemoryProviderConfigResponse
+import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateRequest
+import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateResponse
+import com.m57.hermescontrol.data.model.MemoryProviderSetupRequest
+import com.m57.hermescontrol.data.model.MemoryProviderSetupResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
@@ -805,6 +810,23 @@ interface HermesApiService {
     // ── Admin: Memory ─────────────────────────────────────────────────
     @GET("api/memory")
     suspend fun getMemory(): Response<MemoryResponse>
+
+    @GET("api/memory/providers/{name}/config")
+    suspend fun getMemoryProviderConfig(
+        @Path("name") name: String,
+    ): Response<MemoryProviderConfigResponse>
+
+    @PUT("api/memory/providers/{name}/config")
+    suspend fun updateMemoryProviderConfig(
+        @Path("name") name: String,
+        @Body body: MemoryProviderConfigUpdateRequest,
+    ): Response<MemoryProviderConfigUpdateResponse>
+
+    @POST("api/memory/providers/{name}/setup")
+    suspend fun setupMemoryProvider(
+        @Path("name") name: String,
+        @Body body: MemoryProviderSetupRequest,
+    ): Response<MemoryProviderSetupResponse>
 
     @POST("api/memory/reset")
     suspend fun resetMemory(

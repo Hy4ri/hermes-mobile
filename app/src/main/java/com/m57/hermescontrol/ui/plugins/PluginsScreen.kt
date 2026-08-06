@@ -45,6 +45,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.MemoryProviderDetailKey
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -263,6 +265,23 @@ private fun ProviderSelectionSection(
                     }
                 },
             )
+
+            // Manage the selected provider's config/setup (issue #783).
+            if (!state.isMemoryBuiltin && state.memoryProvider.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(
+                    onClick = {
+                        NavigationController.navigateTo(
+                            MemoryProviderDetailKey(
+                                name = state.memoryProvider,
+                                label = state.memoryProvider,
+                            ),
+                        )
+                    },
+                ) {
+                    Text(stringResource(R.string.plugins_memory_manage))
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 

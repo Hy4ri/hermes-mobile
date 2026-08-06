@@ -107,6 +107,13 @@ import com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse
 import com.m57.hermescontrol.data.model.TelegramOnboardingStatusResponse
 import com.m57.hermescontrol.data.model.ToggleSkillRequest
 import com.m57.hermescontrol.data.model.Toolset
+import com.m57.hermescontrol.data.model.ToolsetConfigResponse
+import com.m57.hermescontrol.data.model.ToolsetEnvUpdateRequest
+import com.m57.hermescontrol.data.model.ToolsetEnvUpdateResponse
+import com.m57.hermescontrol.data.model.ToolsetPostSetupRequest
+import com.m57.hermescontrol.data.model.ToolsetPostSetupResponse
+import com.m57.hermescontrol.data.model.ToolsetProviderSelectRequest
+import com.m57.hermescontrol.data.model.ToolsetProviderSelectResponse
 import com.m57.hermescontrol.data.model.ToolsetToggleRequest
 import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.model.UpdateCronJobRequest
@@ -406,6 +413,30 @@ interface HermesApiService {
         @Path("name") name: String,
         @Body body: ToolsetToggleRequest,
     ): Response<Unit>
+
+    // ── Per-toolset management (issue #782) ────────────────────────────
+    @GET("api/tools/toolsets/{name}/config")
+    suspend fun getToolsetConfig(
+        @Path("name") name: String,
+    ): Response<ToolsetConfigResponse>
+
+    @PUT("api/tools/toolsets/{name}/provider")
+    suspend fun selectToolsetProvider(
+        @Path("name") name: String,
+        @Body body: ToolsetProviderSelectRequest,
+    ): Response<ToolsetProviderSelectResponse>
+
+    @PUT("api/tools/toolsets/{name}/env")
+    suspend fun saveToolsetEnv(
+        @Path("name") name: String,
+        @Body body: ToolsetEnvUpdateRequest,
+    ): Response<ToolsetEnvUpdateResponse>
+
+    @POST("api/tools/toolsets/{name}/post-setup")
+    suspend fun runToolsetPostSetup(
+        @Path("name") name: String,
+        @Body body: ToolsetPostSetupRequest,
+    ): Response<ToolsetPostSetupResponse>
 
     @GET("api/plugins/hermes-achievements/achievements")
     suspend fun getAchievements(): Response<AchievementsResponse>

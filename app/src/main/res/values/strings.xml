@@ -524,6 +524,37 @@
     <string name="toolsets_empty_title">No toolsets reported</string>
     <string name="toolsets_empty_desc">Verify configuration or retry</string>
 
+    <!-- Toolset Detail Screen (issue #782) -->
+    <string name="toolset_detail_no_backends">No configurable backends for this toolset</string>
+    <string name="toolset_status_ready">Ready</string>
+    <string name="toolset_status_needs_keys">Needs keys</string>
+    <string name="toolset_status_needs_auth">Needs sign-in</string>
+    <string name="toolset_status_needs_setup">Needs setup</string>
+    <string name="toolset_active_badge">Active</string>
+    <string name="toolset_action_use_backend">Use this backend</string>
+    <string name="toolset_nous_signin_hint">Requires Nous Portal sign-in to activate</string>
+    <string name="toolset_no_api_key_required">No API key required</string>
+    <string name="toolset_env_set">Set</string>
+    <string name="toolset_env_not_set">Not set</string>
+    <string name="toolset_env_save">Save</string>
+    <string name="toolset_action_delete">Delete</string>
+    <string name="toolset_delete_env_title">Remove key?</string>
+    <string name="toolset_delete_env_message">This clears %1$s from the environment.</string>
+    <string name="toolset_edit_env_desc">Edit %1$s</string>
+    <string name="toolset_reveal_env_desc">Reveal %1$s</string>
+    <string name="toolset_hide_env_desc">Hide %1$s</string>
+    <string name="toolset_clear_env_desc">Clear %1$s</string>
+    <string name="toolset_post_setup_run">Run setup</string>
+    <string name="toolset_post_setup_rerun">Re-run setup</string>
+    <string name="toolset_post_setup_running">Running…</string>
+    <string name="toolset_post_setup_installed">Installed</string>
+    <string name="toolset_post_setup_hint">Installs missing dependencies for this backend</string>
+    <string name="toolset_post_setup_installed_hint">Dependencies are installed</string>
+    <string name="toolset_post_setup_done_ok">Setup finished (exit %1$d)</string>
+    <string name="toolset_post_setup_done_fail">Setup failed (exit %1$d)</string>
+    <string name="toolset_web_search_active">Search: %1$s</string>
+    <string name="toolset_web_extract_active">Extract: %1$s</string>
+
     <!-- Webhooks Screen -->
     <string name="webhooks_sec_status">Global Webhooks Status</string>
     <string name="webhooks_sec_subscriptions">Subscriptions</string>

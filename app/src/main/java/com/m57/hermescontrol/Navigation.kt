@@ -56,6 +56,7 @@ import com.m57.hermescontrol.ui.settings.SettingsBehaviorPage
 import com.m57.hermescontrol.ui.settings.SettingsChatPage
 import com.m57.hermescontrol.ui.settings.SettingsConnectionPage
 import com.m57.hermescontrol.ui.settings.SettingsViewModel
+import com.m57.hermescontrol.ui.toolsets.ToolsetDetailScreen
 import kotlinx.coroutines.launch
 import com.m57.hermescontrol.ui.authlogin.AuthLoginScreen as AuthLoginScreenContent
 import com.m57.hermescontrol.ui.landing.LandingScreen as LandingScreenContent
@@ -127,6 +128,15 @@ private fun appEntryProvider(
         SettingsAboutPage(
             onBack = { NavigationController.goBack() },
             viewModel = viewModel { SettingsViewModel() },
+        )
+    }
+
+    // ── Toolset detail drill-down (issue #782) ────────────────────────
+    entry<ToolsetDetailKey> { key ->
+        ToolsetDetailScreen(
+            name = key.name,
+            label = key.label,
+            onBack = { NavigationController.goBack() },
         )
     }
 }

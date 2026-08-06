@@ -23,6 +23,11 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object ToolsetsScreen : NavKey
 
+@Serializable data class ToolsetDetailKey(
+    val name: String,
+    val label: String? = null,
+) : NavKey
+
 @Serializable data object AchievementsScreen : NavKey
 
 @Serializable data object ConfigScreen : NavKey

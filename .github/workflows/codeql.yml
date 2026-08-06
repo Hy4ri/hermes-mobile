@@ -39,6 +39,7 @@ jobs:
       uses: gradle/actions/setup-gradle@v6
       with:
         validate-wrappers: true
+        cache-provider: basic # keep 100% MIT — avoid proprietary gradle-actions-caching
 
     - name: Grant Execute Permission for Gradlew
       run: chmod +x gradlew

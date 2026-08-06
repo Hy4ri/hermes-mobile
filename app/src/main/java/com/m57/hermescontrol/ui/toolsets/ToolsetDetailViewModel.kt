@@ -51,17 +51,31 @@ data class ToolsetDetailUiState(
  * suspend calls already run off the caller thread, and skipping
  * `withContext(Dispatchers.IO)` keeps unit tests free of the static
  * Dispatchers mock that bleeds across test classes.
+ *
+ * NOTE: this ViewModel is shared across all toolset detail nav entries — the
+ * app's NavDisplay uses the activity-level ViewModelStoreOwner, so
+ * class-keyed `viewModel {}` returns the same instance for every entry.
+ * The toolset name is therefore NOT a constructor arg (it would freeze the
+ * first-opened toolset into every entry — bug found on-device 2026-08-06).
+ * The screen drives [setToolset] + [loadConfig] per entry instead.
  */
-class ToolsetDetailViewModel(
-    private val toolsetName: String,
-) : ViewModel(), ToastHost {
+class ToolsetDetailViewModel : ViewModel(), ToastHost {
     private val _uiState = MutableStateFlow(ToolsetDetailUiState())
     val uiState: StateFlow<ToolsetDetailUiState> = _uiState.asStateFlow()
 
+    private var toolsetName: String = ""
     private var postSetupJob: Job? = null
 
-    init {
-        loadConfig()
+    /**
+     * Point the shared instance at [name] and drop all state from the
+     * previously viewed toolset (config, revealed secrets, running
+     * post-setup) so one toolset's data never bleeds into another.
+     */
+    fun setToolset(name: String) {
+        if (name == toolsetName) return
+        toolsetName = name
+        postSetupJob?.cancel()
+        _uiState.value = ToolsetDetailUiState()
     }
 
     fun loadConfig() {

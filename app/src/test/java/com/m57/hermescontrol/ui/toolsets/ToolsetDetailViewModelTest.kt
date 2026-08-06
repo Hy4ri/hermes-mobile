@@ -93,7 +93,9 @@ class ToolsetDetailViewModelTest {
     private fun <T> errorResponse(code: Int): Response<T> = Response.error(code, "{}".toResponseBody(null))
 
     private fun createViewModel(): ToolsetDetailViewModel {
-        val vm = ToolsetDetailViewModel("web")
+        val vm = ToolsetDetailViewModel()
+        vm.setToolset("web")
+        vm.loadConfig()
         testDispatcher.scheduler.advanceUntilIdle()
         return vm
     }
@@ -212,6 +214,41 @@ class ToolsetDetailViewModelTest {
 
         vm.hideEnvVar("KEY_B")
         assertFalse(vm.uiState.value.revealedValues.containsKey("KEY_B"))
+    }
+
+    @Test
+    fun `setToolset switches config to the selected toolset and drops prior state`() {
+        // Regression for the on-device bug (2026-08-06): the VM is shared
+        // across all toolset detail nav entries, so the name must be driven
+        // per entry — every toolset must load ITS OWN config, and state from
+        // the previously viewed toolset (revealed secrets included) must not
+        // bleed into the next one.
+        val ttsConfig =
+            ToolsetConfigResponse(
+                name = "tts",
+                hasCategory = true,
+                providers = listOf(providerA.copy(isActive = false)),
+            )
+        coEvery { mockApi.getToolsetConfig("tts") } returns Response.success(ttsConfig)
+        coEvery { mockApi.revealEnvVar(any()) } returns
+            Response.success(EnvVarRevealResponse(key = "KEY_B", value = "sekret"))
+
+        val vm = createViewModel()
+        vm.revealEnvVar("KEY_B")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("sekret", vm.uiState.value.revealedValues["KEY_B"])
+
+        vm.setToolset("tts")
+        vm.loadConfig()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals("tts", state.config?.name)
+        assertTrue(state.revealedValues.isEmpty())
+        // Default-expand re-claims for the NEW toolset (its first provider),
+        // not the previous toolset's active one.
+        assertEquals("prov-a", state.expandedProvider)
+        coVerify { mockApi.getToolsetConfig("tts") }
     }
 
     @Test

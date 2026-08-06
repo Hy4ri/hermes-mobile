@@ -43,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,12 +85,19 @@ fun ToolsetDetailScreen(
     name: String,
     label: String?,
     onBack: () -> Unit,
-    viewModel: ToolsetDetailViewModel = viewModel { ToolsetDetailViewModel(name) },
+    viewModel: ToolsetDetailViewModel = viewModel { ToolsetDetailViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val config = state.config
 
     var deleteTarget by remember { mutableStateOf<ToolsetEnvVar?>(null) }
+
+    // The VM is shared across all toolset detail entries (activity-level
+    // ViewModelStoreOwner) — drive it with the CURRENT entry's toolset.
+    LaunchedEffect(name) {
+        viewModel.setToolset(name)
+        viewModel.loadConfig()
+    }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
 

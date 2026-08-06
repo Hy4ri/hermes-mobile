@@ -1,5 +1,6 @@
 @file:OptIn(
     androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
 )
 
 package com.m57.hermescontrol.ui.memory
@@ -7,6 +8,8 @@ package com.m57.hermescontrol.ui.memory
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -113,14 +116,14 @@ fun MemoryScreen(
     ) { paddingValues ->
         when {
             state.isLoading && state.memory == null -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+                SkeletonListState(modifier = Modifier)
             }
 
             state.errorMessage != null && state.memory == null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.load() },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -130,7 +133,7 @@ fun MemoryScreen(
                     subtitle = stringResource(R.string.memory_empty_desc),
                     onAction = { viewModel.load() },
                     actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
 
@@ -140,7 +143,7 @@ fun MemoryScreen(
                     learningGraph = state.learningGraph,
                     resetting = state.resetting,
                     onResetRequest = { resetTarget = it },
-                    modifier = Modifier.padding(paddingValues),
+                    modifier = Modifier,
                 )
             }
         }
@@ -197,30 +200,38 @@ private fun MemoryContent(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         FilledTonalButton(
                             onClick = { onResetRequest("memory") },
                             enabled = resetting == null,
-                            modifier = Modifier.weight(1f),
                         ) {
-                            Text(stringResource(R.string.memory_reset_memory))
+                            Text(
+                                text = stringResource(R.string.memory_reset_memory),
+                                maxLines = 1,
+                                softWrap = false,
+                            )
                         }
                         FilledTonalButton(
                             onClick = { onResetRequest("user") },
                             enabled = resetting == null,
-                            modifier = Modifier.weight(1f),
                         ) {
-                            Text(stringResource(R.string.memory_reset_user))
+                            Text(
+                                text = stringResource(R.string.memory_reset_user),
+                                maxLines = 1,
+                                softWrap = false,
+                            )
                         }
                         FilledTonalButton(
                             onClick = { onResetRequest("all") },
                             enabled = resetting == null,
-                            modifier = Modifier.weight(1f),
                         ) {
-                            Text(stringResource(R.string.memory_reset_all))
+                            Text(
+                                text = stringResource(R.string.memory_reset_all),
+                                maxLines = 1,
+                                softWrap = false,
+                            )
                         }
                     }
                 }
@@ -235,7 +246,7 @@ private fun MemoryContent(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp),
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp),
                 )
             }
             items(memory.providers, key = { it.name }) { provider ->

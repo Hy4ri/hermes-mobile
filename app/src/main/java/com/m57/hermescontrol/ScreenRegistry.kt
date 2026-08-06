@@ -41,6 +41,7 @@ import com.m57.hermescontrol.ui.kanban.KanbanScreen as KanbanScreenContent
 import com.m57.hermescontrol.ui.keys.KeysScreen as KeysScreenContent
 import com.m57.hermescontrol.ui.logs.LogsScreen as LogsScreenContent
 import com.m57.hermescontrol.ui.mcp.McpServersScreen as McpServersScreenContent
+import com.m57.hermescontrol.ui.memory.MemoryScreen as MemoryScreenContent
 import com.m57.hermescontrol.ui.model.ModelScreen as ModelScreenContent
 import com.m57.hermescontrol.ui.pairing.PairingScreen as PairingScreenContent
 import com.m57.hermescontrol.ui.plugins.PluginsScreen as PluginsScreenContent
@@ -140,6 +141,12 @@ object ScreenRegistry {
                 Icons.Filled.Dashboard,
                 DrawerSection.CONFIGURE,
             ) { sessionId, openDrawer -> McpServersScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                MemoryScreen,
+                R.string.screen_memory,
+                Icons.Filled.Memory,
+                DrawerSection.CONFIGURE,
+            ) { sessionId, openDrawer -> MemoryScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 ModelScreen,
                 R.string.screen_models,

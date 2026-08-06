@@ -13,7 +13,6 @@ import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
 import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.LearningGraphResponse
-import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.PortalResponse
 import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
@@ -40,7 +39,6 @@ data class SystemUiState(
     val stats: SystemStatsResponse? = null,
     val portal: PortalResponse? = null,
     val curator: CuratorResponse? = null,
-    val memory: MemoryResponse? = null,
     val learningGraph: LearningGraphResponse? = null,
     val credentials: List<CredentialPoolProvider> = emptyList(),
     val checkpoints: CheckpointsResponse? = null,
@@ -101,7 +99,7 @@ class SystemViewModel :
                 val statusDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getStatus() } }
                 val portalDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getPortal() } }
                 val curatorDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCurator() } }
-                val memoryDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getMemory() } }
+
                 val learningDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getLearningGraph() } }
                 val credDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCredentialPool() } }
                 val checkpointsDeferred = async(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCheckpoints() } }
@@ -114,7 +112,7 @@ class SystemViewModel :
                 val statusResult = statusDeferred.await()
                 val portalResult = portalDeferred.await()
                 val curatorResult = curatorDeferred.await()
-                val memoryResult = memoryDeferred.await()
+
                 val learningResult = learningDeferred.await()
                 val credResult = credDeferred.await()
                 val checkpointsResult = checkpointsDeferred.await()
@@ -129,7 +127,6 @@ class SystemViewModel :
                         status = (statusResult as? NetworkResult.Success)?.data,
                         portal = (portalResult as? NetworkResult.Success)?.data,
                         curator = (curatorResult as? NetworkResult.Success)?.data,
-                        memory = (memoryResult as? NetworkResult.Success)?.data,
                         learningGraph = (learningResult as? NetworkResult.Success)?.data,
                         credentials =
                             ((credResult as? NetworkResult.Success)?.data)?.providers ?: emptyList(),
@@ -148,7 +145,6 @@ class SystemViewModel :
                         "status" to statusResult,
                         "portal" to portalResult,
                         "curator" to curatorResult,
-                        "memory" to memoryResult,
                         "credentials" to credResult,
                         "checkpoints" to checkpointsResult,
                         "hooks" to hooksResult,
@@ -189,15 +185,6 @@ class SystemViewModel :
             val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getCurator() } }
             if (result is NetworkResult.Success) {
                 _uiState.update { it.copy(curator = result.data) }
-            }
-        }
-    }
-
-    fun loadMemory() {
-        viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.getMemory() } }
-            if (result is NetworkResult.Success) {
-                _uiState.update { it.copy(memory = result.data) }
             }
         }
     }
@@ -316,27 +303,6 @@ class SystemViewModel :
             apiCall = { safeApiCall { ApiClient.hermesApi.runCurator() } },
             label = "Curator run",
         )
-    }
-
-    // ── Memory actions ─────────────────────────────────────────────────
-
-    fun resetMemory(target: String) {
-        viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.resetMemory(mapOf("target" to target)) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Memory ($target) reset successfully") }
-                    loadMemory()
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to reset memory: ${result.error.message}") }
-                }
-            }
-        }
     }
 
     // ── Credential pool actions ────────────────────────────────────────

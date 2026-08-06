@@ -81,6 +81,7 @@
     <string name="screen_plugins">Plugins</string>
     <string name="screen_config">Config</string>
     <string name="screen_mcp_servers">MCP Servers</string>
+    <string name="screen_memory">Memory</string>
     <string name="screen_models">Models</string>
     <string name="screen_pairing">Pairing</string>
     <string name="screen_keys">Keys</string>
@@ -388,16 +389,18 @@
     <string name="system_gateway_stop">Stop</string>
 
     <!-- Memory section -->
-    <string name="system_sec_memory">Memory</string>
-    <string name="system_memory_external">External provider: %1$s</string>
-    <string name="system_memory_builtin">built-in only</string>
-    <string name="system_memory_change_plugins">Change in Plugins</string>
-    <string name="system_memory_builtin_label">Built-in files — MEMORY.md: %1$s · USER.md: %2$s</string>
-    <string name="system_memory_reset_memory">Reset MEMORY.md</string>
-    <string name="system_memory_reset_user">Reset USER.md</string>
-    <string name="system_memory_reset_all">Reset all</string>
-    <string name="system_memory_reset_confirm_title">Reset memory</string>
-    <string name="system_memory_reset_confirm_desc">This permanently erases the selected built-in memory files. This cannot be undone.</string>
+    <string name="memory_active">Active: %1$s</string>
+    <string name="memory_builtin">Built-in memory</string>
+    <string name="memory_builtin_sizes">MEMORY.md: %1$s · USER.md: %2$s</string>
+    <string name="memory_reset_memory">Reset MEMORY.md</string>
+    <string name="memory_reset_user">Reset USER.md</string>
+    <string name="memory_reset_all">Reset all</string>
+    <string name="memory_reset_confirm_title">Reset memory</string>
+    <string name="memory_reset_confirm_desc">This permanently erases the %1$s built-in memory file(s). This cannot be undone.</string>
+    <string name="memory_empty_title">No memory data</string>
+    <string name="memory_empty_desc">Could not load memory status.</string>
+    <string name="memory_providers_heading">Providers</string>
+    <string name="memory_provider_active">Active</string>
 
     <!-- Credential pool section -->
     <string name="system_sec_credentials">Credential pool</string>

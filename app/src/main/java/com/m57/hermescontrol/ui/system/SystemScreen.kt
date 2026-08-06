@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.HealthAndSafety
@@ -152,29 +151,6 @@ fun SystemScreen(
         )
     }
 
-    // Memory reset confirmation
-    var resetTarget by remember { mutableStateOf<String?>(null) }
-    if (resetTarget != null) {
-        AlertDialog(
-            onDismissRequest = { resetTarget = null },
-            title = { Text(stringResource(R.string.system_memory_reset_confirm_title)) },
-            text = { Text(stringResource(R.string.system_memory_reset_confirm_desc)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    resetTarget?.let { viewModel.resetMemory(it) }
-                    resetTarget = null
-                }) {
-                    Text(stringResource(R.string.action_ok))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { resetTarget = null }) {
-                    Text(stringResource(R.string.system_confirm_cancel))
-                }
-            },
-        )
-    }
-
     // Credential remove confirmation
     var credToRemove by remember { mutableStateOf<Pair<String, Int>?>(null) }
     if (credToRemove != null) {
@@ -295,9 +271,6 @@ fun SystemScreen(
 
                     // ── 4. Gateway ─────────────────────────────────────────
                     gatewaySection(state, spacing, statusColors, viewModel)
-
-                    // ── 5. Memory ──────────────────────────────────────────
-                    memorySection(state, spacing, resetTarget, { resetTarget = it }, viewModel)
 
                     // ── 6. Credentials ─────────────────────────────────────
                     credentialsSection(state, spacing, viewModel, credToRemove, { credToRemove = it })
@@ -970,100 +943,6 @@ private fun LazyListScope.gatewaySection(
                                     text = stringResource(R.string.system_gateway_stop),
                                     iconTint = MaterialTheme.colorScheme.error,
                                     textColor = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun LazyListScope.memorySection(
-    state: SystemUiState,
-    spacing: com.m57.hermescontrol.theme.Spacing,
-    resetTarget: String?,
-    onResetRequest: (String) -> Unit,
-    viewModel: SystemViewModel,
-) {
-    state.memory?.let { memory ->
-        item {
-            SectionHeader(title = stringResource(R.string.system_sec_memory))
-        }
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ),
-            ) {
-                Column(modifier = Modifier.padding(spacing.md)) {
-                    // Active provider
-                    memory.active?.let { active ->
-                        InfoRow(
-                            label = stringResource(R.string.system_memory_external, active),
-                            value = "",
-                        )
-                    } ?: InfoRow(
-                        label = stringResource(R.string.system_memory_builtin),
-                        value = "",
-                    )
-
-                    // Change in Plugins link
-                    InfoRow(
-                        label = stringResource(R.string.system_memory_change_plugins),
-                        value = "",
-                    )
-
-                    // Builtin file sizes
-                    memory.builtin_files?.let { files ->
-                        HorizontalDivider(modifier = Modifier.padding(vertical = spacing.sm))
-                        InfoRow(
-                            label =
-                                stringResource(
-                                    R.string.system_memory_builtin_label,
-                                    files.memory?.let { formatBytes(it) } ?: "?",
-                                    files.user?.let { formatBytes(it) } ?: "?",
-                                ),
-                            value = "",
-                        )
-
-                        // Reset buttons
-                        Spacer(modifier = Modifier.height(spacing.sm))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                        ) {
-                            FilledTonalButton(
-                                onClick = { onResetRequest("memory") },
-                                modifier = Modifier.weight(1f),
-                                contentPadding = actionButtonPadding,
-                            ) {
-                                ActionButtonContent(
-                                    icon = Icons.Filled.Delete,
-                                    text = stringResource(R.string.system_memory_reset_memory),
-                                )
-                            }
-                            FilledTonalButton(
-                                onClick = { onResetRequest("user") },
-                                modifier = Modifier.weight(1f),
-                                contentPadding = actionButtonPadding,
-                            ) {
-                                ActionButtonContent(
-                                    icon = Icons.Filled.Delete,
-                                    text = stringResource(R.string.system_memory_reset_user),
-                                )
-                            }
-                            FilledTonalButton(
-                                onClick = { onResetRequest("all") },
-                                modifier = Modifier.weight(1f),
-                                contentPadding = actionButtonPadding,
-                            ) {
-                                ActionButtonContent(
-                                    icon = Icons.Filled.DeleteForever,
-                                    text = stringResource(R.string.system_memory_reset_all),
                                 )
                             }
                         }

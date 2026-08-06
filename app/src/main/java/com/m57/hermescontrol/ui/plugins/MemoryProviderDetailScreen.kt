@@ -455,7 +455,7 @@ private fun SetupStepRow(step: MemoryProviderSetupResult) {
     }
 }
 
-private fun memoryProviderStatusType(status: String): StatusBadgeType =
+fun memoryProviderStatusType(status: String): StatusBadgeType =
     when (status) {
         "ready" -> StatusBadgeType.SUCCESS
         "needs_config" -> StatusBadgeType.WARNING

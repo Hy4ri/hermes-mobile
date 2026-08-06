@@ -1,9 +1,6 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
-import io.mockk.every
-import io.mockk.mockkObject
-import io.mockk.unmockkAll
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -20,7 +17,12 @@ class ProfileScopeInterceptorTest {
 
     @Before
     fun setUp() {
-        mockkObject(AuthManager)
+        // NOTE: deliberately NO mockkObject(AuthManager) — mocking the object
+        // from a class that runs after real AuthManager init (AuthManagerTest
+        // re-inits + leaks scopes) fails with "Missing mocked calls inside
+        // every{}" in suite order. The real prefs-backed setActiveProfileId is
+        // runCatching-safe pre-init, so tests use the REAL state instead.
+        AuthManager.resetAuthStateForTest()
         server = MockWebServer()
         server.start()
     }
@@ -28,12 +30,12 @@ class ProfileScopeInterceptorTest {
     @After
     fun tearDown() {
         server.shutdown()
-        unmockkAll()
+        AuthManager.resetAuthStateForTest()
     }
 
-    /** Builds a real client with the interceptor + a stubbed AuthManager profile. */
+    /** Builds a real client with the interceptor + a real active profile state. */
     private fun clientFor(profile: String?): OkHttpClient {
-        every { AuthManager.getSelectedProfileId() } returns profile
+        AuthManager.setActiveProfileId(profile)
         return OkHttpClient
             .Builder()
             .addInterceptor(ProfileScopeInterceptor)
@@ -64,7 +66,7 @@ class ProfileScopeInterceptorTest {
 
     @Test
     fun explicitProfileParam_wins() {
-        every { AuthManager.getSelectedProfileId() } returns "work"
+        AuthManager.setActiveProfileId("work")
         val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val req =
@@ -80,7 +82,7 @@ class ProfileScopeInterceptorTest {
     @Test
     fun nonScopedEndpoint_untouched() {
         // Pairing is machine-global (not profile-scoped on the backend).
-        every { AuthManager.getSelectedProfileId() } returns "work"
+        AuthManager.setActiveProfileId("work")
         val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val req = Request.Builder().url(server.url("api/pairing")).build()
@@ -120,7 +122,7 @@ class ProfileScopeInterceptorTest {
     fun lookalikePath_notScoped() {
         // Sourcery review (PR #540): `startsWith` must not match non-segment
         // suffixes like /api/statusXYZ or /api/gatewayExtra.
-        every { AuthManager.getSelectedProfileId() } returns "work"
+        AuthManager.setActiveProfileId("work")
         val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val req = Request.Builder().url(server.url("api/statusXYZ")).build()
@@ -134,7 +136,7 @@ class ProfileScopeInterceptorTest {
     fun scopedSubPath_isScoped() {
         // A scoped prefix with a trailing segment (/api/status/health) MUST
         // still receive the profile param.
-        every { AuthManager.getSelectedProfileId() } returns "work"
+        AuthManager.setActiveProfileId("work")
         val client = OkHttpClient.Builder().addInterceptor(ProfileScopeInterceptor).build()
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         val req = Request.Builder().url(server.url("api/status/health")).build()

@@ -60,7 +60,7 @@ object ProfileScopeInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val profile =
-            AuthManager.getSelectedProfileId()
+            AuthManager.getActiveProfileId()
                 ?: return chain.proceed(request)
 
         val url = request.url

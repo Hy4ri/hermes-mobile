@@ -102,6 +102,11 @@ class Issue647ProfileUrlTest {
 
     @After
     fun tearDown() {
+        // Cancel the init() appScope (DataStore collector) so it does not leak
+        // into later classes — leaked collectors re-touch deleted/recreated
+        // server_store.json and surface as UncaughtExceptionsBeforeTest
+        // phantoms in whichever test class runs next.
+        AuthManager.resetAuthStateForTest()
         val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) tempFile.delete()

@@ -22,7 +22,6 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -65,12 +64,11 @@ class ProfilesViewModelTest {
 
     @Before
     fun setUp() {
+        // NOTE: no mockkStatic(Dispatchers) here — a static Dispatchers mock
+        // bleeds into later test classes in the same JVM (see the same comment
+        // in ProfileSwitchCoordinatorTest). setMain alone is safe: it only
+        // affects Dispatchers.Main and is undone by resetMain in tearDown.
         Dispatchers.setMain(testDispatcher)
-        val testMainDispatcher = Dispatchers.Main
-
-        mockkStatic(Dispatchers::class)
-        every { Dispatchers.IO } returns testDispatcher
-        every { Dispatchers.Main } returns testMainDispatcher
 
         mockkObject(AuthManager)
         storedPinnedModels = mutableListOf()
@@ -113,7 +111,7 @@ class ProfilesViewModelTest {
     }
 
     private fun createViewModel(): ProfilesViewModel {
-        val vm = ProfilesViewModel()
+        val vm = ProfilesViewModel(ioDispatcher = testDispatcher)
         testDispatcher.scheduler.advanceUntilIdle()
         return vm
     }

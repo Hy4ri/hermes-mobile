@@ -41,10 +41,16 @@ object ProfileSwitchCoordinator {
             }
         if (result !is NetworkResult.Success) return result
 
-        AuthManager.setSelectedProfileId(name)
+        AuthManager.setActiveProfileId(name)
         _switched.emit(name)
-        HermesWsClient.disconnect()
-        HermesWsClient.connect()
+        // The ticket mint inside connect() does blocking network I/O — it must
+        // run off the main thread or the dial crashes with
+        // NetworkOnMainThreadException and falls back to the 1s reconnect
+        // retry (visible in the 2026-08-06 live logcat).
+        withContext(Dispatchers.IO) {
+            HermesWsClient.disconnect()
+            HermesWsClient.connect()
+        }
         return result
     }
 }

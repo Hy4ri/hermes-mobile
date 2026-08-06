@@ -2263,7 +2263,7 @@ class ChatViewModel(
      */
     fun fetchContextUsage() {
         val sessionId = _uiState.value.currentSessionId ?: return
-        val profile = AuthManager.getSelectedProfileId()
+        val profile = AuthManager.getActiveProfileId()
         viewModelScope.launch(ioDispatcher) {
             // Denominator fallback: full context window (cheap, public, rarely
             // changes). The RPC's context_max below overrides it when present.

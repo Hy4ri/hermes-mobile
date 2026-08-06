@@ -41,6 +41,7 @@ import kotlinx.coroutines.runBlocking
  */
 object AuthManager {
     private const val PREFS_FILE = "hermes_secure_prefs"
+    private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
 
     const val DEFAULT_PROFILE_ID = "default"
     const val DEFAULT_PROFILE_NAME = "Default"
@@ -79,6 +80,21 @@ object AuthManager {
     /** Current profile scope (mirrors serverStore.selectedProfileId). */
     private val _selectedProfileFlow = MutableStateFlow<String?>(null)
     val selectedProfileFlow: StateFlow<String?> = _selectedProfileFlow.asStateFlow()
+
+    /**
+     * Active server-side Hermes profile scope (e.g. "default" / "meow").
+     *
+     * DISTINCT from [selectedProfileId] (which selects a LOCAL connection
+     * profile — a server + its token). The active profile is the scope
+     * injected as REST `?profile=` and WS `params.profile`. It deliberately
+     * does NOT route through [ServerStoreState.selfHealed]: server profile
+     * ids are not guaranteed to exist in the local connection list, and
+     * clamping them silently reset the scope to "default" — the live
+     * profile-switch bug (logcat 2026-08-06: session.create carried
+     * profile=default right after switching to meow).
+     */
+    private val _activeProfileId = MutableStateFlow<String?>(null)
+    val activeProfileId: StateFlow<String?> = _activeProfileId.asStateFlow()
 
     private val _baseUrlFlow = MutableStateFlow("")
     val baseUrlFlow: StateFlow<String> = _baseUrlFlow.asStateFlow()
@@ -146,6 +162,7 @@ object AuthManager {
                             )
                         migrateLegacyDefaultIfNeeded(p)
                         _tokenFlow.value = getTokenInternal(p)
+                        _activeProfileId.value = p.getString(KEY_ACTIVE_PROFILE_ID, null)?.takeIf { it.isNotBlank() }
                         p
                     }
             }
@@ -374,6 +391,27 @@ object AuthManager {
         appScope?.launch { syncCookieStoreForProfile(id) }
     }
 
+    /**
+     * The active server-side Hermes profile used for REST `?profile=` and WS
+     * `params.profile` scoping. Null = legacy single-profile behavior.
+     *
+     * Unlike [setSelectedProfileId], this does NOT touch the server store —
+     * it is prefs-backed and immune to [ServerStoreState.selfHealed], so a
+     * server profile that has no local [ConnectionProfile] (the normal case)
+     * survives the switch instead of being clamped to null/default.
+     */
+    fun getActiveProfileId(): String? {
+        return _activeProfileId.value
+    }
+
+    fun setActiveProfileId(id: String?) {
+        val normalized = id?.takeIf { it.isNotBlank() }
+        _activeProfileId.value = normalized
+        runCatching {
+            requirePrefs().edit().putString(KEY_ACTIVE_PROFILE_ID, normalized).apply()
+        }
+    }
+
     private fun normalizedProfileId(profileId: String?): String =
         profileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
 
@@ -416,6 +454,7 @@ object AuthManager {
             }
             appScope = null
         }
+        _activeProfileId.value = null
     }
 
     fun getToken(): String? {

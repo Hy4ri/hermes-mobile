@@ -1,9 +1,6 @@
 package com.m57.hermescontrol.data.ws
 
 import com.m57.hermescontrol.data.local.AuthManager
-import io.mockk.every
-import io.mockk.mockkObject
-import io.mockk.unmockkAll
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,19 +22,22 @@ import org.junit.Test
 class WsProfileParamsTest {
     @Before
     fun setUp() {
-        mockkObject(AuthManager)
+        // NOTE: deliberately NO mockkObject(AuthManager) — see
+        // ProfileScopeInterceptorTest for why; the real prefs-backed state is
+        // used instead (setActiveProfileId is runCatching-safe pre-init).
+        AuthManager.resetAuthStateForTest()
     }
 
     @After
     fun tearDown() {
-        unmockkAll()
+        AuthManager.resetAuthStateForTest()
     }
 
     // ── Rule 1: scoped method gets profile injected ─────────────────────
 
     @Test
     fun `scoped method injects profile when active profile is set`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("session_id" to "abc123")
         val result = WsProfileParams.decorate(WsMethods.SESSION_LIST, original)
@@ -48,7 +48,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `session_create gets profile injected`() {
-        every { AuthManager.getSelectedProfileId() } returns "work"
+        AuthManager.setActiveProfileId("work")
 
         val original = mapOf("cols" to 80)
         val result = WsProfileParams.decorate(WsMethods.SESSION_CREATE, original)
@@ -59,7 +59,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `session_resume gets profile injected`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("session_id" to "s1")
         val result = WsProfileParams.decorate(WsMethods.SESSION_RESUME, original)
@@ -70,7 +70,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `session_delete gets profile injected`() {
-        every { AuthManager.getSelectedProfileId() } returns "work"
+        AuthManager.setActiveProfileId("work")
 
         val original = mapOf("session_id" to "s2")
         val result = WsProfileParams.decorate(WsMethods.SESSION_DELETE, original)
@@ -80,7 +80,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `session_status gets profile injected`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("session_id" to "s3")
         val result = WsProfileParams.decorate(WsMethods.SESSION_STATUS, original)
@@ -90,7 +90,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `profile_scoped decorator method gets profile injected`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = emptyMap<String, Any>()
         val result = WsProfileParams.decorate("verification.status", original)
@@ -100,7 +100,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `empty params map gets profile injected for scoped method`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val result = WsProfileParams.decorate(WsMethods.SESSION_LIST, emptyMap())
 
@@ -112,7 +112,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `non-scoped method returns same params reference`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("session_id" to "s1", "text" to "hello")
         val result = WsProfileParams.decorate(WsMethods.PROMPT_SUBMIT, original)
@@ -123,7 +123,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `subscription method is not profile scoped`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("plan" to "pro")
         val result = WsProfileParams.decorate(WsMethods.SUBSCRIPTION_STATE, original)
@@ -133,7 +133,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `clarify_respond is not profile scoped`() {
-        every { AuthManager.getSelectedProfileId() } returns "work"
+        AuthManager.setActiveProfileId("work")
 
         val original = mapOf("answer" to "yes")
         val result = WsProfileParams.decorate(WsMethods.CLARIFY_RESPOND, original)
@@ -143,7 +143,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `image_attach_bytes is not profile scoped`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("data" to "base64data")
         val result = WsProfileParams.decorate(WsMethods.IMAGE_ATTACH_BYTES, original)
@@ -153,7 +153,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `commands_catalog is not profile scoped`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = emptyMap<String, Any>()
         val result = WsProfileParams.decorate(WsMethods.COMMANDS_CATALOG, original)
@@ -163,7 +163,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `unknown method is not profile scoped`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("foo" to "bar")
         val result = WsProfileParams.decorate("setup.wizard", original)
@@ -175,7 +175,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `explicit profile in params is never overwritten`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val original = mapOf("session_id" to "s1", "profile" to "custom")
         val result = WsProfileParams.decorate(WsMethods.SESSION_LIST, original)
@@ -186,7 +186,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `explicit empty-string profile is preserved`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         // Caller explicitly passes profile="" — the containsKey check
         // preserves this so the server sees the explicit value.
@@ -201,7 +201,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `null selected profile returns same params reference for scoped method`() {
-        every { AuthManager.getSelectedProfileId() } returns null
+        AuthManager.setActiveProfileId(null)
 
         val original = mapOf("session_id" to "s1")
         val result = WsProfileParams.decorate(WsMethods.SESSION_LIST, original)
@@ -212,7 +212,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `null selected profile returns same params for non-scoped method`() {
-        every { AuthManager.getSelectedProfileId() } returns null
+        AuthManager.setActiveProfileId(null)
 
         val original = mapOf("text" to "hello")
         val result = WsProfileParams.decorate(WsMethods.PROMPT_SUBMIT, original)
@@ -224,7 +224,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `all PROFILE_SCOPED_METHODS entries get profile injected`() {
-        every { AuthManager.getSelectedProfileId() } returns "testprofile"
+        AuthManager.setActiveProfileId("testprofile")
 
         for (method in WsMethods.PROFILE_SCOPED_METHODS) {
             val result = WsProfileParams.decorate(method, emptyMap())
@@ -294,7 +294,7 @@ class WsProfileParamsTest {
 
     @Test
     fun `prompt_submit is not in scoped set confirming sendMessage path is correct`() {
-        every { AuthManager.getSelectedProfileId() } returns "meow"
+        AuthManager.setActiveProfileId("meow")
 
         val params = mapOf("session_id" to "s1", "text" to "hello world")
         val result = WsProfileParams.decorate(WsMethods.PROMPT_SUBMIT, params)

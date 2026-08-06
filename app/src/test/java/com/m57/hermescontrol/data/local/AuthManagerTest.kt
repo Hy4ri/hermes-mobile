@@ -101,6 +101,11 @@ class AuthManagerTest {
 
     @After
     fun tearDown() {
+        // Cancel the init() appScope (DataStore collector) so it does not leak
+        // into later classes — leaked collectors re-touch deleted/recreated
+        // server_store.json and surface as UncaughtExceptionsBeforeTest
+        // phantoms in whichever test class runs next.
+        AuthManager.resetAuthStateForTest()
         val tempDir = java.io.File(System.getProperty("java.io.tmpdir") ?: "/tmp")
         val tempFile = java.io.File(tempDir, "server_store.json")
         if (tempFile.exists()) {
@@ -464,5 +469,71 @@ class AuthManagerTest {
         verify { mockEditor.putString("token_${AuthManager.DEFAULT_PROFILE_ID}", "legacy-standalone-token") }
         verify { mockEditor.remove("auth_token") }
         verify { mockEditor.putBoolean("legacy_default_migrated", true) }
+    }
+
+    // ── Active Hermes profile (server-side scope) ─────────────────────────
+
+    /**
+     * THE live profile-switch regression (2026-08-06 logcat): the coordinator
+     * persisted the server profile via setSelectedProfileId, but
+     * ServerStore.selfHealed() clamps ids that have no local
+     * ConnectionProfile — "meow" never exists locally, so the scope silently
+     * fell back to default and the re-dialed socket created the fresh session
+     * in the WRONG profile. The active profile state is deliberately NOT
+     * routed through the server store, so no clamp can touch it.
+     */
+    @Test
+    fun testActiveProfileId_notClampedByLocalConnectionProfiles() {
+        // The OLD path (server store) clamps ids with no local ConnectionProfile:
+        // this is the bug the live logcat exposed. Prove the clamp still bites
+        // there, and that the NEW active-profile state carries the same id.
+        AuthManager.setSelectedProfileId("meow")
+        assertNull(AuthManager.getSelectedProfileId())
+
+        AuthManager.setActiveProfileId("meow")
+        assertEquals("meow", AuthManager.getActiveProfileId())
+        // Connection-level selection is untouched by the scope change — the
+        // clamp already nulled it, and setActiveProfileId does not revive it.
+        assertNull(AuthManager.getSelectedProfileId())
+    }
+
+    @Test
+    fun testActiveProfileId_persistedToPrefs() {
+        AuthManager.setActiveProfileId("meow")
+
+        verify { mockEditor.putString("active_profile_id", "meow") }
+    }
+
+    @Test
+    fun testActiveProfileId_restoredFromPrefsAfterRestart() {
+        every { mockPrefs.getString("active_profile_id", null) } returns "meow"
+
+        AuthManager.resetAuthStateForTest()
+        AuthManager.init(testContext)
+        kotlinx.coroutines.runBlocking {
+            val field = AuthManager::class.java.getDeclaredField("prefsDeferred")
+            field.isAccessible = true
+            (field.get(AuthManager) as? kotlinx.coroutines.Deferred<*>)?.await()
+        }
+
+        assertEquals("meow", AuthManager.getActiveProfileId())
+
+        // Cancel the second init's appScope so its DataStore collector does
+        // not leak into later test classes (leaked scopes re-touch mocked
+        // prefs/DataStore state and break subsequent mockkObject(AuthManager)
+        // classes — the "Missing mocked calls" / UncaughtExceptionsBeforeTest
+        // suite-order failures).
+        AuthManager.resetAuthStateForTest()
+    }
+
+    @Test
+    fun testActiveProfileId_blankAndNullClear() {
+        AuthManager.setActiveProfileId("meow")
+        AuthManager.setActiveProfileId("")
+        assertNull(AuthManager.getActiveProfileId())
+
+        AuthManager.setActiveProfileId("meow")
+        AuthManager.setActiveProfileId(null)
+        assertNull(AuthManager.getActiveProfileId())
     }
 }

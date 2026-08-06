@@ -51,7 +51,7 @@ class ProfileSwitchCoordinatorTest {
         every { ApiClient.hermesApi } returns mockApi
 
         mockkObject(AuthManager)
-        every { AuthManager.setSelectedProfileId(any()) } returns Unit
+        every { AuthManager.setActiveProfileId(any()) } returns Unit
 
         mockkObject(HermesWsClient)
         every { HermesWsClient.disconnect() } returns Unit
@@ -73,7 +73,7 @@ class ProfileSwitchCoordinatorTest {
             assertTrue(result is NetworkResult.Success)
             coVerify { mockApi.setActiveProfile(SetActiveProfileRequest("meow")) }
             verify(ordering = Ordering.SEQUENCE) {
-                AuthManager.setSelectedProfileId("meow")
+                AuthManager.setActiveProfileId("meow")
                 HermesWsClient.disconnect()
                 HermesWsClient.connect()
             }
@@ -108,6 +108,7 @@ class ProfileSwitchCoordinatorTest {
 
             assertTrue(result is NetworkResult.Failure)
             verify(exactly = 0) { AuthManager.setSelectedProfileId(any()) }
+            verify(exactly = 0) { AuthManager.setActiveProfileId(any()) }
             verify(exactly = 0) { HermesWsClient.disconnect() }
             verify(exactly = 0) { HermesWsClient.connect() }
         }

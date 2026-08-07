@@ -18,6 +18,7 @@ import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.model.SystemStatsResponse
 import com.m57.hermescontrol.data.model.UpdateCheckResponse
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
@@ -84,6 +85,11 @@ class SystemViewModel :
     ToastHost {
     companion object {
         private const val TAG = "SystemViewModel"
+
+        // The backup action is async — retry a 404 download until the zip
+        // exists (up to ~2 minutes), then give up.
+        private const val DOWNLOAD_RETRY_DELAY_MS = 5_000L
+        private const val MAX_DOWNLOAD_ATTEMPTS = 24
     }
 
     private val _uiState = MutableStateFlow(SystemUiState())
@@ -446,26 +452,60 @@ class SystemViewModel :
         }
     }
 
-    fun downloadBackup() {
+    /**
+     * Download the triggered backup archive. The backup action is ASYNC — the
+     * trigger returns the path instantly, but the zip (can be hundreds of MB)
+     * takes a while to write. The backend 404s ("Backup not found") until the
+     * file exists, so a 404 is retried with a delay instead of failing the tap.
+     * Bytes are handed to [onBytes] (the screen saves them via MediaImageStore).
+     */
+    fun downloadBackup(onBytes: (bytes: ByteArray, fileName: String) -> Unit) {
         val archive =
             _uiState.value.backupArchive ?: run {
                 _uiState.update { it.copy(toastMessage = "No backup archive available") }
                 return
             }
         viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.downloadBackup(archive) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Backup downloaded") }
-                }
+            var waitingNotified = false
+            var attempt = 0
+            while (attempt < MAX_DOWNLOAD_ATTEMPTS) {
+                val result =
+                    withContext(Dispatchers.IO) {
+                        safeApiCall { ApiClient.hermesApi.downloadBackup(archive) }
+                    }
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val bytes =
+                            withContext(Dispatchers.IO) {
+                                runCatching { result.data.bytes() }.getOrNull()
+                            }
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            onBytes(bytes, archive.substringAfterLast('/'))
+                        } else {
+                            _uiState.update { it.copy(toastMessage = "Failed to read backup response") }
+                        }
+                        return@launch
+                    }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to download backup: ${result.error.message}") }
+                    is NetworkResult.Failure -> {
+                        val code = (result.error as? NetworkError.Http)?.code
+                        if (code == 404) {
+                            if (!waitingNotified) {
+                                waitingNotified = true
+                                _uiState.update { it.copy(toastMessage = "Waiting for backup to finish…") }
+                            }
+                            attempt++
+                            delay(DOWNLOAD_RETRY_DELAY_MS)
+                        } else {
+                            _uiState.update {
+                                it.copy(toastMessage = "Failed to download backup: ${result.error.message}")
+                            }
+                            return@launch
+                        }
+                    }
                 }
             }
+            _uiState.update { it.copy(toastMessage = "Backup is still being created — try again in a moment") }
         }
     }
 
@@ -522,7 +562,7 @@ class SystemViewModel :
         }
     }
 
-    fun toastImportError(message: String) {
+    fun showToast(message: String) {
         _uiState.update { it.copy(toastMessage = message) }
     }
 

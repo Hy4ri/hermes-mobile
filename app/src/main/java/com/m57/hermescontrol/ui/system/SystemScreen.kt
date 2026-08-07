@@ -80,6 +80,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
+import com.m57.hermescontrol.ui.chat.MediaImageStore
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -163,7 +164,7 @@ fun SystemScreen(
                         pendingImport = it
                         viewModel.setImportFile(it.name)
                     },
-                    onFailure = { viewModel.toastImportError("Could not read selected file: ${it.message}") },
+                    onFailure = { viewModel.showToast("Could not read selected file: ${it.message}") },
                 )
             }
         }
@@ -262,11 +263,11 @@ fun SystemScreen(
                                     if (bytes != null) {
                                         viewModel.importArchive(pending.name, bytes, pending.mime)
                                     } else {
-                                        viewModel.toastImportError("Could not read selected file")
+                                        viewModel.showToast("Could not read selected file")
                                     }
                                 },
                                 onFailure = {
-                                    viewModel.toastImportError("Could not read selected file: ${it.message}")
+                                    viewModel.showToast("Could not read selected file: ${it.message}")
                                 },
                             )
                         }
@@ -351,6 +352,22 @@ fun SystemScreen(
                                     "*/*",
                                 ),
                             )
+                        },
+                        {
+                            viewModel.downloadBackup { bytes, fileName ->
+                                val uri =
+                                    MediaImageStore.saveToDownloads(
+                                        context,
+                                        bytes,
+                                        fileName,
+                                        "application/zip",
+                                    )
+                                if (uri != null) {
+                                    viewModel.showToast("Backup saved to Downloads")
+                                } else {
+                                    viewModel.showToast("Could not save backup to Downloads")
+                                }
+                            }
                         },
                     )
 
@@ -1040,6 +1057,7 @@ private fun LazyListScope.operationsSection(
     importConfirm: Boolean,
     onImportConfirm: (Boolean) -> Unit,
     onImportPick: () -> Unit,
+    downloadBackup: () -> Unit,
 ) {
     item {
         SectionHeader(title = stringResource(R.string.system_sec_operations))
@@ -1157,7 +1175,7 @@ private fun LazyListScope.operationsSection(
                         )
                     }
                     OutlinedButton(
-                        onClick = { viewModel.downloadBackup() },
+                        onClick = downloadBackup,
                         enabled = state.backupArchive != null,
                         modifier = Modifier.weight(1f),
                         contentPadding = actionButtonPadding,

@@ -142,11 +142,11 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             var captured = false
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 captured = true
                 CompletableDeferred<Any?>(Unit)
@@ -157,8 +157,12 @@ class SlashCommandDispatchRpcTest {
             advanceUntilIdle()
 
             assertTrue("expected a COMMAND_DISPATCH request", captured)
-            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
-            val params = paramsSlot.captured
+            // Captures hold ALL requests — the create flow's session.usage /
+            // context_breakdown can land after the dispatch one (capture race,
+            // CI 2026-08-06 + 2026-08-07). Find the record, don't trust "last".
+            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
+            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
+            val params = paramsCalls[dispatchIndex]
             assertEquals("help", params["name"])
             assertEquals("", params["arg"])
             assertEquals(sessionId, params["session_id"])
@@ -169,10 +173,10 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 CompletableDeferred<Any?>(Unit)
             }
@@ -180,8 +184,10 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/queue do the thing")
             advanceUntilIdle()
 
-            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
-            val params = paramsSlot.captured
+            // Find the dispatch record (capture race — see the /help test).
+            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
+            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
+            val params = paramsCalls[dispatchIndex]
             assertEquals("queue", params["name"])
             assertEquals("do the thing", params["arg"])
             assertEquals(sessionId, params["session_id"])
@@ -218,12 +224,12 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
-                val m = methodSlot.captured
+                val m = methodCalls.last()
                 val d = CompletableDeferred<Any?>()
                 if (m == WsMethods.COMMAND_DISPATCH) {
                     // Backend rejects /status with the registry-miss 4018 (issue #576).
@@ -243,9 +249,14 @@ class SlashCommandDispatchRpcTest {
             advanceUntilIdle()
 
             // The fallback must have hit slash.exec with the full command string.
-            // (methodSlot/paramsSlot hold the LAST call = slash.exec.)
-            assertEquals(WsMethods.SLASH_EXEC, methodSlot.captured)
-            val params = paramsSlot.captured
+            // Captures hold ALL requests — find the records instead of trusting
+            // "last" (create-flow session.usage can land after; capture race).
+            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
+            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
+            val execIndex = methodCalls.indexOf(WsMethods.SLASH_EXEC)
+            assertTrue("expected SLASH_EXEC fallback, got $methodCalls", execIndex >= 0)
+            assertTrue("dispatch must precede fallback", dispatchIndex < execIndex)
+            val params = paramsCalls[execIndex]
             assertEquals("/status", params["command"])
             assertEquals(sessionId, params["session_id"])
 

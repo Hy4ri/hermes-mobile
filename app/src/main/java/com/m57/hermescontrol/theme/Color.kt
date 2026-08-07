@@ -106,3 +106,10 @@ val CodeDiffDeleteBg = Color(0x26FF5C5C)
 val CodeDiffDeleteText = Color(0xFFFF5C5C)
 val CodeDiffHunkBg = Color(0x264DA8FF)
 val CodeDiffHunkText = Color(0xFF4DA8FF)
+
+// ── Custom vector icons ─────────────────────────────────────────────
+// Default fill for hand-declared ImageVector icons (e.g. NeurologyIcon).
+// Mirrors Material's own icon set: vectors are drawn opaque black and
+// Icon()'s tint (LocalContentColor) replaces the RGB at draw time — only
+// the alpha channel survives, so this must stay opaque.
+val IconDefaultFill = Color.Black

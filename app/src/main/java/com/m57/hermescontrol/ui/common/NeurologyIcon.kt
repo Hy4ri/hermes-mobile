@@ -1,6 +1,5 @@
 package com.m57.hermescontrol.ui.common
 
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -8,6 +7,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.theme.IconDefaultFill
 
 /**
  * Material Symbols "neurology" (outlined, 24dp) — the glyph ships on
@@ -38,7 +38,7 @@ val NeurologyIcon: ImageVector by lazy {
             pathData = addPathNodes(PATH),
             pathFillType = PathFillType.NonZero,
             name = "NeurologyPath",
-            fill = SolidColor(Color.Black),
+            fill = SolidColor(IconDefaultFill),
             fillAlpha = 1f,
             stroke = null,
             strokeAlpha = 1f,

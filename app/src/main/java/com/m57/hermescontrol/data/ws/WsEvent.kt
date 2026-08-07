@@ -216,6 +216,22 @@ sealed class WsEvent {
         val message: String?,
     ) : WsEvent()
 
+    // ── Gateway change events ───────────────────────────────────────────
+
+    /**
+     * Backend "something changed" broadcast. The gateway advertises
+     * `change_events: true` in the `gateway.ready` handshake and emits one of
+     * these when its on-disk signatures move (see [ChangeEvents] for the
+     * vocabulary), so screens can refresh on change instead of blind-polling.
+     * Backends without the feature simply never broadcast — consumers stay
+     * quiet. `pet.changed` exists on the backend but is intentionally NOT
+     * parsed: mobile has no pet feature.
+     */
+    data class ChangeEvent(
+        val type: String,
+        val data: Map<String, Any?>? = null,
+    ) : WsEvent()
+
     // ── Background job completion ──────────────────────────────────────
 
     /**

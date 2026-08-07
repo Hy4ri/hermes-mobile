@@ -8,7 +8,9 @@ import com.m57.hermescontrol.data.model.PairingRevokeRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,6 +37,16 @@ class PairingViewModel :
     val uiState: StateFlow<PairingUiState> = _uiState.asStateFlow()
 
     private var launchJob: Job? = null
+
+    init {
+        // Issue #784: gateway broadcasts pairing.changed — refresh silently
+        // (no spinner) instead of waiting for a manual pull.
+        refreshOnChange(
+            eventType = ChangeEvents.PAIRING,
+            apiCall = { safeApiCall { ApiClient.hermesApi.getPairing() } },
+            onSuccess = { data -> _uiState.update { it.copy(pairing = data) } },
+        )
+    }
 
     fun loadPairing() {
         launchJob =

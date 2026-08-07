@@ -9,7 +9,9 @@ import com.m57.hermescontrol.data.model.TelegramOnboardingStartRequest
 import com.m57.hermescontrol.data.model.TelegramOnboardingStartResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -59,6 +61,24 @@ class ChannelsViewModel :
     val uiState: StateFlow<ChannelsUiState> = _uiState.asStateFlow()
 
     private var launchJob: Job? = null
+
+    init {
+        // Issue #784: gateway broadcasts platforms.changed — refresh silently
+        // (no spinner) instead of waiting for a manual pull.
+        refreshOnChange(
+            eventType = ChangeEvents.PLATFORMS,
+            apiCall = { safeApiCall { ApiClient.hermesApi.getMessagingPlatforms() } },
+            onSuccess = { data ->
+                _uiState.update {
+                    it.copy(
+                        platforms = data.platforms.orEmpty(),
+                        gatewayStartCommand = data.gatewayStartCommand,
+                        envPath = data.envPath,
+                    )
+                }
+            },
+        )
+    }
 
     fun loadPlatforms() {
         safeLaunchLoad(

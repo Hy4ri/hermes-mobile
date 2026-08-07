@@ -100,6 +100,36 @@ class EventParserTest {
     }
 
     @Test
+    fun testParseChangeEvents_returnsChangeEvent() {
+        // Issue #784: gateway broadcasts change events (pet.changed excluded —
+        // mobile has no pet feature). All four must map to ChangeEvent with the
+        // type preserved and the payload attached.
+        val cases =
+            mapOf(
+                "cron.changed" to mapOf("a" to "1"),
+                "sessions.changed" to mapOf("b" to "2"),
+                "platforms.changed" to mapOf("c" to "3"),
+                "pairing.changed" to mapOf("d" to "4"),
+            )
+        cases.forEach { (type, payload) ->
+            val response =
+                createJsonRpcResponse(
+                    jsonrpc = "2.0",
+                    id = null,
+                    result = null,
+                    error = null,
+                    method = "event",
+                    params = mapOf("type" to type, "payload" to payload),
+                )
+            val event = EventParser.parse(response)
+            assertTrue("expected ChangeEvent for $type, got $event", event is WsEvent.ChangeEvent)
+            val changeEvent = event as WsEvent.ChangeEvent
+            assertEquals(type, changeEvent.type)
+            assertEquals(payload, changeEvent.data)
+        }
+    }
+
+    @Test
     fun testParseMessageToken_returnsMessageTokenEvent() {
         val response =
             createJsonRpcResponse(

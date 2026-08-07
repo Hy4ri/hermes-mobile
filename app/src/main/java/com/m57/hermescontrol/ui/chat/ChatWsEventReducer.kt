@@ -130,6 +130,9 @@ object ChatWsEventReducer {
 
             // ReactionEvent is handled by the ViewModel — purely cosmetic animation
             is WsEvent.ReactionEvent -> ReducerResult(state = state, streamingState = streamingState)
+
+            // Change events (issue #784) are consumed by their screens' ViewModels
+            is WsEvent.ChangeEvent -> ReducerResult(state = state, streamingState = streamingState)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────

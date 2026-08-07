@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
@@ -236,6 +237,14 @@ object HermesWsClient {
                     else -> {}
                 }
             }
+        }
+        // Forward parsed change events (issue #784) to the hub so screens can
+        // refresh on change without touching this singleton — its real static
+        // init must never run inside unit tests (see ChangeEventHub).
+        wsScope.launch {
+            events
+                .filterIsInstance<WsEvent.ChangeEvent>()
+                .collect { ChangeEventHub.emit(it) }
         }
     }
 

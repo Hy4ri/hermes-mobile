@@ -151,6 +151,13 @@ object EventParser {
                 WsEvent.BackgroundComplete(payload)
             }
 
+            // Change events (issue #784): gateway watches on-disk signatures
+            // and broadcasts these so screens can refresh on change. pet.changed
+            // intentionally absent — mobile has no pet feature.
+            "cron.changed", "sessions.changed", "platforms.changed", "pairing.changed" -> {
+                WsEvent.ChangeEvent(eventType, payload)
+            }
+
             "review.summary" -> {
                 val text = (payload?.get("text") as? String)?.trim() ?: ""
                 WsEvent.ReviewSummary(text, sessionId)

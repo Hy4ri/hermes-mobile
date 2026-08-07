@@ -10,7 +10,9 @@ import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -61,6 +63,31 @@ class SessionsViewModel :
 
     private var loadJob: Job? = null
     private var statsJob: Job? = null
+
+    init {
+        // Issue #784: gateway broadcasts sessions.changed — refresh the list
+        // silently (no spinner, no selection reset) instead of blind polling.
+        refreshOnChange(
+            eventType = ChangeEvents.SESSIONS,
+            apiCall = {
+                safeApiCall {
+                    ApiClient.hermesApi.getSessions(
+                        limit = PAGE_SIZE,
+                        offset = 0,
+                        order = "recent",
+                    )
+                }
+            },
+            onSuccess = { data ->
+                _uiState.update {
+                    it.copy(
+                        sessions = data.sessions.orEmpty(),
+                        total = data.total,
+                    )
+                }
+            },
+        )
+    }
 
     /** Page size sent to the server — matches the default the gateway uses. */
     private companion object {

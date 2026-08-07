@@ -11,8 +11,10 @@ import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ChangeEvents
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -82,6 +84,16 @@ class CronJobsViewModel :
     val uiState: StateFlow<CronJobsUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+
+    init {
+        // Issue #784: gateway broadcasts cron.changed — refresh the list
+        // silently on change instead of waiting for a manual pull.
+        refreshOnChange(
+            eventType = ChangeEvents.CRON,
+            apiCall = { safeApiCall { ApiClient.hermesApi.getCronJobs() } },
+            onSuccess = { data -> _uiState.update { it.copy(jobs = data.orEmpty()) } },
+        )
+    }
 
     fun loadCronJobs() {
         loadJob =

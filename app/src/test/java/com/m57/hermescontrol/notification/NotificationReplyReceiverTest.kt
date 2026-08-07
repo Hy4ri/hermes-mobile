@@ -306,7 +306,11 @@ class NotificationReplyReceiverTest {
         Thread.sleep(500)
 
         verify {
-            HermesWsClient.request(WsMethods.SESSION_RESUME, match { it["session_id"] == "session-abc" }, any())
+            HermesWsClient.request(
+                WsMethods.SESSION_RESUME,
+                match { it["session_id"] == "session-abc" && it["omit_messages"] == true },
+                any(),
+            )
             HermesWsClient.request(
                 WsMethods.PROMPT_SUBMIT,
                 match { it["session_id"] == "runtime-session-abc" },

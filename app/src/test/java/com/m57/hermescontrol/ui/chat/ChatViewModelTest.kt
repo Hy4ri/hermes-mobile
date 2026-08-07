@@ -642,7 +642,7 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.send(
                     WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to "session-from-notification"),
+                    mapOf("session_id" to "session-from-notification", "omit_messages" to true),
                     any(),
                 )
             }
@@ -1271,7 +1271,13 @@ class ChatViewModelTest {
                     .isEmpty(),
             )
 
-            verify { HermesWsClient.send(WsMethods.SESSION_RESUME, mapOf("session_id" to "session-456"), any()) }
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    mapOf("session_id" to "session-456", "omit_messages" to true),
+                    any(),
+                )
+            }
         }
 
     @Test
@@ -1894,7 +1900,7 @@ class ChatViewModelTest {
             verify {
                 HermesWsClient.send(
                     WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to "session-456"),
+                    mapOf("session_id" to "session-456", "omit_messages" to true),
                     any(),
                 )
             }

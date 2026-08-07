@@ -128,7 +128,7 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
             HermesWsClient
                 .request(
                     WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to storedSessionId),
+                    mapOf("session_id" to storedSessionId, "omit_messages" to true),
                     timeoutMs = REPLY_TIMEOUT_MS,
                 ).await() as? Map<*, *>
         val runtimeSessionId =

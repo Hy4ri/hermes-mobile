@@ -1952,7 +1952,7 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_RESUME,
-                mapOf("session_id" to sessionId),
+                mapOf("session_id" to sessionId, "omit_messages" to true),
                 onSent = { id ->
                     trackSessionRequest(
                         id = id,

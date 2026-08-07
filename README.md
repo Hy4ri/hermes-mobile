@@ -1,3 +1,6 @@
+<h1 align="center">Hermes Mobile</h1>
+<p align="center"><strong>Native Android companion app for your Hermes AI agent.</strong></p>
+
 <div align="center">
   <br>
   <img src="https://img.shields.io/badge/Android-34DDDD?style=for-the-badge&logo=android&logoColor=black" alt="Android"/>
@@ -6,9 +9,6 @@
   <img src="https://img.shields.io/badge/Material%20You-6750A4?style=for-the-badge&logo=materialdesign&logoColor=white" alt="Material You"/>
   <br><br>
 </div>
-
-<h1 align="center">Hermes Mobile</h1>
-<p align="center"><strong>Native Android companion app for your Hermes AI agent.</strong></p>
 
 <p align="center">
   <a href="https://github.com/Hy4ri/hermes-mobile/releases/latest"><img src="https://img.shields.io/github/v/release/Hy4ri/hermes-mobile?color=6750A4&label=Latest%20Release&logo=github" alt="Latest Release"></a>

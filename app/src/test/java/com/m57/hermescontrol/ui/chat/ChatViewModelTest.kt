@@ -1907,6 +1907,90 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSessionInfoModelSwap_blanksStaleMeterAndRefetches() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            // Establish the OLD model's label through the real event path.
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "deepseek-v4-flash", "provider" to "opencode-go"),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("opencode-go/deepseek-v4-flash", viewModel.uiState.value.currentSessionModel)
+
+            // Fetch the meter so it carries the OLD model's window (1M).
+            var contextMax = 1_000_000L
+            var breakdownCalls = 0
+            every { HermesWsClient.request(WsMethods.SESSION_CONTEXT_BREAKDOWN, any(), any()) } answers {
+                breakdownCalls++
+                CompletableDeferred<Any?>(
+                    mapOf("context_max" to contextMax, "context_used" to 42025L),
+                )
+            }
+            viewModel.fetchContextUsage()
+            advanceUntilIdle()
+            assertEquals(1_000_000L, viewModel.uiState.value.fullContextTokens)
+
+            // The swap: the new model lands — its live window is now 262k.
+            contextMax = 262_144L
+            val callsBeforeSwap = breakdownCalls
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "tencent/hy3:free", "provider" to "nous"),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("nous/tencent/hy3:free", viewModel.uiState.value.currentSessionModel)
+            assertTrue("model swap must re-fire the meter fetch", breakdownCalls > callsBeforeSwap)
+            // The refetch lands the NEW model's window — never a stale mix.
+            assertEquals(262_144L, viewModel.uiState.value.fullContextTokens)
+        }
+
+    @Test
+    fun testSessionInfoSameModel_keepsMeterUntouched() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            // Establish label + meter through the real paths.
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "tencent/hy3:free", "provider" to "nous"),
+                ),
+            )
+            advanceUntilIdle()
+            var breakdownCalls = 0
+            every { HermesWsClient.request(WsMethods.SESSION_CONTEXT_BREAKDOWN, any(), any()) } answers {
+                breakdownCalls++
+                CompletableDeferred<Any?>(
+                    mapOf("context_max" to 262_144L),
+                )
+            }
+            viewModel.fetchContextUsage()
+            advanceUntilIdle()
+            assertEquals(262_144L, viewModel.uiState.value.fullContextTokens)
+            val callsBefore = breakdownCalls
+
+            // Identical model again — no swap, no blank, no refetch.
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "tencent/hy3:free", "provider" to "nous"),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(callsBefore, breakdownCalls)
+            assertEquals(262_144L, viewModel.uiState.value.fullContextTokens)
+            assertEquals("nous/tencent/hy3:free", viewModel.uiState.value.currentSessionModel)
+        }
+
+    @Test
     fun testResumeNotFound_recoversWithNewSession() =
         runTest {
             stubSession456Rests(success = true)

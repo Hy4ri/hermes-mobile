@@ -691,21 +691,36 @@ class ChatViewModel(
                     val model = info["model"] as? String
                     val provider = info["provider"] as? String
                     val reasoningEffort = info["reasoning_effort"] as? String
+                    val newModelLabel =
+                        if (model != null && provider != null) {
+                            "$provider/$model"
+                        } else {
+                            model
+                        }
+                    // Issue #817: on a REAL model swap the meter's denominator
+                    // still belongs to the old model until the next fetch.
+                    // Blank it so the chip hides instead of flashing a stale
+                    // window under the new label, and re-fire the fetch so the
+                    // new window lands immediately (no 30s poll wait). Only a
+                    // change from a known label counts — the first SessionInfo
+                    // of a session just sets the label.
+                    val previousLabel = _uiState.value.currentSessionModel
+                    val modelSwapped =
+                        previousLabel != null && newModelLabel != null && newModelLabel != previousLabel
                     _uiState.update { state ->
                         state.copy(
-                            currentSessionModel =
-                                if (model != null && provider != null) {
-                                    "$provider/$model"
-                                } else {
-                                    model ?: state.currentSessionModel
-                                },
+                            currentSessionModel = newModelLabel ?: state.currentSessionModel,
                             reasoningLevel =
                                 if (reasoningEffort.isNullOrEmpty()) {
                                     null
                                 } else {
                                     reasoningEffort
                                 },
+                            fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
                         )
+                    }
+                    if (modelSwapped) {
+                        viewModelScope.launch { fetchContextUsage() }
                     }
                 }
             }
@@ -2301,17 +2316,19 @@ class ChatViewModel(
         viewModelScope.launch(ioDispatcher) {
             // Denominator fallback: full context window (cheap, public, rarely
             // changes). The RPC's context_max below overrides it when present.
+            // Kept as a local (not a state write) so both sources resolve
+            // before ONE atomic update below (issue #817 — two independent
+            // writes let a stale pre-swap value override a fresh one mid-swap).
             val fullResult =
                 safeApiCall { ApiClient.hermesApi.getModelInfo() }
-            if (fullResult is NetworkResult.Success) {
-                val full =
+            val restFull =
+                if (fullResult is NetworkResult.Success) {
                     fullResult.data.effective_context_length
                         ?: fullResult.data.auto_context_length
                         ?: fullResult.data.config_context_length
-                if (full != null && full > 0L) {
-                    _uiState.update { it.copy(fullContextTokens = full) }
+                } else {
+                    null
                 }
-            }
             // Numerator: live context occupancy from the gateway's live agent,
             // via the same RPC the desktop meter uses. `context_used` is the
             // real current prompt size (drops after compression); `context_max`
@@ -2325,6 +2342,8 @@ class ChatViewModel(
             // resume result lands, so skip the RPCs until resume confirms the
             // runtime id. The REST parts below stay live (they key on the
             // storage id).
+            var rpcUsed: Long? = null
+            var rpcMax: Long? = null
             val rpcSessionId = runtimeSessionId
             if (rpcSessionId != null) {
                 try {
@@ -2335,14 +2354,8 @@ class ChatViewModel(
                         )
                     val ctx = parseContextBreakdown(result)
                     if (ctx != null) {
-                        _uiState.update { current ->
-                            current.copy(
-                                usedContextTokens =
-                                    ctx.contextUsed?.takeIf { it > 0L } ?: current.usedContextTokens,
-                                fullContextTokens =
-                                    ctx.contextMax?.takeIf { it > 0L } ?: current.fullContextTokens,
-                            )
-                        }
+                        rpcUsed = ctx.contextUsed?.takeIf { it > 0L }
+                        rpcMax = ctx.contextMax?.takeIf { it > 0L }
                     }
                 } catch (_: Exception) {
                     // Best-effort: RPC error/timeout/disconnect — keep last values.
@@ -2363,6 +2376,16 @@ class ChatViewModel(
                 } catch (_: Exception) {
                     // Best-effort: keep the last known badge value.
                 }
+            }
+            // Issue #817: single atomic denominator write. The RPC's live
+            // context_max wins, REST model/info is the fallback, and a stale
+            // value from a pre-swap fetch can never overwrite a fresh one —
+            // the meter always shows ONE coherent window.
+            _uiState.update { current ->
+                current.copy(
+                    usedContextTokens = rpcUsed ?: current.usedContextTokens,
+                    fullContextTokens = rpcMax ?: restFull ?: current.fullContextTokens,
+                )
             }
             // Detail-sheet accounting (cumulative REST counters, informational).
             val usedResult =

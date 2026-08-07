@@ -1935,8 +1935,10 @@ class ChatViewModelTest {
             advanceUntilIdle()
             assertEquals(1_000_000L, viewModel.uiState.value.fullContextTokens)
 
-            // The swap: the new model lands — its live window is now 262k.
-            contextMax = 262_144L
+            // The swap: the live agent hasn't warmed up yet, so the RPC comes
+            // back empty — the meter must NOT fall back to the profile-scoped
+            // REST window (which describes the OLD model). It stays hidden.
+            contextMax = 0L
             val callsBeforeSwap = breakdownCalls
             mockEventsFlow.emit(
                 WsEvent.SessionInfo(
@@ -1947,7 +1949,15 @@ class ChatViewModelTest {
 
             assertEquals("nous/tencent/hy3:free", viewModel.uiState.value.currentSessionModel)
             assertTrue("model swap must re-fire the meter fetch", breakdownCalls > callsBeforeSwap)
-            // The refetch lands the NEW model's window — never a stale mix.
+            assertNull(
+                "cold RPC after a swap must keep the meter hidden, not show the old window",
+                viewModel.uiState.value.fullContextTokens,
+            )
+
+            // The runtime warms up — the next fetch lands the NEW model's window.
+            contextMax = 262_144L
+            viewModel.fetchContextUsage()
+            advanceUntilIdle()
             assertEquals(262_144L, viewModel.uiState.value.fullContextTokens)
         }
 

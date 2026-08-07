@@ -720,7 +720,12 @@ class ChatViewModel(
                         )
                     }
                     if (modelSwapped) {
-                        viewModelScope.launch { fetchContextUsage() }
+                        // Issue #817: after a swap the REST model/info window is
+                        // PROFILE-scoped and may describe the old model (e.g. a
+                        // session-scoped swap) — the meter must not fall back to
+                        // it. Wait for the RPC's live context_max instead; the
+                        // chip stays hidden until the real window lands.
+                        viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
                     }
                 }
             }
@@ -2310,7 +2315,7 @@ class ChatViewModel(
      * the other. Polled from [syncCurrentSession] via the 30s loop and re-fired
      * on model switch (the denominator changes).
      */
-    fun fetchContextUsage() {
+    fun fetchContextUsage(skipRestFallback: Boolean = false) {
         val sessionId = _uiState.value.currentSessionId ?: return
         val profile = AuthManager.activeProfileId.value
         viewModelScope.launch(ioDispatcher) {
@@ -2382,9 +2387,11 @@ class ChatViewModel(
             // value from a pre-swap fetch can never overwrite a fresh one —
             // the meter always shows ONE coherent window.
             _uiState.update { current ->
+                val fallbackFull =
+                    if (skipRestFallback) current.fullContextTokens else restFull ?: current.fullContextTokens
                 current.copy(
                     usedContextTokens = rpcUsed ?: current.usedContextTokens,
-                    fullContextTokens = rpcMax ?: restFull ?: current.fullContextTokens,
+                    fullContextTokens = rpcMax ?: fallbackFull,
                 )
             }
             // Detail-sheet accounting (cumulative REST counters, informational).

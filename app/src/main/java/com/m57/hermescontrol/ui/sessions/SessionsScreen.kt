@@ -43,6 +43,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -331,6 +333,29 @@ fun SessionsScreen(
         onClearToast = { viewModel.clearToast() },
     )
 
+    // Empty-session cleanup dialog (issue #787)
+    if (state.showEmptyCleanupDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideEmptyCleanupDialog() },
+            title = { Text(stringResource(R.string.sessions_empty_cleanup_title)) },
+            text = { Text(stringResource(R.string.sessions_empty_cleanup_message, state.emptyCount)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmEmptyCleanup() }) {
+                    if (state.isCleaningEmpty) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(stringResource(R.string.sessions_empty_cleanup_confirm))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideEmptyCleanupDialog() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     // Prune dialog
     if (state.showPruneDialog) {
         AlertDialog(
@@ -516,6 +541,25 @@ fun SessionsScreen(
                                 stringResource(R.string.content_desc_enter_selection)
                             },
                     )
+                }
+                Spacer(modifier = Modifier.width(spacing.sm))
+                // Empty-session cleanup (issue #787) — grey/disabled when 0.
+                IconButton(
+                    onClick = { viewModel.requestEmptyCleanup() },
+                    enabled = state.emptyCount > 0,
+                ) {
+                    BadgedBox(
+                        badge = {
+                            if (state.emptyCount > 0) {
+                                Badge { Text("${state.emptyCount}") }
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DeleteSweep,
+                            contentDescription = stringResource(R.string.sessions_empty_cleanup_desc),
+                        )
+                    }
                 }
             }
 

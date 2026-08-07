@@ -512,6 +512,10 @@
     <string name="sessions_prune_desc">Delete sessions older than the specified number of days.</string>
     <string name="sessions_prune_days_label">Days threshold</string>
     <string name="sessions_prune_confirm">Prune</string>
+    <string name="sessions_empty_cleanup_desc">Delete empty sessions</string>
+    <string name="sessions_empty_cleanup_title">Delete empty sessions?</string>
+    <string name="sessions_empty_cleanup_message">Delete %1$d empty session(s). Active and archived sessions are kept.</string>
+    <string name="sessions_empty_cleanup_confirm">Delete</string>
     <string name="sessions_delete_title">Delete Session?</string>
     <string name="sessions_delete_message">Are you sure you want to delete \"%1$s\"? This can\'t be undone.</string>
     <string name="sessions_bulk_delete_title">Delete Sessions?</string>

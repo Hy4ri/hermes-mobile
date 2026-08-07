@@ -43,6 +43,11 @@ data class SessionsUiState(
     val deletingSessionIds: Set<String> = emptySet(),
     val showPruneDialog: Boolean = false,
     val isPruning: Boolean = false,
+    // Empty-session cleanup (issue #787): count of empty, ended, non-archived
+    // sessions — button is disabled/grey when 0.
+    val emptyCount: Int = 0,
+    val showEmptyCleanupDialog: Boolean = false,
+    val isCleaningEmpty: Boolean = false,
     val isDeletingBulk: Boolean = false,
     val toastMessage: String? = null,
     val sessionToDeleteConfirm: String? = null,
@@ -98,6 +103,7 @@ class SessionsViewModel :
 
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
     fun loadSessions() {
+        loadEmptyCount()
         loadJob =
             safeLaunchLoad(
                 currentJob = loadJob,
@@ -489,6 +495,68 @@ class SessionsViewModel :
                         it.copy(
                             isPruning = false,
                             toastMessage = "Prune failed: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Empty-session cleanup (issue #787) ───────────────────────────────
+
+    /** Refresh the empty-session count (REST; auxiliary — failures are silent). */
+    fun loadEmptyCount() {
+        viewModelScope.launch {
+            val result =
+                runCatching {
+                    safeApiCall { ApiClient.hermesApi.getEmptySessionCount() }
+                }.getOrNull()
+            val count = (result as? NetworkResult.Success)?.data?.count
+            if (count != null) {
+                _uiState.update { it.copy(emptyCount = count) }
+            }
+        }
+    }
+
+    fun requestEmptyCleanup() {
+        _uiState.update { it.copy(showEmptyCleanupDialog = true) }
+    }
+
+    fun hideEmptyCleanupDialog() {
+        _uiState.update { it.copy(showEmptyCleanupDialog = false) }
+    }
+
+    fun confirmEmptyCleanup() {
+        _uiState.update { it.copy(isCleaningEmpty = true, showEmptyCleanupDialog = false) }
+        viewModelScope.launch {
+            val result =
+                runCatching {
+                    safeApiCall { ApiClient.hermesApi.deleteEmptySessions() }
+                }.getOrNull()
+            when (result) {
+                is NetworkResult.Success -> {
+                    val deleted = result.data.deleted
+                    _uiState.update {
+                        it.copy(
+                            isCleaningEmpty = false,
+                            emptyCount = 0,
+                            toastMessage =
+                                if (deleted > 0) {
+                                    "Deleted $deleted empty sessions"
+                                } else {
+                                    "No empty sessions to delete"
+                                },
+                        )
+                    }
+                    loadSessions()
+                }
+
+                else -> {
+                    val message = (result as? NetworkResult.Failure)?.error?.message ?: "Unknown error"
+                    _uiState.update {
+                        it.copy(
+                            isCleaningEmpty = false,
+                            toastMessage = "Cleanup failed: $message",
                         )
                     }
                 }

@@ -27,6 +27,8 @@ import com.m57.hermescontrol.data.model.DebugShareResponse
 import com.m57.hermescontrol.data.model.DeleteWebhookResponse
 import com.m57.hermescontrol.data.model.DeliveryTargetsResponse
 import com.m57.hermescontrol.data.model.DoctorResponse
+import com.m57.hermescontrol.data.model.EmptySessionsCountResponse
+import com.m57.hermescontrol.data.model.EmptySessionsDeleteResponse
 import com.m57.hermescontrol.data.model.EnvVarConfig
 import com.m57.hermescontrol.data.model.EnvVarDeleteRequest
 import com.m57.hermescontrol.data.model.EnvVarRevealRequest
@@ -37,6 +39,7 @@ import com.m57.hermescontrol.data.model.HookResponse
 import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
+import com.m57.hermescontrol.data.model.LatestDescendantResponse
 import com.m57.hermescontrol.data.model.LearningGraphResponse
 import com.m57.hermescontrol.data.model.LogResponse
 import com.m57.hermescontrol.data.model.ManagedDirectoryCreate
@@ -216,6 +219,18 @@ interface HermesApiService {
     suspend fun pruneSessions(
         @Body body: PruneRequest,
     ): Response<Unit>
+
+    // ── Admin: Empty-session cleanup + branch resolution (issue #787) ──
+    @GET("api/sessions/empty/count")
+    suspend fun getEmptySessionCount(): Response<EmptySessionsCountResponse>
+
+    @DELETE("api/sessions/empty")
+    suspend fun deleteEmptySessions(): Response<EmptySessionsDeleteResponse>
+
+    @GET("api/sessions/{id}/latest-descendant")
+    suspend fun getLatestDescendant(
+        @Path("id", encoded = true) sessionId: String,
+    ): Response<LatestDescendantResponse>
 
     @GET("api/sessions/{id}/prompt")
     suspend fun getSessionPrompt(

@@ -107,10 +107,15 @@ class SlashCommandDispatchRpcTest {
         // wsScope that fires after unmockkAll and crashes a later test with
         // MockK's "can't find stub". Mirror the real send() delegation (so
         // send-based verifications still see the call) but skip the timer.
+        // Must COMPLETE (Unit): a never-completing deferred freezes the VM's
+        // event collector at the SESSION_CREATE-triggered session.usage await,
+        // and that completion then races the per-test capture stubs — the slot
+        // can end up holding session.usage instead of command.dispatch (CI run
+        // 31137581335 on 4645a2b: slash-focus flake).
         // Specific per-test request() stubs registered later take precedence.
         every { HermesWsClient.request(any(), any(), any()) } answers {
             HermesWsClient.send(arg(0), arg(1)) {}
-            CompletableDeferred<Any?>()
+            CompletableDeferred<Any?>(Unit)
         }
     }
 

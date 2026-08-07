@@ -101,11 +101,13 @@ class ChatViewModelTest {
         // fires after unmockkAll and crashes an unrelated later test with
         // MockK's "can't find stub" (UncaughtExceptionsBeforeTest). Mirror
         // the real request()'s send() delegation (tests verify send calls)
-        // but return a never-completing deferred — same unanswered behavior,
-        // no leaked timer.
+        // but skip the timer. Must COMPLETE (Unit): a never-completing
+        // deferred freezes the VM's event collector at the SESSION_CREATE
+        // session.usage await and lets its late completion race per-test
+        // capture stubs (slash-focus flake, CI 31137581335 on 4645a2b).
         every { HermesWsClient.request(any(), any(), any()) } answers {
             HermesWsClient.send(arg(0), arg(1)) {}
-            CompletableDeferred<Any?>()
+            CompletableDeferred<Any?>(Unit)
         }
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)

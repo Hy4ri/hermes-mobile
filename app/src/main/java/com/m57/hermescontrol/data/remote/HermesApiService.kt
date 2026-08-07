@@ -875,9 +875,14 @@ interface HermesApiService {
     ): Response<ResponseBody>
 
     // ── Admin: Backup import ──────────────────────────────────────────
-    @POST("api/ops/import")
-    suspend fun runImport(
-        @Body body: Map<String, Any>,
+    // Multipart upload (issue #786): the path-based POST /api/ops/import
+    // is useless on a phone (server-side path typed into the app); the
+    // desktop's upload contract is the real one — file + force.
+    @Multipart
+    @POST("api/ops/import-upload")
+    suspend fun importUpload(
+        @Part("force") force: okhttp3.RequestBody,
+        @Part file: okhttp3.MultipartBody.Part,
     ): Response<ActionResponse>
 
     // ── Admin: Debug share ────────────────────────────────────────────

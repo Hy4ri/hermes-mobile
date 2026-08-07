@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.ui.system
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Link
@@ -35,6 +39,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -55,11 +60,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -86,6 +93,9 @@ import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.system.components.CredentialEntryRow
 import com.m57.hermescontrol.ui.system.components.HookCard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -125,6 +135,38 @@ fun SystemScreen(
     }
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = viewModel::clearToast)
+
+    // ── Backup import (issue #786) ────────────────────────────────────────
+    // SAF file picker → stage uri/name/mime → confirm dialog → read bytes on
+    // IO → multipart upload via SystemViewModel.importArchive.
+    val context = LocalContext.current
+    val importScope = rememberCoroutineScope()
+    var pendingImport by remember { mutableStateOf<PendingImport?>(null) }
+    val importPickerLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocument(),
+        ) { uri: Uri? ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            importScope.launch {
+                val meta =
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            val name =
+                                uri.lastPathSegment?.substringAfterLast("/")?.takeIf { it.isNotBlank() }
+                                    ?: "backup.zip"
+                            val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                            PendingImport(uri, name, mime)
+                        }
+                    }
+                meta.fold(
+                    onSuccess = {
+                        pendingImport = it
+                        viewModel.setImportFile(it.name)
+                    },
+                    onFailure = { viewModel.toastImportError("Could not read selected file: ${it.message}") },
+                )
+            }
+        }
 
     // ── Confirmation dialogs ──────────────────────────────────────────────
 
@@ -205,7 +247,30 @@ fun SystemScreen(
             confirmButton = {
                 TextButton(onClick = {
                     importConfirm = false
-                    viewModel.runImport(state.importPath)
+                    val pending = pendingImport
+                    pendingImport = null
+                    if (pending != null) {
+                        importScope.launch {
+                            val read =
+                                withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        context.contentResolver.openInputStream(pending.uri)?.use { it.readBytes() }
+                                    }
+                                }
+                            read.fold(
+                                onSuccess = { bytes ->
+                                    if (bytes != null) {
+                                        viewModel.importArchive(pending.name, bytes, pending.mime)
+                                    } else {
+                                        viewModel.toastImportError("Could not read selected file")
+                                    }
+                                },
+                                onFailure = {
+                                    viewModel.toastImportError("Could not read selected file: ${it.message}")
+                                },
+                            )
+                        }
+                    }
                 }) {
                     Text(stringResource(R.string.system_confirm_restore))
                 }
@@ -271,7 +336,23 @@ fun SystemScreen(
                     credentialsSection(state, spacing, viewModel, credToRemove, { credToRemove = it })
 
                     // ── 7. Operations ──────────────────────────────────────
-                    operationsSection(state, spacing, viewModel, importConfirm, { importConfirm = it })
+                    operationsSection(
+                        state,
+                        spacing,
+                        viewModel,
+                        importConfirm,
+                        { importConfirm = it },
+                        {
+                            importPickerLauncher.launch(
+                                arrayOf(
+                                    "application/zip",
+                                    "application/x-zip-compressed",
+                                    "application/octet-stream",
+                                    "*/*",
+                                ),
+                            )
+                        },
+                    )
 
                     // ── 8. Checkpoints ─────────────────────────────────────
                     checkpointsSection(state, spacing, pruneConfirm, { pruneConfirm = it })
@@ -958,6 +1039,7 @@ private fun LazyListScope.operationsSection(
     viewModel: SystemViewModel,
     importConfirm: Boolean,
     onImportConfirm: (Boolean) -> Unit,
+    onImportPick: () -> Unit,
 ) {
     item {
         SectionHeader(title = stringResource(R.string.system_sec_operations))
@@ -1087,7 +1169,7 @@ private fun LazyListScope.operationsSection(
                     }
                 }
 
-                // Restore from uploaded zip
+                // Restore from picked archive (issue #786: SAF picker → upload)
                 Spacer(modifier = Modifier.height(spacing.sm))
                 Text(
                     text = stringResource(R.string.system_sec_restore),
@@ -1096,20 +1178,48 @@ private fun LazyListScope.operationsSection(
                 )
                 Spacer(modifier = Modifier.height(spacing.sm))
 
-                OutlinedTextField(
-                    value = state.importPath,
-                    onValueChange = viewModel::updateImportPath,
-                    label = { Text(stringResource(R.string.system_op_restore_path_label)) },
-                    placeholder = { Text(stringResource(R.string.system_op_restore_path)) },
-                    singleLine = true,
+                OutlinedButton(
+                    onClick = onImportPick,
+                    enabled = !state.isImporting,
                     modifier = Modifier.fillMaxWidth(),
-                    textStyle = MaterialTheme.typography.bodySmall,
-                )
+                    contentPadding = actionButtonPadding,
+                ) {
+                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.size(spacing.xs))
+                    Text(
+                        text = stringResource(R.string.system_op_restore_pick),
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+
+                state.importFileName?.let { name ->
+                    Spacer(modifier = Modifier.height(spacing.sm))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(spacing.sm))
 
                 Button(
                     onClick = { onImportConfirm(true) },
-                    enabled = state.importPath.isNotBlank(),
+                    enabled = state.importFileName != null && !state.isImporting,
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
@@ -1117,8 +1227,17 @@ private fun LazyListScope.operationsSection(
                         ),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.size(spacing.xs))
+                    if (state.isImporting) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onError,
+                        )
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                    } else {
+                        Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.size(spacing.xs))
+                    }
                     Text(stringResource(R.string.system_op_restore_upload), maxLines = 1, softWrap = false)
                 }
 
@@ -1551,3 +1670,10 @@ private fun ActionButtonContent(
         )
     }
 }
+
+/** Staged SAF-picked backup archive for the restore flow (issue #786). */
+private data class PendingImport(
+    val uri: Uri,
+    val name: String,
+    val mime: String,
+)

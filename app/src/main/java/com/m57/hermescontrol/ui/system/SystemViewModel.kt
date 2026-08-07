@@ -32,6 +32,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 data class SystemUiState(
     val isLoading: Boolean = false,
@@ -64,8 +67,9 @@ data class SystemUiState(
     val hookTimeout: String = "",
     val hookApprove: Boolean = true,
     val creatingHook: Boolean = false,
-    // Import
-    val importPath: String = "",
+    // Import (issue #786): SAF-picked backup archive staged by the screen
+    val importFileName: String? = null,
+    val isImporting: Boolean = false,
     // Debug share
     val shareRedact: Boolean = true,
     val sharing: Boolean = false,
@@ -459,15 +463,61 @@ class SystemViewModel :
         }
     }
 
-    fun updateImportPath(v: String) {
-        _uiState.update { it.copy(importPath = v) }
+    fun setImportFile(name: String) {
+        _uiState.update { it.copy(importFileName = name) }
     }
 
-    fun runImport(path: String) {
-        runOperation(
-            apiCall = { safeApiCall { ApiClient.hermesApi.runImport(mapOf("path" to path)) } },
-            label = "Import",
-        )
+    fun clearImportFile() {
+        _uiState.update { it.copy(importFileName = null) }
+    }
+
+    fun importArchive(
+        fileName: String,
+        bytes: ByteArray,
+        mimeType: String,
+    ) {
+        // Mirrors FilesViewModel.uploadFile: multipart file + force (issue #786)
+        val forceBody = "false".toRequestBody("text/plain".toMediaTypeOrNull())
+        val part =
+            MultipartBody.Part.createFormData(
+                "file",
+                fileName,
+                bytes.toRequestBody(mimeType.toMediaTypeOrNull()),
+            )
+        _uiState.update { it.copy(isImporting = true) }
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.importUpload(forceBody, part)
+                    }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    result.data.name?.let { pollActionStatus(it) }
+                    _uiState.update {
+                        it.copy(
+                            isImporting = false,
+                            importFileName = null,
+                            toastMessage = "Import started",
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isImporting = false,
+                            toastMessage = "Import failed: ${result.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun toastImportError(message: String) {
+        _uiState.update { it.copy(toastMessage = message) }
     }
 
     // ── Debug share actions ────────────────────────────────────────────

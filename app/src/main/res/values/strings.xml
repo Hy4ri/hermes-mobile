@@ -425,8 +425,7 @@
     <string name="system_sec_backup">Backup</string>
     <string name="system_sec_restore">Restore from upload</string>
     <string name="system_op_restore_upload">Restore upload</string>
-    <string name="system_op_restore_path_label">Restore from backups path</string>
-    <string name="system_op_restore_path">Restore path</string>
+    <string name="system_op_restore_pick">Choose backup archive</string>
     <string name="system_op_import_confirm_title">Restore full Hermes backup?</string>
     <string name="system_op_import_confirm_desc">This will overwrite your current Hermes configuration, skills, sessions, and data. This cannot be undone.</string>
 

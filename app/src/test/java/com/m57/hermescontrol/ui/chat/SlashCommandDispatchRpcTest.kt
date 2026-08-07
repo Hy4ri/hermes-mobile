@@ -375,10 +375,10 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 CompletableDeferred<Any?>(Unit)
             }
@@ -389,8 +389,10 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/init")
             advanceUntilIdle()
 
-            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
-            val params = paramsSlot.captured
+            // Find the dispatch record (capture race — see the /help test).
+            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
+            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
+            val params = paramsCalls[dispatchIndex]
             assertEquals("init", params["name"])
             assertEquals("", params["arg"])
             assertEquals(sessionId, params["session_id"])
@@ -401,10 +403,10 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 CompletableDeferred<Any?>(Unit)
             }
@@ -412,8 +414,10 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/init extra context here")
             advanceUntilIdle()
 
-            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
-            val params = paramsSlot.captured
+            // Find the dispatch record (capture race — see the /help test).
+            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
+            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
+            val params = paramsCalls[dispatchIndex]
             assertEquals("init", params["name"])
             assertEquals("extra context here", params["arg"])
             assertEquals(sessionId, params["session_id"])
@@ -424,10 +428,10 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 CompletableDeferred<Any?>(Unit)
             }
@@ -438,8 +442,10 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/focus")
             advanceUntilIdle()
 
-            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
-            val params = paramsSlot.captured
+            // Find the dispatch record (capture race — see the /help test).
+            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
+            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
+            val params = paramsCalls[dispatchIndex]
             assertEquals("focus", params["name"])
             assertEquals("", params["arg"])
             assertEquals(sessionId, params["session_id"])
@@ -450,10 +456,10 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 CompletableDeferred<Any?>(Unit)
             }
@@ -461,8 +467,10 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/focus on")
             advanceUntilIdle()
 
-            assertEquals(WsMethods.COMMAND_DISPATCH, methodSlot.captured)
-            val params = paramsSlot.captured
+            // Find the dispatch record (capture race — see the /help test).
+            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
+            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
+            val params = paramsCalls[dispatchIndex]
             assertEquals("focus", params["name"])
             assertEquals("on", params["arg"])
             assertEquals(sessionId, params["session_id"])
@@ -473,14 +481,14 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, _) = createViewModelWithSession()
 
-            val methodSlot = slot<String>()
-            val paramsSlot = slot<Map<String, Any>>()
+            val methodCalls = mutableListOf<String>()
+            val paramsCalls = mutableListOf<Map<String, Any>>()
             val sentText = slot<String>()
             every {
-                HermesWsClient.request(capture(methodSlot), capture(paramsSlot), any())
+                HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 val d = CompletableDeferred<Any?>()
-                if (methodSlot.captured == WsMethods.COMMAND_DISPATCH) {
+                if (methodCalls.last() == WsMethods.COMMAND_DISPATCH) {
                     // Backend /init returns type:"send" with the AGENTS.md prompt.
                     d.complete(mapOf("type" to "send", "message" to "Scan this repo and write AGENTS.md"))
                 } else {

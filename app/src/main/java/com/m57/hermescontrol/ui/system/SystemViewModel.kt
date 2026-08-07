@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActionStatusResponse
+import com.m57.hermescontrol.data.model.BackupTriggerRequest
 import com.m57.hermescontrol.data.model.CheckpointsResponse
 import com.m57.hermescontrol.data.model.CredentialPoolProvider
 import com.m57.hermescontrol.data.model.CuratorResponse
@@ -421,7 +422,12 @@ class SystemViewModel :
 
     fun triggerBackup() {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { safeApiCall { ApiClient.hermesApi.triggerBackup() } }
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall {
+                        ApiClient.hermesApi.triggerBackup(BackupTriggerRequest())
+                    }
+                }
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update {

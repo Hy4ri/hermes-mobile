@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.model.AddMcpServerRequest
 import com.m57.hermescontrol.data.model.AgentPluginInstallBody
 import com.m57.hermescontrol.data.model.AnalyticsResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
+import com.m57.hermescontrol.data.model.BackupTriggerRequest
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.BulkDeleteResponse
 import com.m57.hermescontrol.data.model.CheckpointsResponse
@@ -750,8 +751,11 @@ interface HermesApiService {
         @Body request: EnvVarDeleteRequest,
     ): Response<Unit>
 
+    // Backend requires a JSON body (BackupRequest) — bodyless POST 422s.
     @POST("api/ops/backup")
-    suspend fun triggerBackup(): Response<ActionResponse>
+    suspend fun triggerBackup(
+        @Body body: BackupTriggerRequest,
+    ): Response<ActionResponse>
 
     @POST("api/ops/doctor")
     suspend fun runDoctor(): Response<DoctorResponse>

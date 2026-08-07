@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.AuxiliaryModelsResponse
+import com.m57.hermescontrol.data.model.BackupTriggerRequest
 import com.m57.hermescontrol.data.model.CheckpointsResponse
 import com.m57.hermescontrol.data.model.CredentialPoolResponse
 import com.m57.hermescontrol.data.model.CronJob
@@ -1179,7 +1180,7 @@ class E2eIntegrationTest {
             coEvery { mockApiService.getHooks() } returns Response.success(HookResponse())
             coEvery { mockApiService.checkHermesUpdate(false) } returns
                 Response.success(UpdateCheckResponse())
-            coEvery { mockApiService.triggerBackup() } returns Response.success(ActionResponse())
+            coEvery { mockApiService.triggerBackup(BackupTriggerRequest()) } returns Response.success(ActionResponse())
 
             val viewModel = SystemViewModel()
             viewModel.loadAll()

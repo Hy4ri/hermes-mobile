@@ -12,3 +12,13 @@ data class ActionResponse(
     val uploaded_bytes: Long? = null,
     val update_command: String? = null,
 )
+
+/**
+ * Body for POST /api/ops/backup — the backend requires a JSON body
+ * (BackupRequest; `output` optional). Sending no body at all gets a 422.
+ * Empty object (default) matches the desktop's `{"output": ...}` contract.
+ */
+@Serializable
+data class BackupTriggerRequest(
+    val output: String? = null,
+)

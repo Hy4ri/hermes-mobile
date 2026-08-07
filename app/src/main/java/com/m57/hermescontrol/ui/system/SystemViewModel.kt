@@ -72,6 +72,8 @@ data class SystemUiState(
     // Import (issue #786): SAF-picked backup archive staged by the screen
     val importFileName: String? = null,
     val isImporting: Boolean = false,
+    // True while the async backup-archive retry loop is running
+    val isDownloading: Boolean = false,
     // Debug share
     val shareRedact: Boolean = true,
     val sharing: Boolean = false,
@@ -458,9 +460,10 @@ class SystemViewModel :
      * trigger returns the path instantly, but the zip (can be hundreds of MB)
      * takes a while to write. The backend 404s ("Backup not found") until the
      * file exists, so a 404 is retried with a delay instead of failing the tap.
-     * Bytes are handed to [onBytes] (the screen saves them via MediaImageStore).
+     * The @Streaming body is handed to [onBody] — the screen streams it to
+     * Downloads via MediaImageStore (never buffered in memory).
      */
-    fun downloadBackup(onBytes: (bytes: ByteArray, fileName: String) -> Unit) {
+    fun downloadBackup(onBody: (body: okhttp3.ResponseBody, fileName: String) -> Unit) {
         val archive =
             _uiState.value.backupArchive ?: run {
                 _uiState.update { it.copy(toastMessage = "No backup archive available") }
@@ -471,46 +474,46 @@ class SystemViewModel :
         downloadJob?.cancel()
         downloadJob =
             viewModelScope.launch {
-                var waitingNotified = false
-                var attempt = 0
-                while (attempt < MAX_DOWNLOAD_ATTEMPTS) {
-                    val result =
-                        withContext(Dispatchers.IO) {
-                            safeApiCall { ApiClient.hermesApi.downloadBackup(archive) }
-                        }
-                    when (result) {
-                        is NetworkResult.Success -> {
-                            val bytes =
-                                withContext(Dispatchers.IO) {
-                                    runCatching { result.data.bytes() }.getOrNull()
-                                }
-                            if (bytes != null && bytes.isNotEmpty()) {
-                                onBytes(bytes, archive.substringAfterLast('/'))
-                            } else {
-                                _uiState.update { it.copy(toastMessage = "Failed to read backup response") }
+                _uiState.update { it.copy(isDownloading = true) }
+                try {
+                    var attempt = 0
+                    while (attempt < MAX_DOWNLOAD_ATTEMPTS) {
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                safeApiCall { ApiClient.hermesApi.downloadBackup(archive) }
                             }
-                            return@launch
-                        }
-
-                        is NetworkResult.Failure -> {
-                            val code = (result.error as? NetworkError.Http)?.code
-                            if (code == 404) {
-                                if (!waitingNotified) {
-                                    waitingNotified = true
-                                    _uiState.update { it.copy(toastMessage = "Waiting for backup to finish…") }
-                                }
-                                attempt++
-                                delay(DOWNLOAD_RETRY_DELAY_MS)
-                            } else {
-                                _uiState.update {
-                                    it.copy(toastMessage = "Failed to download backup: ${result.error.message}")
-                                }
+                        when (result) {
+                            is NetworkResult.Success -> {
+                                // @Streaming body — hand it off as-is; the screen
+                                // streams it to Downloads (never bytes() — OOM).
+                                onBody(result.data, archive.substringAfterLast('/'))
                                 return@launch
+                            }
+
+                            is NetworkResult.Failure -> {
+                                val code = (result.error as? NetworkError.Http)?.code
+                                if (code == 404) {
+                                    // Live countdown so the wait is visible —
+                                    // 328MB backups took ~60s in testing.
+                                    val elapsed = attempt * DOWNLOAD_RETRY_DELAY_MS / 1000
+                                    _uiState.update {
+                                        it.copy(toastMessage = "Waiting for backup… ${elapsed}s")
+                                    }
+                                    attempt++
+                                    delay(DOWNLOAD_RETRY_DELAY_MS)
+                                } else {
+                                    _uiState.update {
+                                        it.copy(toastMessage = "Failed to download backup: ${result.error.message}")
+                                    }
+                                    return@launch
+                                }
                             }
                         }
                     }
+                    _uiState.update { it.copy(toastMessage = "Backup is still being created — try again in a moment") }
+                } finally {
+                    _uiState.update { it.copy(isDownloading = false) }
                 }
-                _uiState.update { it.copy(toastMessage = "Backup is still being created — try again in a moment") }
             }
     }
 

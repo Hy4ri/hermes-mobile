@@ -145,6 +145,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 interface HermesApiService {
     @GET("api/skills/content")
@@ -873,6 +874,9 @@ interface HermesApiService {
     ): Response<ActionResponse>
 
     // ── Admin: Backup download ────────────────────────────────────────
+    // @Streaming: backups are 300+ MB — Retrofit's default buffering of
+    // ResponseBody OOMs the app (observed crash with a 327MB archive).
+    @Streaming
     @GET("api/ops/backup/download")
     suspend fun downloadBackup(
         @Query("archive") archive: String,

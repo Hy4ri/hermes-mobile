@@ -354,18 +354,25 @@ fun SystemScreen(
                             )
                         },
                         {
-                            viewModel.downloadBackup { bytes, fileName ->
-                                val uri =
-                                    MediaImageStore.saveToDownloads(
-                                        context,
-                                        bytes,
-                                        fileName,
-                                        "application/zip",
-                                    )
-                                if (uri != null) {
-                                    viewModel.showToast("Backup saved to Downloads")
-                                } else {
-                                    viewModel.showToast("Could not save backup to Downloads")
+                            viewModel.downloadBackup { body, fileName ->
+                                importScope.launch {
+                                    val uri =
+                                        withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                MediaImageStore.saveToDownloads(
+                                                    context,
+                                                    body.byteStream(),
+                                                    body.contentLength().takeIf { it >= 0 },
+                                                    fileName,
+                                                    "application/zip",
+                                                )
+                                            }.getOrNull()
+                                        }
+                                    if (uri != null) {
+                                        viewModel.showToast("Backup saved to Downloads")
+                                    } else {
+                                        viewModel.showToast("Could not save backup to Downloads")
+                                    }
                                 }
                             }
                         },
@@ -1176,13 +1183,28 @@ private fun LazyListScope.operationsSection(
                     }
                     OutlinedButton(
                         onClick = downloadBackup,
-                        enabled = state.backupArchive != null,
+                        enabled = state.backupArchive != null && !state.isDownloading,
                         modifier = Modifier.weight(1f),
                         contentPadding = actionButtonPadding,
                     ) {
-                        ActionButtonContent(
-                            icon = Icons.Filled.CloudDownload,
+                        if (state.isDownloading) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(modifier = Modifier.size(spacing.xs))
+                        } else {
+                            Icon(
+                                Icons.Filled.CloudDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.size(spacing.xs))
+                        }
+                        Text(
                             text = stringResource(R.string.system_op_backup_download),
+                            maxLines = 1,
+                            softWrap = false,
                         )
                     }
                 }

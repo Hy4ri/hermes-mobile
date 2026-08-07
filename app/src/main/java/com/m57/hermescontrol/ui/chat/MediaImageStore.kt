@@ -7,7 +7,9 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
+import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.InputStream
 
 /**
  * Persist / dispatch chat images on the *device* (Downloads / Gallery / share
@@ -30,6 +32,19 @@ object MediaImageStore {
         bytes: ByteArray,
         displayName: String,
         mimeType: String,
+    ): Uri? = saveToDownloads(context, ByteArrayInputStream(bytes), bytes.size.toLong(), displayName, mimeType)
+
+    /**
+     * Streaming variant of [saveToDownloads] — for large payloads (e.g. backup
+     * archives, 300+ MB) that must NOT be held in memory as a [ByteArray].
+     * Copies [input] to the Download collection in chunks. Same return contract.
+     */
+    fun saveToDownloads(
+        context: Context,
+        input: InputStream,
+        length: Long?,
+        displayName: String,
+        mimeType: String,
     ): Uri? {
         val safe = sanitizeName(displayName)
         val (collection, relativePath) =
@@ -42,6 +57,9 @@ object MediaImageStore {
             ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, safe)
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                if (length != null) {
+                    put(MediaStore.MediaColumns.SIZE, length)
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -50,7 +68,9 @@ object MediaImageStore {
         val resolver = context.contentResolver
         val uri = resolver.insert(collection, values) ?: return null
         return try {
-            resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: return null.also {
+            resolver.openOutputStream(uri)?.use { out ->
+                input.use { it.copyTo(out, DEFAULT_BUFFER_SIZE) }
+            } ?: return null.also {
                 runCatching { resolver.delete(uri, null, null) }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

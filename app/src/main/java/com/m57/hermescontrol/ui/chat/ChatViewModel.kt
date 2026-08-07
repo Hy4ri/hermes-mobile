@@ -2401,7 +2401,10 @@ class ChatViewModel(
         if (known != null) return known
         val result =
             withContext(ioDispatcher) {
-                safeApiCall { ApiClient.hermesApi.getSessions(limit = 500, offset = 0, order = "recent") }
+                // Backend caps limit at 100 (sessions.py Query le=100) — 500
+                // 422'd (seen in device logcat after a branch). Sessions are
+                // ordered "recent", so the target is always in the top page.
+                safeApiCall { ApiClient.hermesApi.getSessions(limit = 100, offset = 0, order = "recent") }
             }
         if (result is NetworkResult.Success) {
             val sessions = result.data.sessions.orEmpty()

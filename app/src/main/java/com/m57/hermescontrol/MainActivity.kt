@@ -18,6 +18,18 @@ import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.util.LocaleContextWrapper
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        /**
+         * Action that identifies notification-driven "open this chat" intents.
+         * [ChatNotificationService] stamps it on the content intent; the
+         * consumer refuses anything else (issue #832 — MainActivity is
+         * exported as the launcher, so a foreign app could otherwise inject
+         * a session id via an explicit intent).
+         */
+        const val ACTION_OPEN_CHAT_FROM_NOTIFICATION =
+            "com.m57.hermescontrol.ACTION_OPEN_CHAT_FROM_NOTIFICATION"
+    }
+
     /**
      * Apply the user-selected display language before any view is inflated.
      * Reads the persisted code from [AuthManager]; an uninitialized store
@@ -62,6 +74,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun consumeNotificationIntent(intent: Intent?) {
+        // Issue #832: MainActivity is exported (launcher requirement) — only
+        // honor intents stamped with our own notification action.
+        if (intent?.action != ACTION_OPEN_CHAT_FROM_NOTIFICATION) return
         val sessionId = intent?.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
         intent?.removeExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
         sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSession)

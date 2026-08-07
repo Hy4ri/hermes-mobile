@@ -185,7 +185,7 @@ class ChatNotificationService : Service() {
     private fun buildContentIntent(sessionId: String?): PendingIntent {
         val intent =
             Intent(this, MainActivity::class.java).apply {
-                action = "$packageName.ACTION_OPEN_CHAT_FROM_NOTIFICATION"
+                action = MainActivity.ACTION_OPEN_CHAT_FROM_NOTIFICATION
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
         if (!sessionId.isNullOrBlank()) {

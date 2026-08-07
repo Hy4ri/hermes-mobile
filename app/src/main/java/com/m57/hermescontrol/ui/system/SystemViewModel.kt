@@ -87,15 +87,16 @@ class SystemViewModel :
         private const val TAG = "SystemViewModel"
 
         // The backup action is async — retry a 404 download until the zip
-        // exists (up to ~2 minutes), then give up.
+        // exists (up to ~3 minutes, 328MB backups took ~70s in testing).
         private const val DOWNLOAD_RETRY_DELAY_MS = 5_000L
-        private const val MAX_DOWNLOAD_ATTEMPTS = 24
+        private const val MAX_DOWNLOAD_ATTEMPTS = 36
     }
 
     private val _uiState = MutableStateFlow(SystemUiState())
     val uiState: StateFlow<SystemUiState> = _uiState.asStateFlow()
 
     private var actionPollingJob: Job? = null
+    private var downloadJob: Job? = null
 
     // ── Full parallel data load ────────────────────────────────────────
 
@@ -465,48 +466,52 @@ class SystemViewModel :
                 _uiState.update { it.copy(toastMessage = "No backup archive available") }
                 return
             }
-        viewModelScope.launch {
-            var waitingNotified = false
-            var attempt = 0
-            while (attempt < MAX_DOWNLOAD_ATTEMPTS) {
-                val result =
-                    withContext(Dispatchers.IO) {
-                        safeApiCall { ApiClient.hermesApi.downloadBackup(archive) }
-                    }
-                when (result) {
-                    is NetworkResult.Success -> {
-                        val bytes =
-                            withContext(Dispatchers.IO) {
-                                runCatching { result.data.bytes() }.getOrNull()
-                            }
-                        if (bytes != null && bytes.isNotEmpty()) {
-                            onBytes(bytes, archive.substringAfterLast('/'))
-                        } else {
-                            _uiState.update { it.copy(toastMessage = "Failed to read backup response") }
+        // Single-flight: a second tap while a retry loop is running must not
+        // spawn a parallel loop (logcat showed interleaved duplicate requests).
+        downloadJob?.cancel()
+        downloadJob =
+            viewModelScope.launch {
+                var waitingNotified = false
+                var attempt = 0
+                while (attempt < MAX_DOWNLOAD_ATTEMPTS) {
+                    val result =
+                        withContext(Dispatchers.IO) {
+                            safeApiCall { ApiClient.hermesApi.downloadBackup(archive) }
                         }
-                        return@launch
-                    }
-
-                    is NetworkResult.Failure -> {
-                        val code = (result.error as? NetworkError.Http)?.code
-                        if (code == 404) {
-                            if (!waitingNotified) {
-                                waitingNotified = true
-                                _uiState.update { it.copy(toastMessage = "Waiting for backup to finish…") }
-                            }
-                            attempt++
-                            delay(DOWNLOAD_RETRY_DELAY_MS)
-                        } else {
-                            _uiState.update {
-                                it.copy(toastMessage = "Failed to download backup: ${result.error.message}")
+                    when (result) {
+                        is NetworkResult.Success -> {
+                            val bytes =
+                                withContext(Dispatchers.IO) {
+                                    runCatching { result.data.bytes() }.getOrNull()
+                                }
+                            if (bytes != null && bytes.isNotEmpty()) {
+                                onBytes(bytes, archive.substringAfterLast('/'))
+                            } else {
+                                _uiState.update { it.copy(toastMessage = "Failed to read backup response") }
                             }
                             return@launch
                         }
+
+                        is NetworkResult.Failure -> {
+                            val code = (result.error as? NetworkError.Http)?.code
+                            if (code == 404) {
+                                if (!waitingNotified) {
+                                    waitingNotified = true
+                                    _uiState.update { it.copy(toastMessage = "Waiting for backup to finish…") }
+                                }
+                                attempt++
+                                delay(DOWNLOAD_RETRY_DELAY_MS)
+                            } else {
+                                _uiState.update {
+                                    it.copy(toastMessage = "Failed to download backup: ${result.error.message}")
+                                }
+                                return@launch
+                            }
+                        }
                     }
                 }
+                _uiState.update { it.copy(toastMessage = "Backup is still being created — try again in a moment") }
             }
-            _uiState.update { it.copy(toastMessage = "Backup is still being created — try again in a moment") }
-        }
     }
 
     fun setImportFile(name: String) {

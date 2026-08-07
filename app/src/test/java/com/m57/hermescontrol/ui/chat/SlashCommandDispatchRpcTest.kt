@@ -272,11 +272,10 @@ class SlashCommandDispatchRpcTest {
         runTest {
             val (vm, _) = createViewModelWithSession()
 
-            var rpcCalls = 0
+            val rpcMethods = mutableListOf<String>()
             every {
-                HermesWsClient.request(any(), any(), any())
+                HermesWsClient.request(capture(rpcMethods), any(), any())
             } answers {
-                rpcCalls++
                 CompletableDeferred<Any?>(Unit)
             }
 
@@ -292,7 +291,19 @@ class SlashCommandDispatchRpcTest {
                 "expected a 'not supported on mobile' message, got: ${last?.content}",
                 last?.content?.contains("not supported on mobile") == true,
             )
-            assertEquals("no RPC should fire for a blocklisted command", 0, rpcCalls)
+            // No command RPC may fire for a blocklisted command. The create
+            // flow's session.usage/context_breakdown requests are unrelated
+            // noise that can land in the capture window (capture race) — the
+            // blocklist contract is about command dispatch, so assert on that.
+            val commandRpc =
+                rpcMethods.filter {
+                    it == WsMethods.COMMAND_DISPATCH || it == WsMethods.SLASH_EXEC
+                }
+            assertEquals(
+                "no RPC should fire for a blocklisted command, got $rpcMethods",
+                emptyList<String>(),
+                commandRpc,
+            )
         }
 
     @Test

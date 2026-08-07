@@ -39,6 +39,7 @@ data class SessionsUiState(
     val isSelecting: Boolean = false,
     val selectedIds: Set<String> = emptySet(),
     val renamingSessionId: String? = null,
+    val renameDraft: String = "",
     val deletingSessionIds: Set<String> = emptySet(),
     val showPruneDialog: Boolean = false,
     val isPruning: Boolean = false,
@@ -283,12 +284,33 @@ class SessionsViewModel :
 
     // ── Rename ───────────────────────────────────────────────────────────
 
+    fun openRenameDialog(
+        sessionId: String,
+        currentTitle: String,
+    ) {
+        _uiState.update { it.copy(renamingSessionId = sessionId, renameDraft = currentTitle) }
+    }
+
+    fun updateRenameDraft(value: String) {
+        _uiState.update { it.copy(renameDraft = value) }
+    }
+
+    fun closeRenameDialog() {
+        _uiState.update { it.copy(renamingSessionId = null, renameDraft = "") }
+    }
+
     fun renameSession(
         sessionId: String,
         newTitle: String,
     ) {
         if (newTitle.isBlank()) {
-            _uiState.update { it.copy(renamingSessionId = null, toastMessage = "Title cannot be empty") }
+            _uiState.update {
+                it.copy(
+                    renamingSessionId = null,
+                    renameDraft = "",
+                    toastMessage = "Title cannot be empty",
+                )
+            }
             return
         }
         viewModelScope.launch {
@@ -304,6 +326,7 @@ class SessionsViewModel :
                     _uiState.update {
                         it.copy(
                             renamingSessionId = null,
+                            renameDraft = "",
                             sessions =
                                 it.sessions.map { s ->
                                     if (s.id == sessionId) s.copy(title = newTitle) else s
@@ -317,6 +340,7 @@ class SessionsViewModel :
                     _uiState.update {
                         it.copy(
                             renamingSessionId = null,
+                            renameDraft = "",
                             toastMessage = "Rename failed: ${result.error.message}",
                         )
                     }

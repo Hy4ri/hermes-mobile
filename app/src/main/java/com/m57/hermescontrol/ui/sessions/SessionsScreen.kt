@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
@@ -48,6 +49,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -447,6 +450,36 @@ fun SessionsScreen(
         )
     }
 
+    // Single-session rename dialog (issue #785) — opened from the card's
+    // hold menu; PATCH /api/sessions/{id} with {title}.
+    state.renamingSessionId?.let { sessionId ->
+        AlertDialog(
+            onDismissRequest = { viewModel.closeRenameDialog() },
+            title = { Text(stringResource(R.string.sessions_rename_title)) },
+            text = {
+                OutlinedTextField(
+                    value = state.renameDraft,
+                    onValueChange = { viewModel.updateRenameDraft(it) },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.sessions_rename_hint)) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.renameSession(sessionId, state.renameDraft) },
+                    enabled = state.renameDraft.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.sessions_action_rename))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.closeRenameDialog() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_history)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
@@ -558,15 +591,19 @@ fun SessionsScreen(
                                                             NavigationController.openChatSession(session.id)
                                                         }
                                                     },
-                                                    onCardLongClick = {
-                                                        if (!state.isSelecting) {
-                                                            viewModel.toggleSelecting()
-                                                            viewModel.toggleSessionSelection(session.id)
-                                                        }
-                                                    },
                                                     onToggleSelection = {
                                                         viewModel.toggleSessionSelection(
                                                             session.id,
+                                                        )
+                                                    },
+                                                    onSelect = {
+                                                        viewModel.toggleSelecting()
+                                                        viewModel.toggleSessionSelection(session.id)
+                                                    },
+                                                    onRename = {
+                                                        viewModel.openRenameDialog(
+                                                            session.id,
+                                                            session.title.orEmpty(),
                                                         )
                                                     },
                                                     onDelete = { viewModel.requestDeleteSession(session.id) },
@@ -693,13 +730,17 @@ fun SessionsScreen(
                                                 NavigationController.openChatSession(session.id)
                                             }
                                         },
-                                        onCardLongClick = {
-                                            if (!state.isSelecting) {
-                                                viewModel.toggleSelecting()
-                                                viewModel.toggleSessionSelection(session.id)
-                                            }
-                                        },
                                         onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
+                                        onSelect = {
+                                            viewModel.toggleSelecting()
+                                            viewModel.toggleSessionSelection(session.id)
+                                        },
+                                        onRename = {
+                                            viewModel.openRenameDialog(
+                                                session.id,
+                                                item.displayTitle,
+                                            )
+                                        },
                                         onDelete = { viewModel.requestDeleteSession(session.id) },
                                     )
                                 }
@@ -848,14 +889,16 @@ private fun SessionCard(
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
-    onCardLongClick: () -> Unit,
     onToggleSelection: () -> Unit,
+    onSelect: () -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
     val isActive = session.status?.lowercase() == "active" || session.status?.lowercase() == "streaming"
     val srcIcon = sourceIcon(session.source)
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Card(
         modifier =
@@ -865,7 +908,11 @@ private fun SessionCard(
                 .testTag("session_card_${session.id}")
                 .combinedClickable(
                     onClick = onCardClick,
-                    onLongClick = onCardLongClick,
+                    // Long-press opens the per-session action menu (issue #785):
+                    // Select / Rename / Delete. The old long-press behavior
+                    // (jump straight into selection mode) is now the menu's
+                    // "Select" item.
+                    onLongClick = { if (!isSelecting) menuExpanded = true },
                 ),
         colors =
             CardDefaults.cardColors(
@@ -880,100 +927,96 @@ private fun SessionCard(
                 null
             },
     ) {
-        Row(
-            modifier = Modifier.padding(spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Checkbox in select mode
-            if (isSelecting) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onToggleSelection() },
-                    modifier = Modifier.testTag("session_checkbox_${session.id}"),
-                )
-                Spacer(modifier = Modifier.width(spacing.sm))
-            }
-
-            // Branch tree stem
-            if (branchStem != null && !isSelecting) {
-                Text(
-                    text = branchStem,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.outline,
-                )
-                Spacer(modifier = Modifier.width(spacing.sm))
-            }
-
-            // Source icon
-            if (srcIcon != null && !isSelecting) {
-                Icon(
-                    imageVector = srcIcon,
-                    contentDescription = sourceLabel(session.source),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(spacing.sm))
-            }
-
-            // Main content
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text =
-                        if (query.isNotBlank()) {
-                            highlightText(displayTitle, query, highlightBackground, highlightForeground)
-                        } else {
-                            AnnotatedString(displayTitle)
-                        },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                Spacer(modifier = Modifier.height(spacing.xs))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.history_message_count, session.message_count ?: 0),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Box {
+            Row(
+                modifier = Modifier.padding(spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Checkbox in select mode
+                if (isSelecting) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleSelection() },
+                        modifier = Modifier.testTag("session_checkbox_${session.id}"),
                     )
-                    if (!session.status.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.width(spacing.sm))
-                        StatusBadge(
-                            text = session.status,
-                            status = if (isActive) StatusBadgeType.SUCCESS else StatusBadgeType.NEUTRAL,
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(spacing.sm))
                 }
-            }
 
-            // Action buttons (not in select mode)
-            if (!isSelecting) {
-                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    // Delete
-                    if (isDeleting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
+                // Branch tree stem
+                if (branchStem != null && !isSelecting) {
+                    Text(
+                        text = branchStem,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Spacer(modifier = Modifier.width(spacing.sm))
+                }
+
+                // Source icon
+                if (srcIcon != null && !isSelecting) {
+                    Icon(
+                        imageVector = srcIcon,
+                        contentDescription = sourceLabel(session.source),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(spacing.sm))
+                }
+
+                // Main content
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text =
+                            if (query.isNotBlank()) {
+                                highlightText(displayTitle, query, highlightBackground, highlightForeground)
+                            } else {
+                                AnnotatedString(displayTitle)
+                            },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Spacer(modifier = Modifier.height(spacing.xs))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.history_message_count, session.message_count ?: 0),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    } else {
-                        IconButton(
-                            onClick = onDelete,
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.action_delete),
-                                modifier = Modifier.size(16.dp),
-                                tint = statusColors.error,
+                        if (!session.status.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.width(spacing.sm))
+                            StatusBadge(
+                                text = session.status,
+                                status = if (isActive) StatusBadgeType.SUCCESS else StatusBadgeType.NEUTRAL,
                             )
                         }
                     }
                 }
             }
+
+            // Per-session action menu (hold the card to open)
+            SessionActionMenu(
+                expanded = menuExpanded,
+                onDismiss = { menuExpanded = false },
+                isDeleting = isDeleting,
+                onSelect = {
+                    menuExpanded = false
+                    onSelect()
+                },
+                onRename = {
+                    menuExpanded = false
+                    onRename()
+                },
+                onDelete = {
+                    menuExpanded = false
+                    onDelete()
+                },
+            )
         }
     }
 }
@@ -994,15 +1037,16 @@ private fun SearchResultCard(
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
-    onCardLongClick: () -> Unit,
     onToggleSelection: () -> Unit,
+    onSelect: () -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    val statusColors = LocalHermesStatusColors.current
     val snippet = session.preview?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
     val cleanSnippet = cleanSearchSnippet(snippet)
     val playedAt = formatPlayedAt(session.started_at)
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Card(
         modifier =
@@ -1011,7 +1055,8 @@ private fun SearchResultCard(
                 .testTag("session_card_${session.id}")
                 .combinedClickable(
                     onClick = onCardClick,
-                    onLongClick = onCardLongClick,
+                    // Long-press opens the per-session action menu (issue #785)
+                    onLongClick = { if (!isSelecting) menuExpanded = true },
                 ),
         colors =
             CardDefaults.cardColors(
@@ -1024,113 +1069,155 @@ private fun SearchResultCard(
                 null
             },
     ) {
-        Row(
-            modifier = Modifier.padding(spacing.sm),
-            verticalAlignment = Alignment.Top,
-        ) {
-            // Checkbox in select mode
-            if (isSelecting) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onToggleSelection() },
-                    modifier = Modifier.testTag("session_checkbox_${session.id}"),
-                )
-                Spacer(modifier = Modifier.width(spacing.sm))
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                // Header row: "Match" label + source icon
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(spacing.xs),
-                ) {
-                    val srcIcon = sourceIcon(session.source)
-                    if (srcIcon != null && !isSelecting) {
-                        Icon(
-                            imageVector = srcIcon,
-                            contentDescription = sourceLabel(session.source),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    Text(
-                        text = stringResource(R.string.sessions_search_match_label),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 0.5.sp,
+        Box {
+            Row(
+                modifier = Modifier.padding(spacing.sm),
+                verticalAlignment = Alignment.Top,
+            ) {
+                // Checkbox in select mode
+                if (isSelecting) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleSelection() },
+                        modifier = Modifier.testTag("session_checkbox_${session.id}"),
                     )
-                    if (!session.id.isNullOrBlank()) {
-                        Text(
-                            text = "· ${session.id.take(8)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(spacing.sm))
                 }
 
-                Spacer(modifier = Modifier.height(spacing.xs))
-
-                // The matched snippet, highlighted — shown as the body, NOT as a title.
-                Text(
-                    text = highlightText(cleanSnippet, query, highlightBackground, highlightForeground),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                Spacer(modifier = Modifier.height(spacing.xs))
-
-                // Metadata chips row
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(spacing.xs),
-                    verticalArrangement = Arrangement.spacedBy(spacing.xs),
-                ) {
-                    session.source?.let { src ->
-                        StatusBadge(
-                            text = sourceLabel(src),
-                            status = StatusBadgeType.NEUTRAL,
-                        )
-                    }
-                    session.model?.let { mdl ->
-                        StatusBadge(
-                            text = stringResource(R.string.sessions_search_model_label) + ": " + mdl,
-                            status = StatusBadgeType.INFO,
-                        )
-                    }
-                    playedAt?.let { time ->
-                        StatusBadge(
-                            text = stringResource(R.string.sessions_search_played_at, time),
-                            status = StatusBadgeType.NEUTRAL,
-                        )
-                    }
-                }
-            }
-
-            // Action buttons (not in select mode)
-            if (!isSelecting) {
-                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                    if (isDeleting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        IconButton(
-                            onClick = onDelete,
-                            modifier = Modifier.size(32.dp),
-                        ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    // Header row: "Match" label + source icon
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                    ) {
+                        val srcIcon = sourceIcon(session.source)
+                        if (srcIcon != null && !isSelecting) {
                             Icon(
-                                imageVector = Icons.Filled.Delete,
-                                contentDescription = stringResource(R.string.action_delete),
+                                imageVector = srcIcon,
+                                contentDescription = sourceLabel(session.source),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp),
-                                tint = statusColors.error,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.sessions_search_match_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 0.5.sp,
+                        )
+                        if (!session.id.isNullOrBlank()) {
+                            Text(
+                                text = "· ${session.id.take(8)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(spacing.xs))
+
+                    // The matched snippet, highlighted — shown as the body, NOT as a title.
+                    Text(
+                        text = highlightText(cleanSnippet, query, highlightBackground, highlightForeground),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Spacer(modifier = Modifier.height(spacing.xs))
+
+                    // Metadata chips row
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                    ) {
+                        session.source?.let { src ->
+                            StatusBadge(
+                                text = sourceLabel(src),
+                                status = StatusBadgeType.NEUTRAL,
+                            )
+                        }
+                        session.model?.let { mdl ->
+                            StatusBadge(
+                                text = stringResource(R.string.sessions_search_model_label) + ": " + mdl,
+                                status = StatusBadgeType.INFO,
+                            )
+                        }
+                        playedAt?.let { time ->
+                            StatusBadge(
+                                text = stringResource(R.string.sessions_search_played_at, time),
+                                status = StatusBadgeType.NEUTRAL,
                             )
                         }
                     }
                 }
             }
+
+            // Per-session action menu (hold the card to open)
+            SessionActionMenu(
+                expanded = menuExpanded,
+                onDismiss = { menuExpanded = false },
+                isDeleting = isDeleting,
+                onSelect = {
+                    menuExpanded = false
+                    onSelect()
+                },
+                onRename = {
+                    menuExpanded = false
+                    onRename()
+                },
+                onDelete = {
+                    menuExpanded = false
+                    onDelete()
+                },
+            )
         }
+    }
+}
+
+/**
+ * Per-session hold menu (issue #785): Select / Rename / Delete. Opened by
+ * long-pressing a session card. Delete lives here instead of on the card,
+ * and Rename now lands on the working PATCH /api/sessions/{id} route.
+ */
+@Composable
+private fun SessionActionMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    isDeleting: Boolean,
+    onSelect: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val statusColors = LocalHermesStatusColors.current
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.sessions_action_select)) },
+            leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null) },
+            onClick = onSelect,
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.sessions_action_rename)) },
+            leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+            onClick = onRename,
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.action_delete)) },
+            leadingIcon = {
+                if (isDeleting) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = statusColors.error,
+                    )
+                }
+            },
+            enabled = !isDeleting,
+            onClick = onDelete,
+        )
     }
 }

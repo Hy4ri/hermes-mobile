@@ -520,6 +520,10 @@
     <string name="sessions_action_select_all">Select All</string>
     <string name="sessions_action_deselect_all">Deselect</string>
     <string name="sessions_action_delete_n">Delete %1$d</string>
+    <string name="sessions_action_select">Select</string>
+    <string name="sessions_action_rename">Rename</string>
+    <string name="sessions_rename_title">Rename Session</string>
+    <string name="sessions_rename_hint">Session title</string>
     <string name="content_desc_enter_selection">Select sessions</string>
     <string name="content_desc_exit_selection">Exit selection</string>
 

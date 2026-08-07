@@ -188,7 +188,9 @@ interface HermesApiService {
     @GET("api/sessions/stats")
     suspend fun getSessionStats(): Response<SessionStatsResponse>
 
-    @PUT("api/sessions/{id}/rename")
+    // Rename is PATCH /api/sessions/{id} with {title} — the backend never
+    // registered PUT .../rename (404; issue #785). Desktop uses the same PATCH.
+    @PATCH("api/sessions/{id}")
     suspend fun renameSession(
         // Preserve slashes in session IDs — backend generates IDs containing '/' characters (issue #468).
         // Contract: The server-generated sessionId must only contain URL-safe characters (no ?, #, or spaces).

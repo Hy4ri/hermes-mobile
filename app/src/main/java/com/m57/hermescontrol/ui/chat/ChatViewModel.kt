@@ -135,7 +135,19 @@ internal fun sameLogicalMessage(
         val kb = canonicalToolResultKey(b.content)
         return ka != null && ka == kb
     }
-    return a.content.trim() == b.content.trim()
+    val ta = a.content.trim()
+    val tb = b.content.trim()
+    if (ta == tb) return true
+    // Issue #842: a seal race can leave the live orphan a few trailing tokens
+    // short of the streamed narration (the last delta was still in the
+    // throttled buffer when tool.start sealed the message). The backend
+    // persists the COMPLETE copy, so the orphan is a strict prefix of the
+    // REST row. Accept prefix-covering only for substantial texts (>=40
+    // chars) so a short reply can never be swallowed by a longer message
+    // that merely starts with it.
+    return ta.length >= 40 &&
+        tb.length >= 40 &&
+        (tb.startsWith(ta) || ta.startsWith(tb))
 }
 
 /**
@@ -636,7 +648,15 @@ class ChatViewModel(
             is WsEvent.MessageComplete,
             is WsEvent.MessageDone,
             is WsEvent.ToolStart,
-            -> streamingController.flushPendingReasoning()
+            -> {
+                streamingController.flushPendingReasoning()
+                // Issue #842: the token buffer can hold deltas that landed
+                // <33ms before the transition. The reducer seals the
+                // streaming message into the orphan at tool.start — flush
+                // first so the seal carries the COMPLETE narration (a
+                // truncated seal fails the later REST dedupe and ghosts).
+                streamingController.flushPendingTokens()
+            }
 
             else -> Unit
         }
@@ -2324,7 +2344,11 @@ class ChatViewModel(
                                 }
                             }
                             val merged = mergedList.distinctBy { it.id }
-                            if (sameMessages(current.messages, merged)) current else current.copy(messages = merged)
+                            if (sameMessages(current.messages, merged)) {
+                                current
+                            } else {
+                                current.copy(messages = merged)
+                            }
                         }
                     }
 

@@ -97,6 +97,35 @@ class ChatStreamingController(
         flushReasoning()
     }
 
+    /**
+     * Force-flushes any throttled TOKEN buffer onto the streaming message
+     * before a state-transition event (ToolStart / MessageComplete /
+     * MessageDone). `handleMessageToken` only flushes when >=33ms have passed
+     * since the last flush, so a delta that lands just before the transition
+     * can still be sitting in the buffer. The reducer seals the streaming
+     * message into a finalized orphan at tool.start (issue #842) — sealing a
+     * stale copy truncated the narration's tail (observed on-device: the
+     * orphan ended "...chickpea" while the REST row ended "...chickpea
+     * goodness:"), which then failed the logical-match against the clean
+     * REST row and re-added the commentary as a ghost bubble. Flushing the
+     * tokens synchronously first makes the sealed orphan complete.
+     */
+    fun flushPendingTokens() {
+        val currentContent = streamingBuffer.toString()
+        if (currentContent.isEmpty()) return
+        streamingState.update { state ->
+            val current = state.streamingMessage ?: return@update state
+            state.copy(
+                streamingMessage =
+                    current.copy(
+                        content = currentContent,
+                        reasoningText =
+                            if (current.reasoningText.isNotBlank()) current.reasoningText else state.reasoningText,
+                    ),
+            )
+        }
+    }
+
     fun handleMessageToken(event: WsEvent.MessageToken) {
         if (!isCurrentSession(event.sessionId)) return
 

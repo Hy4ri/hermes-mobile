@@ -94,6 +94,39 @@ class ChatToolDedupeTest {
     }
 
     @Test
+    fun sameLogicalMessage_sealRaceTruncatedNarration_prefixCovered() {
+        // Issue #842 (on-device capture): the seal raced the throttled flush and
+        // the orphan missed the last deltas — it ends "...dreamy chickpea" while
+        // the backend persisted the COMPLETE narration "...dreamy chickpea
+        // goodness:". The orphan must count as covered (strict prefix, both
+        // sides substantial) so the reload doesn't ghost the commentary.
+        val orphan =
+            ChatMessage(
+                role = MessageRole.ASSISTANT,
+                content =
+                    "\n\ntool's loaded! 🔍 now searchin' for the **best hummus recipe**" +
+                        " — gimme dat creamy dreamy chickpea",
+            )
+        val rest =
+            ChatMessage(
+                role = MessageRole.ASSISTANT,
+                content =
+                    "tool's loaded! 🔍 now searchin' for the **best hummus recipe**" +
+                        " — gimme dat creamy dreamy chickpea goodness:",
+            )
+        assertTrue(sameLogicalMessage(orphan, rest))
+
+        // A SHORT truncated prefix must NOT swallow a longer message that merely
+        // starts with it ("ok" is not the same message as "okay bestie...").
+        assertFalse(
+            sameLogicalMessage(
+                ChatMessage(role = MessageRole.ASSISTANT, content = "ok"),
+                ChatMessage(role = MessageRole.ASSISTANT, content = "okay bestie, 3 searches comin' up!! 🔍"),
+            ),
+        )
+    }
+
+    @Test
     fun sameLogicalMessage_differentRoles_notSame() {
         val ws = ChatMessage(role = MessageRole.TOOL, content = wsToolContent)
         val rest = ChatMessage(role = MessageRole.ASSISTANT, content = wsToolContent)

@@ -44,6 +44,44 @@ class ChatStreamingControllerTest {
         }
 
     @Test
+    fun flushPendingTokens_flushesThrottledTokensBeforeSeal() =
+        runTest {
+            // Issue #842: a delta landing <33ms before tool.start stays in the
+            // throttled buffer; flushing the tokens before the reducer seals the
+            // orphan must push the COMPLETE narration onto the message.
+            val uiState = MutableStateFlow(ChatUiState())
+            val streamingState =
+                MutableStateFlow(
+                    StreamingState(
+                        streamingMessage =
+                            ChatMessage(
+                                role = MessageRole.ASSISTANT,
+                                content = "",
+                                isStreaming = true,
+                            ),
+                    ),
+                )
+            val controller = controller(this, uiState, streamingState, isTestEnvironment = { false })
+
+            controller.handleMessageToken(WsEvent.MessageToken("tool's loaded! 🔍 now searchin'", "session"))
+            // First delta flushes immediately.
+            assertEquals("tool's loaded! 🔍 now searchin'", streamingState.value.streamingMessage?.content)
+
+            // Second delta arrives <33ms later -> throttled, still buffered.
+            controller.handleMessageToken(WsEvent.MessageToken(" for the best hummus", "session"))
+            assertEquals("tool's loaded! 🔍 now searchin'", streamingState.value.streamingMessage?.content)
+
+            // The tool.start transition forces the buffered tokens out so the
+            // sealed orphan carries the complete narration.
+            controller.flushPendingTokens()
+
+            assertEquals(
+                "tool's loaded! 🔍 now searchin' for the best hummus",
+                streamingState.value.streamingMessage?.content,
+            )
+        }
+
+    @Test
     fun resetStreaming_clearsReasoningBufferSoStaleReasoningDoesNotResurrect() =
         runTest {
             val uiState = MutableStateFlow(ChatUiState())

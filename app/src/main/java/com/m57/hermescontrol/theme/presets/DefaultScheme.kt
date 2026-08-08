@@ -5,103 +5,148 @@ import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
 import com.m57.hermescontrol.theme.buildTheme
 
-/** Brand default theme — voltage purple primary, plasma amber secondary. */
+// ---------------------------------------------------------------------
+// Slate Dark — named swatches
+// ---------------------------------------------------------------------
+
+private val SlateDarkBg0 = Color(0xFF0F1416)
+private val SlateDarkBg1 = Color(0xFF171C1E)
+private val SlateDarkBg2 = Color(0xFF1B2022)
+private val SlateDarkBg3 = Color(0xFF252B2D)
+private val SlateDarkBg4 = Color(0xFF303638)
+private val SlateDarkFg1 = Color(0xFFDEE3E5)
+private val SlateDarkFg2 = Color(0xFFCEE7EC)
+private val SlateDarkFg3 = Color(0xFFBEC8CA)
+private val SlateGray = Color(0xFF889294) // same neutral gray in both modes
+
+// "Bright" accents — high-visibility variants against dark surfaces.
+private val SlateBrightTeal = Color(0xFF80D5D2)
+private val SlateBrightBlue = Color(0xFFA3C9EC)
+private val SlateBrightCyan = Color(0xFFB2CBD0)
+private val SlateBrightGreen = Color(0xFF81D692)
+private val SlateBrightYellow = Color(0xFFECC248)
+private val SlateBrightRed = Color(0xFFFFB4AB)
+private val SlateBrightInfo = Color(0xFF8ECEFF)
+
+// ---------------------------------------------------------------------
+// Slate Light — named swatches
+// ---------------------------------------------------------------------
+
+private val SlateLightBg0 = Color(0xFFF5FAFC)
+private val SlateLightBg1 = Color(0xFFEFF4F6)
+private val SlateLightBg2 = Color(0xFFE9EEF0)
+private val SlateLightBg3 = Color(0xFFE3E8EA)
+private val SlateLightBg4 = Color(0xFFDEE3E5)
+private val SlateLightFg1 = Color(0xFF171C1E)
+private val SlateLightFg2 = Color(0xFF051F23)
+private val SlateLightFg3 = Color(0xFF3F484A)
+
+// "Faded" accents — muted variants for light background contrast.
+private val SlateFadedTeal = Color(0xFF006A68)
+private val SlateFadedBlue = Color(0xFF3B6184)
+private val SlateFadedCyan = Color(0xFF4A6367)
+private val SlateFadedGreen = Color(0xFF126D2B)
+private val SlateFadedYellow = Color(0xFF725C00)
+private val SlateFadedRed = Color(0xFFBA1A1A)
+private val SlateFadedInfo = Color(0xFF006393)
+
+/** Default theme (Slate) — modern slate blues with teal accent notes. */
 val DefaultTheme =
     buildTheme(
         dark =
             PaletteColors(
-                primary = Color(0xFF7C5CFF),
-                onPrimary = Color(0xFFFFFFFF),
-                primaryContainer = Color(0xFF2B2159),
-                onPrimaryContainer = Color(0xFFD9CCFF),
-                secondary = Color(0xFFFFB627),
-                onSecondary = Color(0xFF000000),
-                secondaryContainer = Color(0xFF3D2F0F),
-                onSecondaryContainer = Color(0xFFFFE082),
-                tertiary = Color(0xFFFFE082),
-                onTertiary = Color(0xFF000000),
-                tertiaryContainer = Color(0xFF3D2F0F),
-                onTertiaryContainer = Color(0xFFFFE082),
-                background = Color(0xFF0B0B11),
-                onBackground = Color(0xFFE8E6EE),
-                surface = Color(0xFF121218),
-                onSurface = Color(0xFFE8E6EE),
-                surfaceVariant = Color(0xFF1C1C26),
-                onSurfaceVariant = Color(0xFFB6B2C4),
-                surfaceContainerLowest = Color(0xFF07070C),
-                surfaceContainerLow = Color(0xFF0F0F14),
-                surfaceContainer = Color(0xFF1C1C26),
-                surfaceContainerHigh = Color(0xFF262633),
-                surfaceContainerHighest = Color(0xFF30303D),
-                inverseSurface = Color(0xFFE8E6EE),
-                inverseOnSurface = Color(0xFF1A1A24),
-                inversePrimary = Color(0xFF5A3FE0),
-                outline = Color(0xFF4A4A5A),
-                outlineVariant = Color(0xFF2F2F3D),
-                scrim = Color(0xFF000000),
+                primary = SlateBrightTeal,
+                onPrimary = SlateDarkBg0,
+                primaryContainer = SlateDarkBg4,
+                onPrimaryContainer = SlateDarkFg1,
+                secondary = SlateBrightCyan,
+                onSecondary = SlateDarkBg0,
+                secondaryContainer = SlateDarkBg3,
+                onSecondaryContainer = SlateDarkFg2,
+                tertiary = SlateBrightBlue,
+                onTertiary = SlateDarkBg0,
+                tertiaryContainer = SlateDarkBg4,
+                onTertiaryContainer = SlateDarkFg1,
+                background = SlateDarkBg0,
+                onBackground = SlateDarkFg1,
+                surface = SlateDarkBg0,
+                onSurface = SlateDarkFg1,
+                surfaceVariant = SlateDarkBg1,
+                onSurfaceVariant = SlateDarkFg3,
+                surfaceContainerLowest = SlateDarkBg0,
+                surfaceContainerLow = SlateDarkBg1,
+                surfaceContainer = SlateDarkBg2,
+                surfaceContainerHigh = SlateDarkBg3,
+                surfaceContainerHighest = SlateDarkBg4,
+                inverseSurface = SlateDarkFg1,
+                inverseOnSurface = SlateDarkBg0,
+                inversePrimary = SlateFadedTeal,
+                outline = SlateGray,
+                outlineVariant = SlateDarkBg3,
+                scrim = SlateDarkBg0,
                 status =
                     HermesStatusColors(
-                        success = Color(0xFF3DDC84),
-                        successContainer = Color(0xFF143A23),
-                        onSuccess = Color(0xFFF5F5F5),
-                        warning = Color(0xFFFFB627),
-                        warningContainer = Color(0xFF3D2F0F),
-                        onWarning = Color(0xFFF5F5F5),
-                        error = Color(0xFFFF5C5C),
-                        errorContainer = Color(0xFF3D1414),
-                        onError = Color(0xFFFFFFFF),
-                        onErrorContainer = Color(0xFFFFB4B4),
-                        info = Color(0xFF4DA8FF),
-                        infoContainer = Color(0xFF0F2A3D),
-                        onInfo = Color(0xFFF5F5F5),
+                        success = SlateBrightGreen,
+                        successContainer = SlateDarkBg3,
+                        onSuccess = SlateDarkBg0,
+                        warning = SlateBrightYellow,
+                        warningContainer = SlateDarkBg3,
+                        onWarning = SlateDarkBg0,
+                        error = SlateBrightRed,
+                        errorContainer = SlateDarkBg3,
+                        onError = SlateDarkBg0,
+                        onErrorContainer = SlateBrightRed,
+                        info = SlateBrightInfo,
+                        infoContainer = SlateDarkBg3,
+                        onInfo = SlateDarkBg0,
                     ),
             ),
         light =
             PaletteColors(
-                primary = Color(0xFF5A3FE0),
-                onPrimary = Color(0xFFFFFFFF),
-                primaryContainer = Color(0xFFAC93FF),
-                onPrimaryContainer = Color(0xFF1E0F66),
-                secondary = Color(0xFFC68400),
-                onSecondary = Color(0xFFFFFFFF),
-                secondaryContainer = Color(0xFFFFE082),
-                onSecondaryContainer = Color(0xFF3D2F0F),
-                tertiary = Color(0xFFC68400),
-                onTertiary = Color(0xFFFFFFFF),
-                tertiaryContainer = Color(0xFFFFE082),
-                onTertiaryContainer = Color(0xFF3D2F0F),
-                background = Color(0xFFF7F6FB),
-                onBackground = Color(0xFF1A1A24),
-                surface = Color(0xFFFFFFFF),
-                onSurface = Color(0xFF1A1A24),
-                surfaceVariant = Color(0xFFEFEDF4),
-                onSurfaceVariant = Color(0xFF56536A),
-                surfaceContainerLowest = Color(0xFFFFFFFF),
-                surfaceContainerLow = Color(0xFFF3F1F8),
-                surfaceContainer = Color(0xFFEFEDF4),
-                surfaceContainerHigh = Color(0xFFE6E3EE),
-                surfaceContainerHighest = Color(0xFFDDD9EA),
-                inverseSurface = Color(0xFF1A1A24),
-                inverseOnSurface = Color(0xFFE8E6EE),
-                inversePrimary = Color(0xFFAC93FF),
-                outline = Color(0xFF79748E),
-                outlineVariant = Color(0xFFC9C5D6),
-                scrim = Color(0xFF000000),
+                primary = SlateFadedTeal,
+                onPrimary = SlateLightBg0,
+                primaryContainer = SlateLightBg4,
+                onPrimaryContainer = SlateLightFg1,
+                secondary = SlateFadedCyan,
+                onSecondary = SlateLightBg0,
+                secondaryContainer = SlateLightBg3,
+                onSecondaryContainer = SlateLightFg2,
+                tertiary = SlateFadedBlue,
+                onTertiary = SlateLightBg0,
+                tertiaryContainer = SlateLightBg4,
+                onTertiaryContainer = SlateLightFg1,
+                background = SlateLightBg0,
+                onBackground = SlateLightFg1,
+                surface = SlateLightBg0,
+                onSurface = SlateLightFg1,
+                surfaceVariant = SlateLightBg1,
+                onSurfaceVariant = SlateLightFg3,
+                surfaceContainerLowest = SlateLightBg0,
+                surfaceContainerLow = SlateLightBg1,
+                surfaceContainer = SlateLightBg2,
+                surfaceContainerHigh = SlateLightBg3,
+                surfaceContainerHighest = SlateLightBg4,
+                inverseSurface = SlateLightFg1,
+                inverseOnSurface = SlateLightBg0,
+                inversePrimary = SlateBrightTeal,
+                outline = SlateGray,
+                outlineVariant = SlateLightBg3,
+                scrim = SlateLightBg0,
                 status =
                     HermesStatusColors(
-                        success = Color(0xFF1B873A),
-                        successContainer = Color(0xFFD7F5E0),
-                        onSuccess = Color(0xFFFDF8FF),
-                        warning = Color(0xFFC68400),
-                        warningContainer = Color(0xFFFFEAB3),
-                        onWarning = Color(0xFFFDF8FF),
-                        error = Color(0xFFB3261E),
-                        errorContainer = Color(0xFFF9DEDC),
-                        onError = Color(0xFFFDF8FF),
-                        onErrorContainer = Color(0xFF410E0B),
-                        info = Color(0xFF2E6FBD),
-                        infoContainer = Color(0xFFD4E7FF),
-                        onInfo = Color(0xFFFDF8FF),
+                        success = SlateFadedGreen,
+                        successContainer = SlateLightBg3,
+                        onSuccess = SlateLightBg0,
+                        warning = SlateFadedYellow,
+                        warningContainer = SlateLightBg3,
+                        onWarning = SlateLightBg0,
+                        error = SlateFadedRed,
+                        errorContainer = SlateLightBg3,
+                        onError = SlateLightBg0,
+                        onErrorContainer = SlateFadedRed,
+                        info = SlateFadedInfo,
+                        infoContainer = SlateLightBg3,
+                        onInfo = SlateLightBg0,
                     ),
             ),
     )

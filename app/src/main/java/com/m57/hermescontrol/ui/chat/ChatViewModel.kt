@@ -1270,6 +1270,7 @@ class ChatViewModel(
             // in-flight turn via session.redirect instead of queueing a fresh
             // prompt.submit. The backend rewrites the live turn when it can, or
             // queues the correction as the next turn otherwise (issue #710).
+            ActiveSessionHolder.set(agentSessionId, storageSessionId)
             if (wasStreaming && attachments.isEmpty()) {
                 wsClient.sendRedirect(
                     agentSessionId,

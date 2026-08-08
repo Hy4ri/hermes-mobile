@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *   service — and its mandatory persistent notification — only exists
  *   while the user is actually waiting for a reply (issue #794).
  * - Stopped by [NotificationHelper.stop] when the app returns to the
- *   foreground (called from ChatScreen's onStart / onResume), or by the
+ *   foreground (called from MainActivity.onStart), or by the
  *   service itself once the pending reply completes in the background
  *   (the reply notification replaces the persistent "waiting" one).
  *
@@ -101,7 +101,8 @@ class ChatNotificationService : Service() {
                                                 .ifBlank { getString(R.string.notif_new_message) }
                                         showReplyNotification(
                                             preview,
-                                            ActiveSessionHolder.resolveStoredSessionId(event.sessionId),
+                                            event.storedSessionId
+                                                ?: ActiveSessionHolder.resolveStoredSessionId(event.sessionId),
                                         )
                                         // The wait is over — retire the foreground
                                         // service. The reply notification above
@@ -239,7 +240,7 @@ class ChatNotificationService : Service() {
         intent: Intent?,
         flags: Int,
         startId: Int,
-    ): Int = START_STICKY
+    ): Int = START_NOT_STICKY
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -278,6 +279,7 @@ object NotificationHelper {
         foreground: Boolean,
     ) {
         ChatNotificationService.setAppForeground(foreground)
+        HermesWsClient.setAppForeground(foreground)
     }
 
     fun isAppInForeground(): Boolean = ChatNotificationService.isAppInForeground()

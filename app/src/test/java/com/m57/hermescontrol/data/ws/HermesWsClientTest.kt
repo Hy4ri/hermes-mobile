@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.buildFakePersistentCookieJar
+import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
@@ -86,6 +88,7 @@ class HermesWsClientTest {
         (queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>).clear()
 
         HermesWsClient.disconnect(clearPendingMessages = true) // Ensure it starts clean
+        HermesWsClient.setAppForeground(true)
         val acceptQueuedMessagesField = HermesWsClient::class.java.getDeclaredField("acceptQueuedMessages")
         acceptQueuedMessagesField.isAccessible = true
         (acceptQueuedMessagesField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
@@ -819,6 +822,103 @@ class HermesWsClientTest {
 
         assertTrue(receivedEvent is WsEvent.RpcResult)
         assertEquals("1", (receivedEvent as WsEvent.RpcResult).id)
+    }
+
+    @Test
+    fun testBackgroundWithoutPendingWorkDisconnects() {
+        mockWebServer.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {}))
+        HermesWsClient.connect()
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
+
+        HermesWsClient.setAppForeground(false)
+
+        assertFalse(HermesWsClient.isConnected)
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+    }
+
+    @Test
+    fun testBackgroundWithPendingReplyStaysConnected() {
+        mockWebServer.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {}))
+        HermesWsClient.connect()
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
+        HermesWsClient.sendMessage("session-1", "hello")
+
+        HermesWsClient.setAppForeground(false)
+
+        assertTrue(HermesWsClient.isConnected)
+    }
+
+    @Test
+    fun testBackgroundQueuedSendDisconnectsAfterFlush() {
+        val messageLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        messageLatch.countDown()
+                    }
+                },
+            ),
+        )
+        HermesWsClient.setAppForeground(false)
+
+        HermesWsClient.send(WsMethods.SESSION_REDIRECT)
+
+        assertTrue(messageLatch.await(5, TimeUnit.SECONDS))
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED }
+            }
+        }
+        assertFalse(HermesWsClient.isConnected)
+    }
+
+    @Test
+    fun testMessageCompleteDisconnectsIdleBackgroundSocket() {
+        lateinit var serverSocket: WebSocket
+        val connectedLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: Response,
+                    ) {
+                        serverSocket = webSocket
+                        connectedLatch.countDown()
+                    }
+                },
+            ),
+        )
+        HermesWsClient.connect()
+        assertTrue(connectedLatch.await(5, TimeUnit.SECONDS))
+        ActiveSessionHolder.set("runtime-session", "stored-session")
+        HermesWsClient.sendMessage("session-1", "hello")
+        HermesWsClient.setAppForeground(false)
+
+        val completeEvent =
+            """
+            {"jsonrpc":"2.0","method":"event","params":{"type":"message.complete",
+            "payload":{"text":"done","session_id":"runtime-session"}}}
+            """.trimIndent()
+        val receivedEvent =
+            runBlocking {
+                withTimeout(5000) {
+                    launch { serverSocket.send(completeEvent) }
+                    HermesWsClient.events.first { it is WsEvent.MessageComplete } as WsEvent.MessageComplete
+                }
+            }
+
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED }
+            }
+        }
+        assertFalse(HermesWsClient.isConnected)
+        assertEquals("stored-session", receivedEvent.storedSessionId)
     }
 
     @Test

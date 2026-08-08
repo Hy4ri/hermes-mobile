@@ -1238,6 +1238,7 @@ class ChatViewModelTest {
     fun testSendMessage() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
+            ActiveSessionHolder.set(sessionId, "stale-session")
 
             viewModel.sendMessage("Hello Hermes")
             advanceUntilIdle()
@@ -1254,6 +1255,7 @@ class ChatViewModelTest {
                     .role,
             )
             assertTrue(viewModel.uiState.value.isAgentTyping)
+            assertEquals(sessionId, ActiveSessionHolder.resolveStoredSessionId(sessionId))
 
             verify { HermesWsClient.sendMessage(sessionId, "Hello Hermes", any()) }
         }

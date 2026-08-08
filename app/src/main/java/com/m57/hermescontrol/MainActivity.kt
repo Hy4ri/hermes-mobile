@@ -13,6 +13,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.notification.NotificationReplyReceiver
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.util.LocaleContextWrapper
@@ -71,6 +73,21 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         consumeNotificationIntent(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        NotificationHelper.setAppForeground(this, true)
+        NotificationHelper.stop(this)
+        if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
+            HermesWsClient.connect()
+        }
+    }
+
+    override fun onStop() {
+        NotificationHelper.setAppForeground(this, false)
+        NotificationHelper.start(this)
+        super.onStop()
     }
 
     private fun consumeNotificationIntent(intent: Intent?) {

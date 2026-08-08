@@ -57,6 +57,8 @@ sealed class WsEvent {
          * (e.g. a tool call wiped the streaming buffer mid-turn).
          */
         val reasoning: String? = null,
+        /** Stored session id captured before background disconnect clears the active mapping. */
+        val storedSessionId: String? = null,
     ) : WsEvent()
 
     data class MessageDone(

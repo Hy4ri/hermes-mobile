@@ -20,7 +20,8 @@ app/src/main/java/com/m57/hermescontrol/theme/
     ├── GruvboxScheme.kt
     ├── CatppuccinScheme.kt
     ├── AmoledScheme.kt            # dark-only (ThemeMode.DARK_ONLY)
-    └── NeonNoirScheme.kt
+    ├── NeonNoirScheme.kt
+    └── NordScheme.kt
 ```
 
 ## The template — one shape for every theme

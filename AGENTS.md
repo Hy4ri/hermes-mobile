@@ -199,13 +199,13 @@ breakdown, edge cases, and timeline of previous occurrences.
 
 ### Theme
 
-`Theme.kt` uses a preset-based theme system with 6 built-in presets: Default,
-Monochrome, Gruvbox, Catppuccin, AMOLED, and Neon Noir. Each preset provides
-light and dark color schemes plus matching semantic status colors (AMOLED is
-dark-only — light mode falls back to the default theme). Every preset is a
-`ThemePalette` template fill (`PaletteTemplate.kt`): raw `PaletteColors` +
-`StatusColors` mapped into the Material 3 `ColorScheme` slots, with the error
-slots derived from the status set.
+`Theme.kt` uses a preset-based theme system with 7 built-in presets: Default
+(Slate), Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir, and Nord. Each
+preset provides light and dark color schemes plus matching semantic status
+colors (AMOLED is dark-only — light mode falls back to the default theme).
+Every preset is a `ThemePalette` template fill (`PaletteTemplate.kt`): raw
+`PaletteColors` + `HermesStatusColors` mapped into the Material 3
+`ColorScheme` slots, with the error slots derived from the status set.
 
 Dynamic color (Material You on API 31+) is controlled by a `useDynamicColors`
 parameter on `HermesControlTheme`, not a compile-time constant. When dynamic

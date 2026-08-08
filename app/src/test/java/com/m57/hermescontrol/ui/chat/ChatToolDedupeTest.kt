@@ -83,6 +83,17 @@ class ChatToolDedupeTest {
     }
 
     @Test
+    fun sameLogicalMessage_whitespaceDrift_stillSame() {
+        // Issue #842: the sealed live bubble holds the RAW streamed text
+        // (leading blank lines), the backend row is CLEANED — same logical
+        // message, must not duplicate on reload.
+        val live = ChatMessage(role = MessageRole.ASSISTANT, content = "\n\noooh fresh angle this time 🤤")
+        val rest = ChatMessage(role = MessageRole.ASSISTANT, content = "oooh fresh angle this time 🤤")
+        assertTrue(sameLogicalMessage(live, rest))
+        assertFalse(sameLogicalMessage(live, ChatMessage(role = MessageRole.ASSISTANT, content = "different reply")))
+    }
+
+    @Test
     fun sameLogicalMessage_differentRoles_notSame() {
         val ws = ChatMessage(role = MessageRole.TOOL, content = wsToolContent)
         val rest = ChatMessage(role = MessageRole.ASSISTANT, content = wsToolContent)
@@ -153,6 +164,34 @@ class ChatToolDedupeTest {
         // The RUNNING tool bubble survives the reload
         assertEquals(ToolStatus.RUNNING, merged[1].toolStatus)
         assertEquals("terminal", merged[1].toolName)
+    }
+
+    @Test
+    fun merge_sealedCommentaryWithLeadingWhitespace_noDuplicate() {
+        // Issue #842 (on-device capture 2026-08-08): the app seals the RAW
+        // streamed commentary — which can carry leading blank lines the model
+        // emits before its narration — while the backend persists a CLEANED
+        // copy. A reload merge with exact-content matching treated them as
+        // different messages and added the REST copy on top: the commentary
+        // duplicated ~10s after the stream ended. Trim-based matching covers
+        // the sealed live bubble, so no second copy renders.
+        val liveOrphan =
+            ChatMessage(
+                role = MessageRole.ASSISTANT,
+                content = "\n\noooh fresh angle this time — the **Lebanese method** and even hummus fatteh 🤤",
+                timestamp = 3,
+            )
+        val restRow =
+            ChatMessage(
+                role = MessageRole.ASSISTANT,
+                content = "oooh fresh angle this time — the **Lebanese method** and even hummus fatteh 🤤",
+                id = "rest-s-19",
+                timestamp = 3,
+            )
+
+        val merged = mergeTranscriptWithLive(listOf(restRow), listOf(liveOrphan))
+
+        assertEquals("cleaned REST row covers the whitespace-drifting live bubble", 1, merged.size)
     }
 
     @Test

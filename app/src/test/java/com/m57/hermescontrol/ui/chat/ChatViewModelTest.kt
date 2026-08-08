@@ -839,7 +839,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun testToolExecution_finalizesPreviousStreamingMessage() =
+    fun testToolExecution_sealsInterimTextAndStripsCompletePrefix() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
 
@@ -850,6 +850,9 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.ToolStart("calculator", mapOf("input" to "2+2")))
             advanceUntilIdle()
 
+            // Issue #842: the interim text is sealed as its own bubble at
+            // tool.start (desktop parity), the stream tail clears, and the
+            // sealed id is tracked for the complete-prefix strip.
             // messages[0] = "Session created" system message
             assertEquals(
                 "Calculating sum",
@@ -861,11 +864,28 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages[1]
                     .role,
             )
+            assertFalse(viewModel.uiState.value.messages[1].isStreaming)
             assertEquals(
                 MessageRole.TOOL,
                 viewModel.uiState.value.messages[2]
                     .role,
             )
+            assertNull(viewModel.streamingState.value.streamingMessage)
+            assertEquals(
+                listOf(viewModel.uiState.value.messages[1].id),
+                viewModel.streamingState.value.sealedOrphanIds,
+            )
+
+            // Finalize: the complete payload repeats the sealed commentary as
+            // a prefix — the final bubble strips it, so each line appears once.
+            mockEventsFlow.emit(WsEvent.MessageComplete("Calculating sum = 4", sessionId))
+            advanceUntilIdle()
+            val assistant =
+                viewModel.uiState.value.messages.filter { it.role == MessageRole.ASSISTANT }
+            assertEquals(2, assistant.size)
+            assertEquals("Calculating sum", assistant[0].content)
+            assertEquals(" = 4", assistant[1].content)
+            assertFalse(assistant[1].isStreaming)
             assertNull(viewModel.streamingState.value.streamingMessage)
         }
 

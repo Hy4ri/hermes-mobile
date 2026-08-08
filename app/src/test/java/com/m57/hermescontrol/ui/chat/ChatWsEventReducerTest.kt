@@ -630,11 +630,10 @@ class ChatWsEventReducerTest {
     }
 
     @Test
-    fun testToolStart_withInterimText_sealsOrphan_butClearsStreamTail() {
-        // When the agent streams interim text BEFORE calling the tool, the
-        // orphan is sealed into messages (desktop parity), and the streaming
-        // tail is cleared — but the reasoning text stays in shared state so
-        // the post-tool answer can still pick it up.
+    fun testToolStart_withInterimText_sealsOrphanAndTracksIt() {
+        // Issue #842: interim commentary BEFORE a tool call is sealed as its
+        // own bubble (desktop parity) and its id tracked in streamingState so
+        // message.complete can strip the repeated prefix from the final text.
         val state = ChatUiState(currentSessionId = "session-1")
         val streaming =
             StreamingState(
@@ -657,12 +656,160 @@ class ChatWsEventReducerTest {
                 "session-1",
             )
 
-        assertEquals(2, result.state.messages.size) // sealed orphan + tool
+        // Sealed orphan + tool row.
+        assertEquals(2, result.state.messages.size)
         assertEquals("Let me run that for you.", result.state.messages[0].content)
         assertFalse(result.state.messages[0].isStreaming)
         assertEquals("thinking...", result.state.messages[0].reasoningText)
+        assertEquals(MessageRole.TOOL, result.state.messages[1].role)
+        // Stream tail cleared, orphan id tracked for the complete-strip.
         assertEquals(null, result.streamingState.streamingMessage)
-        // Reasoning preserved for the post-tool message
+        assertEquals(listOf(result.state.messages[0].id), result.streamingState.sealedOrphanIds)
+        // Reasoning preserved for the post-tool message.
         assertEquals("thinking...", result.streamingState.reasoningText)
+    }
+
+    @Test
+    fun testMultiToolCommentaryTurn_noDuplicateInterimText() {
+        // Regression for issue #842 (m57 repro, 2026-08-08): a turn where the
+        // agent narrates commentary before EACH tool call, and the final
+        // message.complete text repeats that commentary as a prefix. Each
+        // commentary line used to render TWICE — once as the sealed orphan
+        // bubble, once inside the final bubble. Now the final bubble strips
+        // the sealed prefix: every line appears exactly once.
+        val state = ChatUiState(currentSessionId = "session-1")
+        val start =
+            ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+
+        val line1 = "say less — full scrub it is 🧹 lemme pull context around each hit so the patches land clean:"
+        val line2 = "context's clear — patching all 4 spots now:"
+        val line3 = "all 4 patches landed ✅ — final verification sweep to make sure zero sandalwood survives anywhere:"
+        val answer = "Done — zero sandalwood left. 🫡"
+        // The final row is the concatenation of the streamed text — the same
+        // characters the sealed orphans hold (no extra separators).
+        val fullText = line1 + line2 + line3 + answer
+
+        // Token accumulation is ViewModel-side; the reducer sees flushed content.
+        // After a tool.start seals the orphan, post-tool deltas recreate the
+        // streaming message via the controller fallback — mirror that here.
+        fun withContent(
+            content: String,
+            streamingState: StreamingState,
+        ) = streamingState.copy(
+            streamingMessage =
+                streamingState.streamingMessage?.copy(content = content)
+                    ?: ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = content,
+                        isStreaming = true,
+                    ),
+        )
+
+        // 1. commentary line 1, then tool call 1 → orphan sealed + tracked
+        var result =
+            ChatWsEventReducer.reduce(
+                start.state,
+                withContent(line1, start.streamingState),
+                WsEvent.ToolStart("grep", mapOf("args_text" to "sandalwood"), "session-1"),
+                "session-1",
+            )
+        assertEquals(1, result.state.messages.count { it.role == MessageRole.ASSISTANT })
+        assertEquals(1, result.state.messages.count { it.role == MessageRole.TOOL })
+
+        // 2. commentary line 2, then tool call 2
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                withContent(line2, result.streamingState),
+                WsEvent.ToolStart("patch", mapOf("args_text" to "4 spots"), "session-1"),
+                "session-1",
+            )
+
+        // 3. commentary line 3, then tool call 3
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                withContent(line3, result.streamingState),
+                WsEvent.ToolStart("grep", mapOf("args_text" to "verify"), "session-1"),
+                "session-1",
+            )
+        val orphans = result.state.messages.filter { it.role == MessageRole.ASSISTANT }
+        assertEquals(listOf(line1, line2, line3), orphans.map { it.content })
+        assertEquals(3, result.state.messages.count { it.role == MessageRole.TOOL })
+        assertEquals(orphans.map { it.id }, result.streamingState.sealedOrphanIds)
+
+        // 4. message.complete repeats the commentary as a prefix → the final
+        //    bubble strips it and shows only the answer.
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.MessageComplete(text = fullText, sessionId = "session-1"),
+                "session-1",
+            )
+        val allAssistant = result.state.messages.filter { it.role == MessageRole.ASSISTANT }
+        assertEquals(
+            "each commentary line exactly once (sealed bubble) + the stripped answer",
+            listOf(line1, line2, line3, answer),
+            allAssistant.map { it.content },
+        )
+        assertFalse(allAssistant.last().isStreaming)
+        assertEquals(null, result.streamingState.streamingMessage)
+    }
+
+    @Test
+    fun testMultiToolCommentaryTurn_completeWithoutCommentary_keepsOrphansAndFinal() {
+        // Issue #842 variant caught on-device (2026-08-08): some turns emit
+        // commentary ONLY as streamed deltas + message.interim — the final
+        // message.complete text does NOT contain it. The sealed orphan
+        // bubbles must survive and the final bubble must keep its full text
+        // (no stripping when there is no prefix overlap).
+        val state = ChatUiState(currentSessionId = "session-1")
+        val start =
+            ChatWsEventReducer.reduce(state, StreamingState(), WsEvent.MessageStart("session-1"), "session-1")
+
+        val line1 = "okie let's go!! 🌸 first up — **hummus**:"
+        val line2 = "yum yum, got a whole buffet 🥙 **search #2**:"
+        val summary = "done!! all three searches landed 🎯 here's your summary."
+
+        fun withContent(
+            content: String,
+            streamingState: StreamingState,
+        ) = streamingState.copy(
+            streamingMessage =
+                streamingState.streamingMessage?.copy(content = content)
+                    ?: ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = content,
+                        isStreaming = true,
+                    ),
+        )
+
+        var result =
+            ChatWsEventReducer.reduce(
+                start.state,
+                withContent(line1, start.streamingState),
+                WsEvent.ToolStart("mcp__ddgs__search_text", mapOf("query" to "hummus"), "session-1"),
+                "session-1",
+            )
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                withContent(line2, result.streamingState),
+                WsEvent.ToolStart("mcp__ddgs__search_text", mapOf("query" to "amman"), "session-1"),
+                "session-1",
+            )
+
+        // Final text does NOT contain the commentary → no stripping.
+        result =
+            ChatWsEventReducer.reduce(
+                result.state,
+                result.streamingState,
+                WsEvent.MessageComplete(text = summary, sessionId = "session-1"),
+                "session-1",
+            )
+        val allAssistant = result.state.messages.filter { it.role == MessageRole.ASSISTANT }
+        assertEquals(listOf(line1, line2, summary), allAssistant.map { it.content })
+        assertEquals(null, result.streamingState.streamingMessage)
     }
 }

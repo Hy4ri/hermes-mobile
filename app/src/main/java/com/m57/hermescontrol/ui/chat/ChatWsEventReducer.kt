@@ -13,6 +13,33 @@ private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage
 }
 
 /**
+ * Strips this turn's sealed-orphan prefix from the final message text.
+ *
+ * Issue #842: `message.complete` carries the FULL final assistant text, which
+ * often repeats the interim commentary that was already sealed into its own
+ * bubble(s) at each `tool.start`. When the complete text begins with the
+ * concatenation of those sealed contents, the prefix is removed so the final
+ * bubble shows only the not-yet-rendered part — every narration line appears
+ * exactly once (sealed orphan bubbles + stripped answer), matching the
+ * persisted transcript. Returns the text unchanged when there is no overlap
+ * (commentary that is NOT carried in the final row stays in its orphan
+ * bubbles and the final bubble keeps its full text).
+ */
+private fun stripSealedOrphanPrefix(
+    text: String,
+    messages: List<ChatMessage>,
+    sealedOrphanIds: List<String>,
+): String {
+    if (sealedOrphanIds.isEmpty()) return text
+    val prefix =
+        sealedOrphanIds
+            .mapNotNull { id -> messages.firstOrNull { it.id == id }?.content }
+            .joinToString("")
+    if (prefix.isEmpty() || !text.startsWith(prefix)) return text
+    return text.removePrefix(prefix)
+}
+
+/**
  * Pure state reducer for WebSocket events.
  *
  * Transforms [ChatUiState] in response to each [WsEvent] and returns a
@@ -297,14 +324,31 @@ object ChatWsEventReducer {
             event.reasoning
                 ?.takeIf { it.isNotBlank() }
                 ?: streamingState.reasoningText.ifBlank { streaming?.reasoningText ?: "" }
+        // Issue #842: the complete payload carries the FULL final text, which
+        // often repeats commentary already sealed into its own bubble(s) at
+        // each tool.start. Strip the sealed prefix so the final bubble shows
+        // only the part not already rendered — every narration line appears
+        // exactly once, matching the persisted transcript (sealed orphans +
+        // stripped answer). Turns whose final text does NOT contain the
+        // commentary are left untouched (orphans stay, final keeps its text).
+        val text = stripSealedOrphanPrefix(event.text, state.messages, streamingState.sealedOrphanIds)
+        // Edge: the complete payload was entirely covered by sealed orphans
+        // (the interim text already rendered as its own bubble(s)) — nothing
+        // new to show, so don't add an empty final bubble.
+        if (text.isBlank()) {
+            return ReducerResult(
+                state = state.copy(isAgentTyping = false),
+                streamingState = streamingState.copy(streamingMessage = null),
+            )
+        }
         val msg =
             streaming?.copy(
-                content = event.text,
+                content = text,
                 isStreaming = false,
                 reasoningText = reasoning,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
-                content = event.text,
+                content = text,
                 reasoningText = reasoning,
             )
         val effects = mutableListOf<ReducerEffect>()
@@ -391,7 +435,11 @@ object ChatWsEventReducer {
                 toolStatus = ToolStatus.RUNNING,
             )
 
-        // Finalize any orphan streaming message
+        // Finalize any orphan streaming message (issue #771 + #842): interim
+        // text streamed BEFORE the tool is sealed as its own bubble (desktop
+        // parity). The sealed id is tracked in StreamingState so
+        // onMessageComplete can strip the repeated prefix — the complete
+        // payload often re-carries the same commentary text.
         var orphanToPersist: ChatMessage? = null
         val newState =
             if (streamingState.streamingMessage?.content?.isNotEmpty() == true) {
@@ -422,19 +470,19 @@ object ChatWsEventReducer {
             effects.add(ReducerEffect.PersistMessage(toolMessage, sid))
         }
 
-        // Issue #771: KEEP the streaming state across a tool call instead of
-        // resetting it. A reasoning-model turn streams its thinking BEFORE the
-        // tool starts (content is still empty here) — wiping the streaming
-        // message at tool.start made the reasoning bubble vanish mid-turn and
-        // left the finalized answer with no reasoning card. The stream stays
-        // alive; post-tool message.delta continues the SAME message and
-        // message.complete finalizes it with the reasoning intact.
-        // When an orphan WAS sealed (interim text before the tool), the
-        // streaming message is done — null it, but keep the reasoning text in
-        // the shared state so the post-tool fallback message still picks it up.
+        // Issue #771: KEEP the streaming state across a tool call when the
+        // stream has nothing to seal yet (a reasoning-model turn streams its
+        // thinking BEFORE the tool starts) — wiping it made the reasoning
+        // bubble vanish mid-turn. When an orphan WAS sealed (interim text
+        // before the tool), the streaming message is done — null it, keep the
+        // reasoning text in shared state, and remember the sealed orphan so
+        // message.complete can strip the repeated prefix.
         val finalStreamingState =
             if (orphanToPersist != null) {
-                streamingState.copy(streamingMessage = null)
+                streamingState.copy(
+                    streamingMessage = null,
+                    sealedOrphanIds = streamingState.sealedOrphanIds + orphanToPersist.id,
+                )
             } else {
                 streamingState
             }

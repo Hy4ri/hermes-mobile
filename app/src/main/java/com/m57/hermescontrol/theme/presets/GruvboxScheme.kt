@@ -1,8 +1,8 @@
 package com.m57.hermescontrol.theme.presets
 
 import androidx.compose.ui.graphics.Color
+import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
-import com.m57.hermescontrol.theme.StatusColors
 import com.m57.hermescontrol.theme.buildTheme
 
 /** Gruvbox theme — warm retro terminal, gruvbox palette. */
@@ -40,7 +40,7 @@ val GruvboxTheme =
                 outlineVariant = Color(0xFF504945),
                 scrim = Color(0xFF1D2021),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFFB8BB26),
                         successContainer = Color(0xFF32302F),
                         onSuccess = Color(0xFF282828),
@@ -50,6 +50,7 @@ val GruvboxTheme =
                         error = Color(0xFFFB4934),
                         errorContainer = Color(0xFF282828),
                         onError = Color(0xFF282828),
+                        onErrorContainer = Color(0xFFFBF1C7),
                         info = Color(0xFF83A598),
                         infoContainer = Color(0xFF3C3836),
                         onInfo = Color(0xFF282828),
@@ -87,7 +88,7 @@ val GruvboxTheme =
                 outlineVariant = Color(0xFFD5C4A1),
                 scrim = Color(0xFF3C3836),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF98971A),
                         successContainer = Color(0xFFEBDBB2),
                         onSuccess = Color(0xFFEBDBB2),
@@ -97,6 +98,7 @@ val GruvboxTheme =
                         error = Color(0xFFCC241D),
                         errorContainer = Color(0xFFEBDBB2),
                         onError = Color(0xFFEBDBB2),
+                        onErrorContainer = Color(0xFF9D0006),
                         info = Color(0xFF458588),
                         infoContainer = Color(0xFFEBDBB2),
                         onInfo = Color(0xFFEBDBB2),

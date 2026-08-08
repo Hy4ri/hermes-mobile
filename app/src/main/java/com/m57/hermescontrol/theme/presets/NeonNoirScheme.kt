@@ -1,8 +1,8 @@
 package com.m57.hermescontrol.theme.presets
 
 import androidx.compose.ui.graphics.Color
+import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
-import com.m57.hermescontrol.theme.StatusColors
 import com.m57.hermescontrol.theme.buildTheme
 
 /** Neon Noir theme — cyberpunk neon on deep purple-black. */
@@ -40,7 +40,7 @@ val NeonNoirTheme =
                 outlineVariant = Color(0xFF2E2545),
                 scrim = Color(0xFF000000),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF6FEA8B),
                         successContainer = Color(0xFF0A3A14),
                         onSuccess = Color(0xFF0F0B1A),
@@ -50,6 +50,7 @@ val NeonNoirTheme =
                         error = Color(0xFFFF3D68),
                         errorContainer = Color(0xFF3A0A14),
                         onError = Color(0xFF0F0B1A),
+                        onErrorContainer = Color(0xFFFFB3C0),
                         info = Color(0xFF60F0FF),
                         infoContainer = Color(0xFF003B40),
                         onInfo = Color(0xFF0F0B1A),
@@ -87,7 +88,7 @@ val NeonNoirTheme =
                 outlineVariant = Color(0xFFD9D2E3),
                 scrim = Color(0xFF000000),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF1B873A),
                         successContainer = Color(0xFFD7F5E0),
                         onSuccess = Color(0xFFFDF8FF),
@@ -97,6 +98,7 @@ val NeonNoirTheme =
                         error = Color(0xFFB3261E),
                         errorContainer = Color(0xFFF9DEDC),
                         onError = Color(0xFFFDF8FF),
+                        onErrorContainer = Color(0xFF410E0B),
                         info = Color(0xFF2E6FBD),
                         infoContainer = Color(0xFFD4E7FF),
                         onInfo = Color(0xFFFDF8FF),

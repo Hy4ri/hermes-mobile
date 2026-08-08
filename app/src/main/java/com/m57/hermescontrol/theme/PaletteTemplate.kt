@@ -59,24 +59,7 @@ data class PaletteColors(
     val outline: Color,
     val outlineVariant: Color,
     val scrim: Color,
-    val status: StatusColors,
-)
-
-/** Semantic status colors for ONE mode. */
-data class StatusColors(
-    val success: Color,
-    val successContainer: Color,
-    val onSuccess: Color,
-    val warning: Color,
-    val warningContainer: Color,
-    val onWarning: Color,
-    val error: Color,
-    val errorContainer: Color,
-    val onError: Color,
-    val info: Color,
-    val infoContainer: Color,
-    val onInfo: Color,
-    val neutral: Color = StatusGrey,
+    val status: HermesStatusColors,
 )
 
 /** A complete theme — one per preset file, same shape everywhere. */
@@ -97,10 +80,14 @@ data class ThemePalette(
         }
     }
 
-    val darkScheme: ColorScheme? get() = dark?.let(::darkSchemeOf)
-    val lightScheme: ColorScheme? get() = light?.let(::lightSchemeOf)
-    val darkStatus: HermesStatusColors? get() = dark?.let(::statusColorsOf)
-    val lightStatus: HermesStatusColors? get() = light?.let(::statusColorsOf)
+    val darkScheme: ColorScheme? by lazy { dark?.let(::darkSchemeOf) }
+    val lightScheme: ColorScheme? by lazy { light?.let(::lightSchemeOf) }
+    val darkStatus: HermesStatusColors? by lazy { dark?.status }
+    val lightStatus: HermesStatusColors? by lazy { light?.status }
+
+    fun schemeFor(dark: Boolean): ColorScheme? = if (dark) darkScheme else lightScheme
+
+    fun statusFor(dark: Boolean): HermesStatusColors? = if (dark) darkStatus else lightStatus
 }
 
 /** Full theme: bespoke dark + light palettes. */
@@ -147,7 +134,7 @@ private fun darkSchemeOf(c: PaletteColors): ColorScheme =
         error = c.status.error,
         onError = c.status.onError,
         errorContainer = c.status.errorContainer,
-        onErrorContainer = c.status.onError,
+        onErrorContainer = c.status.onErrorContainer,
         outline = c.outline,
         outlineVariant = c.outlineVariant,
         scrim = c.scrim,
@@ -185,25 +172,8 @@ private fun lightSchemeOf(c: PaletteColors): ColorScheme =
         error = c.status.error,
         onError = c.status.onError,
         errorContainer = c.status.errorContainer,
-        onErrorContainer = c.status.onError,
+        onErrorContainer = c.status.onErrorContainer,
         outline = c.outline,
         outlineVariant = c.outlineVariant,
         scrim = c.scrim,
-    )
-
-private fun statusColorsOf(c: PaletteColors): HermesStatusColors =
-    HermesStatusColors(
-        success = c.status.success,
-        successContainer = c.status.successContainer,
-        onSuccess = c.status.onSuccess,
-        warning = c.status.warning,
-        warningContainer = c.status.warningContainer,
-        onWarning = c.status.onWarning,
-        error = c.status.error,
-        errorContainer = c.status.errorContainer,
-        onError = c.status.onError,
-        info = c.status.info,
-        infoContainer = c.status.infoContainer,
-        onInfo = c.status.onInfo,
-        neutral = c.status.neutral,
     )

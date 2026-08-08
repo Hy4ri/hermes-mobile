@@ -1,8 +1,8 @@
 package com.m57.hermescontrol.theme.presets
 
 import androidx.compose.ui.graphics.Color
+import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
-import com.m57.hermescontrol.theme.StatusColors
 import com.m57.hermescontrol.theme.buildThemeDarkOnly
 
 /**
@@ -47,7 +47,7 @@ val AmoledTheme =
                 outlineVariant = Color(0xFF252532),
                 scrim = Color(0xFF000000),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF00E676),
                         successContainer = Color(0xFF00331A),
                         onSuccess = Color(0xFFE8E6EE),
@@ -56,7 +56,8 @@ val AmoledTheme =
                         onWarning = Color(0xFFE8E6EE),
                         error = Color(0xFFFF5252),
                         errorContainer = Color(0xFF33000A),
-                        onError = Color(0xFFE8E6EE),
+                        onError = Color(0xFFFFFFFF),
+                        onErrorContainer = Color(0xFFF2B8B5),
                         info = Color(0xFF40C4FF),
                         infoContainer = Color(0xFF002A33),
                         onInfo = Color(0xFFE8E6EE),

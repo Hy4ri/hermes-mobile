@@ -1,8 +1,8 @@
 package com.m57.hermescontrol.theme.presets
 
 import androidx.compose.ui.graphics.Color
+import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
-import com.m57.hermescontrol.theme.StatusColors
 import com.m57.hermescontrol.theme.buildTheme
 
 /** Catppuccin theme — Mocha (dark) / Latte (light). */
@@ -40,7 +40,7 @@ val CatppuccinTheme =
                 outlineVariant = Color(0xFF45475A), // Surface 1
                 scrim = Color(0xFF11111B), // Crust
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFFA6E3A1), // Green
                         successContainer = Color(0xFF313244), // Surface 0
                         onSuccess = Color(0xFF11111B), // Crust
@@ -50,6 +50,7 @@ val CatppuccinTheme =
                         error = Color(0xFFF38BA8), // Red
                         errorContainer = Color(0xFF313244), // Surface 0
                         onError = Color(0xFF11111B), // Crust
+                        onErrorContainer = Color(0xFFF38BA8), // Red
                         info = Color(0xFF89B4FA), // Blue
                         infoContainer = Color(0xFF313244), // Surface 0
                         onInfo = Color(0xFF11111B), // Crust
@@ -87,7 +88,7 @@ val CatppuccinTheme =
                 outlineVariant = Color(0xFFBCC0CC), // Surface 1
                 scrim = Color(0xFFDCE0E8), // Crust
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF40A02B), // Green
                         successContainer = Color(0xFFCCD0DA), // Surface 0
                         onSuccess = Color(0xFFEFF1F5), // Base
@@ -97,6 +98,7 @@ val CatppuccinTheme =
                         error = Color(0xFFD20F39), // Red
                         errorContainer = Color(0xFFCCD0DA), // Surface 0
                         onError = Color(0xFFEFF1F5), // Base
+                        onErrorContainer = Color(0xFFD20F39), // Red
                         info = Color(0xFF1E66F5), // Blue
                         infoContainer = Color(0xFFCCD0DA), // Surface 0
                         onInfo = Color(0xFFEFF1F5), // Base

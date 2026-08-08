@@ -1,8 +1,8 @@
 package com.m57.hermescontrol.theme.presets
 
 import androidx.compose.ui.graphics.Color
+import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
-import com.m57.hermescontrol.theme.StatusColors
 import com.m57.hermescontrol.theme.buildTheme
 
 /** Brand default theme — voltage purple primary, plasma amber secondary. */
@@ -40,7 +40,7 @@ val DefaultTheme =
                 outlineVariant = Color(0xFF2F2F3D),
                 scrim = Color(0xFF000000),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF3DDC84),
                         successContainer = Color(0xFF143A23),
                         onSuccess = Color(0xFFF5F5F5),
@@ -49,7 +49,8 @@ val DefaultTheme =
                         onWarning = Color(0xFFF5F5F5),
                         error = Color(0xFFFF5C5C),
                         errorContainer = Color(0xFF3D1414),
-                        onError = Color(0xFFF5F5F5),
+                        onError = Color(0xFFFFFFFF),
+                        onErrorContainer = Color(0xFFFFB4B4),
                         info = Color(0xFF4DA8FF),
                         infoContainer = Color(0xFF0F2A3D),
                         onInfo = Color(0xFFF5F5F5),
@@ -87,7 +88,7 @@ val DefaultTheme =
                 outlineVariant = Color(0xFFC9C5D6),
                 scrim = Color(0xFF000000),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF1B873A),
                         successContainer = Color(0xFFD7F5E0),
                         onSuccess = Color(0xFFFDF8FF),
@@ -97,6 +98,7 @@ val DefaultTheme =
                         error = Color(0xFFB3261E),
                         errorContainer = Color(0xFFF9DEDC),
                         onError = Color(0xFFFDF8FF),
+                        onErrorContainer = Color(0xFF410E0B),
                         info = Color(0xFF2E6FBD),
                         infoContainer = Color(0xFFD4E7FF),
                         onInfo = Color(0xFFFDF8FF),

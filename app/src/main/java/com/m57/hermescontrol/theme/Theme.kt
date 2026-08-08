@@ -48,32 +48,26 @@ private fun themeFor(preset: ThemePreset): ThemePalette =
  * e.g. AMOLED has no light palette) falls back to the default theme's
  * palette for that mode.
  */
-private fun resolveColorScheme(
+internal fun resolveColorScheme(
     preset: ThemePreset,
     darkTheme: Boolean,
 ): ColorScheme {
     val theme = themeFor(preset)
-    return if (darkTheme) {
-        theme.darkScheme ?: DefaultTheme.darkScheme!!
-    } else {
-        theme.lightScheme ?: DefaultTheme.lightScheme!!
-    }
+    // DefaultTheme is FULL — its scheme is never null for either mode.
+    return theme.schemeFor(darkTheme) ?: requireNotNull(DefaultTheme.schemeFor(darkTheme))
 }
 
 /**
  * Resolve the semantic status colors for a preset + dark flag.
  * Same fallback rule as the scheme.
  */
-private fun resolveStatusColors(
+internal fun resolveStatusColors(
     preset: ThemePreset,
     darkTheme: Boolean,
 ): HermesStatusColors {
     val theme = themeFor(preset)
-    return if (darkTheme) {
-        theme.darkStatus ?: DefaultTheme.darkStatus!!
-    } else {
-        theme.lightStatus ?: DefaultTheme.lightStatus!!
-    }
+    // DefaultTheme is FULL — its status colors are never null for either mode.
+    return theme.statusFor(darkTheme) ?: requireNotNull(DefaultTheme.statusFor(darkTheme))
 }
 
 @Composable

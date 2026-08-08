@@ -27,8 +27,9 @@ app/src/main/java/com/m57/hermescontrol/theme/
 
 Every preset file is a **single `ThemePalette`** built from raw color specs via
 the template in `PaletteTemplate.kt`. A theme is a pure color spec: fill in
-`PaletteColors` (the Material slots) + `StatusColors` (semantic set) and the
-app does the rest. No per-preset behavior, no aliases, no shared-token imports.
+`PaletteColors` (the Material slots) + the semantic status set
+(`HermesStatusColors`) and the app does the rest. No per-preset behavior, no
+aliases, no shared-token imports.
 
 ```kotlin
 val MyTheme =
@@ -38,7 +39,7 @@ val MyTheme =
                 primary = Color(0xFF…),
                 // …every slot…
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF…),
                         // …
                     ),
@@ -47,9 +48,10 @@ val MyTheme =
     )
 ```
 
-The template maps `PaletteColors` into the Material 3 `ColorScheme` slots and
-the `HermesStatusColors` model. The Material `error` slots are **derived** from
-`StatusColors` — the theme author defines semantic colors once.
+The template maps `PaletteColors` into the Material 3 `ColorScheme` slots. The
+Material `error` slots (`error`, `onError`, `errorContainer`, `onErrorContainer`)
+are **derived** from the theme's status set — the theme author defines semantic
+colors once.
 
 ## Theme modes
 

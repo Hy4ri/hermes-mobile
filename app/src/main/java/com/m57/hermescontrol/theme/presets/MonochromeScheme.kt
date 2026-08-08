@@ -1,8 +1,8 @@
 package com.m57.hermescontrol.theme.presets
 
 import androidx.compose.ui.graphics.Color
+import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
-import com.m57.hermescontrol.theme.StatusColors
 import com.m57.hermescontrol.theme.buildTheme
 
 /** Monochrome theme — pure grayscale, status colors included. */
@@ -40,7 +40,7 @@ val MonochromeTheme =
                 outlineVariant = Color(0xFF444444),
                 scrim = Color(0xFF000000),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFFE0E0E0),
                         successContainer = Color(0xFF2A2A2A),
                         onSuccess = Color(0xFF121212),
@@ -50,6 +50,7 @@ val MonochromeTheme =
                         error = Color(0xFFFFFFFF),
                         errorContainer = Color(0xFF404040),
                         onError = Color(0xFF121212),
+                        onErrorContainer = Color(0xFFE0E0E0),
                         info = Color(0xFFB0B0B0),
                         infoContainer = Color(0xFF242424),
                         onInfo = Color(0xFF121212),
@@ -87,7 +88,7 @@ val MonochromeTheme =
                 outlineVariant = Color(0xFFCCCCCC),
                 scrim = Color(0xFF000000),
                 status =
-                    StatusColors(
+                    HermesStatusColors(
                         success = Color(0xFF222222),
                         successContainer = Color(0xFFE5E5E5),
                         onSuccess = Color(0xFFFFFFFF),
@@ -97,6 +98,7 @@ val MonochromeTheme =
                         error = Color(0xFF000000),
                         errorContainer = Color(0xFFD6D6D6),
                         onError = Color(0xFFFFFFFF),
+                        onErrorContainer = Color(0xFF111111),
                         info = Color(0xFF555555),
                         infoContainer = Color(0xFFEAEAEA),
                         onInfo = Color(0xFFFFFFFF),

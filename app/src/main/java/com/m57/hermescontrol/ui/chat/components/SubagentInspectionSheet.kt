@@ -187,7 +187,7 @@ private fun TodoInspectionCard(todo: TodoItem) {
             val statusSymbol =
                 when {
                     todo.isCompleted -> "✅"
-                    todo.isInProgress -> "⚡"
+                    todo.isInProgress -> "🔄"
                     todo.isCancelled -> "❌"
                     else -> "⭕"
                 }
@@ -225,7 +225,7 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                     when {
                         indicator.isComplete -> "✅"
                         indicator.isFailed -> "❌"
-                        else -> "⚡"
+                        else -> "🔄"
                     }
                 Text(text = statusSymbol, fontSize = 16.sp)
                 Spacer(modifier = Modifier.width(8.dp))

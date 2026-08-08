@@ -344,7 +344,7 @@ private fun SelfImprovementSection(graph: LearningGraphResponse?) {
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val icon = if (node.kind == "skill") "⚡" else "🧠"
+                            val icon = if (node.kind == "skill") "🛠" else "🧠"
                             Text(text = icon, fontSize = 16.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             Column(modifier = Modifier.weight(1f)) {

@@ -445,7 +445,7 @@ private fun SelfImprovementReviewCard(
     val isSkill =
         cleanText.contains("skill", ignoreCase = true) ||
             cleanText.contains("SKILL.md", ignoreCase = true)
-    val icon = if (isSkill) "⚡" else "🧠"
+    val icon = if (isSkill) "🛠" else "🧠"
     val title =
         if (isSkill) {
             "Self-Improvement Review • Skill Patched"

@@ -61,7 +61,7 @@
     <string name="billing_topup">Top-up</string>
 
     <!-- Navigation & Drawer -->
-    <string name="nav_drawer_title">⚡ Hermes</string>
+    <string name="nav_drawer_title">Hermes</string>
     <string name="nav_drawer_subtitle">AI Agent Control</string>
     <string name="nav_drawer_section_converse">Converse</string>
     <string name="nav_drawer_section_automate">Automate</string>
@@ -163,7 +163,7 @@
     <string name="settings_delay_100ms">100 ms</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
-    <string name="settings_about_app_name">⚡ Hermes Mobile</string>
+    <string name="settings_about_app_name">Hermes Mobile</string>
     <string name="settings_about_version">Version</string>
     <string name="settings_about_build">Build</string>
     <string name="settings_about_debug">Debug</string>

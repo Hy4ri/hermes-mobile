@@ -49,7 +49,7 @@
     <string name="billing_topup">충전</string>
 
     <!-- Navigation & Drawer -->
-    <string name="nav_drawer_title">⚡ 헤르메스</string>
+    <string name="nav_drawer_title">헤르메스</string>
     <string name="nav_drawer_subtitle">AI 에이전트 제어</string>
     <string name="nav_drawer_section_converse">대화</string>
     <string name="nav_drawer_section_automate">자동화</string>
@@ -148,7 +148,7 @@
     <string name="settings_delay_100ms">100 ms</string>
     <string name="settings_action_test_connection">연결 테스트</string>
     <string name="settings_sec_about">정보</string>
-    <string name="settings_about_app_name">⚡ 헤르메스 모바일</string>
+    <string name="settings_about_app_name">헤르메스 모바일</string>
     <string name="settings_about_version">버전</string>
     <string name="settings_about_build">빌드</string>
     <string name="settings_about_debug">디버그</string>

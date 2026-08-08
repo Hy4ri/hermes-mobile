@@ -244,7 +244,7 @@ class SessionsViewModel :
                         it.copy(
                             isLoadingStats = false,
                             stats =
-                                SessionStats(total = data.total, active = data.active),
+                                SessionStats(total = data.total, active = data.active_store),
                         )
                     }
                 },

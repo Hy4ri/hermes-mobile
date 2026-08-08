@@ -7,7 +7,6 @@ import com.m57.hermescontrol.theme.presets.CatppuccinTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
 import com.m57.hermescontrol.theme.presets.GruvboxTheme
 import com.m57.hermescontrol.theme.presets.MonochromeTheme
-import com.m57.hermescontrol.theme.presets.NeonNoirTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -26,7 +25,6 @@ class ThemePaletteTest {
             ThemePreset.MONOCHROME to MonochromeTheme,
             ThemePreset.GRUVBOX to GruvboxTheme,
             ThemePreset.CATPPUCCIN to CatppuccinTheme,
-            ThemePreset.NEON_NOIR to NeonNoirTheme,
             ThemePreset.AMOLED to AmoledTheme,
         )
 

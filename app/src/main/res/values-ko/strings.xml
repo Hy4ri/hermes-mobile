@@ -176,7 +176,6 @@
     <string name="theme_preset_gruvbox">Gruvbox</string>
     <string name="theme_preset_catppuccin">Catppuccin</string>
     <string name="theme_preset_amoled">AMOLED 블랙 (다크 전용)</string>
-    <string name="theme_preset_neon_noir">네온 느와르</string>
 
     <!-- Connect Screen -->
     <string name="connect_selected_profile">프로필: %1$s</string>

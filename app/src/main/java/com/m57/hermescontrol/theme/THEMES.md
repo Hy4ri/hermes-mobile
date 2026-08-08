@@ -20,7 +20,6 @@ app/src/main/java/com/m57/hermescontrol/theme/
     ├── GruvboxScheme.kt
     ├── CatppuccinScheme.kt
     ├── AmoledScheme.kt            # dark-only (ThemeMode.DARK_ONLY)
-    ├── NeonNoirScheme.kt
     └── NordScheme.kt
 ```
 
@@ -53,6 +52,21 @@ The template maps `PaletteColors` into the Material 3 `ColorScheme` slots. The
 Material `error` slots (`error`, `onError`, `errorContainer`, `onErrorContainer`)
 are **derived** from the theme's status set — the theme author defines semantic
 colors once.
+
+## Preset conventions
+
+- **Named swatches** for any hex reused across slots (Gruvbox bg ladder,
+  Catppuccin's official names, Nord's nord0–nord15, Monochrome's mono ramp).
+  A theme with repeated hexes should define them once at the top of the file.
+- **Bright/faded accent split** (Gruvbox, Slate): bright variants against dark
+  surfaces, muted "faded" variants against light surfaces so contrast holds
+  without neon saturation. Single-accent-set themes (Nord) instead keep dark
+  "on" text in both modes — pastel accents stay light, so Snow-Storm-style
+  light text would fail contrast.
+- **Grayscale status colors** (Monochrome, AMOLED) separate success/warning/
+  error/info by lightness only — consumers must pair with icons or labels.
+- Every shipped mode's error slot pairs are enforced at **>= 3:1 contrast** by
+  `ThemePaletteTest` — a preset that breaks this fails the unit-test gate.
 
 ## Theme modes
 
@@ -96,8 +110,10 @@ active preset via `LocalHermesStatusColors`.
    `ui/settings/components/AppearanceSection.kt` (and any string resource).
 5. **Verify**:
    ```bash
-   ./gradlew ktlintCheck compileDebugKotlin
+   ./gradlew ktlintCheck testDebugUnitTest
    ```
+   `ThemePaletteTest` asserts >= 3:1 contrast on every shipped mode's error
+   slot pairs and the ThemeMode invariants — it must stay green.
 
 ## Conventions
 

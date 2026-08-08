@@ -199,10 +199,10 @@ breakdown, edge cases, and timeline of previous occurrences.
 
 ### Theme
 
-`Theme.kt` uses a preset-based theme system with 7 built-in presets: Default
-(Slate), Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir, and Nord. Each
-preset provides light and dark color schemes plus matching semantic status
-colors (AMOLED is dark-only — light mode falls back to the default theme).
+`Theme.kt` uses a preset-based theme system with 6 built-in presets: Default,
+Monochrome, Gruvbox, Catppuccin, AMOLED, and Nord. Each preset provides light
+and dark color schemes plus matching semantic status colors (AMOLED is
+dark-only — light mode falls back to the default theme).
 Every preset is a `ThemePalette` template fill (`PaletteTemplate.kt`): raw
 `PaletteColors` + `HermesStatusColors` mapped into the Material 3
 `ColorScheme` slots, with the error slots derived from the status set.
@@ -292,7 +292,7 @@ com.m57.hermescontrol/
 │   └── ws/         HermesWsClient, JSON-RPC models, WsEvent, BillingRepository
 ├── notification/   ChatNotificationService, NotificationReplyReceiver
 ├── theme/          Color, Theme, Motion, Spacing, Shapes, Type, HermesStatusColors
-│   └── presets/    Default, Monochrome, Gruvbox, Catppuccin, AMOLED, NeonNoir
+│   └── presets/    Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Nord
 ├── ui/
 │   ├── common/     HermesScaffold, StateViews, SharedComponents, DetailDialog, DetailRows
 │   └── 28 feature packages (achievements, analytics, authlogin, billing, channels,

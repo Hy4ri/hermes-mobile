@@ -15,7 +15,6 @@ import com.m57.hermescontrol.theme.presets.CatppuccinTheme
 import com.m57.hermescontrol.theme.presets.DefaultTheme
 import com.m57.hermescontrol.theme.presets.GruvboxTheme
 import com.m57.hermescontrol.theme.presets.MonochromeTheme
-import com.m57.hermescontrol.theme.presets.NeonNoirTheme
 import com.m57.hermescontrol.theme.presets.NordTheme
 import kotlinx.serialization.Serializable
 
@@ -23,7 +22,7 @@ import kotlinx.serialization.Serializable
 enum class ThemePreference { SYSTEM, LIGHT, DARK }
 
 @Serializable
-enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NEON_NOIR, NORD }
+enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD }
 
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
@@ -39,7 +38,6 @@ private fun themeFor(preset: ThemePreset): ThemePalette =
         ThemePreset.GRUVBOX -> GruvboxTheme
         ThemePreset.CATPPUCCIN -> CatppuccinTheme
         ThemePreset.AMOLED -> AmoledTheme
-        ThemePreset.NEON_NOIR -> NeonNoirTheme
         ThemePreset.NORD -> NordTheme
     }
 

@@ -13,9 +13,8 @@ local.properties
 *.swp
 *.swo
 
-# Nix / Gradle user home
-\$PWD/
-$PWD/
+# Nix / Gradle user home (per-repo GRADLE_USER_HOME from flake.nix)
+.gradle-home/
 
 ktlint
 .hermes/plans/

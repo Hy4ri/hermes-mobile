@@ -260,7 +260,9 @@ fun MainNavigation(sessionId: String? = null) {
                                         NavigationDrawerItemDefaults.colors(
                                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                             selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                         ),
                                 )
                             }

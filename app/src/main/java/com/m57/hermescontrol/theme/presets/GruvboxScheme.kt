@@ -5,103 +5,147 @@ import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
 import com.m57.hermescontrol.theme.buildTheme
 
-/** Gruvbox theme — warm retro terminal, gruvbox palette. */
+// ---------------------------------------------------------------------
+// Gruvbox Dark (medium contrast) — named swatches
+// ---------------------------------------------------------------------
+
+private val GruvboxDarkBg0 = Color(0xFF282828)
+private val GruvboxDarkBg1 = Color(0xFF3C3836)
+private val GruvboxDarkBg2 = Color(0xFF504945)
+private val GruvboxDarkBg3 = Color(0xFF665C54)
+private val GruvboxDarkBg4 = Color(0xFF7C6F64)
+private val GruvboxDarkFg1 = Color(0xFFEBDBB2)
+private val GruvboxDarkFg2 = Color(0xFFD5C4A1)
+private val GruvboxDarkFg3 = Color(0xFFBDAE93)
+private val GruvboxGray = Color(0xFF928374) // same neutral gray in both modes
+
+// "Bright" accents — the variants gruvbox uses against a dark background.
+private val GruvboxBrightRed = Color(0xFFFB4934)
+private val GruvboxBrightGreen = Color(0xFFB8BB26)
+private val GruvboxBrightYellow = Color(0xFFFABD2F)
+private val GruvboxBrightBlue = Color(0xFF83A598)
+private val GruvboxBrightPurple = Color(0xFFD3869B)
+private val GruvboxBrightOrange = Color(0xFFFE8019)
+
+// ---------------------------------------------------------------------
+// Gruvbox Light (medium contrast) — named swatches
+// ---------------------------------------------------------------------
+
+private val GruvboxLightBg0 = Color(0xFFFBF1C7)
+private val GruvboxLightBg1 = Color(0xFFEBDBB2)
+private val GruvboxLightBg2 = Color(0xFFD5C4A1)
+private val GruvboxLightBg3 = Color(0xFFBDAE93)
+private val GruvboxLightBg4 = Color(0xFFA89984)
+private val GruvboxLightFg1 = Color(0xFF3C3836)
+private val GruvboxLightFg2 = Color(0xFF504945)
+private val GruvboxLightFg3 = Color(0xFF665C54)
+
+// "Faded" accents — the muted variants gruvbox uses against a light
+// background, so contrast holds up without the neon dark-mode saturation.
+private val GruvboxFadedRed = Color(0xFF9D0006)
+private val GruvboxFadedGreen = Color(0xFF79740E)
+private val GruvboxFadedYellow = Color(0xFFB57614)
+private val GruvboxFadedBlue = Color(0xFF076678)
+private val GruvboxFadedPurple = Color(0xFF8F3F71)
+private val GruvboxFadedOrange = Color(0xFFAF3A03)
+
+/** Gruvbox theme — bright accents on dark bg0–bg4, faded accents on light bg0–bg4. */
 val GruvboxTheme =
     buildTheme(
         dark =
             PaletteColors(
-                primary = Color(0xFFFE8019),
-                onPrimary = Color(0xFF282828),
-                primaryContainer = Color(0xFFD65D0E),
-                onPrimaryContainer = Color(0xFFFBF1C7),
-                secondary = Color(0xFFFABD2F),
-                onSecondary = Color(0xFF282828),
-                secondaryContainer = Color(0xFF3C3836),
-                onSecondaryContainer = Color(0xFFBDAE93),
-                tertiary = Color(0xFF8EC07C),
-                onTertiary = Color(0xFF282828),
-                tertiaryContainer = Color(0xFF458588),
-                onTertiaryContainer = Color(0xFFFBF1C7),
-                background = Color(0xFF282828),
-                onBackground = Color(0xFFFBF1C7),
-                surface = Color(0xFF32302F),
-                onSurface = Color(0xFFFBF1C7),
-                surfaceVariant = Color(0xFF3C3836),
-                onSurfaceVariant = Color(0xFFBDAE93),
-                surfaceContainerLowest = Color(0xFF1D2021),
-                surfaceContainerLow = Color(0xFF282828),
-                surfaceContainer = Color(0xFF32302F),
-                surfaceContainerHigh = Color(0xFF3C3836),
-                surfaceContainerHighest = Color(0xFF504945),
-                inverseSurface = Color(0xFFFBF1C7),
-                inverseOnSurface = Color(0xFF282828),
-                inversePrimary = Color(0xFFD65D0E),
-                outline = Color(0xFF665C54),
-                outlineVariant = Color(0xFF504945),
-                scrim = Color(0xFF1D2021),
+                primary = GruvboxBrightOrange,
+                onPrimary = GruvboxDarkBg0,
+                primaryContainer = GruvboxDarkBg4,
+                onPrimaryContainer = GruvboxDarkFg1,
+                secondary = GruvboxBrightBlue,
+                onSecondary = GruvboxDarkBg0,
+                secondaryContainer = GruvboxDarkBg3,
+                onSecondaryContainer = GruvboxDarkFg2,
+                tertiary = GruvboxBrightPurple,
+                onTertiary = GruvboxDarkBg0,
+                tertiaryContainer = GruvboxDarkBg4,
+                onTertiaryContainer = GruvboxDarkFg1,
+                background = GruvboxDarkBg0,
+                onBackground = GruvboxDarkFg1,
+                surface = GruvboxDarkBg0,
+                onSurface = GruvboxDarkFg1,
+                surfaceVariant = GruvboxDarkBg1,
+                onSurfaceVariant = GruvboxDarkFg3,
+                surfaceContainerLowest = GruvboxDarkBg0,
+                surfaceContainerLow = GruvboxDarkBg1,
+                surfaceContainer = GruvboxDarkBg2,
+                surfaceContainerHigh = GruvboxDarkBg3,
+                surfaceContainerHighest = GruvboxDarkBg4,
+                inverseSurface = GruvboxDarkFg1,
+                inverseOnSurface = GruvboxDarkBg0,
+                inversePrimary = GruvboxFadedOrange,
+                outline = GruvboxGray,
+                outlineVariant = GruvboxDarkBg3,
+                scrim = GruvboxDarkBg0,
                 status =
                     HermesStatusColors(
-                        success = Color(0xFFB8BB26),
-                        successContainer = Color(0xFF32302F),
-                        onSuccess = Color(0xFF282828),
-                        warning = Color(0xFFFABD2F),
-                        warningContainer = Color(0xFF3C3836),
-                        onWarning = Color(0xFF282828),
-                        error = Color(0xFFFB4934),
-                        errorContainer = Color(0xFF282828),
-                        onError = Color(0xFF282828),
-                        onErrorContainer = Color(0xFFFBF1C7),
-                        info = Color(0xFF83A598),
-                        infoContainer = Color(0xFF3C3836),
-                        onInfo = Color(0xFF282828),
+                        success = GruvboxBrightGreen,
+                        successContainer = GruvboxDarkBg3,
+                        onSuccess = GruvboxDarkBg0,
+                        warning = GruvboxBrightYellow,
+                        warningContainer = GruvboxDarkBg3,
+                        onWarning = GruvboxDarkBg0,
+                        error = GruvboxBrightRed,
+                        errorContainer = GruvboxDarkBg3,
+                        onError = GruvboxDarkBg0,
+                        onErrorContainer = GruvboxDarkFg1,
+                        info = GruvboxBrightBlue,
+                        infoContainer = GruvboxDarkBg3,
+                        onInfo = GruvboxDarkBg0,
                     ),
             ),
         light =
             PaletteColors(
-                primary = Color(0xFFD65D0E),
-                onPrimary = Color(0xFFFBF1C7),
-                primaryContainer = Color(0xFFFE8019),
-                onPrimaryContainer = Color(0xFF282828),
-                secondary = Color(0xFF458588),
-                onSecondary = Color(0xFFFBF1C7),
-                secondaryContainer = Color(0xFFEBDBB2),
-                onSecondaryContainer = Color(0xFF3C3836),
-                tertiary = Color(0xFF689D6A),
-                onTertiary = Color(0xFFFBF1C7),
-                tertiaryContainer = Color(0xFFD5C4A1),
-                onTertiaryContainer = Color(0xFF282828),
-                background = Color(0xFFFBF1C7),
-                onBackground = Color(0xFF282828),
-                surface = Color(0xFFF2E5BC),
-                onSurface = Color(0xFF282828),
-                surfaceVariant = Color(0xFFEBDBB2),
-                onSurfaceVariant = Color(0xFF7C6F64),
-                surfaceContainerLowest = Color(0xFFFFFFFF),
-                surfaceContainerLow = Color(0xFFF9F5D7),
-                surfaceContainer = Color(0xFFFBF1C7),
-                surfaceContainerHigh = Color(0xFFF2E5BC),
-                surfaceContainerHighest = Color(0xFFEBDBB2),
-                inverseSurface = Color(0xFF282828),
-                inverseOnSurface = Color(0xFFFBF1C7),
-                inversePrimary = Color(0xFFFE8019),
-                outline = Color(0xFFA89984),
-                outlineVariant = Color(0xFFD5C4A1),
-                scrim = Color(0xFF3C3836),
+                primary = GruvboxFadedOrange,
+                onPrimary = GruvboxLightBg0,
+                primaryContainer = GruvboxLightBg4,
+                onPrimaryContainer = GruvboxLightFg1,
+                secondary = GruvboxFadedBlue,
+                onSecondary = GruvboxLightBg0,
+                secondaryContainer = GruvboxLightBg3,
+                onSecondaryContainer = GruvboxLightFg2,
+                tertiary = GruvboxFadedPurple,
+                onTertiary = GruvboxLightBg0,
+                tertiaryContainer = GruvboxLightBg4,
+                onTertiaryContainer = GruvboxLightFg1,
+                background = GruvboxLightBg0,
+                onBackground = GruvboxLightFg1,
+                surface = GruvboxLightBg0,
+                onSurface = GruvboxLightFg1,
+                surfaceVariant = GruvboxLightBg1,
+                onSurfaceVariant = GruvboxLightFg3,
+                surfaceContainerLowest = GruvboxLightBg0,
+                surfaceContainerLow = GruvboxLightBg1,
+                surfaceContainer = GruvboxLightBg2,
+                surfaceContainerHigh = GruvboxLightBg3,
+                surfaceContainerHighest = GruvboxLightBg4,
+                inverseSurface = GruvboxLightFg1,
+                inverseOnSurface = GruvboxLightBg0,
+                inversePrimary = GruvboxBrightOrange,
+                outline = GruvboxGray,
+                outlineVariant = GruvboxLightBg3,
+                scrim = GruvboxLightBg0,
                 status =
                     HermesStatusColors(
-                        success = Color(0xFF98971A),
-                        successContainer = Color(0xFFEBDBB2),
-                        onSuccess = Color(0xFFEBDBB2),
-                        warning = Color(0xFFD79921),
-                        warningContainer = Color(0xFFEBDBB2),
-                        onWarning = Color(0xFFEBDBB2),
-                        error = Color(0xFFCC241D),
-                        errorContainer = Color(0xFFEBDBB2),
-                        onError = Color(0xFFEBDBB2),
-                        onErrorContainer = Color(0xFF9D0006),
-                        info = Color(0xFF458588),
-                        infoContainer = Color(0xFFEBDBB2),
-                        onInfo = Color(0xFFEBDBB2),
+                        success = GruvboxFadedGreen,
+                        successContainer = GruvboxLightBg3,
+                        onSuccess = GruvboxLightBg0,
+                        warning = GruvboxFadedYellow,
+                        warningContainer = GruvboxLightBg3,
+                        onWarning = GruvboxLightBg0,
+                        error = GruvboxFadedRed,
+                        errorContainer = GruvboxLightBg3,
+                        onError = GruvboxLightBg0,
+                        onErrorContainer = GruvboxFadedRed,
+                        info = GruvboxFadedBlue,
+                        infoContainer = GruvboxLightBg3,
+                        onInfo = GruvboxLightBg0,
                     ),
             ),
     )

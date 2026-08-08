@@ -27,7 +27,9 @@ data class SessionInfo(
 @Serializable
 data class SessionStatsResponse(
     val total: Int = 0,
-    val active: Int = 0,
+    // Backend GET /api/sessions/stats returns "messages" (total stored
+    // messages) — the value the Sessions stats row shows.
+    val messages: Int = 0,
 )
 
 @Serializable

@@ -329,7 +329,7 @@
     <!-- Sessions Stats -->
     <string name="sessions_search_placeholder">세션 검색…</string>
     <string name="sessions_stat_total">전체</string>
-    <string name="sessions_stat_active">활성</string>
+    <string name="sessions_stat_messages">메시지</string>
     <string name="sessions_action_prune">정리</string>
     <string name="sessions_prune_title">오래된 세션 정리</string>
     <string name="sessions_prune_desc">지정된 일수보다 오래된 세션을 삭제합니다.</string>

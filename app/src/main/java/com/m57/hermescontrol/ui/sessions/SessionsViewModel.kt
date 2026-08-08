@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 
 data class SessionStats(
     val total: Int = 0,
-    val active: Int = 0,
+    val messages: Int = 0,
 )
 
 data class SessionsUiState(
@@ -244,7 +244,7 @@ class SessionsViewModel :
                         it.copy(
                             isLoadingStats = false,
                             stats =
-                                SessionStats(total = data.total, active = data.active),
+                                SessionStats(total = data.total, messages = data.messages),
                         )
                     }
                 },

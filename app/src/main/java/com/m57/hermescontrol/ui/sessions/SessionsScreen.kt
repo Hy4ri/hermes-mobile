@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
@@ -700,15 +701,15 @@ fun SessionsScreen(
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                                 StatCard(
-                                    label = stringResource(R.string.sessions_stat_active),
-                                    value = if (state.isLoadingStats) "…" else state.stats.active.toString(),
-                                    icon = Icons.Filled.CheckCircle,
-                                    accentColor = statusColors.success,
+                                    label = stringResource(R.string.sessions_stat_messages),
+                                    value = if (state.isLoadingStats) "…" else state.stats.messages.toString(),
+                                    icon = Icons.Filled.Email,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
-                                // Prune button card
+                                // Prune button — slim icon-only card so the messages
+                                // count keeps enough width for large numbers.
                                 Card(
-                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    modifier = Modifier.width(52.dp).fillMaxHeight(),
                                     colors =
                                         CardDefaults.cardColors(
                                             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -716,24 +717,15 @@ fun SessionsScreen(
                                     onClick = { viewModel.showPruneDialog() },
                                 ) {
                                     Box(
-                                        modifier = Modifier.fillMaxSize().padding(spacing.md),
+                                        modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(
-                                                imageVector = Icons.Filled.DeleteSweep,
-                                                contentDescription = null,
-                                                tint = statusColors.warning,
-                                                modifier = Modifier.size(20.dp),
-                                            )
-                                            Spacer(modifier = Modifier.height(spacing.xs))
-                                            Text(
-                                                text = stringResource(R.string.sessions_action_prune),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = statusColors.warning,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Filled.DeleteSweep,
+                                            contentDescription = stringResource(R.string.sessions_action_prune),
+                                            tint = statusColors.warning,
+                                            modifier = Modifier.size(20.dp),
+                                        )
                                     }
                                 }
                             }

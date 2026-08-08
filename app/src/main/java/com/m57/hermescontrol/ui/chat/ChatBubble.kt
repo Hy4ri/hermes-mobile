@@ -8,9 +8,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,7 +18,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -63,7 +59,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -174,13 +169,13 @@ private fun UserBubble(
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var showCopyButton by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
 
-    // Auto-dismiss copy button after 4 seconds
-    LaunchedEffect(showCopyButton) {
-        if (showCopyButton) {
-            delay(4000)
-            showCopyButton = false
+    // Copy feedback: briefly show ✓ then revert
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
         }
     }
 
@@ -244,13 +239,7 @@ private fun UserBubble(
                                 bottomEnd = 4.dp,
                             ),
                         ).background(brush = gradientBrush)
-                        .testTag("chat_bubble_user")
-                        .clickable(
-                            role = Role.Button,
-                            onClick = {
-                                showCopyButton = true
-                            },
-                        ),
+                        .testTag("chat_bubble_user"),
                 color = Color.Transparent,
                 tonalElevation = 0.dp,
             ) {
@@ -279,49 +268,40 @@ private fun UserBubble(
                         }
                     }
                     if (!message.isStreaming) {
-                        Text(
-                            text = formatTimestamp(message.timestamp, DateFormat.is24HourFormat(LocalContext.current)),
-                            color = userBubbleTextColor.copy(alpha = 0.6f),
-                            style = MaterialTheme.typography.labelSmall,
+                        Row(
                             modifier =
                                 Modifier
                                     .align(Alignment.End)
                                     .padding(top = 4.dp),
-                        )
-                    }
-                }
-            }
-
-            // Copy button overlay — top-right of the bubble
-            AnimatedVisibility(
-                visible = showCopyButton,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
-                modifier =
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 8.dp, y = (-8).dp),
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    shadowElevation = 6.dp,
-                ) {
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    scope.launch {
+                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
+                                    }
+                                    copied = true
+                                },
+                                modifier = Modifier.size(20.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                    contentDescription = stringResource(R.string.content_desc_copy),
+                                    modifier = Modifier.size(12.dp),
+                                    tint = userBubbleTextColor.copy(alpha = 0.7f),
+                                )
                             }
-                            showCopyButton = false
-                        },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.ContentCopy,
-                            contentDescription = stringResource(R.string.content_desc_copy),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text =
+                                    formatTimestamp(
+                                        message.timestamp,
+                                        DateFormat.is24HourFormat(LocalContext.current),
+                                    ),
+                                color = userBubbleTextColor.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
                     }
                 }
             }
@@ -347,13 +327,13 @@ private fun AssistantBubble(
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var showCopyButton by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
 
-    // Auto-dismiss copy button after 4 seconds
-    LaunchedEffect(showCopyButton) {
-        if (showCopyButton) {
-            delay(4000)
-            showCopyButton = false
+    // Copy feedback: briefly show ✓ then revert
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
         }
     }
 
@@ -377,13 +357,7 @@ private fun AssistantBubble(
                                 bottomStart = 16.dp,
                                 bottomEnd = 16.dp,
                             ),
-                        ).testTag("chat_bubble_assistant")
-                        .clickable(
-                            role = Role.Button,
-                            onClick = {
-                                showCopyButton = true
-                            },
-                        ),
+                        ).testTag("chat_bubble_assistant"),
                 color = bubbleColor,
                 border =
                     BorderStroke(
@@ -428,49 +402,40 @@ private fun AssistantBubble(
                         }
                     }
                     if (!message.isStreaming) {
-                        Text(
-                            text = formatTimestamp(message.timestamp, DateFormat.is24HourFormat(LocalContext.current)),
-                            color = textColor.copy(alpha = 0.5f),
-                            style = MaterialTheme.typography.labelSmall,
+                        Row(
                             modifier =
                                 Modifier
                                     .align(Alignment.End)
                                     .padding(top = 4.dp),
-                        )
-                    }
-                }
-            }
-
-            // Copy button overlay — top-right of the bubble
-            AnimatedVisibility(
-                visible = showCopyButton,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
-                modifier =
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = (-8).dp, y = (-8).dp),
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    shadowElevation = 6.dp,
-                ) {
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    scope.launch {
+                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
+                                    }
+                                    copied = true
+                                },
+                                modifier = Modifier.size(20.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                    contentDescription = stringResource(R.string.content_desc_copy),
+                                    modifier = Modifier.size(12.dp),
+                                    tint = textColor.copy(alpha = 0.6f),
+                                )
                             }
-                            showCopyButton = false
-                        },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.ContentCopy,
-                            contentDescription = stringResource(R.string.content_desc_copy),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text =
+                                    formatTimestamp(
+                                        message.timestamp,
+                                        DateFormat.is24HourFormat(LocalContext.current),
+                                    ),
+                                color = textColor.copy(alpha = 0.5f),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
                     }
                 }
             }

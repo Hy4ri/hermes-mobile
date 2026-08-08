@@ -58,7 +58,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -400,16 +399,6 @@ fun ChatScreen(
         viewModel = viewModel,
     )
 
-    val backgroundGradient =
-        Brush.verticalGradient(
-            colors =
-                listOf(
-                    MaterialTheme.colorScheme.background,
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                ),
-        )
-
     HermesScaffold(
         modifier = modifier,
         pinTopBar = true,
@@ -479,7 +468,7 @@ fun ChatScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .background(backgroundGradient)
+                    .background(MaterialTheme.colorScheme.background)
                     .imePadding(),
         ) {
             ChatConnectionBanner(

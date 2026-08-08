@@ -50,7 +50,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.ClipEntry
@@ -201,19 +200,9 @@ private fun UserBubble(
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
-        val gradientBrush =
-            Brush.linearGradient(
-                colors =
-                    listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.secondary,
-                    ),
-            )
         val primary = MaterialTheme.colorScheme.primary
-        val secondary = MaterialTheme.colorScheme.secondary
-        val avgLuminance = (primary.luminance() + secondary.luminance()) / 2f
         val userBubbleTextColor =
-            if (avgLuminance > 0.5f) {
+            if (primary.luminance() > 0.5f) {
                 if (MaterialTheme.colorScheme.onPrimary.luminance() < 0.5f) {
                     MaterialTheme.colorScheme.onPrimary
                 } else {
@@ -238,7 +227,7 @@ private fun UserBubble(
                                 bottomStart = 16.dp,
                                 bottomEnd = 4.dp,
                             ),
-                        ).background(brush = gradientBrush)
+                        ).background(color = primary)
                         .testTag("chat_bubble_user"),
                 color = Color.Transparent,
                 tonalElevation = 0.dp,

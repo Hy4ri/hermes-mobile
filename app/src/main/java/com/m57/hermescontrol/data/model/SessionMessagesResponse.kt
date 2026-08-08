@@ -19,6 +19,7 @@ data class SessionMessage(
     val type: String? = null,
     val reasoning: JsonElement? = null,
     val reasoning_text: JsonElement? = null,
+    val tool_call_id: String? = null,
 ) {
     val timestampText: String?
         get() = (timestamp as? JsonPrimitive)?.content
@@ -38,4 +39,7 @@ data class SessionMessage(
                 null -> ""
                 else -> r.toString()
             }
+
+    val toolCallId: String
+        get() = tool_call_id.orEmpty()
 }

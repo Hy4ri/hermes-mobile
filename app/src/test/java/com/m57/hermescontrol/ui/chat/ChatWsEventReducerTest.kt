@@ -611,6 +611,44 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun testReasoningAvailable_narrationEcho_notAttachedAsReasoning() {
+        // Issue #842 on-device capture (2026-08-08): the gateway re-sends the
+        // agent's interim NARRATION as reasoning.available ~40ms before each
+        // tool.start — payload text == the streaming message body. Attaching
+        // the echo as reasoningText would render every narration bubble's
+        // text twice (body + Reasoning card). Real reasoning never equals the
+        // message content, so the echo is skipped and the reasoning.delta
+        // trace stays authoritative.
+        val state = ChatUiState(currentSessionId = "session-1")
+        val realReasoning = "The user wants 3 searches"
+        val stream =
+            StreamingState(
+                streamingMessage =
+                    ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = "\n\n✅ search #2 done!! Amman's cookin 🔥",
+                        isStreaming = true,
+                        reasoningText = realReasoning,
+                    ),
+                reasoningText = realReasoning,
+            )
+
+        // Echo arrives with the CLEANED narration text (backend strips the
+        // leading blank lines the raw stream carried).
+        val result =
+            ChatWsEventReducer.reduce(
+                state,
+                stream,
+                WsEvent.ReasoningAvailable("session-1", "✅ search #2 done!! Amman's cookin 🔥"),
+                "session-1",
+            )
+
+        // The echo must NOT overwrite the real reasoning trace.
+        assertEquals(realReasoning, result.streamingState.reasoningText)
+        assertEquals(realReasoning, result.streamingState.streamingMessage?.reasoningText)
+    }
+
+    @Test
     fun testMessageComplete_reasoningPayloadField_isAuthoritativeFallback() {
         // Even if reasoning.delta events were entirely lost (throttled/wipe),
         // the message.complete payload carries the full trace (real gateway

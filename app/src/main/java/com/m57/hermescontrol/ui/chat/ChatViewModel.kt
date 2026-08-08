@@ -123,6 +123,14 @@ internal fun sameLogicalMessage(
 ): Boolean {
     if (a.role != b.role) return false
     if (a.role == MessageRole.TOOL) {
+        // Issue #842: prefer the gateway's tool call id when both sides carry
+        // it — the REST transcript stores `tool_call_id` and the live WS
+        // bubble keeps it from `tool.start`. Content canonicalization cannot
+        // cover MCP/web tools: the REST side stores the payload as raw
+        // `<untrusted_tool_result>` text (not JSON), so it has no key at all.
+        if (a.toolCallId.isNotBlank() && b.toolCallId.isNotBlank()) {
+            return a.toolCallId == b.toolCallId
+        }
         val ka = canonicalToolResultKey(a.content)
         val kb = canonicalToolResultKey(b.content)
         return ka != null && ka == kb
@@ -2545,6 +2553,18 @@ class ChatViewModel(
                 }
             }
 
+        // Issue #842: REST transcript rows carry the gateway's `tool_call_id`
+        // — prefer matching live bubbles by that 1:1 identity. It works for
+        // EVERY tool shape, including MCP/web rows whose REST copy is raw
+        // `<untrusted_tool_result>` text with no JSON key to canonicalize.
+        val liveToolByCallId = linkedMapOf<String, ChatMessage>()
+        _uiState.value.messages
+            .filter { it.role == MessageRole.TOOL && it.toolCallId.isNotBlank() }
+            .sortedBy { it.id.startsWith("rest-") } // prefer live WS copies
+            .forEach { msg ->
+                liveToolByCallId.putIfAbsent(msg.toolCallId, msg)
+            }
+
         val mapped = mutableListOf<ChatMessage>()
         // The gateway stores a reasoning-model's thinking as its OWN assistant
         // row (content = "", reasoning = trace) directly before the answer row.
@@ -2628,6 +2648,12 @@ class ChatViewModel(
             // keeps the real name, the rich WS payload, AND the same id so
             // Room upserts instead of accumulating a duplicate `rest-` row.
             if (role == MessageRole.TOOL) {
+                // Prefer the gateway call id (1:1, works for every tool
+                // shape), then fall back to result-content matching.
+                liveToolByCallId[msg.toolCallId]?.let { live ->
+                    mapped.add(live)
+                    return@forEachIndexed
+                }
                 canonicalToolResultKey(rawContent)?.let { key ->
                     liveToolByResult[key]?.let { live ->
                         mapped.add(live)
@@ -2642,6 +2668,7 @@ class ChatViewModel(
                     role = role,
                     content = finalContent,
                     reasoningText = finalReasoning,
+                    toolCallId = msg.toolCallId,
                     attachments = attachments,
                     timestamp = timestamp,
                     isStreaming = false,

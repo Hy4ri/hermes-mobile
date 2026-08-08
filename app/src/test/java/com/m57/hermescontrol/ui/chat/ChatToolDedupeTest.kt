@@ -475,4 +475,107 @@ class ChatToolDedupeTest {
         assertEquals(listOf("retry", "retry"), merged.map { it.content })
         assertSame(live, merged.last())
     }
+
+    // ── Issue #842: MCP/web tool rows (raw `<untrusted_tool_result>` text) ──
+    //
+    // REAL captured shapes (on-device 2026-08-08): the live WS bubble holds
+    // the full tool.complete payload (JSON), while the REST transcript row
+    // stores the SAME call's payload as RAW blob TEXT — not JSON, so content
+    // canonicalization can never produce a key. The gateway `tool_call_id`
+    // (present on BOTH sides) is the 1:1 identity that closes the gap.
+
+    private val wsMcpToolPayload =
+        """{"tool_id":"call_00_1GgRcqEFKA2TR0EkdkN85844","name":"mcp__ddgs__search_text","args":{"query":"Amman weather today"},"duration_s":3.2,"result":{"result":"<untrusted_tool_result source=\"mcp__ddgs__search_text\">\nThe following content was retrieved from an external source.\n{\"title\":\"Amman weather\"}\n</untrusted_tool_result>"}}"""
+
+    private val restMcpToolBlob =
+        """<untrusted_tool_result source="mcp__ddgs__search_text">
+The following content was retrieved from an external source.
+{"title":"Amman weather"}
+</untrusted_tool_result>"""
+
+    @Test
+    fun sameLogicalMessage_mcpBlobRestRow_matchesByCallId() {
+        val live =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = wsMcpToolPayload,
+                toolName = "mcp__ddgs__search_text",
+                toolCallId = "call_00_1GgRcqEFKA2TR0EkdkN85844",
+            )
+        val rest =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = restMcpToolBlob,
+                id = "rest-s-3",
+                toolCallId = "call_00_1GgRcqEFKA2TR0EkdkN85844",
+            )
+        assertTrue(sameLogicalMessage(live, rest))
+    }
+
+    @Test
+    fun sameLogicalMessage_differentCallIds_notSameEvenWithSameBlob() {
+        val live = ChatMessage(role = MessageRole.TOOL, content = wsMcpToolPayload, toolCallId = "call_00_aaa")
+        val rest = ChatMessage(role = MessageRole.TOOL, content = restMcpToolBlob, toolCallId = "call_00_bbb")
+        assertFalse(sameLogicalMessage(live, rest))
+    }
+
+    @Test
+    fun sameLogicalMessage_callIdMissing_fallsBackToContentCanonical() {
+        // Old cached rows may lack the call id — terminal-style content
+        // canonicalization must still match.
+        val ws = ChatMessage(role = MessageRole.TOOL, content = wsToolContent, toolName = "terminal")
+        val rest = ChatMessage(role = MessageRole.TOOL, content = restToolContent)
+        assertTrue(sameLogicalMessage(ws, rest))
+    }
+
+    @Test
+    fun mergeTranscriptWithLive_mcpToolRows_collapseToOne() {
+        // Issue #842 on-device repro: the REST page carries the same MCP
+        // search call as raw blob text; with the call id present the merge
+        // must NOT add a second tool bubble.
+        val live =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = wsMcpToolPayload,
+                toolName = "mcp__ddgs__search_text",
+                toolCallId = "call_00_1GgRcqEFKA2TR0EkdkN85844",
+                timestamp = 2,
+            )
+        val rest =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = restMcpToolBlob,
+                id = "rest-s-3",
+                toolCallId = "call_00_1GgRcqEFKA2TR0EkdkN85844",
+                timestamp = 2,
+            )
+        val merged = mergeTranscriptWithLive(listOf(rest), listOf(live))
+        // One copy survives (the merge keeps the REST row as server truth and
+        // drops the covered live bubble — in the real flow mapServerMessages
+        // already substituted the live row before this merge, preserving the
+        // tool name + rich payload). The invariant: never two bubbles.
+        assertEquals(1, merged.size)
+        assertEquals(MessageRole.TOOL, merged.single().role)
+    }
+
+    @Test
+    fun dedupeCached_mcpBlobRestRow_droppedWhenWsCopyExists() {
+        val wsTool =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = wsMcpToolPayload,
+                toolName = "mcp__ddgs__search_text",
+                toolCallId = "call_00_1GgRcqEFKA2TR0EkdkN85844",
+            )
+        val restTool =
+            ChatMessage(
+                role = MessageRole.TOOL,
+                content = restMcpToolBlob,
+                id = "rest-s-3",
+                toolCallId = "call_00_1GgRcqEFKA2TR0EkdkN85844",
+            )
+        val deduped = dedupeCachedMessages(listOf(wsTool, restTool))
+        assertEquals(1, deduped.size)
+        assertEquals(wsTool, deduped.single())
+    }
 }

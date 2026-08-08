@@ -34,6 +34,15 @@ data class ChatMessage(
     val isStreaming: Boolean = false,
     val toolName: String? = null,
     val toolStatus: ToolStatus? = null,
+    /**
+     * Gateway tool call id (`call_00_...`, from `tool.start` payload `tool_id`
+     * / REST `tool_call_id`). The REST transcript and the WS stream carry the
+     * SAME id for one tool call, so it is the robust 1:1 identity for
+     * deduplicating tool rows (issue #842) — result-content canonicalization
+     * fails for MCP/web tools because the REST side stores the payload as raw
+     * `<untrusted_tool_result>` text, not JSON.
+     */
+    val toolCallId: String = "",
     val approvalInfo: ApprovalInfo? = null,
     /** Transient clarify request data — when present, renders [ClarifyBubble] inline. */
     val clarifyInfo: ClarifyUi? = null,

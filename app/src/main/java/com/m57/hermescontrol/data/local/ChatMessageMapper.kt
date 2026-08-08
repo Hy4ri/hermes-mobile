@@ -26,6 +26,7 @@ fun ChatMessageEntity.toUiModel(): ChatMessage =
         timestamp = timestamp,
         isStreaming = isStreaming,
         toolName = toolName,
+        toolCallId = toolCallId,
         toolStatus =
             when (toolStatus) {
                 "RUNNING" -> ToolStatus.RUNNING
@@ -44,6 +45,7 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         reasoningText = reasoningText,
         timestamp = timestamp,
         toolName = toolName,
+        toolCallId = toolCallId,
         toolStatus = toolStatus?.name,
         isStreaming = isStreaming,
     )

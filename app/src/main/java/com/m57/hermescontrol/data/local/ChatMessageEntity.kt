@@ -34,6 +34,8 @@ data class ChatMessageEntity(
     val timestamp: Long,
     @ColumnInfo(name = "tool_name")
     val toolName: String? = null,
+    @ColumnInfo(name = "tool_call_id")
+    val toolCallId: String = "",
     @ColumnInfo(name = "tool_status")
     val toolStatus: String? = null,
     @ColumnInfo(name = "is_streaming")

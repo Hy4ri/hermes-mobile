@@ -290,15 +290,31 @@ object ChatWsEventReducer {
         // message.complete carries it into the finalized bubble.
         val text = event.text
         return if (!text.isNullOrBlank() && streamingState.streamingMessage != null) {
-            ReducerResult(
-                state = state,
-                streamingState =
-                    streamingState.copy(
-                        isReasoning = true,
-                        reasoningText = text,
-                        streamingMessage = streamingState.streamingMessage.copy(reasoningText = text),
-                    ),
-            )
+            // Issue #842: the gateway ALSO re-sends the agent's interim
+            // NARRATION as reasoning.available ~40ms before each tool.start
+            // (the commentary already rendered as the message body, echoed
+            // verbatim). Attaching the echo as reasoning would make every
+            // narration bubble render its own text twice (body + Reasoning
+            // card). Real reasoning never equals the message content, so the
+            // exact-content echo is skipped and the reasoning.delta trace
+            // (already in streamingState) stays authoritative.
+            val content = streamingState.streamingMessage.content
+            if (text.trim() == content.trim()) {
+                ReducerResult(
+                    state = state,
+                    streamingState = streamingState.copy(isReasoning = true),
+                )
+            } else {
+                ReducerResult(
+                    state = state,
+                    streamingState =
+                        streamingState.copy(
+                            isReasoning = true,
+                            reasoningText = text,
+                            streamingMessage = streamingState.streamingMessage.copy(reasoningText = text),
+                        ),
+                )
+            }
         } else {
             ReducerResult(
                 state = state,
@@ -433,6 +449,10 @@ object ChatWsEventReducer {
                 content = contentJson,
                 toolName = event.name,
                 toolStatus = ToolStatus.RUNNING,
+                // Issue #842: keep the gateway's call id so REST transcript
+                // rows (which carry the same `tool_call_id`) can be matched
+                // 1:1 against this live bubble during merges.
+                toolCallId = event.data?.get("tool_id") as? String ?: "",
             )
 
         // Finalize any orphan streaming message (issue #771 + #842): interim

@@ -11,7 +11,7 @@ import java.io.File
 
 @Database(
     entities = [ChatMessageEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class HermesDatabase : RoomDatabase() {
@@ -54,13 +54,27 @@ abstract class HermesDatabase : RoomDatabase() {
                         }
                     }
 
+                val migration4to5 =
+                    object : Migration(4, 5) {
+                        override fun migrate(db: SupportSQLiteDatabase) {
+                            // Issue #842: tool rows now carry the gateway's
+                            // tool call id (`call_00_...`) so REST transcript
+                            // rows can be matched 1:1 against their live WS
+                            // bubbles instead of fragile result-content
+                            // canonicalization.
+                            db.execSQL(
+                                "ALTER TABLE `chat_messages` ADD COLUMN `tool_call_id` TEXT NOT NULL DEFAULT ''",
+                            )
+                        }
+                    }
+
                 instance ?: Room
                     .databaseBuilder(
                         context.applicationContext,
                         HermesDatabase::class.java,
                         "hermes_control.db",
                     ).openHelperFactory(factory)
-                    .addMigrations(migration2to3, migration3to4)
+                    .addMigrations(migration2to3, migration3to4, migration4to5)
                     .fallbackToDestructiveMigration(false)
                     .build()
                     .also { instance = it }

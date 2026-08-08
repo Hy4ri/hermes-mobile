@@ -5,62 +5,86 @@ import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
 import com.m57.hermescontrol.theme.buildThemeDarkOnly
 
+// ---------------------------------------------------------------------
+// AMOLED — true-black variant of MonochromeTheme. Dark only:
+// background is pure #000000 so OLED panels switch those pixels off,
+// which MonochromeTheme's #121212 baseline doesn't give you.
+// ---------------------------------------------------------------------
+
+private val AmoledFloor = Color(0xFF000000) // background/surface/lowest — nothing darker exists
+private val AmoledContainer = Color(0xFF0D0D0D) // surfaceContainer
+private val AmoledContainerHigh = Color(0xFF1A1A1A) // surfaceContainerHigh, surfaceVariant, status containers
+private val AmoledContainerHighest = Color(0xFF262626) // surfaceContainerHighest, primaryContainer
+private val AmoledOutline = Color(0xFF808080)
+private val AmoledOutlineVariant = Color(0xFF404040)
+private val AmoledTextDim = Color(0xFFB3B3B3) // onSurfaceVariant
+private val AmoledTextBright = Color(0xFFFFFFFF) // pure white — max contrast on black; primary, error, text
+private val AmoledSecondary = Color(0xFFCCCCCC) // secondary accent + warning
+private val AmoledTertiary = Color(0xFF999999) // tertiary accent + success
+private val AmoledInfo = Color(0xFF808080) // info — same value as outline, distinct role
+private val AmoledInversePrimary = Color(0xFF121212) // dark tone on the (light, fallback) inverseSurface
+
 /**
- * AMOLED theme — pure black, dark only.
+ * AMOLED theme — dark-only variant of MonochromeTheme for
+ * true-black displays. Background is pure #000000 rather than the
+ * #121212 baseline the standard Monochrome preset uses, so surfaceContainerLowest
+ * and surfaceContainerLow collapse to the same value — there's nothing
+ * darker than black to separate them into. Light mode isn't shipped
+ * (a light AMOLED theme is a contradiction); the dispatcher falls back
+ * to the default theme.
  *
- * A light AMOLED makes no sense, so this theme declares [ThemeMode.DARK_ONLY]
- * (via [buildThemeDarkOnly]): in light mode the app falls back to the brand
- * default light theme. Status colors are bespoke neon-on-black so they pop
- * against true black surfaces.
+ * Same accessibility note as MonochromeTheme: status colors are pure
+ * grayscale, separated only by lightness, so don't rely on them alone
+ * to convey success/warning/error/info — pair with an icon or label.
  */
 val AmoledTheme =
     buildThemeDarkOnly(
         dark =
             PaletteColors(
-                primary = Color(0xFF7C5CFF),
-                onPrimary = Color(0xFFFFFFFF),
-                primaryContainer = Color(0xFF1A1040),
-                onPrimaryContainer = Color(0xFFD9CCFF),
-                secondary = Color(0xFFFFB627),
-                onSecondary = Color(0xFF000000),
-                secondaryContainer = Color(0xFF2A2000),
-                onSecondaryContainer = Color(0xFFFFE082),
-                tertiary = Color(0xFFFFE082),
-                onTertiary = Color(0xFF000000),
-                tertiaryContainer = Color(0xFF2A2000),
-                onTertiaryContainer = Color(0xFFFFE082),
-                background = Color(0xFF000000),
-                onBackground = Color(0xFFE8E6EE),
-                surface = Color(0xFF000000),
-                onSurface = Color(0xFFE8E6EE),
-                surfaceVariant = Color(0xFF121218),
-                onSurfaceVariant = Color(0xFFB6B2C4),
-                surfaceContainerLowest = Color(0xFF000000),
-                surfaceContainerLow = Color(0xFF08080A),
-                surfaceContainer = Color(0xFF0E0E12),
-                surfaceContainerHigh = Color(0xFF16161C),
-                surfaceContainerHighest = Color(0xFF1F1F28),
-                inverseSurface = Color(0xFFE8E6EE),
-                inverseOnSurface = Color(0xFF000000),
-                inversePrimary = Color(0xFF6750A4),
-                outline = Color(0xFF3A3A4A),
-                outlineVariant = Color(0xFF252532),
-                scrim = Color(0xFF000000),
+                primary = AmoledTextBright,
+                onPrimary = AmoledFloor,
+                primaryContainer = AmoledContainerHighest,
+                onPrimaryContainer = AmoledTextBright,
+                secondary = AmoledSecondary,
+                onSecondary = AmoledFloor,
+                secondaryContainer = AmoledContainerHigh,
+                onSecondaryContainer = AmoledSecondary,
+                tertiary = AmoledTertiary,
+                onTertiary = AmoledFloor,
+                tertiaryContainer = AmoledContainerHigh,
+                onTertiaryContainer = AmoledTertiary,
+                background = AmoledFloor,
+                onBackground = AmoledTextBright,
+                surface = AmoledFloor,
+                onSurface = AmoledTextBright,
+                surfaceVariant = AmoledContainerHigh,
+                onSurfaceVariant = AmoledTextDim,
+                surfaceContainerLowest = AmoledFloor,
+                surfaceContainerLow = AmoledFloor,
+                surfaceContainer = AmoledContainer,
+                surfaceContainerHigh = AmoledContainerHigh,
+                surfaceContainerHighest = AmoledContainerHighest,
+                inverseSurface = AmoledTextBright,
+                inverseOnSurface = AmoledFloor,
+                inversePrimary = AmoledInversePrimary,
+                outline = AmoledOutline,
+                outlineVariant = AmoledOutlineVariant,
+                scrim = Color.Black,
                 status =
                     HermesStatusColors(
-                        success = Color(0xFF00E676),
-                        successContainer = Color(0xFF00331A),
-                        onSuccess = Color(0xFFE8E6EE),
-                        warning = Color(0xFFFFD740),
-                        warningContainer = Color(0xFF332500),
-                        onWarning = Color(0xFFE8E6EE),
-                        error = Color(0xFFFF5252),
-                        errorContainer = Color(0xFF33000A),
-                        onError = Color(0xFFFFFFFF),
-                        onErrorContainer = Color(0xFFF2B8B5),
-                        info = Color(0xFF40C4FF),
-                        infoContainer = Color(0xFF002A33),
-                        onInfo = Color(0xFFE8E6EE),
+                        success = AmoledTertiary,
+                        successContainer = AmoledContainerHigh,
+                        onSuccess = AmoledFloor,
+                        warning = AmoledSecondary,
+                        warningContainer = AmoledContainerHigh,
+                        onWarning = AmoledFloor,
+                        error = AmoledTextBright,
+                        errorContainer = AmoledContainerHigh,
+                        onError = AmoledFloor,
+                        onErrorContainer = AmoledTextBright,
+                        info = AmoledInfo,
+                        infoContainer = AmoledContainerHigh,
+                        onInfo = AmoledFloor,
                     ),
             ),
     )

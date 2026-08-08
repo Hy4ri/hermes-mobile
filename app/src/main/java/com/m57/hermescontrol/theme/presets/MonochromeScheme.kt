@@ -5,103 +5,146 @@ import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.PaletteColors
 import com.m57.hermescontrol.theme.buildTheme
 
-/** Monochrome theme — pure grayscale, status colors included. */
+// ---------------------------------------------------------------------
+// Monochrome Dark — every swatch is R=G=B; roles are distinguished
+// purely by lightness, not hue.
+// ---------------------------------------------------------------------
+
+private val MonoDarkFloor = Color(0xFF0A0A0A) // surfaceContainerLowest
+private val MonoDarkBg = Color(0xFF121212) // background, surface, containerLow, all "on*" ink
+private val MonoDarkContainer = Color(0xFF1E1E1E) // surfaceContainer
+private val MonoDarkContainerHigh = Color(0xFF2A2A2A) // surfaceContainerHigh, surfaceVariant, status containers
+private val MonoDarkContainerHighest = Color(0xFF363636) // surfaceContainerHighest, primaryContainer
+private val MonoDarkOutline = Color(0xFF808080)
+private val MonoDarkOutlineVariant = Color(0xFF404040)
+private val MonoDarkTextDim = Color(0xFFB3B3B3) // onSurfaceVariant
+private val MonoDarkTextBright = Color(0xFFF2F2F2) // onBackground/onSurface/inverseSurface/primary/error
+private val MonoDarkSecondary = Color(0xFFCCCCCC) // secondary accent + warning
+private val MonoDarkTertiary = Color(0xFF999999) // tertiary accent + success
+private val MonoDarkInfo = Color(0xFF808080) // info — same value as outline, distinct role
+
+// ---------------------------------------------------------------------
+// Monochrome Light — the same ramp, inverted
+// ---------------------------------------------------------------------
+
+private val MonoLightCeiling = Color(0xFFFFFFFF) // surfaceContainerLowest
+private val MonoLightBg = Color(0xFFFAFAFA) // background, surface, containerLow, all "on*" ink
+private val MonoLightContainer = Color(0xFFF0F0F0) // surfaceContainer
+private val MonoLightContainerHigh = Color(0xFFE0E0E0) // surfaceContainerHigh, surfaceVariant, status containers
+private val MonoLightContainerHighest = Color(0xFFD1D1D1) // surfaceContainerHighest, primaryContainer
+private val MonoLightOutline = Color(0xFF808080)
+private val MonoLightOutlineVariant = Color(0xFFCCCCCC)
+private val MonoLightTextDim = Color(0xFF4D4D4D) // onSurfaceVariant
+private val MonoLightTextBright = Color(0xFF121212) // onBackground/onSurface/inverseSurface/primary/error
+private val MonoLightSecondary = Color(0xFF333333) // secondary accent + warning
+private val MonoLightTertiary = Color(0xFF666666) // tertiary accent + success
+private val MonoLightInfo = Color(0xFF808080) // info — same value as outline, distinct role
+
+/**
+ * Monochrome theme — pure grayscale, no hue in any slot including status
+ * colors. `success`/`warning`/`error`/`info` are separated only by
+ * lightness (darkest/most emphasized = error, lightest/most muted = info),
+ * so anything that leans on this theme for status meaning should not rely
+ * on color alone — pair it with an icon, label, or weight change. This is
+ * the one real accessibility trade-off of going fully monochrome; every
+ * other preset keeps status colors hued specifically to avoid it.
+ */
 val MonochromeTheme =
     buildTheme(
         dark =
             PaletteColors(
-                primary = Color(0xFFFFFFFF),
-                onPrimary = Color(0xFF000000),
-                primaryContainer = Color(0xFF404040),
-                onPrimaryContainer = Color(0xFFFFFFFF),
-                secondary = Color(0xFFB0B0B0),
-                onSecondary = Color(0xFF000000),
-                secondaryContainer = Color(0xFF222222),
-                onSecondaryContainer = Color(0xFFE0E0E0),
-                tertiary = Color(0xFFD0D0D0),
-                onTertiary = Color(0xFF000000),
-                tertiaryContainer = Color(0xFF333333),
-                onTertiaryContainer = Color(0xFFE0E0E0),
-                background = Color(0xFF121212),
-                onBackground = Color(0xFFE0E0E0),
-                surface = Color(0xFF1E1E1E),
-                onSurface = Color(0xFFE0E0E0),
-                surfaceVariant = Color(0xFF2B2B2B),
-                onSurfaceVariant = Color(0xFFB0B0B0),
-                surfaceContainerLowest = Color(0xFF0F0F0F),
-                surfaceContainerLow = Color(0xFF1A1A1A),
-                surfaceContainer = Color(0xFF1E1E1E),
-                surfaceContainerHigh = Color(0xFF252525),
-                surfaceContainerHighest = Color(0xFF2C2C2C),
-                inverseSurface = Color(0xFFE0E0E0),
-                inverseOnSurface = Color(0xFF121212),
-                inversePrimary = Color(0xFF121212),
-                outline = Color(0xFF666666),
-                outlineVariant = Color(0xFF444444),
-                scrim = Color(0xFF000000),
+                primary = MonoDarkTextBright,
+                onPrimary = MonoDarkBg,
+                primaryContainer = MonoDarkContainerHighest,
+                onPrimaryContainer = MonoDarkTextBright,
+                secondary = MonoDarkSecondary,
+                onSecondary = MonoDarkBg,
+                secondaryContainer = MonoDarkContainerHigh,
+                onSecondaryContainer = MonoDarkSecondary,
+                tertiary = MonoDarkTertiary,
+                onTertiary = MonoDarkBg,
+                tertiaryContainer = MonoDarkContainerHigh,
+                onTertiaryContainer = MonoDarkTertiary,
+                background = MonoDarkBg,
+                onBackground = MonoDarkTextBright,
+                surface = MonoDarkBg,
+                onSurface = MonoDarkTextBright,
+                surfaceVariant = MonoDarkContainerHigh,
+                onSurfaceVariant = MonoDarkTextDim,
+                surfaceContainerLowest = MonoDarkFloor,
+                surfaceContainerLow = MonoDarkBg,
+                surfaceContainer = MonoDarkContainer,
+                surfaceContainerHigh = MonoDarkContainerHigh,
+                surfaceContainerHighest = MonoDarkContainerHighest,
+                inverseSurface = MonoDarkTextBright,
+                inverseOnSurface = MonoDarkBg,
+                inversePrimary = MonoLightTextBright,
+                outline = MonoDarkOutline,
+                outlineVariant = MonoDarkOutlineVariant,
+                scrim = Color.Black,
                 status =
                     HermesStatusColors(
-                        success = Color(0xFFE0E0E0),
-                        successContainer = Color(0xFF2A2A2A),
-                        onSuccess = Color(0xFF121212),
-                        warning = Color(0xFFCCCCCC),
-                        warningContainer = Color(0xFF333333),
-                        onWarning = Color(0xFF121212),
-                        error = Color(0xFFFFFFFF),
-                        errorContainer = Color(0xFF404040),
-                        onError = Color(0xFF121212),
-                        onErrorContainer = Color(0xFFE0E0E0),
-                        info = Color(0xFFB0B0B0),
-                        infoContainer = Color(0xFF242424),
-                        onInfo = Color(0xFF121212),
+                        success = MonoDarkTertiary,
+                        successContainer = MonoDarkContainerHigh,
+                        onSuccess = MonoDarkBg,
+                        warning = MonoDarkSecondary,
+                        warningContainer = MonoDarkContainerHigh,
+                        onWarning = MonoDarkBg,
+                        error = MonoDarkTextBright,
+                        errorContainer = MonoDarkContainerHigh,
+                        onError = MonoDarkBg,
+                        onErrorContainer = MonoDarkTextBright,
+                        info = MonoDarkInfo,
+                        infoContainer = MonoDarkContainerHigh,
+                        onInfo = MonoDarkBg,
                     ),
             ),
         light =
             PaletteColors(
-                primary = Color(0xFF000000),
-                onPrimary = Color(0xFFFFFFFF),
-                primaryContainer = Color(0xFFC8C8C8),
-                onPrimaryContainer = Color(0xFF000000),
-                secondary = Color(0xFF4A4A4A),
-                onSecondary = Color(0xFFFFFFFF),
-                secondaryContainer = Color(0xFFF0F0F0),
-                onSecondaryContainer = Color(0xFF111111),
-                tertiary = Color(0xFF333333),
-                onTertiary = Color(0xFFFFFFFF),
-                tertiaryContainer = Color(0xFFE8E8E8),
-                onTertiaryContainer = Color(0xFF111111),
-                background = Color(0xFFFFFFFF),
-                onBackground = Color(0xFF111111),
-                surface = Color(0xFFF5F5F5),
-                onSurface = Color(0xFF111111),
-                surfaceVariant = Color(0xFFE0E0E0),
-                onSurfaceVariant = Color(0xFF4A4A4A),
-                surfaceContainerLowest = Color(0xFFFFFFFF),
-                surfaceContainerLow = Color(0xFFF8F8F8),
-                surfaceContainer = Color(0xFFF5F5F5),
-                surfaceContainerHigh = Color(0xFFEEEEEE),
-                surfaceContainerHighest = Color(0xFFE3E3E3),
-                inverseSurface = Color(0xFF111111),
-                inverseOnSurface = Color(0xFFE0E0E0),
-                inversePrimary = Color(0xFFE0E0E0),
-                outline = Color(0xFF888888),
-                outlineVariant = Color(0xFFCCCCCC),
-                scrim = Color(0xFF000000),
+                primary = MonoLightTextBright,
+                onPrimary = MonoLightBg,
+                primaryContainer = MonoLightContainerHighest,
+                onPrimaryContainer = MonoLightTextBright,
+                secondary = MonoLightSecondary,
+                onSecondary = MonoLightBg,
+                secondaryContainer = MonoLightContainerHigh,
+                onSecondaryContainer = MonoLightSecondary,
+                tertiary = MonoLightTertiary,
+                onTertiary = MonoLightBg,
+                tertiaryContainer = MonoLightContainerHigh,
+                onTertiaryContainer = MonoLightTertiary,
+                background = MonoLightBg,
+                onBackground = MonoLightTextBright,
+                surface = MonoLightBg,
+                onSurface = MonoLightTextBright,
+                surfaceVariant = MonoLightContainerHigh,
+                onSurfaceVariant = MonoLightTextDim,
+                surfaceContainerLowest = MonoLightCeiling,
+                surfaceContainerLow = MonoLightBg,
+                surfaceContainer = MonoLightContainer,
+                surfaceContainerHigh = MonoLightContainerHigh,
+                surfaceContainerHighest = MonoLightContainerHighest,
+                inverseSurface = MonoLightTextBright,
+                inverseOnSurface = MonoLightBg,
+                inversePrimary = MonoDarkTextBright,
+                outline = MonoLightOutline,
+                outlineVariant = MonoLightOutlineVariant,
+                scrim = Color.Black,
                 status =
                     HermesStatusColors(
-                        success = Color(0xFF222222),
-                        successContainer = Color(0xFFE5E5E5),
-                        onSuccess = Color(0xFFFFFFFF),
-                        warning = Color(0xFF444444),
-                        warningContainer = Color(0xFFE0E0E0),
-                        onWarning = Color(0xFFFFFFFF),
-                        error = Color(0xFF000000),
-                        errorContainer = Color(0xFFD6D6D6),
-                        onError = Color(0xFFFFFFFF),
-                        onErrorContainer = Color(0xFF111111),
-                        info = Color(0xFF555555),
-                        infoContainer = Color(0xFFEAEAEA),
-                        onInfo = Color(0xFFFFFFFF),
+                        success = MonoLightTertiary,
+                        successContainer = MonoLightContainerHigh,
+                        onSuccess = MonoLightBg,
+                        warning = MonoLightSecondary,
+                        warningContainer = MonoLightContainerHigh,
+                        onWarning = MonoLightBg,
+                        error = MonoLightTextBright,
+                        errorContainer = MonoLightContainerHigh,
+                        onError = MonoLightBg,
+                        onErrorContainer = MonoLightTextBright,
+                        info = MonoLightInfo,
+                        infoContainer = MonoLightContainerHigh,
+                        onInfo = MonoLightBg,
                     ),
             ),
     )

@@ -8,6 +8,25 @@ import org.junit.Test
 
 class ChatWsEventReducerTest {
     @Test
+    fun testMessageComplete_clearsResolvedClarifyRequest() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                clarifyRequest = ClarifyUi("Old question", emptyList(), "clarify-1"),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.MessageComplete("Done", "session-1"),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(null, result.state.clarifyRequest)
+    }
+
+    @Test
     fun testToolProgress_updatesProgressPreviewForMatchingRunningTool() {
         val initialMessage =
             ChatMessage(

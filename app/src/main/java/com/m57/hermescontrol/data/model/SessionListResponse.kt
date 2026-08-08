@@ -27,7 +27,10 @@ data class SessionInfo(
 @Serializable
 data class SessionStatsResponse(
     val total: Int = 0,
-    val active: Int = 0,
+    // Backend GET /api/sessions/stats returns "active_store" (non-archived
+    // session count) — NOT "active". The old key never existed in the
+    // response, so with ignoreUnknownKeys the card always rendered 0.
+    val active_store: Int = 0,
 )
 
 @Serializable

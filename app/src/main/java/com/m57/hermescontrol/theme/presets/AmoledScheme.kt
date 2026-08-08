@@ -1,63 +1,65 @@
 package com.m57.hermescontrol.theme.presets
 
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
-import com.m57.hermescontrol.theme.HermesAmber
-import com.m57.hermescontrol.theme.HermesAmberLight
-import com.m57.hermescontrol.theme.HermesPurple
-import com.m57.hermescontrol.theme.HermesPurpleOnContainer
+import com.m57.hermescontrol.theme.PaletteColors
+import com.m57.hermescontrol.theme.StatusColors
+import com.m57.hermescontrol.theme.buildThemeDarkOnly
 
 /**
- * AMOLED color scheme (dark only).
+ * AMOLED theme — pure black, dark only.
  *
- * AMOLED has no light variant — callers fall back to the brand default light
- * scheme for light mode.
+ * A light AMOLED makes no sense, so this theme declares [ThemeMode.DARK_ONLY]
+ * (via [buildThemeDarkOnly]): in light mode the app falls back to the brand
+ * default light theme. Status colors are bespoke neon-on-black so they pop
+ * against true black surfaces.
  */
-val AmoledDarkColorScheme =
-    darkColorScheme(
-        primary = HermesPurple,
-        onPrimary = Color.White,
-        primaryContainer = Color(0xFF1A1040),
-        onPrimaryContainer = HermesPurpleOnContainer,
-        inversePrimary = Color(0xFF6750A4),
-        secondary = HermesAmber,
-        onSecondary = Color.Black,
-        secondaryContainer = Color(0xFF2A2000),
-        onSecondaryContainer = HermesAmberLight,
-        tertiary = HermesAmberLight,
-        onTertiary = Color.Black,
-        tertiaryContainer = Color(0xFF2A2000),
-        onTertiaryContainer = HermesAmberLight,
-        background = Color.Black,
-        onBackground = Color(0xFFE8E6EE),
-        surface = Color.Black,
-        onSurface = Color(0xFFE8E6EE),
-        surfaceVariant = Color(0xFF121218),
-        onSurfaceVariant = Color(0xFFB6B2C4),
-        surfaceTint = HermesPurple,
-        surfaceContainerLowest = Color.Black,
-        surfaceContainerLow = Color(0xFF08080A),
-        surfaceContainer = Color(0xFF0E0E12),
-        surfaceContainerHigh = Color(0xFF16161C),
-        surfaceContainerHighest = Color(0xFF1F1F28),
-        inverseSurface = Color(0xFFE8E6EE),
-        inverseOnSurface = Color.Black,
-        error = Color(0xFFCF6679),
-        onError = Color.Black,
-        errorContainer = Color(0xFF3700B3),
-        onErrorContainer = Color(0xFFF2B8B5),
-        outline = Color(0xFF3A3A4A),
-        outlineVariant = Color(0xFF252532),
-        scrim = Color.Black,
+val AmoledTheme =
+    buildThemeDarkOnly(
+        dark =
+            PaletteColors(
+                primary = Color(0xFF7C5CFF),
+                onPrimary = Color(0xFFFFFFFF),
+                primaryContainer = Color(0xFF1A1040),
+                onPrimaryContainer = Color(0xFFD9CCFF),
+                secondary = Color(0xFFFFB627),
+                onSecondary = Color(0xFF000000),
+                secondaryContainer = Color(0xFF2A2000),
+                onSecondaryContainer = Color(0xFFFFE082),
+                tertiary = Color(0xFFFFE082),
+                onTertiary = Color(0xFF000000),
+                tertiaryContainer = Color(0xFF2A2000),
+                onTertiaryContainer = Color(0xFFFFE082),
+                background = Color(0xFF000000),
+                onBackground = Color(0xFFE8E6EE),
+                surface = Color(0xFF000000),
+                onSurface = Color(0xFFE8E6EE),
+                surfaceVariant = Color(0xFF121218),
+                onSurfaceVariant = Color(0xFFB6B2C4),
+                surfaceContainerLowest = Color(0xFF000000),
+                surfaceContainerLow = Color(0xFF08080A),
+                surfaceContainer = Color(0xFF0E0E12),
+                surfaceContainerHigh = Color(0xFF16161C),
+                surfaceContainerHighest = Color(0xFF1F1F28),
+                inverseSurface = Color(0xFFE8E6EE),
+                inverseOnSurface = Color(0xFF000000),
+                inversePrimary = Color(0xFF6750A4),
+                outline = Color(0xFF3A3A4A),
+                outlineVariant = Color(0xFF252532),
+                scrim = Color(0xFF000000),
+                status =
+                    StatusColors(
+                        success = Color(0xFF00E676),
+                        successContainer = Color(0xFF00331A),
+                        onSuccess = Color(0xFFE8E6EE),
+                        warning = Color(0xFFFFD740),
+                        warningContainer = Color(0xFF332500),
+                        onWarning = Color(0xFFE8E6EE),
+                        error = Color(0xFFFF5252),
+                        errorContainer = Color(0xFF33000A),
+                        onError = Color(0xFFE8E6EE),
+                        info = Color(0xFF40C4FF),
+                        infoContainer = Color(0xFF002A33),
+                        onInfo = Color(0xFFE8E6EE),
+                    ),
+            ),
     )
-
-/**
- * AMOLED has no bespoke light scheme — reuse the brand default light scheme.
- */
-val AmoledLightColorScheme = DefaultLightColorScheme
-
-/** AMOLED status colors (dark) — reuses the brand default set. */
-val AmoledDarkStatusColors = DefaultDarkStatusColors
-
-/** AMOLED status colors (light) — reuses the brand default set. */
-val AmoledLightStatusColors = DefaultLightStatusColors

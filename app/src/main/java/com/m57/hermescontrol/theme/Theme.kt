@@ -2,6 +2,7 @@ package com.m57.hermescontrol.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -9,30 +10,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.platform.LocalContext
-import com.m57.hermescontrol.theme.presets.AmoledDarkColorScheme
-import com.m57.hermescontrol.theme.presets.AmoledDarkStatusColors
-import com.m57.hermescontrol.theme.presets.AmoledLightColorScheme
-import com.m57.hermescontrol.theme.presets.AmoledLightStatusColors
-import com.m57.hermescontrol.theme.presets.CatppuccinDarkColorScheme
-import com.m57.hermescontrol.theme.presets.CatppuccinDarkStatusColors
-import com.m57.hermescontrol.theme.presets.CatppuccinLightColorScheme
-import com.m57.hermescontrol.theme.presets.CatppuccinLightStatusColors
-import com.m57.hermescontrol.theme.presets.DefaultDarkColorScheme
-import com.m57.hermescontrol.theme.presets.DefaultDarkStatusColors
-import com.m57.hermescontrol.theme.presets.DefaultLightColorScheme
-import com.m57.hermescontrol.theme.presets.DefaultLightStatusColors
-import com.m57.hermescontrol.theme.presets.GruvboxDarkColorScheme
-import com.m57.hermescontrol.theme.presets.GruvboxDarkStatusColors
-import com.m57.hermescontrol.theme.presets.GruvboxLightColorScheme
-import com.m57.hermescontrol.theme.presets.GruvboxLightStatusColors
-import com.m57.hermescontrol.theme.presets.MonochromeDarkColorScheme
-import com.m57.hermescontrol.theme.presets.MonochromeDarkStatusColors
-import com.m57.hermescontrol.theme.presets.MonochromeLightColorScheme
-import com.m57.hermescontrol.theme.presets.MonochromeLightStatusColors
-import com.m57.hermescontrol.theme.presets.NeonNoirDarkColorScheme
-import com.m57.hermescontrol.theme.presets.NeonNoirDarkStatusColors
-import com.m57.hermescontrol.theme.presets.NeonNoirLightColorScheme
-import com.m57.hermescontrol.theme.presets.NeonNoirLightStatusColors
+import com.m57.hermescontrol.theme.presets.AmoledTheme
+import com.m57.hermescontrol.theme.presets.CatppuccinTheme
+import com.m57.hermescontrol.theme.presets.DefaultTheme
+import com.m57.hermescontrol.theme.presets.GruvboxTheme
+import com.m57.hermescontrol.theme.presets.MonochromeTheme
+import com.m57.hermescontrol.theme.presets.NeonNoirTheme
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -45,39 +28,52 @@ val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
 
 /**
+ * The 6 preset themes — one file each, all built from the same
+ * [PaletteTemplate] shape (see `PaletteTemplate.kt`).
+ */
+private fun themeFor(preset: ThemePreset): ThemePalette =
+    when (preset) {
+        ThemePreset.DEFAULT -> DefaultTheme
+        ThemePreset.MONOCHROME -> MonochromeTheme
+        ThemePreset.GRUVBOX -> GruvboxTheme
+        ThemePreset.CATPPUCCIN -> CatppuccinTheme
+        ThemePreset.AMOLED -> AmoledTheme
+        ThemePreset.NEON_NOIR -> NeonNoirTheme
+    }
+
+/**
  * Resolve the Material 3 [ColorScheme] for a preset + dark flag.
  *
- * Every preset exports both a dark and light scheme. AMOLED's light scheme is
- * an explicit alias of the brand default light scheme.
+ * A preset that doesn't ship the requested mode (DARK_ONLY / LIGHT_ONLY —
+ * e.g. AMOLED has no light palette) falls back to the default theme's
+ * palette for that mode.
  */
 private fun resolveColorScheme(
     preset: ThemePreset,
     darkTheme: Boolean,
-) = when (preset) {
-    ThemePreset.DEFAULT -> if (darkTheme) DefaultDarkColorScheme else DefaultLightColorScheme
-    ThemePreset.MONOCHROME -> if (darkTheme) MonochromeDarkColorScheme else MonochromeLightColorScheme
-    ThemePreset.GRUVBOX -> if (darkTheme) GruvboxDarkColorScheme else GruvboxLightColorScheme
-    ThemePreset.CATPPUCCIN -> if (darkTheme) CatppuccinDarkColorScheme else CatppuccinLightColorScheme
-    ThemePreset.AMOLED -> if (darkTheme) AmoledDarkColorScheme else AmoledLightColorScheme
-    ThemePreset.NEON_NOIR -> if (darkTheme) NeonNoirDarkColorScheme else NeonNoirLightColorScheme
+): ColorScheme {
+    val theme = themeFor(preset)
+    return if (darkTheme) {
+        theme.darkScheme ?: DefaultTheme.darkScheme!!
+    } else {
+        theme.lightScheme ?: DefaultTheme.lightScheme!!
+    }
 }
 
 /**
  * Resolve the semantic status colors for a preset + dark flag.
- *
- * Every preset exports both a dark and light status set. MONOCHROME and AMOLED
- * alias the brand default status colors (they have no bespoke semantic set).
+ * Same fallback rule as the scheme.
  */
 private fun resolveStatusColors(
     preset: ThemePreset,
     darkTheme: Boolean,
-) = when (preset) {
-    ThemePreset.DEFAULT -> if (darkTheme) DefaultDarkStatusColors else DefaultLightStatusColors
-    ThemePreset.MONOCHROME -> if (darkTheme) MonochromeDarkStatusColors else MonochromeLightStatusColors
-    ThemePreset.GRUVBOX -> if (darkTheme) GruvboxDarkStatusColors else GruvboxLightStatusColors
-    ThemePreset.CATPPUCCIN -> if (darkTheme) CatppuccinDarkStatusColors else CatppuccinLightStatusColors
-    ThemePreset.AMOLED -> if (darkTheme) AmoledDarkStatusColors else AmoledLightStatusColors
-    ThemePreset.NEON_NOIR -> if (darkTheme) NeonNoirDarkStatusColors else NeonNoirLightStatusColors
+): HermesStatusColors {
+    val theme = themeFor(preset)
+    return if (darkTheme) {
+        theme.darkStatus ?: DefaultTheme.darkStatus!!
+    } else {
+        theme.lightStatus ?: DefaultTheme.lightStatus!!
+    }
 }
 
 @Composable

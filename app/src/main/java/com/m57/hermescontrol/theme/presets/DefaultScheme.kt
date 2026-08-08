@@ -1,165 +1,105 @@
 package com.m57.hermescontrol.theme.presets
 
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
-import com.m57.hermescontrol.theme.DarkBackground
-import com.m57.hermescontrol.theme.DarkInverseOnSurface
-import com.m57.hermescontrol.theme.DarkInverseSurface
-import com.m57.hermescontrol.theme.DarkOnSurface
-import com.m57.hermescontrol.theme.DarkOnSurfaceVariant
-import com.m57.hermescontrol.theme.DarkOutline
-import com.m57.hermescontrol.theme.DarkOutlineVariant
-import com.m57.hermescontrol.theme.DarkScrim
-import com.m57.hermescontrol.theme.DarkSurface
-import com.m57.hermescontrol.theme.DarkSurfaceContainer
-import com.m57.hermescontrol.theme.DarkSurfaceContainerHigh
-import com.m57.hermescontrol.theme.DarkSurfaceContainerHighest
-import com.m57.hermescontrol.theme.DarkSurfaceContainerLow
-import com.m57.hermescontrol.theme.DarkSurfaceContainerLowest
-import com.m57.hermescontrol.theme.DarkSurfaceVariant
-import com.m57.hermescontrol.theme.HermesAmber
-import com.m57.hermescontrol.theme.HermesAmberDark
-import com.m57.hermescontrol.theme.HermesAmberLight
-import com.m57.hermescontrol.theme.HermesPurple
-import com.m57.hermescontrol.theme.HermesPurpleContainer
-import com.m57.hermescontrol.theme.HermesPurpleDark
-import com.m57.hermescontrol.theme.HermesPurpleLight
-import com.m57.hermescontrol.theme.HermesPurpleOnContainer
-import com.m57.hermescontrol.theme.HermesStatusColors
-import com.m57.hermescontrol.theme.LightBackground
-import com.m57.hermescontrol.theme.LightInverseOnSurface
-import com.m57.hermescontrol.theme.LightInverseSurface
-import com.m57.hermescontrol.theme.LightOnSurface
-import com.m57.hermescontrol.theme.LightOnSurfaceVariant
-import com.m57.hermescontrol.theme.LightOutline
-import com.m57.hermescontrol.theme.LightOutlineVariant
-import com.m57.hermescontrol.theme.LightScrim
-import com.m57.hermescontrol.theme.LightSurface
-import com.m57.hermescontrol.theme.LightSurfaceContainer
-import com.m57.hermescontrol.theme.LightSurfaceContainerHigh
-import com.m57.hermescontrol.theme.LightSurfaceContainerHighest
-import com.m57.hermescontrol.theme.LightSurfaceContainerLow
-import com.m57.hermescontrol.theme.LightSurfaceContainerLowest
-import com.m57.hermescontrol.theme.LightSurfaceVariant
-import com.m57.hermescontrol.theme.StatusBlue
-import com.m57.hermescontrol.theme.StatusBlueContainer
-import com.m57.hermescontrol.theme.StatusGreen
-import com.m57.hermescontrol.theme.StatusGreenContainer
-import com.m57.hermescontrol.theme.StatusGreyLight
-import com.m57.hermescontrol.theme.StatusRed
-import com.m57.hermescontrol.theme.StatusRedContainer
-import com.m57.hermescontrol.theme.StatusYellow
-import com.m57.hermescontrol.theme.StatusYellowContainer
+import com.m57.hermescontrol.theme.PaletteColors
+import com.m57.hermescontrol.theme.StatusColors
+import com.m57.hermescontrol.theme.buildTheme
 
-/** Brand default color scheme (dark) — Voltage Purple primary. */
-val DefaultDarkColorScheme =
-    darkColorScheme(
-        primary = HermesPurple,
-        onPrimary = Color.White,
-        primaryContainer = HermesPurpleContainer,
-        onPrimaryContainer = HermesPurpleOnContainer,
-        inversePrimary = HermesPurpleDark,
-        secondary = HermesAmber,
-        onSecondary = Color.Black,
-        secondaryContainer = Color(0xFF3D2F0F),
-        onSecondaryContainer = HermesAmberLight,
-        tertiary = HermesAmberLight,
-        onTertiary = Color.Black,
-        tertiaryContainer = Color(0xFF3D2F0F),
-        onTertiaryContainer = HermesAmberLight,
-        background = DarkBackground,
-        onBackground = DarkOnSurface,
-        surface = DarkSurface,
-        onSurface = DarkOnSurface,
-        surfaceVariant = DarkSurfaceVariant,
-        onSurfaceVariant = DarkOnSurfaceVariant,
-        surfaceTint = HermesPurple,
-        surfaceContainerLowest = DarkSurfaceContainerLowest,
-        surfaceContainerLow = DarkSurfaceContainerLow,
-        surfaceContainer = DarkSurfaceContainer,
-        surfaceContainerHigh = DarkSurfaceContainerHigh,
-        surfaceContainerHighest = DarkSurfaceContainerHighest,
-        inverseSurface = DarkInverseSurface,
-        inverseOnSurface = DarkInverseOnSurface,
-        error = StatusRed,
-        onError = Color.White,
-        errorContainer = StatusRedContainer,
-        onErrorContainer = Color(0xFFFFB4B4),
-        outline = DarkOutline,
-        outlineVariant = DarkOutlineVariant,
-        scrim = DarkScrim,
-    )
-
-/** Brand default color scheme (light) — Voltage Purple primary. */
-val DefaultLightColorScheme =
-    lightColorScheme(
-        primary = HermesPurpleDark,
-        onPrimary = Color.White,
-        primaryContainer = HermesPurpleLight,
-        onPrimaryContainer = Color(0xFF1E0F66),
-        inversePrimary = HermesPurpleLight,
-        secondary = HermesAmberDark,
-        onSecondary = Color.White,
-        secondaryContainer = HermesAmberLight,
-        onSecondaryContainer = Color(0xFF3D2F0F),
-        tertiary = HermesAmberDark,
-        onTertiary = Color.White,
-        tertiaryContainer = HermesAmberLight,
-        onTertiaryContainer = Color(0xFF3D2F0F),
-        background = LightBackground,
-        onBackground = LightOnSurface,
-        surface = LightSurface,
-        onSurface = LightOnSurface,
-        surfaceVariant = LightSurfaceVariant,
-        onSurfaceVariant = LightOnSurfaceVariant,
-        surfaceTint = HermesPurple,
-        surfaceContainerLowest = LightSurfaceContainerLowest,
-        surfaceContainerLow = LightSurfaceContainerLow,
-        surfaceContainer = LightSurfaceContainer,
-        surfaceContainerHigh = LightSurfaceContainerHigh,
-        surfaceContainerHighest = LightSurfaceContainerHighest,
-        inverseSurface = LightInverseSurface,
-        inverseOnSurface = LightInverseOnSurface,
-        error = Color(0xFFB3261E),
-        onError = Color.White,
-        errorContainer = Color(0xFFF9DEDC),
-        onErrorContainer = Color(0xFF410E0B),
-        outline = LightOutline,
-        outlineVariant = LightOutlineVariant,
-        scrim = LightScrim,
-    )
-
-/** Default status colors (dark). */
-val DefaultDarkStatusColors =
-    HermesStatusColors(
-        success = StatusGreen,
-        successContainer = StatusGreenContainer,
-        onSuccess = StatusGreyLight,
-        warning = StatusYellow,
-        warningContainer = StatusYellowContainer,
-        onWarning = StatusGreyLight,
-        error = StatusRed,
-        errorContainer = StatusRedContainer,
-        onError = StatusGreyLight,
-        info = StatusBlue,
-        infoContainer = StatusBlueContainer,
-        onInfo = StatusGreyLight,
-    )
-
-/** Default status colors (light). */
-val DefaultLightStatusColors =
-    HermesStatusColors(
-        success = Color(0xFF1B873A),
-        successContainer = Color(0xFFD7F5E0),
-        onSuccess = Color(0xFFFDF8FF),
-        warning = HermesAmberDark,
-        warningContainer = Color(0xFFFFEAB3),
-        onWarning = Color(0xFFFDF8FF),
-        error = Color(0xFFB3261E),
-        errorContainer = Color(0xFFF9DEDC),
-        onError = Color(0xFFFDF8FF),
-        info = Color(0xFF2E6FBD),
-        infoContainer = Color(0xFFD4E7FF),
-        onInfo = Color(0xFFFDF8FF),
+/** Brand default theme — voltage purple primary, plasma amber secondary. */
+val DefaultTheme =
+    buildTheme(
+        dark =
+            PaletteColors(
+                primary = Color(0xFF7C5CFF),
+                onPrimary = Color(0xFFFFFFFF),
+                primaryContainer = Color(0xFF2B2159),
+                onPrimaryContainer = Color(0xFFD9CCFF),
+                secondary = Color(0xFFFFB627),
+                onSecondary = Color(0xFF000000),
+                secondaryContainer = Color(0xFF3D2F0F),
+                onSecondaryContainer = Color(0xFFFFE082),
+                tertiary = Color(0xFFFFE082),
+                onTertiary = Color(0xFF000000),
+                tertiaryContainer = Color(0xFF3D2F0F),
+                onTertiaryContainer = Color(0xFFFFE082),
+                background = Color(0xFF0B0B11),
+                onBackground = Color(0xFFE8E6EE),
+                surface = Color(0xFF121218),
+                onSurface = Color(0xFFE8E6EE),
+                surfaceVariant = Color(0xFF1C1C26),
+                onSurfaceVariant = Color(0xFFB6B2C4),
+                surfaceContainerLowest = Color(0xFF07070C),
+                surfaceContainerLow = Color(0xFF0F0F14),
+                surfaceContainer = Color(0xFF1C1C26),
+                surfaceContainerHigh = Color(0xFF262633),
+                surfaceContainerHighest = Color(0xFF30303D),
+                inverseSurface = Color(0xFFE8E6EE),
+                inverseOnSurface = Color(0xFF1A1A24),
+                inversePrimary = Color(0xFF5A3FE0),
+                outline = Color(0xFF4A4A5A),
+                outlineVariant = Color(0xFF2F2F3D),
+                scrim = Color(0xFF000000),
+                status =
+                    StatusColors(
+                        success = Color(0xFF3DDC84),
+                        successContainer = Color(0xFF143A23),
+                        onSuccess = Color(0xFFF5F5F5),
+                        warning = Color(0xFFFFB627),
+                        warningContainer = Color(0xFF3D2F0F),
+                        onWarning = Color(0xFFF5F5F5),
+                        error = Color(0xFFFF5C5C),
+                        errorContainer = Color(0xFF3D1414),
+                        onError = Color(0xFFF5F5F5),
+                        info = Color(0xFF4DA8FF),
+                        infoContainer = Color(0xFF0F2A3D),
+                        onInfo = Color(0xFFF5F5F5),
+                    ),
+            ),
+        light =
+            PaletteColors(
+                primary = Color(0xFF5A3FE0),
+                onPrimary = Color(0xFFFFFFFF),
+                primaryContainer = Color(0xFFAC93FF),
+                onPrimaryContainer = Color(0xFF1E0F66),
+                secondary = Color(0xFFC68400),
+                onSecondary = Color(0xFFFFFFFF),
+                secondaryContainer = Color(0xFFFFE082),
+                onSecondaryContainer = Color(0xFF3D2F0F),
+                tertiary = Color(0xFFC68400),
+                onTertiary = Color(0xFFFFFFFF),
+                tertiaryContainer = Color(0xFFFFE082),
+                onTertiaryContainer = Color(0xFF3D2F0F),
+                background = Color(0xFFF7F6FB),
+                onBackground = Color(0xFF1A1A24),
+                surface = Color(0xFFFFFFFF),
+                onSurface = Color(0xFF1A1A24),
+                surfaceVariant = Color(0xFFEFEDF4),
+                onSurfaceVariant = Color(0xFF56536A),
+                surfaceContainerLowest = Color(0xFFFFFFFF),
+                surfaceContainerLow = Color(0xFFF3F1F8),
+                surfaceContainer = Color(0xFFEFEDF4),
+                surfaceContainerHigh = Color(0xFFE6E3EE),
+                surfaceContainerHighest = Color(0xFFDDD9EA),
+                inverseSurface = Color(0xFF1A1A24),
+                inverseOnSurface = Color(0xFFE8E6EE),
+                inversePrimary = Color(0xFFAC93FF),
+                outline = Color(0xFF79748E),
+                outlineVariant = Color(0xFFC9C5D6),
+                scrim = Color(0xFF000000),
+                status =
+                    StatusColors(
+                        success = Color(0xFF1B873A),
+                        successContainer = Color(0xFFD7F5E0),
+                        onSuccess = Color(0xFFFDF8FF),
+                        warning = Color(0xFFC68400),
+                        warningContainer = Color(0xFFFFEAB3),
+                        onWarning = Color(0xFFFDF8FF),
+                        error = Color(0xFFB3261E),
+                        errorContainer = Color(0xFFF9DEDC),
+                        onError = Color(0xFFFDF8FF),
+                        info = Color(0xFF2E6FBD),
+                        infoContainer = Color(0xFFD4E7FF),
+                        onInfo = Color(0xFFFDF8FF),
+                    ),
+            ),
     )

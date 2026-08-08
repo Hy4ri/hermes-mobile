@@ -52,7 +52,14 @@ class ChatStreamingController(
         // Issue #755: the shared streaming state must not carry the previous
         // message's reasoning into the next one. The finalized message keeps
         // its own copy (persisted to Room), so clearing here is safe.
-        streamingState.update { it.copy(isReasoning = false, reasoningText = "") }
+        streamingState.update {
+            it.copy(
+                isReasoning = false,
+                reasoningText = "",
+                // Issue #842: sealed-orphan tracking belongs to one turn only.
+                sealedOrphanIds = emptyList(),
+            )
+        }
     }
 
     /**

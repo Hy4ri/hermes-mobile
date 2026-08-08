@@ -107,7 +107,15 @@ internal fun canonicalToolResultKey(content: String): String? {
  * True when [a] and [b] are the same logical message (the WS-persisted and
  * REST-persisted copies of one row — they carry different ids, see #771).
  * Tool messages match on their normalized result payload; other roles on
- * exact content.
+ * exact content, IGNORING leading/trailing whitespace.
+ *
+ * Issue #842: the app seals the RAW streamed text (which can carry leading
+ * blank lines the model emits before its narration), while the backend
+ * persists a CLEANED copy (leading whitespace stripped). An exact-content
+ * compare made the reload merge treat them as different messages and add
+ * the REST copy on top — the commentary duplicated ~10s after the stream
+ * ended. Trim closes the drift: the sealed live bubble is covered by the
+ * REST row and the duplicate never renders.
  */
 internal fun sameLogicalMessage(
     a: ChatMessage,
@@ -119,7 +127,7 @@ internal fun sameLogicalMessage(
         val kb = canonicalToolResultKey(b.content)
         return ka != null && ka == kb
     }
-    return a.content == b.content
+    return a.content.trim() == b.content.trim()
 }
 
 /**
@@ -987,6 +995,12 @@ class ChatViewModel(
             }
 
             WsMethods.SESSION_INTERRUPT -> {
+                // Issue #842 follow-up: seal whatever the agent streamed so far
+                // (interim commentary + partial answer) BEFORE clearing the
+                // streaming state. The old tool.start orphan seal used to leave
+                // pre-tool text behind on interrupt; with that seal gone, the
+                // partial would otherwise vanish entirely.
+                sealStreamingMessageIfAny()
                 _uiState.update {
                     it.copy(
                         isAgentTyping = false,
@@ -1906,6 +1920,27 @@ class ChatViewModel(
     }
 
     // ── Session resume recovery (desktop parity) ─────────────────────────
+
+    /**
+     * Persists the in-flight streaming message as-is (isStreaming=false) so an
+     * interrupted turn keeps the text the user already saw on screen. No-op
+     * when there is no streaming content/reasoning to save. (Issue #842
+     * follow-up: replaces the old tool.start orphan seal — the streaming
+     * message now survives tool calls, so interrupts are the only path that
+     * would otherwise drop the partial text.)
+     */
+    private fun sealStreamingMessageIfAny() {
+        val streaming = _streamingState.value.streamingMessage ?: return
+        if (streaming.content.isBlank() && streaming.reasoningText.isBlank()) return
+        val finalized = streaming.copy(isStreaming = false)
+        _uiState.update { it.copy(messages = (it.messages + finalized).dedupeById()) }
+        val sid = _uiState.value.currentSessionId
+        if (sid != null) {
+            viewModelScope.launch(ioDispatcher) {
+                repo.persistMessage(finalized, sid)
+            }
+        }
+    }
 
     private fun resetSessionState(
         sessionId: String?,

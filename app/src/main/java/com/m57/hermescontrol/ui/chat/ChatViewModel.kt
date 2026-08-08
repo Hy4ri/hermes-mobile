@@ -1781,45 +1781,16 @@ class ChatViewModel(
         val title = _uiState.value.sessions.find { it.id == sessionId }?.title ?: "Hermes"
         val generation = resetSessionState(sessionId, title, isLoading = true)
         viewModelScope.launch {
-            // Desktop parity (issue #787): a branched session's "current" row
-            // is its newest child leaf (/model, /branch) — resume THAT instead
-            // of the stale parent. Best-effort: on any failure (404 for a
-            // missing session, network blip) fall back to the requested id.
-            val effectiveId = resolveLatestDescendant(sessionId) ?: sessionId
-            val effectiveGeneration =
-                if (effectiveId != sessionId) {
-                    resetSessionState(effectiveId, title, isLoading = true)
-                } else {
-                    generation
-                }
             // Warm-cache fast-path (desktop parity): paint the cached Room
             // transcript immediately so the screen never sits blank, then load
             // the fresh server transcript in parallel. If the cache is empty
             // the spinner stays up until the server page lands.
-            loadCachedMessages(effectiveId, effectiveGeneration)
+            loadCachedMessages(sessionId, generation)
             // Resume the selected desktop session and hydrate its transcript.
-            resumeSession(effectiveId, effectiveGeneration)
+            resumeSession(sessionId, generation)
             loadSessions()
         }
     }
-
-    /**
-     * Resolve the newest descendant of a session (issue #787, desktop parity).
-     * A branched session continues in a child leaf; resuming the parent would
-     * open a stale branch. Returns null on any failure (sessions without
-     * descendants report `changed=false`; missing sessions 404) so callers
-     * fall back to the requested id.
-     */
-    private suspend fun resolveLatestDescendant(sessionId: String): String? =
-        withContext(ioDispatcher) {
-            val result =
-                runCatching {
-                    safeApiCall { ApiClient.hermesApi.getLatestDescendant(sessionId) }
-                }.getOrNull()
-            (result as? NetworkResult.Success)?.data
-                ?.takeIf { it.changed }
-                ?.session_id
-        }
 
     private fun loadCachedMessages(
         sessionId: String,

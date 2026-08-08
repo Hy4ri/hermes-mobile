@@ -1258,9 +1258,17 @@ class ChatViewModelTest {
     // ── Session switch ───────────────────────────────────────────────────────
 
     @Test
-    fun testSwitchSession() =
+    fun testSwitchSession_opensSelectedHistorySessionInsteadOfLatestDescendant() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
+            coEvery { ApiClient.hermesApi.getLatestDescendant("session-456") } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.LatestDescendantResponse(
+                        requested_session_id = "session-456",
+                        session_id = "unrelated-descendant",
+                        changed = true,
+                    ),
+                )
 
             viewModel.switchSession("session-456")
             advanceUntilIdle()

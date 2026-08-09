@@ -709,7 +709,10 @@ fun SessionsScreen(
                                     onClick = { viewModel.showPruneDialog() },
                                 ) {
                                     Box(
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = spacing.md),
+                                        // NOTE: fillMaxHeight only — never fillMaxSize here.
+                                        // An unweighted Row child with fillMaxSize expands to the
+                                        // full row width and starves the weighted stat cards.
+                                        modifier = Modifier.fillMaxHeight().padding(horizontal = spacing.md),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Row(

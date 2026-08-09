@@ -715,15 +715,15 @@ fun SessionsScreen(
                                         modifier = Modifier.fillMaxHeight().padding(horizontal = spacing.md),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(spacing.xs),
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Filled.DeleteSweep,
                                                 contentDescription = null,
                                                 tint = statusColors.warning,
-                                                modifier = Modifier.size(18.dp),
+                                                modifier = Modifier.size(20.dp),
                                             )
                                             Text(
                                                 text = stringResource(R.string.sessions_action_prune),

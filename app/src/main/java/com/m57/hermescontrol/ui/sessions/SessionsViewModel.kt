@@ -21,11 +21,36 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 data class SessionStats(
     val total: Int = 0,
     val messages: Int = 0,
 )
+
+/**
+ * Compact count for stat cards: max 3 digits + unit letter.
+ * 987 → "987", 100987 → "100k", 1234567 → "1.23m", 100000000 → "100m".
+ */
+internal fun formatCompactCount(value: Int): String {
+    if (value < 1_000) return value.toString()
+    val (divisor, suffix) =
+        when {
+            value < 1_000_000 -> 1_000 to "k"
+            value < 1_000_000_000 -> 1_000_000 to "m"
+            else -> 1_000_000_000 to "b"
+        }
+    val scaled = value.toDouble() / divisor
+    val digits =
+        when {
+            scaled >= 100 -> scaled.toInt().toString()
+            scaled >= 10 -> String.format(Locale.US, "%.1f", scaled).trimZeroes()
+            else -> String.format(Locale.US, "%.2f", scaled).trimZeroes()
+        }
+    return "$digits$suffix"
+}
+
+private fun String.trimZeroes(): String = dropLastWhile { it == '0' }.trimEnd('.')
 
 data class SessionsUiState(
     val isLoading: Boolean = false,

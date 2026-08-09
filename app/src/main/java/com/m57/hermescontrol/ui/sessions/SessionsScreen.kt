@@ -696,13 +696,13 @@ fun SessionsScreen(
                             ) {
                                 StatCard(
                                     label = stringResource(R.string.sessions_stat_total),
-                                    value = if (state.isLoadingStats) "…" else state.stats.total.toString(),
+                                    value = if (state.isLoadingStats) "…" else formatCompactCount(state.stats.total),
                                     icon = Icons.Filled.History,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                                 StatCard(
                                     label = stringResource(R.string.sessions_stat_messages),
-                                    value = if (state.isLoadingStats) "…" else state.stats.messages.toString(),
+                                    value = if (state.isLoadingStats) "…" else formatCompactCount(state.stats.messages),
                                     icon = Icons.Filled.Email,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )

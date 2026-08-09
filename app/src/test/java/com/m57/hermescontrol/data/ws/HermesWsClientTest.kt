@@ -849,6 +849,42 @@ class HermesWsClientTest {
     }
 
     @Test
+    fun testRejectedPromptDisconnectsIdleBackgroundSocket() {
+        lateinit var serverSocket: WebSocket
+        val connectedLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: Response,
+                    ) {
+                        serverSocket = webSocket
+                        connectedLatch.countDown()
+                    }
+                },
+            ),
+        )
+        HermesWsClient.connect()
+        assertTrue(connectedLatch.await(5, TimeUnit.SECONDS))
+        val requestId = HermesWsClient.sendMessage("deleted-session", "hello")
+        HermesWsClient.setAppForeground(false)
+
+        assertTrue(HermesWsClient.pendingReply)
+        serverSocket.send(
+            """{"jsonrpc":"2.0","id":"$requestId","error":{"code":4001,"message":"Session not found"}}""",
+        )
+
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.DISCONNECTED }
+            }
+        }
+        assertFalse(HermesWsClient.pendingReply)
+        assertFalse(HermesWsClient.isConnected)
+    }
+
+    @Test
     fun testBackgroundQueuedSendDisconnectsAfterFlush() {
         val messageLatch = CountDownLatch(1)
         mockWebServer.enqueue(

@@ -173,6 +173,8 @@ object HermesWsClient {
     var pendingReply: Boolean = false
         private set
 
+    private val pendingPromptSubmits = ConcurrentHashMap.newKeySet<String>()
+
     // ── Credential warning (issue #534) ─────────────────────────────────
     // Backend surfaces `credential_warning` in `gateway.ready` / `session.info`
     // WS payloads (desktop `requestDesktopOnboarding`). Mobile has no equivalent
@@ -246,12 +248,14 @@ object HermesWsClient {
     }
 
     private fun disconnectIfIdleInBackground() {
-        if (!appInForeground.get() &&
-            !pendingReply &&
-            pendingCalls.isEmpty() &&
-            messageQueue.isEmpty()
-        ) {
-            disconnect()
+        synchronized(outboundLock) {
+            if (!appInForeground.get() &&
+                !pendingReply &&
+                pendingCalls.isEmpty() &&
+                messageQueue.isEmpty()
+            ) {
+                disconnect()
+            }
         }
     }
 
@@ -503,6 +507,7 @@ object HermesWsClient {
             if (clearPendingMessages) {
                 messageQueue.clear()
                 queuedMessagesById.clear()
+                pendingPromptSubmits.clear()
                 pendingReply = false
             }
             connected.set(false)
@@ -615,7 +620,6 @@ object HermesWsClient {
         params: Map<String, Any> = emptyMap(),
         onSent: ((String) -> Unit)? = null,
     ): String {
-        if (method == WsMethods.PROMPT_SUBMIT) pendingReply = true
         val id = requestId.incrementAndGet().toString()
         val decoratedParams = WsProfileParams.decorate(method, params)
         val request =
@@ -628,6 +632,10 @@ object HermesWsClient {
         if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
         var reconnect = false
         synchronized(outboundLock) {
+            if (method == WsMethods.PROMPT_SUBMIT) {
+                pendingPromptSubmits.add(id)
+                pendingReply = true
+            }
             onSent?.invoke(id)
             val ws = webSocket
             if (ws != null && connected.get()) {
@@ -881,13 +889,22 @@ object HermesWsClient {
                 }
             when (event) {
                 is WsEvent.RpcResult -> {
+                    synchronized(outboundLock) { pendingPromptSubmits.remove(event.id) }
                     removeQueuedMessage(event.id)
                     resolvePending(event.id, event.result, null)
                 }
 
                 is WsEvent.RpcError -> {
+                    synchronized(outboundLock) {
+                        if (pendingPromptSubmits.remove(event.id) &&
+                            pendingPromptSubmits.isEmpty()
+                        ) {
+                            pendingReply = false
+                        }
+                    }
                     removeQueuedMessage(event.id)
                     resolvePending(event.id, null, event.error)
+                    disconnectIfIdleInBackground()
                 }
 
                 else -> Unit

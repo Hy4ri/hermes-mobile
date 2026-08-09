@@ -1494,7 +1494,12 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.SecretRequest("secret-1", sessionId))
             mockEventsFlow.emit(
                 WsEvent.SessionInfo(
-                    mapOf("model" to "model-a", "provider" to "provider-a", "reasoning_effort" to "high"),
+                    mapOf(
+                        "model" to "model-a",
+                        "provider" to "provider-a",
+                        "reasoning_effort" to "high",
+                        "terminal_backend" to "docker",
+                    ),
                 ),
             )
             mockEventsFlow.emit(
@@ -1520,6 +1525,7 @@ class ChatViewModelTest {
             assertNotNull(oldState.sudoPrompt)
             assertNotNull(oldState.secretPrompt)
             assertNotNull(oldState.currentSessionModel)
+            assertEquals("docker", oldState.terminalBackend)
             assertTrue(oldState.subagentIndicators.isNotEmpty())
             assertTrue(oldState.todos.isNotEmpty())
             assertTrue(oldState.showModelPicker)
@@ -1536,6 +1542,7 @@ class ChatViewModelTest {
             assertNull(state.secretPrompt)
             assertNull(state.currentSessionModel)
             assertNull(state.reasoningLevel)
+            assertNull(state.terminalBackend)
             assertTrue(state.subagentIndicators.isEmpty())
             assertTrue(state.todos.isEmpty())
             assertFalse(state.showModelPicker)

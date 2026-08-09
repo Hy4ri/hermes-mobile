@@ -527,8 +527,6 @@
     <string name="sessions_action_rename">Rename</string>
     <string name="sessions_rename_title">Rename Session</string>
     <string name="sessions_rename_hint">Session title</string>
-    <string name="content_desc_enter_selection">Select sessions</string>
-    <string name="content_desc_exit_selection">Exit selection</string>
 
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">No toolsets reported</string>

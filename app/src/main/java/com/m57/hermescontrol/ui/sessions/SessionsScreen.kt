@@ -54,8 +54,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -532,34 +532,26 @@ fun SessionsScreen(
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(modifier = Modifier.width(spacing.sm))
-                IconButton(onClick = { viewModel.toggleSelecting() }) {
-                    Icon(
-                        imageVector = if (state.isSelecting) Icons.Filled.Close else Icons.Filled.SelectAll,
-                        contentDescription =
-                            if (state.isSelecting) {
-                                stringResource(R.string.content_desc_exit_selection)
-                            } else {
-                                stringResource(R.string.content_desc_enter_selection)
-                            },
-                    )
-                }
-                Spacer(modifier = Modifier.width(spacing.sm))
                 // Empty-session cleanup (issue #787) — grey/disabled when 0.
-                IconButton(
-                    onClick = { viewModel.requestEmptyCleanup() },
-                    enabled = state.emptyCount > 0,
+                BadgedBox(
+                    badge = {
+                        if (state.emptyCount > 0) {
+                            Badge { Text("${state.emptyCount}") }
+                        }
+                    },
                 ) {
-                    BadgedBox(
-                        badge = {
-                            if (state.emptyCount > 0) {
-                                Badge { Text("${state.emptyCount}") }
-                            }
-                        },
+                    FilledTonalButton(
+                        onClick = { viewModel.requestEmptyCleanup() },
+                        enabled = state.emptyCount > 0,
+                        contentPadding = PaddingValues(horizontal = spacing.md, vertical = 8.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Filled.DeleteSweep,
-                            contentDescription = stringResource(R.string.sessions_empty_cleanup_desc),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
                         )
+                        Spacer(modifier = Modifier.width(spacing.xs))
+                        Text(stringResource(R.string.sessions_empty_cleanup_desc))
                     }
                 }
             }
@@ -706,10 +698,10 @@ fun SessionsScreen(
                                     icon = Icons.Filled.Email,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
-                                // Prune button — slim icon-only card so the messages
-                                // count keeps enough width for large numbers.
+                                // Prune button — compact card sized to its label, so the
+                                // stat cards keep enough width for large counts.
                                 Card(
-                                    modifier = Modifier.width(52.dp).fillMaxHeight(),
+                                    modifier = Modifier.fillMaxHeight(),
                                     colors =
                                         CardDefaults.cardColors(
                                             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -717,15 +709,26 @@ fun SessionsScreen(
                                     onClick = { viewModel.showPruneDialog() },
                                 ) {
                                     Box(
-                                        modifier = Modifier.fillMaxSize(),
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = spacing.md),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.DeleteSweep,
-                                            contentDescription = stringResource(R.string.sessions_action_prune),
-                                            tint = statusColors.warning,
-                                            modifier = Modifier.size(20.dp),
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.DeleteSweep,
+                                                contentDescription = null,
+                                                tint = statusColors.warning,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.sessions_action_prune),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = statusColors.warning,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                        }
                                     }
                                 }
                             }

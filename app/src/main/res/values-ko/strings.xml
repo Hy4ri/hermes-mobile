@@ -342,8 +342,6 @@
     <string name="sessions_action_select_all">전체 선택</string>
     <string name="sessions_action_deselect_all">선택 해제</string>
     <string name="sessions_action_delete_n">%1$d개 삭제</string>
-    <string name="content_desc_enter_selection">세션 선택</string>
-    <string name="content_desc_exit_selection">선택 종료</string>
 
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">툴셋이 없습니다</string>

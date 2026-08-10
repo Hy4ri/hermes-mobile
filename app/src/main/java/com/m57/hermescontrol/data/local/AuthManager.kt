@@ -623,4 +623,13 @@ object AuthManager {
     fun setTypingEffectDelayMs(delayMs: Int) {
         serverStore.update { it.copy(typingEffectDelayMs = delayMs) }
     }
+
+    // ── In-app update check (issue #867) ─────────────────────────────────
+
+    /** App version the silent update check last completed for (null = never). */
+    fun getUpdateCheckDoneForVersion(): String? = serverStore.getLatestState().updateCheckDoneForVersion
+
+    fun setUpdateCheckDoneForVersion(version: String) {
+        serverStore.update { it.copy(updateCheckDoneForVersion = version) }
+    }
 }

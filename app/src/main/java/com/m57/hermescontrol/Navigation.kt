@@ -128,7 +128,6 @@ private fun appEntryProvider(
     entry<SettingsAbout> {
         SettingsAboutPage(
             onBack = { NavigationController.goBack() },
-            viewModel = viewModel { SettingsViewModel() },
         )
     }
 

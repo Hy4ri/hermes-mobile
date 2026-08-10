@@ -154,6 +154,17 @@
     <string name="settings_about_debug">디버그</string>
     <string name="settings_about_release">릴리즈</string>
     <string name="settings_about_commit">커밋</string>
+    <string name="settings_about_update">업데이트</string>
+    <string name="settings_about_update_check">업데이트 확인</string>
+    <string name="settings_about_update_checking">확인 중…</string>
+    <string name="settings_about_update_uptodate">최신 버전 (v%1$s)</string>
+    <string name="settings_about_update_available">업데이트 가능: v%1$s</string>
+    <string name="settings_about_update_action">업데이트</string>
+    <string name="settings_about_update_downloading">다운로드 %1$d%%</string>
+    <string name="settings_about_update_installing">설치 중 v%1$s…</string>
+    <string name="settings_about_update_allow_sources">이 소스의 설치 허용</string>
+    <string name="settings_about_update_open_settings">설정 열기</string>
+    <string name="settings_about_update_retry">다시 시도</string>
     <string name="action_save">저장</string>
     <string name="settings_action_add_profile">프로필 추가</string>
     <string name="settings_action_edit_profile">프로필 편집</string>

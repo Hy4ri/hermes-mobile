@@ -24,4 +24,8 @@ data class ServerStoreState(
     // App display language. "system" = follow device locale; otherwise a BCP-47
     // language code such as "en" or "ko". Applied via ContextWrapper in MainActivity.
     val appLanguage: String = "system",
+    // App version the silent update check (issue #867) last completed for.
+    // Null / mismatched with BuildConfig.VERSION_NAME → the About tab runs
+    // its one-time check again (re-check on app version bump).
+    val updateCheckDoneForVersion: String? = null,
 )

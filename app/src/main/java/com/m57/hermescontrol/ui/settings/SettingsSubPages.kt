@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -195,8 +199,10 @@ internal fun SettingsBehaviorPage(
 @Composable
 internal fun SettingsAboutPage(
     onBack: () -> Unit,
-    viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
+    viewModel: AppUpdateViewModel = viewModel(),
 ) {
+    val updateState by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_about)) },
         navigationIcon = NavIcon.Back(onBack),
@@ -210,7 +216,19 @@ internal fun SettingsAboutPage(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AboutSection()
+            AboutSection(
+                updateState = updateState,
+                onCheckUpdate = viewModel::checkForUpdate,
+                onStartUpdate = viewModel::startUpdate,
+                onOpenInstallSettings = {
+                    val intent =
+                        Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:${context.packageName}"),
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                },
+            )
         }
     }
 }

@@ -54,6 +54,16 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `update routes to Update`() {
+        // /update's backend handler is interactive + session-exiting and can
+        // never answer the slash worker (45s timeout, issue #862) — it must be
+        // handled client-side via the REST action API + shared progress popup.
+        assertEquals(SlashResult.Update, dispatcher.dispatch("/update"))
+        assertEquals(SlashResult.Update, dispatcher.dispatch("/UPDATE now"))
+        assertEquals(SlashResult.Update, dispatcher.dispatch("/Update"))
+    }
+
+    @Test
     fun `NEW uppercase still routes to NewSession`() {
         // Dispatcher lower-cases before matching, so case must not matter.
         assertEquals(SlashResult.NewSession, dispatcher.dispatch("/NEW"))

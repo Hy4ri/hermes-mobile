@@ -32,6 +32,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -261,6 +262,8 @@ data class ChatUiState(
     val sudoPrompt: SudoPromptUi? = null,
     val secretPrompt: SecretPromptUi? = null,
     val showSessionPicker: Boolean = false,
+    // /update confirm dialog (issue #862) — the command is handled client-side
+    val updateConfirmOpen: Boolean = false,
     // Search state
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
@@ -454,6 +457,14 @@ class ChatViewModel(
     // ── Session persistence ──────────────────────────────────────────────
     private val repo: ChatPersistenceRepository = repo
     private val slashDispatcher = SlashCommandDispatcher()
+
+    /**
+     * Progress popup for `/update` from chat (issue #862). The backend `/update`
+     * handler is interactive + session-exiting and can never answer the slash
+     * worker (45s timeout), so the command is intercepted client-side and
+     * routed through the same REST action + shared popup as the System screen.
+     */
+    val actionProgress = ActionProgressController(scope = viewModelScope)
     private val searchDelegate =
         ChatSearchDelegate(
             scope = viewModelScope,
@@ -1396,8 +1407,55 @@ class ChatViewModel(
                 handleModelSwitch(command)
             }
 
+            is SlashResult.Update -> {
+                openUpdateConfirm()
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
+            }
+        }
+    }
+
+    // ── Update from chat (issue #862) ────────────────────────────────────
+    // `/update` can't travel via the slash worker (the backend handler is
+    // interactive + session-exiting → guaranteed 45s timeout). Intercept it
+    // client-side: confirm, then trigger the same REST action the System
+    // screen uses and track it in the shared ActionProgressDialog.
+
+    fun openUpdateConfirm() {
+        _uiState.update { it.copy(updateConfirmOpen = true) }
+    }
+
+    fun closeUpdateConfirm() {
+        _uiState.update { it.copy(updateConfirmOpen = false) }
+    }
+
+    /**
+     * Run the backend update: `POST /api/hermes/update` returns immediately
+     * (`{ok, name}`) while `hermes update` runs in the background, so
+     * [actionProgress] polls its status log until it exits and the popup shows
+     * the live tail + final state.
+     */
+    fun applyUpdate() {
+        actionProgress.open()
+        viewModelScope.launch(ioDispatcher) {
+            val result = safeApiCall { ApiClient.hermesApi.updateHermes() }
+            when (result) {
+                is NetworkResult.Success -> {
+                    val name = result.data.name
+                    if (name != null) {
+                        actionProgress.markStarted(name)
+                    } else {
+                        actionProgress.fail(
+                            "Update started but the backend did not report an action name",
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    actionProgress.fail("Failed to start update: ${result.error.message}")
+                }
             }
         }
     }

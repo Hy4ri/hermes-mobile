@@ -13,8 +13,12 @@ package com.m57.hermescontrol.ui.chat
  * get their own results: `/fork` goes via the `session.branch` RPC and `/model`
  * via the `config.set` RPC (key="model" → gateway `_apply_model_switch`; the
  * TUI gateway's `prompt.submit` does NOT parse slash commands, so sending it as
- * a normal prompt makes the LLM treat it as text). Everything else is forwarded
- * to the backend via [SlashResult.RpcDispatch].
+ * a normal prompt makes the LLM treat it as text). `/update` is intercepted
+ * too: the backend handler is interactive + session-exiting (confirmation modal
+ * + relaunch as `hermes update`), so it can never produce the single response
+ * the slash worker waits for and always dies with a 45s "slash worker timed
+ * out" (issue #862). Everything else is forwarded to the backend via
+ * [SlashResult.RpcDispatch].
  */
 class SlashCommandDispatcher {
     fun dispatch(command: String): SlashResult {
@@ -26,6 +30,7 @@ class SlashCommandDispatcher {
             "/new" -> SlashResult.NewSession
             "/fork", "/branch" -> SlashResult.SessionBranch
             "/model" -> SlashResult.ModelSwitch
+            "/update" -> SlashResult.Update
             else -> SlashResult.RpcDispatch
         }
     }
@@ -55,4 +60,15 @@ sealed class SlashResult {
      * `/model <model> --provider <slug> --session`.
      */
     data object ModelSwitch : SlashResult()
+
+    /**
+     * Trigger the backend update via the REST action API
+     * (`POST /api/hermes/update`, the System screen's flow) and track it in
+     * the shared [com.m57.hermescontrol.ui.common.ActionProgressDialog].
+     * NOT sent via slash.exec — the backend `/update` handler is interactive +
+     * session-exiting (confirmation modal + relaunch), so it can never produce
+     * the single WS response the slash worker waits for and always times out
+     * after 45s (issue #862).
+     */
+    data object Update : SlashResult()
 }

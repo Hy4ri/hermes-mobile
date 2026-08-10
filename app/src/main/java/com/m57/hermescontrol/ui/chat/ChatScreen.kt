@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +47,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -94,6 +96,7 @@ import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
+import com.m57.hermescontrol.ui.common.ActionProgressDialog
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -716,6 +719,33 @@ fun ChatScreen(
                 },
             )
         }
+
+        // /update from chat (issue #862): confirm, then the shared progress
+        // popup tracks the background update (live log tail + final state).
+        if (state.updateConfirmOpen) {
+            AlertDialog(
+                onDismissRequest = viewModel::closeUpdateConfirm,
+                title = { Text(stringResource(R.string.system_update_confirm_title)) },
+                text = { Text(stringResource(R.string.system_update_confirm_desc)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.closeUpdateConfirm()
+                        viewModel.applyUpdate()
+                    }) {
+                        Text(stringResource(R.string.system_confirm_update_now))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::closeUpdateConfirm) {
+                        Text(stringResource(R.string.system_confirm_cancel))
+                    }
+                },
+            )
+        }
+        ActionProgressDialog(
+            controller = viewModel.actionProgress,
+            title = stringResource(R.string.system_update_progress_title),
+        )
 
         // In-session model picker (issue #589) — opens on "/model".
         if (state.showModelPicker) {

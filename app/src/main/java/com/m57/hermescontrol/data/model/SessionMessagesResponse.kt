@@ -9,10 +9,29 @@ data class SessionMessagesResponse(
     val messages: List<SessionMessage>,
     val offset: Int? = null,
     val total: Int? = null,
+    val pagination: PaginationInfo? = null,
+)
+
+/**
+ * Echo of the backend's pagination state for GET /api/sessions/{id}/messages
+ * (hermes_cli/web_routers/sessions.py). Absent on legacy backends that
+ * predate the `order` param — its presence also proves `order=latest` was
+ * honored (issue #859).
+ */
+@Serializable
+data class PaginationInfo(
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val order: String? = null,
+    val returned: Int? = null,
 )
 
 @Serializable
 data class SessionMessage(
+    // The gateway's AUTOINCREMENT row id (hermes_state_common.py
+    // messages.id) — stable, unique and never reused. Used as the chat-list
+    // stable key under newest-anchored paging (issue #859).
+    val id: Int? = null,
     val role: String? = null,
     val content: JsonElement? = null,
     val timestamp: JsonElement? = null,

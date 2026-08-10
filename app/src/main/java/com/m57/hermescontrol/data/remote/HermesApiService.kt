@@ -187,6 +187,10 @@ interface HermesApiService {
         @Path("id", encoded = true) sessionId: String,
         @Query("limit") limit: Int? = null,
         @Query("offset") offset: Int = 0,
+        // Issue #859: order=latest pages back from the newest message (offset
+        // measured from the end, page returned chronologically). Omitted on
+        // legacy backends that don't know the param — they ignore it.
+        @Query("order") order: String? = null,
         @Query("include_compacted") includeCompacted: Boolean? = true,
     ): Response<SessionMessagesResponse>
 

@@ -1388,8 +1388,24 @@ class ChatViewModelTest {
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionListResponse(sessions = emptyList(), total = 0),
                 )
-            coEvery { mockApi.getSessionMessages("session-a", any(), any(), any()) } coAnswers { messagesA.await() }
-            coEvery { mockApi.getSessionMessages("session-b", any(), any(), any()) } coAnswers { messagesB.await() }
+            coEvery {
+                mockApi.getSessionMessages(
+                    "session-a",
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } coAnswers { messagesA.await() }
+            coEvery {
+                mockApi.getSessionMessages(
+                    "session-b",
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } coAnswers { messagesB.await() }
 
             val (viewModel, _) = createViewModelWithSession()
             val resumeRequests = mutableMapOf<String, String>()
@@ -1440,8 +1456,24 @@ class ChatViewModelTest {
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionListResponse(sessions = emptyList(), total = 0),
                 )
-            coEvery { mockApi.getSessionMessages("session-a", any(), any(), any()) } coAnswers { messagesA.await() }
-            coEvery { mockApi.getSessionMessages("session-b", any(), any(), any()) } coAnswers { messagesB.await() }
+            coEvery {
+                mockApi.getSessionMessages(
+                    "session-a",
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } coAnswers { messagesA.await() }
+            coEvery {
+                mockApi.getSessionMessages(
+                    "session-b",
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } coAnswers { messagesB.await() }
 
             val (viewModel, _) = createViewModelWithSession()
             viewModel.switchSession("session-a")
@@ -1669,7 +1701,7 @@ class ChatViewModelTest {
                     ),
                 )
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
             } returns
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionMessagesResponse(
@@ -1679,7 +1711,7 @@ class ChatViewModelTest {
         } else {
             // Relaxed mock returns a non-success response → NetworkResult.Failure.
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
             } returns
                 retrofit2.Response.error(
                     500,
@@ -1706,7 +1738,7 @@ class ChatViewModelTest {
                 ),
             )
         sessionIds.forEach { sessionId ->
-            coEvery { mockApi.getSessionMessages(sessionId, any(), any(), any()) } returns
+            coEvery { mockApi.getSessionMessages(sessionId, any(), any(), any(), any()) } returns
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
                 )
@@ -2106,7 +2138,7 @@ class ChatViewModelTest {
             // requested with.
             val fetchedSessions = mutableListOf<String>()
             coEvery {
-                ApiClient.hermesApi.getSessionMessages(capture(fetchedSessions), any(), any(), any())
+                ApiClient.hermesApi.getSessionMessages(capture(fetchedSessions), any(), any(), any(), any())
             } returns
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
@@ -2150,7 +2182,7 @@ class ChatViewModelTest {
             val mockApi = ApiClient.hermesApi
             var restCalls = 0
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
             } coAnswers {
                 val call = restCalls++
                 if (call < 3) {
@@ -2817,7 +2849,7 @@ class ChatViewModelTest {
                     ),
                 )
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
             } returns
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionMessagesResponse(
@@ -2863,10 +2895,12 @@ class ChatViewModelTest {
                 )
             var messagesCallCount = 0
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
             } coAnswers {
                 messagesCallCount += 1
-                if (messagesCallCount == 1) {
+                // Call 1 = the order=latest probe (discarded when the legacy
+                // backend echoes no pagination — issue #859).
+                if (messagesCallCount == 2) {
                     retrofit2.Response.success(
                         com.m57.hermescontrol.data.model.SessionMessagesResponse(
                             messages =
@@ -2937,7 +2971,7 @@ class ChatViewModelTest {
                 )
             var messagesCallCount = 0
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
             } coAnswers {
                 messagesCallCount += 1
                 if (messagesCallCount == 1) {
@@ -3012,7 +3046,7 @@ class ChatViewModelTest {
                     put("status", JsonPrimitive("ok"))
                 }
             coEvery {
-                mockApi.getSessionMessages("session-456", any(), any(), any())
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
             } returns
                 retrofit2.Response.success(
                     com.m57.hermescontrol.data.model.SessionMessagesResponse(
@@ -3034,6 +3068,196 @@ class ChatViewModelTest {
             val messages = viewModel.uiState.value.messages
             assertEquals(1, messages.size)
             assertEquals("{\"status\":\"ok\"}", messages[0].content)
+        }
+
+    // ── Newest-anchored paging (issue #859) ───────────────────────────────
+
+    @Test
+    fun testInitialLoad_latestOrder_pagesFromNewest() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            val captured = mutableListOf<Triple<Int, Int, String?>>()
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers {
+                captured.add(Triple(arg<Int>(2), arg<Int>(1), arg<String?>(3)))
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            (1..150).map { i ->
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    id = i,
+                                    role = "assistant",
+                                    content = JsonPrimitive("Msg $i"),
+                                )
+                            },
+                        pagination =
+                            com.m57.hermescontrol.data.model.PaginationInfo(
+                                limit = 150,
+                                offset = 0,
+                                order = "latest",
+                                returned = 150,
+                            ),
+                    ),
+                )
+            }
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            // One request: the newest page at offset 0 with order=latest —
+            // no count-based anchor, no sessions-list fetch.
+            assertEquals(1, captured.size)
+            assertEquals(Triple(0, 150, "latest"), captured[0])
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            assertEquals(150, viewModel.uiState.value.messages.size)
+            // Stable keys come from the server row id, not the from-end position.
+            assertEquals("rest-session-456-150", viewModel.uiState.value.messages.last().id)
+        }
+
+    @Test
+    fun testInitialLoad_latestOrder_shortPage_hasNoOlder() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            listOf(
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    id = 1,
+                                    role = "assistant",
+                                    content = JsonPrimitive("Only Msg"),
+                                ),
+                            ),
+                        pagination =
+                            com.m57.hermescontrol.data.model.PaginationInfo(
+                                limit = 150,
+                                offset = 0,
+                                order = "latest",
+                                returned = 1,
+                            ),
+                    ),
+                )
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.hasOlderMessages)
+            assertEquals(1, viewModel.uiState.value.messages.size)
+        }
+
+    @Test
+    fun testLoadOlderMessages_latestOrder_increasesOffset() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            val captured = mutableListOf<Triple<Int, Int, String?>>()
+            var page = 0
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers {
+                captured.add(Triple(arg<Int>(2), arg<Int>(1), arg<String?>(3)))
+                page += 1
+                val (offset, returned) =
+                    when (page) {
+                        1 -> 0 to 150
+                        2 -> 150 to 150
+                        else -> 300 to 50
+                    }
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            (1..returned).map { i ->
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    id = offset + i,
+                                    role = "assistant",
+                                    content = JsonPrimitive("Page $page Msg $i"),
+                                )
+                            },
+                        pagination =
+                            com.m57.hermescontrol.data.model.PaginationInfo(
+                                limit = 150,
+                                offset = offset,
+                                order = "latest",
+                                returned = returned,
+                            ),
+                    ),
+                )
+            }
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+
+            // Older pages INCREASE the from-end offset, always full-size.
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(Triple(150, 150, "latest"), captured[1])
+            assertTrue(viewModel.uiState.value.hasOlderMessages)
+            assertEquals(300, viewModel.uiState.value.messages.size)
+
+            // Short final page: the oldest boundary — pagination stops.
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+            assertEquals(Triple(300, 150, "latest"), captured[2])
+            assertFalse(viewModel.uiState.value.hasOlderMessages)
+            assertEquals(350, viewModel.uiState.value.messages.size)
+        }
+
+    @Test
+    fun testSync_latestOrder_grownTranscript_keepsNewestMessage() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            val mockApi = ApiClient.hermesApi
+            var page = 0
+            coEvery {
+                mockApi.getSessionMessages("session-456", any(), any(), any(), any())
+            } coAnswers {
+                page += 1
+                // Hydration serves rows 1..150; the transcript then grows by 10
+                // and the sync refetches the newest page (rows 11..160).
+                val (from, to) = if (page == 1) 1 to 150 else 11 to 160
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.SessionMessagesResponse(
+                        messages =
+                            (from..to).map { i ->
+                                com.m57.hermescontrol.data.model.SessionMessage(
+                                    id = i,
+                                    role = "assistant",
+                                    content = JsonPrimitive("Msg $i"),
+                                )
+                            },
+                        pagination =
+                            com.m57.hermescontrol.data.model.PaginationInfo(
+                                limit = 150,
+                                offset = 0,
+                                order = "latest",
+                                returned = 150,
+                            ),
+                    ),
+                )
+            }
+
+            viewModel.switchSession("session-456")
+            advanceUntilIdle()
+            assertEquals(150, viewModel.uiState.value.messages.size)
+
+            viewModel.syncCurrentSession()
+            advanceUntilIdle()
+
+            // 160 rows: the 10 new ones appended, the existing 150 kept —
+            // no duplicates, no dropped newest copy (stable row-id keys).
+            assertEquals(160, viewModel.uiState.value.messages.size)
+            assertTrue(viewModel.uiState.value.messages.any { it.id == "rest-session-456-160" })
         }
 
     // ── Attachment open (issue #724) ─────────────────────────────────────

@@ -425,6 +425,15 @@ class ChatViewModel(
     /** Show the "session gone" notice once the recovery create lands (create wipes messages). */
     private var pendingGoneSessionNotice = false
     private var loadedMessageOffset = 0
+
+    /**
+     * True once the backend honored `order=latest` on the initial page (the
+     * pagination echo came back). Offsets then count BACK from the newest
+     * message and older pages INCREASE the offset; a full page means more
+     * older messages exist. False on legacy backends (no `order` param) —
+     * offsets stay absolute and decrease toward 0 (issue #859).
+     */
+    private var latestPaging = false
     private var isSyncingMessages = false
 
     // ── Session resume recovery (desktop parity) ────────────────────────
@@ -1868,16 +1877,36 @@ class ChatViewModel(
         val requestSequence = ++hydrationRequestSequence
         activeHydrationRequestSequence = requestSequence
         viewModelScope.launch {
-            val messageCount = fetchServerMessageCount(sessionId, generation, requestSequence)
+            // Initial page: ask for the NEWEST page directly (order=latest —
+            // offset is measured back from the newest message, page returned
+            // chronologically; verified in hermes_state.py get_messages).
+            // No count-based anchor, so a stale session-list message_count can
+            // no longer land the page at the wrong position (issue #859).
+            // Legacy backends without the `order` param ignore it and echo no
+            // `pagination` — detect that and fall back to the count-based
+            // anchor so nothing regresses.
+            val latestResult = fetchMessagePage(sessionId, 0, MESSAGE_PAGE_SIZE, order = "latest")
             if (!isCurrentHydration(sessionId, generation, requestSequence)) return@launch
-            val offset = (messageCount - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
-            val result = fetchMessagePage(sessionId, offset, MESSAGE_PAGE_SIZE)
+            val (result, requestedOffset) =
+                if (latestResult is NetworkResult.Success && latestResult.data.pagination?.order == "latest") {
+                    latestPaging = true
+                    latestResult to 0
+                } else if (latestResult is NetworkResult.Success) {
+                    latestPaging = false
+                    val messageCount = fetchServerMessageCount(sessionId, generation, requestSequence)
+                    if (!isCurrentHydration(sessionId, generation, requestSequence)) return@launch
+                    val offset = (messageCount - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
+                    fetchMessagePage(sessionId, offset, MESSAGE_PAGE_SIZE) to offset
+                } else {
+                    latestPaging = false
+                    latestResult to 0
+                }
             if (!isCurrentHydration(sessionId, generation, requestSequence)) return@launch
             when (result) {
                 is NetworkResult.Success -> {
                     // REST 200 — the gateway has the row for this session.
                     sessionHasServerPresence = true
-                    val serverOffset = result.data.offset ?: offset
+                    val serverOffset = result.data.pagination?.offset ?: result.data.offset ?: requestedOffset
                     val chatMessages = mapServerMessages(sessionId, result.data.messages.orEmpty(), serverOffset)
                     loadedMessageOffset = serverOffset
                     withContext(ioDispatcher) {
@@ -1890,10 +1919,20 @@ class ChatViewModel(
                         // drop live WS bubbles (running tool call, streaming
                         // answer) the server hasn't persisted yet. Issue #771.
                         val merged = mergeTranscriptWithLive(chatMessages, state.messages)
+                        val hasOlder =
+                            if (latestPaging) {
+                                // Newest-anchored: older messages exist iff the
+                                // page came back FULL (a short page means we hit
+                                // the oldest boundary).
+                                val returned = result.data.pagination?.returned ?: chatMessages.size
+                                returned >= MESSAGE_PAGE_SIZE && chatMessages.isNotEmpty()
+                            } else {
+                                serverOffset > 0 && chatMessages.isNotEmpty()
+                            }
                         state.copy(
                             messages = merged,
                             isLoading = false,
-                            hasOlderMessages = serverOffset > 0 && chatMessages.isNotEmpty(),
+                            hasOlderMessages = hasOlder,
                             isLoadingOlder = false,
                         )
                     }
@@ -1959,6 +1998,7 @@ class ChatViewModel(
         runtimeSessionId = null
         ActiveSessionHolder.clear()
         loadedMessageOffset = 0
+        latestPaging = false
         isSyncingMessages = false
         streamingController.resetStreaming()
         _streamingState.value = StreamingState()
@@ -2197,25 +2237,53 @@ class ChatViewModel(
         val state = _uiState.value
         val sessionId = state.currentSessionId ?: return
         val generation = sessionGeneration
-        if (!state.hasOlderMessages || state.isLoadingOlder || loadedMessageOffset <= 0) return
+        if (!state.hasOlderMessages || state.isLoadingOlder) return
+        if (!latestPaging && loadedMessageOffset <= 0) return
         val oldOffset = loadedMessageOffset
-        val newOffset = (oldOffset - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
-        val limit = oldOffset - newOffset
+        // latest: offsets count BACK from the newest message, so older pages go
+        // UP; legacy: absolute offsets go DOWN toward 0 (issue #859).
+        val newOffset =
+            if (latestPaging) {
+                oldOffset + MESSAGE_PAGE_SIZE
+            } else {
+                (oldOffset - MESSAGE_PAGE_SIZE).coerceAtLeast(0)
+            }
+        // Legacy: the final page can be short; requesting a full page at a
+        // clamped offset OVERLAPS already-loaded rows (duplicate stable keys
+        // crash LazyColumn), so size the request to the real gap. Latest:
+        // pages are disjoint from-end ranges, so a full page never overlaps.
+        val limit = if (latestPaging) MESSAGE_PAGE_SIZE else oldOffset - newOffset
         _uiState.update { it.copy(isLoadingOlder = true) }
         viewModelScope.launch {
-            when (val result = fetchMessagePage(sessionId, newOffset, limit)) {
+            val result =
+                fetchMessagePage(
+                    sessionId,
+                    newOffset,
+                    limit,
+                    order = if (latestPaging) "latest" else null,
+                )
+            when (result) {
                 is NetworkResult.Success -> {
                     if (!isCurrentSessionRequest(sessionId, generation)) return@launch
-                    val returnedOffset = result.data.offset ?: newOffset
+                    val returnedOffset = result.data.pagination?.offset ?: result.data.offset ?: newOffset
                     val older = mapServerMessages(sessionId, result.data.messages.orEmpty(), returnedOffset)
                     loadedMessageOffset = returnedOffset
                     withContext(ioDispatcher) { repo.persistMessages(older, sessionId) }
                     _uiState.update { current ->
                         if (!isCurrentSessionRequest(sessionId, generation)) return@update current
+                        val hasOlder =
+                            if (latestPaging) {
+                                // Full page = more older messages behind it; a
+                                // short (or empty) page is the oldest boundary.
+                                val returned = result.data.pagination?.returned ?: older.size
+                                returned >= limit && older.isNotEmpty()
+                            } else {
+                                returnedOffset < oldOffset && older.isNotEmpty() && returnedOffset > 0
+                            }
                         current.copy(
                             messages = (older + current.messages).distinctBy { it.id },
                             isLoadingOlder = false,
-                            hasOlderMessages = returnedOffset < oldOffset && older.isNotEmpty() && returnedOffset > 0,
+                            hasOlderMessages = hasOlder,
                         )
                     }
                 }
@@ -2248,15 +2316,31 @@ class ChatViewModel(
             return
         }
         val nextOffset =
-            state.messages
-                .mapNotNull { serverMessageIndex(it.id, sessionId) }
-                .maxOrNull()
-                ?.plus(1)
-                ?: loadedMessageOffset
+            if (latestPaging) {
+                // Newest-anchored paging can't compute an absolute
+                // "after my last row" offset (from-end offsets shift as the
+                // transcript grows), so refetch the newest page; the logical
+                // merge below keeps existing copies and only adds new rows
+                // (issue #859).
+                0
+            } else {
+                state.messages
+                    .mapNotNull { serverMessageIndex(it.id, sessionId) }
+                    .maxOrNull()
+                    ?.plus(1)
+                    ?: loadedMessageOffset
+            }
         isSyncingMessages = true
         viewModelScope.launch {
             try {
-                when (val result = fetchMessagePage(sessionId, nextOffset, MESSAGE_PAGE_SIZE)) {
+                val result =
+                    fetchMessagePage(
+                        sessionId,
+                        nextOffset,
+                        MESSAGE_PAGE_SIZE,
+                        order = if (latestPaging) "latest" else null,
+                    )
+                when (result) {
                     is NetworkResult.Success -> {
                         if (!isCurrentSessionRequest(sessionId, generation)) return@launch
                         val incoming = mapServerMessages(sessionId, result.data.messages.orEmpty(), nextOffset)
@@ -2292,6 +2376,22 @@ class ChatViewModel(
                                     if (matchIdx != null && unmatchedIncoming[matchIdx] != null) {
                                         mergedList.add(unmatchedIncoming[matchIdx]!!)
                                         unmatchedIncoming[matchIdx] = null
+                                    } else if (latestPaging) {
+                                        // Newest-anchored paging re-keys rows by
+                                        // from-end position, so a transcript that
+                                        // grew since the last fetch shifted ids —
+                                        // match by logical content and keep the
+                                        // existing copy (issue #859).
+                                        val logicalIdx =
+                                            unmatchedIncoming.indexOfFirst { inc ->
+                                                inc != null && sameLogicalMessage(inc, existing)
+                                            }
+                                        if (logicalIdx >= 0) {
+                                            mergedList.add(existing)
+                                            unmatchedIncoming[logicalIdx] = null
+                                        } else {
+                                            mergedList.add(existing)
+                                        }
                                     } else {
                                         mergedList.add(existing)
                                     }
@@ -2516,6 +2616,7 @@ class ChatViewModel(
         sessionId: String,
         offset: Int,
         limit: Int,
+        order: String? = null,
     ) = withContext(ioDispatcher) {
         safeApiCall {
             ApiClient.hermesApi.getSessionMessages(
@@ -2523,6 +2624,7 @@ class ChatViewModel(
                 limit = limit,
                 offset = offset,
                 includeCompacted = true,
+                order = order,
             )
         }
     }
@@ -2584,6 +2686,17 @@ class ChatViewModel(
                     else -> MessageRole.ASSISTANT
                 }
             val globalIndex = offset + index
+            // Issue #859: under newest-anchored paging use the server's
+            // AUTOINCREMENT row id as the stable key — from-end positions shift
+            // as the transcript grows and would collide across hydrations
+            // (distinctBy would silently drop the newest copy). Legacy paging
+            // keeps the absolute-position key its count-based sync math needs.
+            val restId =
+                if (latestPaging) {
+                    msg.id?.let { "rest-$sessionId-$it" } ?: "rest-$sessionId-$globalIndex"
+                } else {
+                    "rest-$sessionId-$globalIndex"
+                }
             val timestamp =
                 msg.timestampText
                     ?.toDoubleOrNull()
@@ -2666,7 +2779,7 @@ class ChatViewModel(
 
             mapped.add(
                 ChatMessage(
-                    id = "rest-$sessionId-$globalIndex",
+                    id = restId,
                     role = role,
                     content = finalContent,
                     reasoningText = finalReasoning,

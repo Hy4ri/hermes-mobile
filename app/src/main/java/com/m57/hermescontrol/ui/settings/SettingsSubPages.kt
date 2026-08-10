@@ -133,6 +133,8 @@ internal fun SettingsAppearancePage(
                 onThemePresetChange = viewModel::onThemePresetChange,
                 appLanguage = state.appLanguage,
                 onAppLanguageChange = viewModel::onAppLanguageChange,
+                chatStyle = state.chatStyle,
+                onChatStyleChange = viewModel::onChatStyleChange,
             )
         }
     }

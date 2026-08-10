@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.CoroutineDispatcher
@@ -35,6 +36,7 @@ data class SettingsUiState(
     val isSaved: Boolean = false,
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
+    val chatStyle: ChatStyle = ChatStyle.BUBBLES,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
@@ -75,6 +77,7 @@ class SettingsViewModel(
         val themePreset = AuthManager.getThemePreset()
         val typingEffectEnabled = AuthManager.isTypingEffectEnabled()
         val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
+        val chatStyle = AuthManager.getChatStyle()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
@@ -94,6 +97,7 @@ class SettingsViewModel(
                 themePreset = themePreset,
                 typingEffectEnabled = typingEffectEnabled,
                 typingEffectDelayMs = typingEffectDelayMs,
+                chatStyle = chatStyle,
                 profiles = profiles,
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
@@ -294,6 +298,11 @@ class SettingsViewModel(
         AuthManager.setTypingEffectDelayMs(delayMs)
     }
 
+    fun onChatStyleChange(style: ChatStyle) {
+        _uiState.update { it.copy(chatStyle = style, isSaved = false) }
+        AuthManager.setChatStyle(style)
+    }
+
     /** Clear all auth credentials — logs out and returns to landing screen. */
     fun logout() {
         AuthManager.setToken(null)
@@ -320,6 +329,7 @@ class SettingsViewModel(
         AuthManager.setThemePreset(state.themePreset)
         AuthManager.setTypingEffectEnabled(state.typingEffectEnabled)
         AuthManager.setTypingEffectDelayMs(state.typingEffectDelayMs)
+        AuthManager.setChatStyle(state.chatStyle)
         ApiClient.rebuild()
 
         viewModelScope.launch(ioDispatcher) {

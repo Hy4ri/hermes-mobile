@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import com.m57.hermescontrol.ui.settings.SectionCard
@@ -47,6 +48,8 @@ internal fun AppearanceSection(
     onThemePresetChange: (ThemePreset) -> Unit,
     appLanguage: String,
     onAppLanguageChange: (String) -> Unit,
+    chatStyle: ChatStyle,
+    onChatStyleChange: (ChatStyle) -> Unit,
 ) {
     SectionCard {
         Text(
@@ -222,6 +225,41 @@ internal fun AppearanceSection(
                         ),
                 ) {
                     Text(label)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = stringResource(R.string.settings_item_chat_style),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = stringResource(R.string.settings_desc_chat_style),
+            style =
+                MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            ChatStyle.entries.forEachIndexed { index, style ->
+                SegmentedButton(
+                    selected = chatStyle == style,
+                    onClick = { onChatStyleChange(style) },
+                    shape =
+                        SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = ChatStyle.entries.size,
+                        ),
+                ) {
+                    Text(
+                        when (style) {
+                            ChatStyle.BUBBLES -> stringResource(R.string.chat_style_bubbles)
+                            ChatStyle.FULL_BLEED -> stringResource(R.string.chat_style_full_bleed)
+                        },
+                    )
                 }
             }
         }

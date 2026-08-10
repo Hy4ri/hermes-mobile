@@ -36,6 +36,12 @@ import com.m57.hermescontrol.ui.common.EmptyState
  * distinct compact cards. Spacing contract:
  * - intra-turn: entries separated by 6.dp (Column padding on agent turn items)
  * - inter-turn: 12.dp bottom padding after each turn's last item
+ *
+ * COMPOSE GOTCHA (verified): LazyColumn `item {}` content lambdas execute
+ * LAZILY at item-composition time, not during this DSL-building loop. Loop
+ * locals that are read inside item lambdas must be captured as immutable
+ * vals FIRST (eagerly), or every item sees the loop's final value — the
+ * turn header would never render and milestones would be misindexed.
  */
 @Composable
 fun FullBleedChatList(
@@ -97,16 +103,20 @@ fun FullBleedChatList(
             turns.forEach { turn ->
                 when (turn) {
                     is ChatTurn.User -> {
-                        item(key = "user-${turn.message.id}") {
+                        // Eager captures: item lambda reads these at
+                        // composition time (lazy), so capture now.
+                        val userMessage = turn.message
+                        val milestone = toolMilestones[entryIndex]
+                        item(key = "user-${userMessage.id}") {
                             Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                 renderChatBubble(
-                                    message = turn.message,
+                                    message = userMessage,
                                     isDark = isDark,
                                     searchQuery = searchQuery,
                                     isCurrentMatch =
                                         isCurrentMatchFor(
                                             messages,
-                                            turn.message.id,
+                                            userMessage.id,
                                             isSearchActive,
                                             currentSearchMatchIndex,
                                             searchMatchIndices,
@@ -116,7 +126,7 @@ fun FullBleedChatList(
                                     savingAttachmentPath = savingAttachmentPath,
                                     onImageClick = onImageClick,
                                 )
-                                toolMilestones[entryIndex]?.let { count ->
+                                milestone?.let { count ->
                                     ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
                                 }
                             }
@@ -129,17 +139,20 @@ fun FullBleedChatList(
                         turn.entries.forEach { entry ->
                             when (entry) {
                                 is AgentEntry.Prose -> {
-                                    item(key = "prose-${entry.message.id}") {
+                                    val proseMessage = entry.message
+                                    val showTurnHeader = !firstProseSeen
+                                    val milestone = toolMilestones[entryIndex]
+                                    item(key = "prose-${proseMessage.id}") {
                                         Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                             FullBleedAgentMessage(
-                                                message = entry.message,
-                                                showTurnHeader = !firstProseSeen,
+                                                message = proseMessage,
+                                                showTurnHeader = showTurnHeader,
                                                 isDarkTheme = isDark,
                                                 searchQuery = if (isSearchActive) searchQuery else "",
                                                 isCurrentMatch =
                                                     isCurrentMatchFor(
                                                         messages,
-                                                        entry.message.id,
+                                                        proseMessage.id,
                                                         isSearchActive,
                                                         currentSearchMatchIndex,
                                                         searchMatchIndices,
@@ -150,7 +163,7 @@ fun FullBleedChatList(
                                                 canSaveAttachment = savingAttachmentPath == null,
                                                 onImageClick = onImageClick,
                                             )
-                                            toolMilestones[entryIndex]?.let { count ->
+                                            milestone?.let { count ->
                                                 ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
                                             }
                                         }
@@ -160,10 +173,12 @@ fun FullBleedChatList(
                                 }
 
                                 is AgentEntry.ToolRow -> {
-                                    item(key = "tool-${entry.message.id}") {
+                                    val toolMessage = entry.message
+                                    val milestone = toolMilestones[entryIndex]
+                                    item(key = "tool-${toolMessage.id}") {
                                         Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                            FullBleedToolRow(entry.message)
-                                            toolMilestones[entryIndex]?.let { count ->
+                                            FullBleedToolRow(toolMessage)
+                                            milestone?.let { count ->
                                                 ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
                                             }
                                         }
@@ -172,10 +187,11 @@ fun FullBleedChatList(
                                 }
 
                                 is AgentEntry.SystemEvent -> {
-                                    item(key = "sys-${entry.message.id}") {
+                                    val sysMessage = entry.message
+                                    item(key = "sys-${sysMessage.id}") {
                                         Column(modifier = Modifier.padding(bottom = 6.dp)) {
                                             FullBleedSystemEvent(
-                                                message = entry.message,
+                                                message = sysMessage,
                                                 onRespondApproval = viewModel::respondToApproval,
                                             )
                                         }

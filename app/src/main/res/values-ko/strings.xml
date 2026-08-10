@@ -147,6 +147,7 @@
     <string name="settings_desc_chat_style">에이전트 응답 표시 방식</string>
     <string name="chat_style_bubbles">버블</string>
     <string name="chat_style_full_bleed">전체 폭</string>
+    <string name="fullbleed_role_agent">어시스턴트</string>
     <string name="settings_item_typing_delay">지연: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>

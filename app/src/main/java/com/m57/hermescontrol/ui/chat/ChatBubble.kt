@@ -616,7 +616,7 @@ private fun buildHighlightedString(
  * Images are displayed as thumbnails; other files show a compact card.
  */
 @Composable
-private fun InlineAttachment(
+internal fun InlineAttachment(
     attachment: Attachment,
     textColor: Color,
     onOpen: (Attachment) -> Unit,

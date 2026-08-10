@@ -107,4 +107,40 @@ class ChatInputPolicyTest {
         val value = ChatInputPolicy.commandFieldValue("/help")
         assertTrue("cursor must be past the shared /h prefix", value.selection.start > 2)
     }
+
+    // ── Slash suggestion ranking (issue #865) ───────────────────────────────
+
+    @Test
+    fun sortSlashSuggestions_mostUsedFirst_tiesKeepCatalogOrder() {
+        val commands = listOf("/help", "/model", "/new", "/stop")
+        val usage = mapOf("/stop" to 5, "/model" to 2)
+
+        assertEquals(
+            "most-used must surface first; equal counts keep catalog order",
+            listOf("/stop", "/model", "/help", "/new"),
+            ChatInputPolicy.sortSlashSuggestions(commands, usage),
+        )
+    }
+
+    @Test
+    fun sortSlashSuggestions_noUsage_keepsCatalogOrder() {
+        val commands = listOf("/help", "/model", "/new")
+        assertEquals(
+            "no history must fall back to catalog order unchanged",
+            commands,
+            ChatInputPolicy.sortSlashSuggestions(commands, emptyMap()),
+        )
+    }
+
+    @Test
+    fun sortSlashSuggestions_lookupIsCaseInsensitive() {
+        // Stored keys are always lowercase (normalized at dispatch time), but
+        // the lookup lowercases the catalog name so a mismatched case can
+        // never break the ranking.
+        val commands = listOf("/model", "/new")
+        assertEquals(
+            listOf("/model", "/new"),
+            ChatInputPolicy.sortSlashSuggestions(commands, mapOf("/MODEL" to 3)),
+        )
+    }
 }

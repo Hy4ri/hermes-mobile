@@ -45,4 +45,15 @@ object ChatInputPolicy {
      * selection.
      */
     fun commandFieldValue(command: String): TextFieldValue = TextFieldValue(command, TextRange(command.length))
+
+    /**
+     * Rank slash-command suggestions by how often the user has dispatched them
+     * (issue #865): most-used first, ties broken by the current (catalog)
+     * order via the stable sort. Commands with no recorded usage keep their
+     * catalog position, so a fresh install behaves exactly as before.
+     */
+    fun sortSlashSuggestions(
+        commands: List<String>,
+        usageCounts: Map<String, Int>,
+    ): List<String> = commands.sortedByDescending { usageCounts[it.lowercase()] ?: 0 }
 }

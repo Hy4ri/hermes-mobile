@@ -22,6 +22,7 @@ import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
+import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
 import io.mockk.*
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -67,6 +68,7 @@ class ChatViewModelTest {
     private val mockSwitchFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private lateinit var app: Application
     private lateinit var fakeRepo: FakeChatPersistenceRepository
+    private lateinit var fakeSlashUsageStore: FakeSlashUsageStore
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
@@ -114,6 +116,7 @@ class ChatViewModelTest {
 
         app = mockk(relaxed = true)
         fakeRepo = FakeChatPersistenceRepository()
+        fakeSlashUsageStore = FakeSlashUsageStore()
         ActiveSessionHolder.set(null)
 
         mockConnectionStatus.value = ConnectionStatus.DISCONNECTED
@@ -184,7 +187,7 @@ class ChatViewModelTest {
     private fun createViewModel(startCleanup: Boolean = false): ChatViewModel =
         // Both dispatchers injected — a real ioDispatcher would race the
         // test scheduler (repo writes hop it) and shuffle RPC ordering.
-        ChatViewModel(app, startCleanup, fakeRepo, testDispatcher, testDispatcher)
+        ChatViewModel(app, startCleanup, fakeRepo, fakeSlashUsageStore, testDispatcher, testDispatcher)
 
     /**
      * Create ViewModel, simulate GatewayReady, feed SESSION_CREATE result,
@@ -400,6 +403,47 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
+        }
+
+    // ── Slash usage ranking (issue #865) ────────────────────────────────────
+
+    @Test
+    fun slashUsage_dispatchIncrementsCountPerCommand() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
+            } returns
+                CompletableDeferred(
+                    mapOf("type" to "exec", "output" to "ok"),
+                )
+
+            viewModel.sendMessage("/help")
+            advanceUntilIdle()
+            viewModel.sendMessage("/help")
+            advanceUntilIdle()
+            viewModel.sendMessage("/new")
+            advanceUntilIdle()
+
+            assertEquals(2, viewModel.uiState.value.slashUsageCounts["/help"])
+            assertEquals(1, viewModel.uiState.value.slashUsageCounts["/new"])
+        }
+
+    @Test
+    fun slashUsage_blockedCommand_notCounted() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            viewModel.sendMessage("/clear")
+            advanceUntilIdle()
+
+            // A blocklisted command can never dispatch — it must not climb
+            // the autocomplete ranking either.
+            assertTrue(viewModel.uiState.value.slashUsageCounts.isEmpty())
+            verify(exactly = 0) {
+                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
+            }
         }
 
     @Test

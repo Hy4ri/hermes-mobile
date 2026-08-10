@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
+import com.m57.hermescontrol.data.local.SlashUsageStore
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.ModelProvider
@@ -271,6 +272,10 @@ data class ChatUiState(
     val typingEffectDelayMs: Int = 30,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
+    // Per-command usage counts for the slash-autocomplete ranking (issue
+    // #865). Empty until the local store loads; commands without recorded
+    // usage keep their catalog order.
+    val slashUsageCounts: Map<String, Int> = emptyMap(),
     // In-session model picker (issue #589) — surfaced when the user types /model
     // (or taps the top-bar model chip). Mirror of the global model screen's
     // picker, but the selection hot-swaps the CURRENT session via the slash path.
@@ -375,6 +380,7 @@ class ChatViewModel(
         ChatPersistenceRepository(
             HermesDatabase.get(application).chatMessageDao(),
         ),
+    slashUsageStore: SlashUsageStore = SlashUsageStore(application.applicationContext),
     searchDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default,
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
 ) : AndroidViewModel(application) {
@@ -453,6 +459,7 @@ class ChatViewModel(
 
     // ── Session persistence ──────────────────────────────────────────────
     private val repo: ChatPersistenceRepository = repo
+    private val slashUsageStore: SlashUsageStore = slashUsageStore
     private val slashDispatcher = SlashCommandDispatcher()
     private val searchDelegate =
         ChatSearchDelegate(
@@ -553,6 +560,14 @@ class ChatViewModel(
                 .collect { _ ->
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
                 }
+        }
+        // Slash-command usage ranking (issue #865): mirror the local usage
+        // counts into state so the autocomplete can surface most-used
+        // commands first. Best-effort — the store never throws.
+        viewModelScope.launch {
+            slashUsageStore.counts().collect { counts ->
+                _uiState.update { it.copy(slashUsageCounts = counts) }
+            }
         }
         if (wsClient.connectionStatus.value == ConnectionStatus.CONNECTED) {
             handleGatewayReady()
@@ -1377,6 +1392,15 @@ class ChatViewModel(
                 "⚠️ ${command.split(" ", limit = 2)[0]} is not supported on mobile",
             )
             return
+        }
+
+        // Track per-command usage for the slash-autocomplete ranking (issue
+        // #865). Counted here, AFTER the blocklist guard, so commands that
+        // can never dispatch don't climb the ranking. Best-effort — a store
+        // failure must never block the dispatch itself.
+        val commandName = command.split(" ", limit = 2)[0].lowercase()
+        viewModelScope.launch {
+            slashUsageStore.recordUse(commandName)
         }
 
         when (val result = slashDispatcher.dispatch(command)) {

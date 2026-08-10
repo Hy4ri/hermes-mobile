@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.config
 
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.serialization.Serializable
@@ -21,6 +22,9 @@ data class ServerStoreState(
     val wsAuthParam: String = "token",
     val typingEffectEnabled: Boolean = true,
     val typingEffectDelayMs: Int = 30,
+    // Chat rendering style (issue #866): bubble renderer (default) or the
+    // parallel full-bleed renderer.
+    val chatStyle: ChatStyle = ChatStyle.BUBBLES,
     // App display language. "system" = follow device locale; otherwise a BCP-47
     // language code such as "en" or "ko". Applied via ContextWrapper in MainActivity.
     val appLanguage: String = "system",

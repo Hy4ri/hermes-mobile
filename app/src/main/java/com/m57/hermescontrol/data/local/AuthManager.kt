@@ -17,6 +17,7 @@ import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import kotlinx.coroutines.CoroutineScope
@@ -73,6 +74,9 @@ object AuthManager {
 
     private val _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)
     val themePresetFlow: StateFlow<ThemePreset> = _themePresetFlow.asStateFlow()
+
+    private val _chatStyleFlow = MutableStateFlow<ChatStyle>(ChatStyle.BUBBLES)
+    val chatStyleFlow: StateFlow<ChatStyle> = _chatStyleFlow.asStateFlow()
 
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
@@ -180,6 +184,7 @@ object AuthManager {
                     _themePreferenceFlow.value = state.themePreference
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
+                    _chatStyleFlow.value = state.chatStyle
                     // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
                     appScope?.launch { syncCookieStoreForProfile(state.selectedProfileId) }
                 }
@@ -583,6 +588,15 @@ object AuthManager {
     }
 
     fun getThemePreset(): ThemePreset = serverStore.getLatestState().themePreset
+
+    // ── Chat style (issue #866) ──────────────────────────────────────────
+
+    fun getChatStyle(): ChatStyle = serverStore.getLatestState().chatStyle
+
+    fun setChatStyle(style: ChatStyle) {
+        _chatStyleFlow.value = style
+        serverStore.update { it.copy(chatStyle = style) }
+    }
 
     fun setThemePreset(preset: ThemePreset) {
         serverStore.update { it.copy(themePreset = preset) }

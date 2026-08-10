@@ -81,6 +81,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.ChatConnectionBanner
 import com.m57.hermescontrol.ui.chat.components.ChatInputBar
@@ -97,6 +98,7 @@ import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
+import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
 import com.m57.hermescontrol.ui.common.ActionProgressDialog
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
@@ -553,32 +555,8 @@ fun ChatScreen(
                         .weight(1f)
                         .fillMaxWidth(),
             ) {
-                ChatMessageList(
-                    messages = state.messages,
-                    streamingMessage = streamingState.streamingMessage,
-                    isThinking = streamingState.isThinking,
-                    thinkingText = streamingState.thinkingText,
-                    isSearchActive = state.isSearchActive,
-                    searchQuery = state.searchQuery,
-                    currentSearchMatchIndex = state.currentSearchMatchIndex,
-                    searchMatchIndices = state.searchMatchIndices,
-                    typingEffectEnabled = state.typingEffectEnabled,
-                    typingEffectDelayMs = state.typingEffectDelayMs,
-                    maxToolCallsPerTurn = state.maxToolCallsPerTurn,
-                    isLoading = state.isLoading,
-                    isLoadingOlder = state.isLoadingOlder,
-                    isDark = isDark,
-                    listState = listState,
-                    lastAnimatedMessageId = lastAnimatedMessageId,
-                    onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
-                    viewModel = viewModel,
-                    clarifyRequest = state.clarifyRequest,
-                    onRespondClarify = viewModel::respondToClarify,
-                    onDismissClarify = viewModel::dismissClarify,
-                    onSaveAttachment = { attachment ->
-                        if (!canStartAttachmentSave(pendingSavePath, state.savingAttachmentPath)) {
-                            return@ChatMessageList
-                        }
+                val onSaveAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit = { attachment ->
+                    if (canStartAttachmentSave(pendingSavePath, state.savingAttachmentPath)) {
                         pendingSavePath = viewModel.gatewayPathFor(attachment)
                         pendingSaveName = attachment.name
                         pendingSaveMimeType = attachment.mimeType
@@ -599,10 +577,66 @@ fun ChatScreen(
                                 )
                             },
                         )
-                    },
-                    savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
-                    onImageClick = { viewingImage = it },
-                )
+                    }
+                }
+
+                when (state.chatStyle) {
+                    ChatStyle.BUBBLES ->
+                        ChatMessageList(
+                            messages = state.messages,
+                            streamingMessage = streamingState.streamingMessage,
+                            isThinking = streamingState.isThinking,
+                            thinkingText = streamingState.thinkingText,
+                            isSearchActive = state.isSearchActive,
+                            searchQuery = state.searchQuery,
+                            currentSearchMatchIndex = state.currentSearchMatchIndex,
+                            searchMatchIndices = state.searchMatchIndices,
+                            typingEffectEnabled = state.typingEffectEnabled,
+                            typingEffectDelayMs = state.typingEffectDelayMs,
+                            maxToolCallsPerTurn = state.maxToolCallsPerTurn,
+                            isLoading = state.isLoading,
+                            isLoadingOlder = state.isLoadingOlder,
+                            isDark = isDark,
+                            listState = listState,
+                            lastAnimatedMessageId = lastAnimatedMessageId,
+                            onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
+                            viewModel = viewModel,
+                            clarifyRequest = state.clarifyRequest,
+                            onRespondClarify = viewModel::respondToClarify,
+                            onDismissClarify = viewModel::dismissClarify,
+                            onSaveAttachment = onSaveAttachment,
+                            savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
+                            onImageClick = { viewingImage = it },
+                        )
+
+                    ChatStyle.FULL_BLEED ->
+                        FullBleedChatList(
+                            messages = state.messages,
+                            streamingMessage = streamingState.streamingMessage,
+                            isThinking = streamingState.isThinking,
+                            thinkingText = streamingState.thinkingText,
+                            isSearchActive = state.isSearchActive,
+                            searchQuery = state.searchQuery,
+                            currentSearchMatchIndex = state.currentSearchMatchIndex,
+                            searchMatchIndices = state.searchMatchIndices,
+                            typingEffectEnabled = state.typingEffectEnabled,
+                            typingEffectDelayMs = state.typingEffectDelayMs,
+                            maxToolCallsPerTurn = state.maxToolCallsPerTurn,
+                            isLoading = state.isLoading,
+                            isLoadingOlder = state.isLoadingOlder,
+                            isDark = isDark,
+                            listState = listState,
+                            lastAnimatedMessageId = lastAnimatedMessageId,
+                            onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
+                            viewModel = viewModel,
+                            clarifyRequest = state.clarifyRequest,
+                            onRespondClarify = viewModel::respondToClarify,
+                            onDismissClarify = viewModel::dismissClarify,
+                            onSaveAttachment = onSaveAttachment,
+                            savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
+                            onImageClick = { viewingImage = it },
+                        )
+                }
 
                 // Loading overlay
                 ChatLoadingOverlay(isLoading = state.isLoading && state.resumeError == null)

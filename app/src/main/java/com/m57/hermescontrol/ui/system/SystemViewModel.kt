@@ -21,6 +21,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.ui.common.ActionProgressController
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -96,6 +97,18 @@ class SystemViewModel :
 
     private val _uiState = MutableStateFlow(SystemUiState())
     val uiState: StateFlow<SystemUiState> = _uiState.asStateFlow()
+
+    /**
+     * Progress popup for the update flow (issue #863): after the trigger POST
+     * returns, [ActionProgressController] polls the action status log until
+     * the update exits, then refreshes the whole screen so the version row
+     * and update badge reflect the new build.
+     */
+    val actionProgress =
+        ActionProgressController(
+            scope = viewModelScope,
+            onFinished = { loadAll() },
+        )
 
     private var actionPollingJob: Job? = null
     private var downloadJob: Job? = null
@@ -266,11 +279,36 @@ class SystemViewModel :
         }
     }
 
+    /**
+     * Run the update and surface its progress in [ActionProgressController]'s
+     * popup: the trigger POST returns immediately (`{ok, name}`) while the
+     * actual update runs in the background, so the dialog polls the action
+     * status log until it exits (success/failure + tail shown to the user).
+     */
     fun applyUpdate() {
-        runOperation(
-            apiCall = { safeApiCall { ApiClient.hermesApi.updateHermes() } },
-            label = "Update",
-        )
+        actionProgress.open()
+        viewModelScope.launch {
+            val result =
+                withContext(Dispatchers.IO) {
+                    safeApiCall { ApiClient.hermesApi.updateHermes() }
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    val name = result.data.name
+                    if (name != null) {
+                        actionProgress.markStarted(name)
+                    } else {
+                        actionProgress.fail(
+                            "Update started but the backend did not report an action name",
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    actionProgress.fail("Failed to start update: ${result.error.message}")
+                }
+            }
+        }
     }
 
     fun openUpdateConfirm() {

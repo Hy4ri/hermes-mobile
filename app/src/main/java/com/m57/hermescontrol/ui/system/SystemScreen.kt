@@ -81,6 +81,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.chat.MediaImageStore
+import com.m57.hermescontrol.ui.common.ActionProgressDialog
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -191,6 +192,14 @@ fun SystemScreen(
             },
         )
     }
+
+    // Update progress popup (issue #863): replaces the old bottom-of-screen
+    // action log for the update flow — spinner + log tail while running,
+    // success/failure state once it exits.
+    ActionProgressDialog(
+        controller = viewModel.actionProgress,
+        title = stringResource(R.string.system_update_progress_title),
+    )
 
     // Credential remove confirmation
     var credToRemove by remember { mutableStateOf<Pair<String, Int>?>(null) }

@@ -26,6 +26,11 @@
     <string name="action_confirm">Confirm</string>
     <string name="action_clear">Clear</string>
     <string name="action_ok">OK</string>
+    <string name="action_progress_starting">Starting…</string>
+    <string name="action_progress_running">Running…</string>
+    <string name="action_progress_succeeded">Completed</string>
+    <string name="action_progress_failed">Failed</string>
+    <string name="action_progress_failed_exit">Failed (exit %1$d)</string>
     <string name="action_delete">Delete</string>
 
     <!-- Content Descriptions -->
@@ -354,6 +359,7 @@
     <string name="system_action_update_now">Update now</string>
     <string name="system_update_confirm_title">Update Hermes?</string>
     <string name="system_update_confirm_desc">This will run hermes update and restart the gateway.</string>
+    <string name="system_update_progress_title">Software update</string>
 
     <!-- Portal section -->
     <string name="system_sec_portal">Nous Portal</string>

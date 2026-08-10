@@ -279,6 +279,9 @@ data class ChatUiState(
     // #865). Empty until the local store loads; commands without recorded
     // usage keep their catalog order.
     val slashUsageCounts: Map<String, Int> = emptyMap(),
+    // Transient nav request from /resume and /history (issue #864): the
+    // screen consumes it by navigating to the history tab, then clears it.
+    val openHistoryRequested: Boolean = false,
     // In-session model picker (issue #589) — surfaced when the user types /model
     // (or taps the top-bar model chip). Mirror of the global model screen's
     // picker, but the selection hot-swaps the CURRENT session via the slash path.
@@ -1433,6 +1436,13 @@ class ChatViewModel(
 
             is SlashResult.Update -> {
                 openUpdateConfirm()
+            }
+
+            is SlashResult.OpenHistory -> {
+                // Client-side: open the session history tab so the user can
+                // pick a past session to resume (issue #864) — no gateway
+                // round-trip (the backend slash worker can't answer /resume).
+                _uiState.update { it.copy(openHistoryRequested = true) }
             }
 
             is SlashResult.RpcDispatch -> {
@@ -3229,6 +3239,11 @@ class ChatViewModel(
 
     fun clearBackgroundComplete() {
         _uiState.update { it.copy(backgroundCompleteMessage = null) }
+    }
+
+    /** Consume the /resume · /history navigation request (issue #864). */
+    fun consumeOpenHistoryRequest() {
+        _uiState.update { it.copy(openHistoryRequested = false) }
     }
 
     // ── Approval flow ───────────────────────────────────────────────────

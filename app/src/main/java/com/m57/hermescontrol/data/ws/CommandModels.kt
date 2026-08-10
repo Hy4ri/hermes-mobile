@@ -43,7 +43,8 @@ object CommandBlocklist {
         setOf(
             "/clear",
             "/redraw",
-            "/history",
+            // "/history" is NOT blocked — it's handled client-side (issue
+            // #864) by opening the session history tab.
             "/save",
             "/prompt",
             "/snapshot",

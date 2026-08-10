@@ -74,6 +74,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.HistoryScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
@@ -190,6 +191,15 @@ fun ChatScreen(
                 viewModel.syncCurrentSession()
                 viewModel.fetchContextUsage()
             }
+        }
+    }
+
+    // /resume · /history (issue #864): open the session history tab so the
+    // user picks a past session — client-side, no gateway round-trip.
+    LaunchedEffect(state.openHistoryRequested) {
+        if (state.openHistoryRequested) {
+            NavigationController.navigateTo(HistoryScreen)
+            viewModel.consumeOpenHistoryRequest()
         }
     }
 

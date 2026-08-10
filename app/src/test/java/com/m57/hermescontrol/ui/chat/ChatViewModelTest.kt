@@ -446,6 +446,58 @@ class ChatViewModelTest {
             }
         }
 
+    // ── /resume · /history open the history tab (issue #864) ────────────────
+
+    @Test
+    fun slashCommand_resume_requestsHistoryNavigationWithoutGateway() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            viewModel.sendMessage("/resume")
+            advanceUntilIdle()
+
+            assertTrue(
+                "openHistoryRequested must be set for the screen to navigate",
+                viewModel.uiState.value.openHistoryRequested,
+            )
+            // Client-side only: no gateway round-trip for /resume.
+            verify(exactly = 0) {
+                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
+            }
+            verify(exactly = 0) {
+                HermesWsClient.request(WsMethods.SLASH_EXEC, any(), any())
+            }
+        }
+
+    @Test
+    fun slashCommand_history_requestsHistoryNavigation() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            viewModel.sendMessage("/history")
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.openHistoryRequested)
+            verify(exactly = 0) {
+                HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
+            }
+        }
+
+    @Test
+    fun consumeOpenHistoryRequest_clearsFlag() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            viewModel.sendMessage("/resume")
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.openHistoryRequested)
+
+            viewModel.consumeOpenHistoryRequest()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.openHistoryRequested)
+        }
+
     @Test
     fun testSlashCommand_unknown_showsErrorMessage() =
         runTest {

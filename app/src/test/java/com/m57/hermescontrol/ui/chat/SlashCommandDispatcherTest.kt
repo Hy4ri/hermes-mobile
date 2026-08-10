@@ -64,6 +64,17 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `resume and history route to OpenHistory`() {
+        // /resume and /history are CLI-flavored interactive commands the
+        // mobile gateway path can't answer — handled client-side by opening
+        // the session history tab (issue #864).
+        assertEquals(SlashResult.OpenHistory, dispatcher.dispatch("/resume"))
+        assertEquals(SlashResult.OpenHistory, dispatcher.dispatch("/RESUME"))
+        assertEquals(SlashResult.OpenHistory, dispatcher.dispatch("/history"))
+        assertEquals(SlashResult.OpenHistory, dispatcher.dispatch("/History"))
+    }
+
+    @Test
     fun `NEW uppercase still routes to NewSession`() {
         // Dispatcher lower-cases before matching, so case must not matter.
         assertEquals(SlashResult.NewSession, dispatcher.dispatch("/NEW"))

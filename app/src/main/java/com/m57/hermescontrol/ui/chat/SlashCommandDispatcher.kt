@@ -31,6 +31,7 @@ class SlashCommandDispatcher {
             "/fork", "/branch" -> SlashResult.SessionBranch
             "/model" -> SlashResult.ModelSwitch
             "/update" -> SlashResult.Update
+            "/resume", "/history" -> SlashResult.OpenHistory
             else -> SlashResult.RpcDispatch
         }
     }
@@ -71,4 +72,12 @@ sealed class SlashResult {
      * after 45s (issue #862).
      */
     data object Update : SlashResult()
+
+    /**
+     * Open the session history tab client-side (issue #864). /resume and
+     * /history are CLI-flavored interactive commands the mobile gateway path
+     * can't answer usefully — same class of problem as /update (#862). The
+     * user picks a past session from history and resumes it from there.
+     */
+    data object OpenHistory : SlashResult()
 }

@@ -6,11 +6,13 @@ import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
+import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -95,6 +97,16 @@ class ChatUpdateCommandTest {
         }
         every { HermesWsClient.disconnect() } returns Unit
 
+        // ChatViewModel's init subscribes to ProfileSwitchCoordinator.switched
+        // on viewModelScope. Without mocking the singleton, every VM created
+        // here parks a collector on the REAL flow — when a later test class
+        // (e.g. ProfileSwitchCoordinatorTest) emits on it, the stale-Main
+        // resumption crashes with DispatchException (CI flakes). Mirror
+        // ChatViewModelTest: stub the flow with a never-emitting mock so the
+        // collectors park harmlessly.
+        mockkObject(ProfileSwitchCoordinator)
+        every { ProfileSwitchCoordinator.switched } returns MutableSharedFlow<String>()
+
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++
             val id = "req-id-$reqCount"
@@ -122,7 +134,11 @@ class ChatUpdateCommandTest {
     }
 
     private suspend fun TestScope.createViewModelWithSession(): Pair<ChatViewModel, String> {
-        val vm = ChatViewModel(app, false, fakeRepo, ioDispatcher = testDispatcher)
+        // FakeSlashUsageStore: the real store inits a DataStore on real IO
+        // threads — with a relaxed-mock app that NPEs on cacheDir and leaks
+        // an uncaught exception into the NEXT runTest class (CI flakes:
+        // UncaughtExceptionsBeforeTest).
+        val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
         advanceUntilIdle()
         mockConnectionStatus.value = ConnectionStatus.CONNECTED
         mockEventsFlow.emit(WsEvent.GatewayReady(null))
@@ -154,7 +170,7 @@ class ChatUpdateCommandTest {
     @Test
     fun `applyUpdate triggers the REST action and starts the progress popup`() =
         runTest {
-            val vm = ChatViewModel(app, false, fakeRepo, ioDispatcher = testDispatcher)
+            val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
             coEvery { mockApi.updateHermes() } returns
                 Response.success(ActionResponse(ok = true, name = "hermes-update"))
             // One running poll, then the action exits — runTest's teardown
@@ -193,7 +209,7 @@ class ChatUpdateCommandTest {
     @Test
     fun `applyUpdate settles on success when the action exits cleanly`() =
         runTest {
-            val vm = ChatViewModel(app, false, fakeRepo, ioDispatcher = testDispatcher)
+            val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
             coEvery { mockApi.updateHermes() } returns
                 Response.success(ActionResponse(ok = true, name = "hermes-update"))
             coEvery { mockApi.getActionStatus("hermes-update") } returns
@@ -221,7 +237,7 @@ class ChatUpdateCommandTest {
     @Test
     fun `applyUpdate surfaces a rejected trigger in the popup`() =
         runTest {
-            val vm = ChatViewModel(app, false, fakeRepo, ioDispatcher = testDispatcher)
+            val vm = ChatViewModel(app, false, fakeRepo, FakeSlashUsageStore(), ioDispatcher = testDispatcher)
             coEvery { mockApi.updateHermes() } returns
                 Response.error(404, "no update endpoint".toResponseBody())
 

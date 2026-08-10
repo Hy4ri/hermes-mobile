@@ -4,6 +4,7 @@ import android.app.Application
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
@@ -74,6 +75,15 @@ class SlashCommandDispatchRpcTest {
         mockkObject(HermesWsClient)
         mockkObject(ApiClient)
         mockkObject(HermesDatabase)
+
+        // ChatViewModel's init subscribes to ProfileSwitchCoordinator.switched
+        // on viewModelScope. Without mocking the singleton, every VM created
+        // here parks a collector on the REAL flow — when a later test class
+        // emits on it, the stale-Main resumption crashes (DispatchException,
+        // CI flakes). Stub it with a never-emitting mock flow (ChatViewModelTest
+        // pattern) so the collectors park harmlessly.
+        mockkObject(ProfileSwitchCoordinator)
+        every { ProfileSwitchCoordinator.switched } returns MutableSharedFlow<String>()
 
         app = mockk(relaxed = true)
         fakeRepo = FakeChatPersistenceRepository()

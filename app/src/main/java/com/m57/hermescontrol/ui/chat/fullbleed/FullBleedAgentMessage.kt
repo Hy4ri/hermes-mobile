@@ -100,7 +100,12 @@ internal fun FullBleedAgentMessage(
                         MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.SemiBold,
                         ),
-                    color = MaterialTheme.colorScheme.primary,
+                    // Meta color (not primary): Nord's light mode reuses its
+                    // pastel Frost accent as primary, which fails >= 3:1 on a
+                    // light background. The header is metadata, so the dimmed
+                    // meta token is both more correct and gate-compliant in
+                    // every preset.
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(

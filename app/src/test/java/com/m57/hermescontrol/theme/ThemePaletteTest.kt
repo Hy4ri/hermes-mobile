@@ -45,6 +45,35 @@ class ThemePaletteTest {
         }
     }
 
+    /**
+     * Full-bleed chat renderer gate (issue #866): agent prose renders directly
+     * on the screen background (HermesScaffold containerColor = background),
+     * so the full-bleed text pairs must hold against [ColorScheme.background]:
+     * - body prose (onSurface) >= 4.5:1 — primary content, WCAG AA text
+     * - header role label + timestamp (onSurfaceVariant) >= 3:1 — WCAG AA UI
+     * (The header deliberately avoids `primary`: Nord's light mode reuses its
+     * pastel Frost accent as primary, which cannot reach 3:1 on a light
+     * background.)
+     * Iterates ThemePreset.entries directly so EVERY shipped preset (incl.
+     * NORD, which the [themes] list above predates) is covered.
+     */
+    @Test
+    fun fullBleedTextPairsMeetContrastInEveryShippedMode() {
+        ThemePreset.entries.forEach { preset ->
+            listOf(true, false).forEach { dark ->
+                val scheme = resolveColorScheme(preset, darkTheme = dark) ?: return@forEach
+                assertTrue(
+                    "$preset dark=$dark onSurface/background contrast must be >= 4.5:1 (full-bleed prose)",
+                    contrast(scheme.onSurface, scheme.background) >= 4.5f,
+                )
+                assertTrue(
+                    "$preset dark=$dark onSurfaceVariant/background contrast must be >= 3:1 (full-bleed header)",
+                    contrast(scheme.onSurfaceVariant, scheme.background) >= 3f,
+                )
+            }
+        }
+    }
+
     @Test
     fun amoledShipsDarkOnly() {
         assertTrue("AMOLED must ship a dark scheme", AmoledTheme.darkScheme != null)

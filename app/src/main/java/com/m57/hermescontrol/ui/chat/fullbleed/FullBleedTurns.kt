@@ -21,7 +21,9 @@ sealed interface ChatTurn {
 
 sealed interface AgentEntry {
     data class Prose(val message: ChatMessage) : AgentEntry
+
     data class ToolRow(val message: ChatMessage) : AgentEntry
+
     data class SystemEvent(val message: ChatMessage) : AgentEntry
 }
 

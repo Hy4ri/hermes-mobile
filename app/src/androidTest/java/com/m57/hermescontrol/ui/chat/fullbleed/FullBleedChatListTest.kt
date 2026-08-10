@@ -29,7 +29,6 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @MediumTest
 class FullBleedChatListTest {
-
     @get:Rule
     val composeTestRule = createComposeRule()
 
@@ -66,7 +65,15 @@ class FullBleedChatListTest {
                 lastAnimatedMessageId = null,
                 onLastAnimatedMessageIdChange = {},
                 viewModel = mockk<ChatViewModel>(relaxed = true),
-                clarifyRequest = if (clarify) com.m57.hermescontrol.ui.chat.ClarifyUi(text = "pick", options = listOf("a")) else null,
+                clarifyRequest =
+                    if (clarify) {
+                        com.m57.hermescontrol.ui.chat.ClarifyUi(
+                            text = "pick",
+                            options = listOf("a"),
+                        )
+                    } else {
+                        null
+                    },
             )
         }
     }

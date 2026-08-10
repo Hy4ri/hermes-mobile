@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -23,9 +22,9 @@ import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
-import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
 import com.m57.hermescontrol.ui.chat.components.TypingIndicator
+import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
 
 /**
@@ -104,7 +103,14 @@ fun FullBleedChatList(
                                     message = turn.message,
                                     isDark = isDark,
                                     searchQuery = searchQuery,
-                                    isCurrentMatch = isCurrentMatchFor(messages, turn.message.id, isSearchActive, currentSearchMatchIndex, searchMatchIndices),
+                                    isCurrentMatch =
+                                        isCurrentMatchFor(
+                                            messages,
+                                            turn.message.id,
+                                            isSearchActive,
+                                            currentSearchMatchIndex,
+                                            searchMatchIndices,
+                                        ),
                                     onOpenAttachment = viewModel::openAttachment,
                                     onSaveAttachment = onSaveAttachment,
                                     savingAttachmentPath = savingAttachmentPath,
@@ -130,7 +136,14 @@ fun FullBleedChatList(
                                                 showTurnHeader = !firstProseSeen,
                                                 isDarkTheme = isDark,
                                                 searchQuery = if (isSearchActive) searchQuery else "",
-                                                isCurrentMatch = isCurrentMatchFor(messages, entry.message.id, isSearchActive, currentSearchMatchIndex, searchMatchIndices),
+                                                isCurrentMatch =
+                                                    isCurrentMatchFor(
+                                                        messages,
+                                                        entry.message.id,
+                                                        isSearchActive,
+                                                        currentSearchMatchIndex,
+                                                        searchMatchIndices,
+                                                    ),
                                                 onOpenAttachment = viewModel::openAttachment,
                                                 onSaveAttachment = onSaveAttachment,
                                                 savingAttachmentPath = savingAttachmentPath,

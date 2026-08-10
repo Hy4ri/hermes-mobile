@@ -7,7 +7,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FullBleedTurnsTest {
-
     private fun msg(
         id: String,
         role: MessageRole,

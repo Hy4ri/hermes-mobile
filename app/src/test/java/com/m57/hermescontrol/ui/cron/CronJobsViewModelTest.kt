@@ -7,6 +7,7 @@ import com.m57.hermescontrol.data.model.CronJob
 import com.m57.hermescontrol.data.model.DeliveryTarget
 import com.m57.hermescontrol.data.model.DeliveryTargetsResponse
 import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
+import com.m57.hermescontrol.data.model.UpdateCronJobRequest
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
 import io.mockk.coEvery
@@ -22,6 +23,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
@@ -222,5 +224,205 @@ class CronJobsViewModelTest {
         coVerify { mockApi.createCronJob(any()) }
         coVerify(exactly = 0) { mockApi.instantiateBlueprint(any()) }
         assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `setMonitorMode switching source clears the other`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+
+        vm.setMonitorMode("script")
+        vm.updateEditorField("monitor_script", "check.sh")
+
+        var editor = vm.uiState.value.editorState
+        assertEquals("script", editor.monitorMode)
+        assertEquals("check.sh", editor.monitor_script)
+
+        vm.setMonitorMode("url")
+
+        editor = vm.uiState.value.editorState
+        assertEquals("url", editor.monitorMode)
+        assertEquals("", editor.monitor_script)
+    }
+
+    @Test
+    fun `setMonitorMode off clears both sources`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+        vm.setMonitorMode("url")
+        vm.updateEditorField("monitor_url", "https://example.com/status")
+
+        vm.setMonitorMode("off")
+
+        val editor = vm.uiState.value.editorState
+        assertEquals("off", editor.monitorMode)
+        assertEquals("", editor.monitor_script)
+        assertEquals("", editor.monitor_url)
+    }
+
+    @Test
+    fun `toggleNoAgent clears monitor fields`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+        vm.setMonitorMode("script")
+        vm.updateEditorField("monitor_script", "check.sh")
+
+        vm.toggleNoAgent()
+
+        val editor = vm.uiState.value.editorState
+        assertTrue(editor.no_agent)
+        assertEquals("off", editor.monitorMode)
+        assertEquals("", editor.monitor_script)
+        assertEquals("", editor.monitor_url)
+    }
+
+    @Test
+    fun `new job with monitor mode applies it via follow-up update`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+        vm.updateEditorField("name", "Watch job")
+        vm.updateEditorField("schedule", "every 10m")
+        vm.updateEditorField("prompt", "Summarize changes")
+        vm.setMonitorMode("script")
+        vm.updateEditorField("monitor_script", "check.sh")
+        val created = CronJob(id = "j3", name = "Watch job")
+        coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
+        coEvery { mockApi.updateCronJob(eq("j3"), any()) } returns Response.success(created)
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.saveEditor()
+        settle()
+
+        coVerify(exactly = 1) { mockApi.createCronJob(any()) }
+        val updateSlot = slot<UpdateCronJobRequest>()
+        coVerify { mockApi.updateCronJob(eq("j3"), capture(updateSlot)) }
+        assertEquals(JsonPrimitive("check.sh"), updateSlot.captured.updates["monitor_script"])
+        assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `new job without monitor skips follow-up update`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+        vm.updateEditorField("name", "Plain job")
+        vm.updateEditorField("schedule", "every 10m")
+        val created = CronJob(id = "j4", name = "Plain job")
+        coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.saveEditor()
+        settle()
+
+        coVerify(exactly = 1) { mockApi.createCronJob(any()) }
+        coVerify(exactly = 0) { mockApi.updateCronJob(any(), any()) }
+        assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `monitor update failure rolls back the created job`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+        vm.updateEditorField("name", "Watch job")
+        vm.updateEditorField("schedule", "every 10m")
+        vm.setMonitorMode("url")
+        vm.updateEditorField("monitor_url", "https://example.com/status")
+        val created = CronJob(id = "j5", name = "Watch job")
+        coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
+        coEvery { mockApi.updateCronJob(eq("j5"), any()) } returns
+            Response.error(
+                400,
+                """{"detail":"monitor_script and monitor_url are mutually exclusive"}""".toResponseBody(),
+            )
+        coEvery { mockApi.deleteCronJob(eq("j5")) } returns Response.success(Unit)
+
+        vm.saveEditor()
+        settle()
+
+        coVerify { mockApi.deleteCronJob("j5") }
+        assertTrue(vm.uiState.value.editorState.isOpen)
+        assertTrue(vm.uiState.value.editorState.toastMessage.orEmpty().contains("Failed to save"))
+    }
+
+    @Test
+    fun `openEditJobDialog prefills monitor fields and mode`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJob("j6") } returns
+            Response.success(
+                CronJob(
+                    id = "j6",
+                    name = "Monitored",
+                    schedule = JsonPrimitive("every 10m"),
+                    monitor_script = "check.sh",
+                ),
+            )
+
+        vm.openEditJobDialog("j6")
+        settle()
+
+        val editor = vm.uiState.value.editorState
+        assertEquals("script", editor.monitorMode)
+        assertEquals("check.sh", editor.monitor_script)
+        assertEquals("", editor.monitor_url)
+    }
+
+    @Test
+    fun `edit save sends monitor fields in updates`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJob("j7") } returns
+            Response.success(
+                CronJob(
+                    id = "j7",
+                    name = "Monitored",
+                    schedule = JsonPrimitive("every 10m"),
+                    monitor_url = "https://example.com/status",
+                ),
+            )
+        coEvery { mockApi.updateCronJob(eq("j7"), any()) } returns
+            Response.success(CronJob(id = "j7", name = "Monitored"))
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.openEditJobDialog("j7")
+        settle()
+        vm.updateEditorField("name", "Renamed")
+        vm.saveEditor()
+        settle()
+
+        val updateSlot = slot<UpdateCronJobRequest>()
+        coVerify { mockApi.updateCronJob(eq("j7"), capture(updateSlot)) }
+        assertEquals(JsonPrimitive("https://example.com/status"), updateSlot.captured.updates["monitor_url"])
+        assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `edit save clears monitor when field emptied`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJob("j8") } returns
+            Response.success(
+                CronJob(
+                    id = "j8",
+                    name = "Monitored",
+                    schedule = JsonPrimitive("every 10m"),
+                    monitor_script = "check.sh",
+                ),
+            )
+        coEvery { mockApi.updateCronJob(eq("j8"), any()) } returns
+            Response.success(CronJob(id = "j8", name = "Monitored"))
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.openEditJobDialog("j8")
+        settle()
+        vm.updateEditorField("monitor_script", "")
+        vm.saveEditor()
+        settle()
+
+        val updateSlot = slot<UpdateCronJobRequest>()
+        coVerify { mockApi.updateCronJob(eq("j8"), capture(updateSlot)) }
+        assertEquals(JsonNull, updateSlot.captured.updates["monitor_script"])
     }
 }

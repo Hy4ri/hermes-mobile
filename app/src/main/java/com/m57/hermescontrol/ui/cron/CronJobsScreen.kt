@@ -169,6 +169,23 @@ fun CronJobsScreen(
                                                 StatusBadgeType.NEUTRAL
                                             },
                                     )
+                                    // Run-status badge: blocked_config looks like a
+                                    // failure with no reason — surface it distinctly.
+                                    when (job.lastRunStatus) {
+                                        "blocked_config" -> {
+                                            StatusBadge(
+                                                text = stringResource(R.string.cron_status_blocked_config),
+                                                status = StatusBadgeType.ERROR,
+                                            )
+                                        }
+
+                                        "no_change" -> {
+                                            StatusBadge(
+                                                text = stringResource(R.string.cron_status_no_change),
+                                                status = StatusBadgeType.INFO,
+                                            )
+                                        }
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(spacing.xs))
                                 Text(
@@ -250,6 +267,7 @@ fun CronJobsScreen(
             state = state.editorState,
             onFieldChange = { name, value -> viewModel.updateEditorField(name, value) },
             onToggleNoAgent = { viewModel.toggleNoAgent() },
+            onSetMonitorMode = { viewModel.setMonitorMode(it) },
             onSelectBlueprint = { viewModel.selectBlueprint(it) },
             onBlueprintFieldChange = { name, value -> viewModel.updateBlueprintValue(name, value) },
             onSave = { viewModel.saveEditor() },
@@ -265,13 +283,21 @@ fun CronJobsScreen(
             title = { Text(job.name, style = MaterialTheme.typography.titleLarge) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-                    RunDetailRow("Status", job.lastRunStatus.ifEmpty { "unknown" })
+                    RunDetailRow(
+                        "Status",
+                        when (job.lastRunStatus) {
+                            "blocked_config" -> stringResource(R.string.cron_status_blocked_config)
+                            "no_change" -> stringResource(R.string.cron_status_no_change)
+                            else -> job.lastRunStatus.ifEmpty { "unknown" }
+                        },
+                    )
                     job.last_run_at?.let { if (it.isNotBlank()) RunDetailRow("Last run", it) }
                     RunDetailRow("Schedule", CronExpressionFormatter.cronToHumanReadable(job.scheduleText))
                     if (job.last_error != null && job.last_error.isNotBlank()) {
                         RunDetailRow("Error", job.last_error)
                     }
                     job.script?.let { if (it.isNotBlank()) RunDetailRow("Script", it) }
+                    job.monitorSource?.let { if (it.isNotBlank()) RunDetailRow("Monitor", it) }
                 }
             },
             confirmButton = {
@@ -286,6 +312,7 @@ fun CronJobEditorDialog(
     state: CronJobEditorState,
     onFieldChange: (String, String) -> Unit,
     onToggleNoAgent: () -> Unit,
+    onSetMonitorMode: (String) -> Unit,
     onSelectBlueprint: (String?) -> Unit,
     onBlueprintFieldChange: (String, String) -> Unit,
     onSave: () -> Unit,
@@ -295,7 +322,9 @@ fun CronJobEditorDialog(
     var showDiscardConfirm by remember { mutableStateOf(false) }
     val hasChanges =
         state.name.isNotEmpty() || state.schedule.isNotEmpty() ||
-            state.prompt.isNotEmpty() || state.skills.isNotEmpty()
+            state.prompt.isNotEmpty() || state.skills.isNotEmpty() ||
+            state.monitor_script.isNotEmpty() || state.monitor_url.isNotEmpty() ||
+            state.monitorMode != "off"
 
     ToastEffect(toastMessage = state.toastMessage, onClearToast = onClearToast)
 
@@ -522,6 +551,17 @@ fun CronJobEditorDialog(
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
+
+                            // Monitor mode (disabled for no-agent jobs — the
+                            // backend rejects monitor + no_agent together)
+                            MonitorModeSection(
+                                monitorMode = state.monitorMode,
+                                monitorScript = state.monitor_script,
+                                monitorUrl = state.monitor_url,
+                                enabled = !state.no_agent,
+                                onFieldChange = onFieldChange,
+                                onSetMonitorMode = onSetMonitorMode,
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -551,6 +591,70 @@ fun CronJobEditorDialog(
                     Text(stringResource(R.string.action_cancel))
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun MonitorModeSection(
+    monitorMode: String,
+    monitorScript: String,
+    monitorUrl: String,
+    enabled: Boolean,
+    onFieldChange: (String, String) -> Unit,
+    onSetMonitorMode: (String) -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    val offLabel = stringResource(R.string.cron_edit_monitor_off)
+    val scriptLabel = stringResource(R.string.cron_edit_monitor_script)
+    val urlLabel = stringResource(R.string.cron_edit_monitor_url)
+
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        ExposedDropdownField(
+            label = stringResource(R.string.cron_edit_monitor_mode),
+            options = listOf(offLabel, scriptLabel, urlLabel),
+            selectedValue =
+                when (monitorMode) {
+                    "script" -> scriptLabel
+                    "url" -> urlLabel
+                    else -> offLabel
+                },
+            enabled = enabled,
+            onOptionSelected = { selected ->
+                when (selected) {
+                    scriptLabel -> onSetMonitorMode("script")
+                    urlLabel -> onSetMonitorMode("url")
+                    else -> onSetMonitorMode("off")
+                }
+            },
+        )
+        when (monitorMode) {
+            "script" -> {
+                OutlinedTextField(
+                    value = monitorScript,
+                    onValueChange = { onFieldChange("monitor_script", it) },
+                    label = { Text(stringResource(R.string.cron_edit_monitor_script_field)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = enabled,
+                )
+            }
+
+            "url" -> {
+                OutlinedTextField(
+                    value = monitorUrl,
+                    onValueChange = { onFieldChange("monitor_url", it) },
+                    label = { Text(stringResource(R.string.cron_edit_monitor_url_field)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = enabled,
+                )
+            }
+        }
+        Text(
+            text = stringResource(R.string.cron_edit_monitor_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
         )
     }
 }

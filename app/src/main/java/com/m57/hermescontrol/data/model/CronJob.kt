@@ -38,6 +38,10 @@ data class CronJob(
     val workdir: String? = null,
     val no_agent: Boolean? = null,
     val repeat: CronJobRepeat? = null,
+    // Monitor-mode jobs (backend cron/monitor.py): a source script/URL whose
+    // output is hashed each tick — the agent runs only when it changes.
+    val monitor_script: String? = null,
+    val monitor_url: String? = null,
 ) {
     val scheduleText: String
         get() =
@@ -52,4 +56,8 @@ data class CronJob(
 
     val nextRunTime: String
         get() = next_run ?: next_run_at ?: ""
+
+    /** The configured monitor source (script or URL), if any. */
+    val monitorSource: String?
+        get() = monitor_script ?: monitor_url
 }

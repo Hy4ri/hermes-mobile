@@ -30,17 +30,19 @@ fun ExposedDropdownField(
     options: List<String>,
     selectedValue: String,
     onOptionSelected: (String) -> Unit,
+    enabled: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = it },
+        onExpandedChange = { if (enabled) expanded = it },
     ) {
         OutlinedTextField(
             value = selectedValue.ifEmpty { options.firstOrNull() ?: "" },
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             modifier =
                 Modifier
                     .fillMaxWidth()

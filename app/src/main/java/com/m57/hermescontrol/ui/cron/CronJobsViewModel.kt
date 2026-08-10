@@ -56,6 +56,11 @@ data class CronJobEditorState(
     val workdir: String = "",
     val enabled: Boolean = true,
     val no_agent: Boolean = false,
+    // Monitor mode: one of monitor_script / monitor_url set at a time
+    // (mutually exclusive on the backend; incompatible with no_agent).
+    val monitorMode: String = "off", // "off" | "script" | "url"
+    val monitor_script: String = "",
+    val monitor_url: String = "",
     // Blueprint start-from state (new jobs only)
     val blueprints: List<CronBlueprint> = emptyList(),
     val deliveryTargets: List<DeliveryTarget> = emptyList(),
@@ -288,6 +293,14 @@ class CronJobsViewModel :
                                     workdir = job.workdir.orEmpty(),
                                     enabled = job.enabled ?: true,
                                     no_agent = job.no_agent ?: false,
+                                    monitorMode =
+                                        when {
+                                            !job.monitor_script.isNullOrBlank() -> "script"
+                                            !job.monitor_url.isNullOrBlank() -> "url"
+                                            else -> "off"
+                                        },
+                                    monitor_script = job.monitor_script.orEmpty(),
+                                    monitor_url = job.monitor_url.orEmpty(),
                                 ),
                         )
                     }
@@ -382,23 +395,7 @@ class CronJobsViewModel :
                             )
                         }
                     } else if (editor.isNew) {
-                        safeApiCall {
-                            ApiClient.hermesApi.createCronJob(
-                                CreateCronJobRequest(
-                                    name = editor.name,
-                                    schedule = editor.schedule,
-                                    prompt = editor.prompt,
-                                    deliver = editor.deliver,
-                                    skills = parseLines(editor.skills),
-                                    model = editor.model.ifBlank { null },
-                                    provider = editor.provider.ifBlank { null },
-                                    base_url = editor.base_url.ifBlank { null },
-                                    script = editor.script.ifBlank { null },
-                                    workdir = editor.workdir.ifBlank { null },
-                                    no_agent = editor.no_agent,
-                                ),
-                            )
-                        }
+                        createNewJobWithMonitor(editor)
                     } else {
                         val updates = mutableMapOf<String, Any?>()
                         if (editor.name.isNotEmpty()) updates["name"] = editor.name
@@ -412,6 +409,10 @@ class CronJobsViewModel :
                         updates["script"] = editor.script.ifBlank { null }
                         updates["workdir"] = editor.workdir.ifBlank { null }
                         updates["no_agent"] = editor.no_agent
+                        // Blank clears the monitor source on the backend (empty
+                        // string or null both mean "clear the field").
+                        updates["monitor_script"] = editor.monitor_script.ifBlank { null }
+                        updates["monitor_url"] = editor.monitor_url.ifBlank { null }
                         safeApiCall {
                             ApiClient.hermesApi.updateCronJob(
                                 editor.jobId ?: "",
@@ -443,6 +444,56 @@ class CronJobsViewModel :
 
     fun clearEditorToast() {
         _uiState.update { it.copy(editorState = it.editorState.copy(toastMessage = null)) }
+    }
+
+    /**
+     * Create a blank job, then apply monitor mode via a follow-up PUT.
+     *
+     * The backend REST create model (CronJobCreate) does not carry
+     * monitor_script/monitor_url yet — a POST alone would silently drop them.
+     * The PUT updates path accepts them (verified against web_server.py
+     * _update_cron_job_sync / cron.jobs.update_job), so create first, then
+     * apply. If the monitor update fails, the just-created job is rolled back
+     * (deleted) — a half-configured job is worse than no job.
+     */
+    private suspend fun createNewJobWithMonitor(editor: CronJobEditorState): NetworkResult<CronJob> {
+        val createdResult =
+            safeApiCall {
+                ApiClient.hermesApi.createCronJob(
+                    CreateCronJobRequest(
+                        name = editor.name,
+                        schedule = editor.schedule,
+                        prompt = editor.prompt,
+                        deliver = editor.deliver,
+                        skills = parseLines(editor.skills),
+                        model = editor.model.ifBlank { null },
+                        provider = editor.provider.ifBlank { null },
+                        base_url = editor.base_url.ifBlank { null },
+                        script = editor.script.ifBlank { null },
+                        workdir = editor.workdir.ifBlank { null },
+                        no_agent = editor.no_agent,
+                        monitor_script = editor.monitor_script.ifBlank { null },
+                        monitor_url = editor.monitor_url.ifBlank { null },
+                    ),
+                )
+            }
+        val monitorUpdates = editorMonitorUpdates(editor)
+        if (createdResult !is NetworkResult.Success || monitorUpdates.isEmpty()) {
+            return createdResult
+        }
+        val applyResult =
+            safeApiCall {
+                ApiClient.hermesApi.updateCronJob(
+                    createdResult.data.id,
+                    UpdateCronJobRequest(updates = monitorUpdates.mapValues { it.value.toJsonElement() }),
+                )
+            }
+        if (applyResult is NetworkResult.Success) {
+            return createdResult
+        }
+        // Roll back: the job exists but is missing its monitor source.
+        safeApiCall { ApiClient.hermesApi.deleteCronJob(createdResult.data.id) }
+        return applyResult
     }
 
     override fun clearToast() {
@@ -486,12 +537,58 @@ class CronJobsViewModel :
             "base_url" -> copy(base_url = value)
             "script" -> copy(script = value)
             "workdir" -> copy(workdir = value)
+            // Monitor fields are mutually exclusive: entering one clears the other.
+            "monitor_script" -> copy(monitor_script = value, monitor_url = if (value.isNotBlank()) "" else monitor_url)
+            "monitor_url" -> copy(monitor_url = value, monitor_script = if (value.isNotBlank()) "" else monitor_script)
             else -> this
         }
 
     fun toggleNoAgent() {
         _uiState.update {
-            it.copy(editorState = it.editorState.copy(no_agent = !it.editorState.no_agent))
+            it.copy(
+                editorState =
+                    it.editorState.copy(
+                        no_agent = !it.editorState.no_agent,
+                        // Monitor mode is incompatible with no_agent on the backend
+                        // (cron/jobs.py _validate_job_mode_invariants) — clear it so
+                        // a stale value can't 400 the save. Clear when turning
+                        // no_agent ON (old value false).
+                        monitorMode = if (!it.editorState.no_agent) "off" else it.editorState.monitorMode,
+                        monitor_script = if (!it.editorState.no_agent) "" else it.editorState.monitor_script,
+                        monitor_url = if (!it.editorState.no_agent) "" else it.editorState.monitor_url,
+                    ),
+            )
+        }
+    }
+
+    /**
+     * Switch the editor's monitor mode. Selecting a different source clears
+     * the other one (backend invariant: monitor_script XOR monitor_url);
+     * selecting "off" clears both.
+     */
+    fun setMonitorMode(mode: String) {
+        _uiState.update { state ->
+            val editor = state.editorState
+            state.copy(
+                editorState =
+                    editor.copy(
+                        monitorMode = mode,
+                        monitor_script = if (mode != "script") "" else editor.monitor_script,
+                        monitor_url = if (mode != "url") "" else editor.monitor_url,
+                    ),
+            )
+        }
+    }
+
+    /** Monitor fields configured in the editor (at most one is non-blank). */
+    private fun editorMonitorUpdates(editor: CronJobEditorState): Map<String, String> {
+        return buildMap {
+            if (editor.monitor_script.isNotBlank()) {
+                put("monitor_script", editor.monitor_script.trim())
+            }
+            if (editor.monitor_url.isNotBlank()) {
+                put("monitor_url", editor.monitor_url.trim())
+            }
         }
     }
 }

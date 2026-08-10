@@ -795,6 +795,15 @@
     <string name="cron_edit_field_script">Script</string>
     <string name="cron_edit_field_workdir">Work Directory</string>
     <string name="cron_edit_field_no_agent">No agent (script-only)</string>
+    <string name="cron_edit_monitor_mode">Monitor mode</string>
+    <string name="cron_edit_monitor_off">Off</string>
+    <string name="cron_edit_monitor_script">Script</string>
+    <string name="cron_edit_monitor_url">URL</string>
+    <string name="cron_edit_monitor_script_field">Monitor script</string>
+    <string name="cron_edit_monitor_url_field">Monitor URL</string>
+    <string name="cron_edit_monitor_hint">Agent runs only when the source output changes</string>
+    <string name="cron_status_blocked_config">Blocked (config)</string>
+    <string name="cron_status_no_change">No change</string>
     <string name="cron_edit_hint_schedule">e.g. 0 9 * * * or every 2h</string>
     <string name="cron_edit_hint_deliver">e.g. origin, local, all, or telegram:chat_id</string>
     <string name="cron_edit_hint_time">HH:MM</string>

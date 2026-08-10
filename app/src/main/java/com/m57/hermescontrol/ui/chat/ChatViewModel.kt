@@ -2890,7 +2890,7 @@ class ChatViewModel(
             if (lastAssistantIdx >= 0) {
                 val target = mapped[lastAssistantIdx]
                 if (target.reasoningText.isBlank()) {
-                    mapped[lastAssistantIdx] = target.copy(reasoningText = pendingReasoning!!)
+                    mapped[lastAssistantIdx] = target.copy(reasoningText = pendingReasoning)
                 }
             }
         }

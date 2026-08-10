@@ -303,7 +303,7 @@ object HermesWsClient {
             }
         if (socketToCancel != null) {
             rejectAllPending()
-            socketToCancel?.cancel()
+            socketToCancel.cancel()
         }
         if (shouldOpen) openSocket()
     }

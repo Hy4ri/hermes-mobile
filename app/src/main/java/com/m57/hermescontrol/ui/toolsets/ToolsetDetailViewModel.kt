@@ -288,7 +288,7 @@ class ToolsetDetailViewModel : ViewModel(), ToastHost {
                                     state.copy(
                                         postSetup =
                                             state.postSetup?.copy(
-                                                lines = data.lines ?: state.postSetup?.lines ?: emptyList(),
+                                                lines = data.lines ?: state.postSetup.lines,
                                                 running = data.running == true,
                                                 exitCode = data.exit_code,
                                             ),

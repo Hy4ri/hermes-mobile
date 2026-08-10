@@ -153,7 +153,7 @@ class KanbanEventsClient {
                 request,
                 object : WebSocketListener() {
                     override fun onOpen(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         response: Response,
                     ) {
                         if (closed || gen != generation) return
@@ -162,7 +162,7 @@ class KanbanEventsClient {
                     }
 
                     override fun onMessage(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         text: String,
                     ) {
                         if (closed || gen != generation) return
@@ -173,20 +173,20 @@ class KanbanEventsClient {
                     }
 
                     override fun onMessage(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         bytes: ByteString,
                     ) = Unit
 
                     override fun onClosing(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         code: Int,
                         reason: String,
                     ) {
-                        ws.close(code, reason)
+                        webSocket.close(code, reason)
                     }
 
                     override fun onClosed(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         code: Int,
                         reason: String,
                     ) {
@@ -199,7 +199,7 @@ class KanbanEventsClient {
                     }
 
                     override fun onFailure(
-                        ws: WebSocket,
+                        webSocket: WebSocket,
                         t: Throwable,
                         response: Response?,
                     ) {

@@ -135,7 +135,7 @@ private fun BillingContent(
                     shape = RoundedCornerShape(12.dp),
                 ) {
                     Text(
-                        text = state.errorMessage ?: "",
+                        text = state.errorMessage,
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
@@ -152,7 +152,7 @@ private fun BillingContent(
                     shape = RoundedCornerShape(12.dp),
                 ) {
                     Text(
-                        text = state.actionMessage ?: "",
+                        text = state.actionMessage,
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -207,7 +207,7 @@ private fun PlanCard(subscription: SubscriptionCurrent) {
             }
             if (subscription.pending_downgrade_display != null) {
                 Text(
-                    text = subscription.pending_downgrade_display ?: "",
+                    text = subscription.pending_downgrade_display,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),

@@ -31,22 +31,32 @@ object LocaleContextWrapper {
 
             code.contains("-r", ignoreCase = true) -> {
                 val parts = code.split("-r", ignoreCase = true)
-                Locale(parts[0], parts.getOrElse(1) { "" })
+                localeFor(parts[0], parts.getOrElse(1) { "" })
             }
 
             code.contains("-") -> {
                 val parts = code.split("-")
-                Locale(parts[0], parts.getOrElse(1) { "" })
+                localeFor(parts[0], parts.getOrElse(1) { "" })
             }
 
             code.contains("_") -> {
                 val parts = code.split("_")
-                Locale(parts[0], parts.getOrElse(1) { "" })
+                localeFor(parts[0], parts.getOrElse(1) { "" })
             }
 
             else -> {
-                Locale(code)
+                Locale.forLanguageTag(code)
             }
+        }
+
+    private fun localeFor(
+        language: String,
+        region: String,
+    ): Locale =
+        if (region.isEmpty()) {
+            Locale.forLanguageTag(language)
+        } else {
+            Locale.forLanguageTag("$language-$region")
         }
 
     /**

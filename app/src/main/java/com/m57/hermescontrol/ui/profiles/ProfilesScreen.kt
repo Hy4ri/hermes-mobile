@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.profiles
 
+import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,11 +42,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -64,6 +67,7 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import com.m57.hermescontrol.ui.profiles.components.ProfileBuilderView
 import com.m57.hermescontrol.ui.profiles.components.validateProfileName
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,7 +95,8 @@ fun ProfilesScreen(
     var setupCmdProfileName by remember { mutableStateOf<String?>(null) }
     var copiedSetupCmd by remember { mutableStateOf(false) }
 
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
 
     var isBuildingProfile by remember { mutableStateOf(false) }
 
@@ -839,7 +844,8 @@ fun ProfilesScreen(
                 if (!state.isLoadingSetupCommand && state.setupCommand != null) {
                     Button(
                         onClick = {
-                            clipboardManager.setText(AnnotatedString(state.setupCommand.orEmpty()))
+                            val text = AnnotatedString(state.setupCommand.orEmpty())
+                            scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, text))) }
                             copiedSetupCmd = true
                         },
                     ) {

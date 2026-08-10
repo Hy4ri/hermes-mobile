@@ -86,7 +86,7 @@ open class AppUpdateChecker(
                     .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
-                val body = response.body?.string().orEmpty()
+                val body = response.body.string().orEmpty()
                 parseUpdateInfo(body)
             }
         }
@@ -106,7 +106,7 @@ open class AppUpdateChecker(
             try {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return@withContext false
-                    val body = response.body ?: return@withContext false
+                    val body = response.body
                     val total = body.contentLength()
                     dest.outputStream().use { out ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)

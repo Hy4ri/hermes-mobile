@@ -90,7 +90,7 @@ object ToolViewBuilder {
             raw = firstString(parseMaybeObject(value), listOf("context"))
         }
 
-        return compactPreview(raw ?: "", max)
+        return compactPreview(raw, max)
     }
 
     private fun contextValue(value: JsonElement?): String {
@@ -1328,8 +1328,8 @@ object ToolViewBuilder {
         val elements = result?.get("elements") as? JsonArray
         if (elements != null) {
             val mode = firstString(result, listOf("mode"))
-            val width = intValue(result?.get("width"))
-            val height = intValue(result?.get("height"))
+            val width = intValue(result.get("width"))
+            val height = intValue(result.get("height"))
             val modePart = mode.takeIf { it.isNotEmpty() }?.let { " ($it)" } ?: ""
             val sizePart = if (width != null && height != null) " ${width}x$height" else ""
             return "${elements.size} elements$modePart$sizePart"

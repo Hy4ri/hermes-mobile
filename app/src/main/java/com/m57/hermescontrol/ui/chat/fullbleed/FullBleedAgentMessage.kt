@@ -91,7 +91,7 @@ internal fun FullBleedAgentMessage(
     ) {
         if (showTurnHeader) {
             Row(
-                modifier = Modifier.padding(bottom = 4.dp),
+                modifier = Modifier.padding(bottom = 4.dp).testTag("fullbleed_agent_header"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(

@@ -9,9 +9,12 @@ import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.ui.common.ActionProgressController
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.junit.Before
@@ -55,6 +58,11 @@ class ChatScreenTest {
         val mockViewModel = mockk<ChatViewModel>(relaxed = true)
         every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
         every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
+        // ActionProgressDialog collects the controller's StateFlow — a relaxed
+        // mock proxy would crash the cast inside collectAsStateWithLifecycle.
+        // A real controller (never started here) stays invisible.
+        every { mockViewModel.actionProgress } returns
+            ActionProgressController(scope = CoroutineScope(Dispatchers.Main))
 
         composeTestRule.setContent {
             ChatScreen(

@@ -486,7 +486,7 @@ private fun SelfImprovementReviewCard(
 }
 
 @Composable
-private fun SystemBubble(
+internal fun SystemBubble(
     message: ChatMessage,
     onRespondApproval: (String) -> Unit = {},
     modifier: Modifier = Modifier,

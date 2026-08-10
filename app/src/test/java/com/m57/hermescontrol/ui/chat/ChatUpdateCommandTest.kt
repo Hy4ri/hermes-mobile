@@ -11,6 +11,7 @@ import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
 import io.mockk.coEvery
@@ -89,6 +90,7 @@ class ChatUpdateCommandTest {
         every { AuthManager.getToken() } returns "test-token"
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
+        every { AuthManager.getChatStyle() } returns ChatStyle.BUBBLES
         every { AuthManager.isAutoReconnect() } returns false
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus

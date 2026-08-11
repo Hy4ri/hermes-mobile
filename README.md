@@ -19,10 +19,10 @@
 
 <p align="center">
   <a href="https://f-droid.org/packages/com.m57.hermescontrol/">
-    <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/>
+    <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="50"/>
   </a>
   <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FHy4ri%2Fhermes-mobile">
-    <img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="80"/>
+    <img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="50"/>
   </a>
 </p>
 
@@ -49,7 +49,6 @@
 
 ## Features
 
-
 - **Real-Time Chat:** Message your agent with Room-backed local database history and inline reply notifications.
 - **System Config:** Manage active profiles, installed skills, plugins, toolsets, and LLM model/provider selections.
 - **Operations:** Stream and filter live logs, manage cron jobs, edit environment keys, test webhooks, and monitor processes.
@@ -64,10 +63,12 @@
 ## Quick Start
 
 ### Prerequisites
+
 - **JDK 21+** (required for Kotlin compilation and the Gradle toolchain)
 - **Android Studio** (Ladybug+) or a **Nix** development environment
 
 ### Build & Deploy
+
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/Hy4ri/hermes-mobile.git
@@ -82,7 +83,7 @@
    adb install app/build/outputs/apk/debug/app-debug.apk
    ```
 
-*Note: For release builds, ensure keystore environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) are configured, or let the GitHub Actions release workflow handle it on tag push (`v*`).*
+_Note: For release builds, ensure keystore environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) are configured, or let the GitHub Actions release workflow handle it on tag push (`v*`)._
 
 ---
 
@@ -104,18 +105,18 @@ For LAN access, configure credentials in `~/.hermes/config.yaml`:
 ```yaml
 dashboard:
   basic_auth:
-    username: admin       # pick your own
-    password: hermes      # pick your own
+    username: admin # pick your own
+    password: hermes # pick your own
 ```
 
 ### 2. Connect the app
 
 Tap **Sign in** on the landing screen and enter the dashboard host and port. The app probes the dashboard and reveals the fields you need:
 
-| Auth mode | When | What you fill |
-|-----------|------|---------------|
+| Auth mode      | When                                 | What you fill                                                                                                                                                          |
+| -------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Token only** | Dashboard on same machine (loopback) | **Token** — grab from `~/.hermes/dashboard-token.txt` or `~/.hermes/.env` (`HERMES_DASHBOARD_SESSION_TOKEN`). The app can also auto-extract it from the dashboard page |
-| **Basic auth** | Dashboard on LAN with password gate | **Username** + **Password** (default `admin` / `hermes`). The app logs in, gets a session cookie, and mints a WebSocket ticket automatically |
+| **Basic auth** | Dashboard on LAN with password gate  | **Username** + **Password** (default `admin` / `hermes`). The app logs in, gets a session cookie, and mints a WebSocket ticket automatically                           |
 
 > The app communicates over plain HTTP — it's designed for **trusted local networks only**. Do not expose your Hermes gateway to untrusted networks.
 

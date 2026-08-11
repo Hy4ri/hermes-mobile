@@ -32,6 +32,8 @@ data class CronJobsUiState(
     val jobs: List<CronJob> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    // Delete-confirm state (non-null while the confirm dialog is up)
+    val deleteTarget: CronJob? = null,
     // Editor state
     val editorState: CronJobEditorState = CronJobEditorState(),
 )
@@ -194,6 +196,20 @@ class CronJobsViewModel :
                 revertJobs(originalJobs, "Failed to delete cron job: ${result.error.message}")
             }
         }
+    }
+
+    fun requestDeleteJob(job: CronJob) {
+        _uiState.update { it.copy(deleteTarget = job) }
+    }
+
+    fun dismissDeleteDialog() {
+        _uiState.update { it.copy(deleteTarget = null) }
+    }
+
+    fun confirmDeleteJob() {
+        val target = _uiState.value.deleteTarget ?: return
+        _uiState.update { it.copy(deleteTarget = null) }
+        deleteCronJob(target.id)
     }
 
     // ── Editor ──

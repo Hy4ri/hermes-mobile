@@ -244,7 +244,7 @@ fun CronJobsScreen(
                                         )
                                     }
                                     IconButton(
-                                        onClick = { viewModel.deleteCronJob(job.id) },
+                                        onClick = { viewModel.requestDeleteJob(job) },
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.Delete,
@@ -302,6 +302,25 @@ fun CronJobsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { selectedJob = null }) { Text("Close") }
+            },
+        )
+    }
+
+    // ── Delete Confirm Dialog ──
+    state.deleteTarget?.let { job ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDeleteDialog() },
+            title = { Text(stringResource(R.string.cron_delete_title)) },
+            text = { Text(stringResource(R.string.cron_delete_message, job.name)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmDeleteJob() }) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissDeleteDialog() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
     }

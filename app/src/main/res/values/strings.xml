@@ -828,6 +828,8 @@
     <string name="cron_edit_action_save">Save</string>
     <string name="cron_discard_title">Discard changes?</string>
     <string name="cron_discard_message">You have unsaved changes. Discard them?</string>
+    <string name="cron_delete_title">Delete job?</string>
+    <string name="cron_delete_message">Delete \"%1$s\"? This can\'t be undone.</string>
 
     <!-- Achievements Screen -->
     <string name="achievements_empty_title">No achievements yet</string>

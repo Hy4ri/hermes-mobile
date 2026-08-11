@@ -586,6 +586,8 @@
     <string name="cron_edit_action_save">저장</string>
     <string name="cron_discard_title">변경사항을 취소할까요?</string>
     <string name="cron_discard_message">저장되지 않은 변경사항이 있습니다. 취소하시겠습니까?</string>
+    <string name="cron_delete_title">크론 작업을 삭제할까요?</string>
+    <string name="cron_delete_message">\"%1$s\" 작업을 삭제하시겠습니까? 되돌릴 수 없습니다.</string>
 
     <!-- Achievements Screen -->
     <string name="achievements_empty_title">아직 업적이 없습니다</string>

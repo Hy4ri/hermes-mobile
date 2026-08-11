@@ -227,6 +227,51 @@ class CronJobsViewModelTest {
     }
 
     @Test
+    fun `requestDeleteJob sets the delete target without deleting`() {
+        val vm = createViewModel()
+        val job = CronJob(id = "j-del", name = "Doomed")
+
+        vm.requestDeleteJob(job)
+
+        assertEquals(job, vm.uiState.value.deleteTarget)
+        coVerify(exactly = 0) { mockApi.deleteCronJob(any()) }
+    }
+
+    @Test
+    fun `dismissDeleteDialog clears the target without deleting`() {
+        val vm = createViewModel()
+        vm.requestDeleteJob(CronJob(id = "j-del", name = "Doomed"))
+
+        vm.dismissDeleteDialog()
+
+        assertNull(vm.uiState.value.deleteTarget)
+        coVerify(exactly = 0) { mockApi.deleteCronJob(any()) }
+    }
+
+    @Test
+    fun `confirmDeleteJob clears the target and deletes the job`() {
+        val vm = createViewModel()
+        vm.requestDeleteJob(CronJob(id = "j-del", name = "Doomed"))
+
+        vm.confirmDeleteJob()
+        settle()
+
+        assertNull(vm.uiState.value.deleteTarget)
+        coVerify { mockApi.deleteCronJob("j-del") }
+    }
+
+    @Test
+    fun `confirmDeleteJob without a target is a no-op`() {
+        val vm = createViewModel()
+
+        vm.confirmDeleteJob()
+        settle()
+
+        assertNull(vm.uiState.value.deleteTarget)
+        coVerify(exactly = 0) { mockApi.deleteCronJob(any()) }
+    }
+
+    @Test
     fun `setMonitorMode switching source clears the other`() {
         val vm = createViewModel()
         vm.openNewJobDialog()

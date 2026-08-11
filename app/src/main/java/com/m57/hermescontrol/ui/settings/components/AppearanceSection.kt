@@ -48,8 +48,6 @@ internal fun AppearanceSection(
     onThemePresetChange: (ThemePreset) -> Unit,
     appLanguage: String,
     onAppLanguageChange: (String) -> Unit,
-    chatStyle: ChatStyle,
-    onChatStyleChange: (ChatStyle) -> Unit,
 ) {
     SectionCard {
         Text(
@@ -228,9 +226,22 @@ internal fun AppearanceSection(
                 }
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(16.dp))
-
+@Composable
+internal fun ChatSection(
+    typingEffectEnabled: Boolean,
+    onTypingEffectEnabledChange: (Boolean) -> Unit,
+    typingEffectDelayMs: Int,
+    onTypingEffectDelayMsChange: (Int) -> Unit,
+    chatStyle: ChatStyle,
+    onChatStyleChange: (ChatStyle) -> Unit,
+) {
+    SectionCard {
+        // Chat rendering style (issue #866): bubble renderer (default) or the
+        // parallel full-bleed renderer. Kept at the top of the section — it's
+        // the primary chat-behavior choice.
         Text(
             text = stringResource(R.string.settings_item_chat_style),
             style = MaterialTheme.typography.bodyLarge,
@@ -263,17 +274,9 @@ internal fun AppearanceSection(
                 }
             }
         }
-    }
-}
 
-@Composable
-internal fun ChatSection(
-    typingEffectEnabled: Boolean,
-    onTypingEffectEnabledChange: (Boolean) -> Unit,
-    typingEffectDelayMs: Int,
-    onTypingEffectDelayMsChange: (Int) -> Unit,
-) {
-    SectionCard {
+        Spacer(modifier = Modifier.height(16.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

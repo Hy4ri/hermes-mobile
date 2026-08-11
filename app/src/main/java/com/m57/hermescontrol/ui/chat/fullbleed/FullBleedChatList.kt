@@ -24,7 +24,6 @@ import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
-import com.m57.hermescontrol.ui.chat.components.TypingIndicator
 import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
 
@@ -48,8 +47,6 @@ import com.m57.hermescontrol.ui.common.EmptyState
 fun FullBleedChatList(
     messages: List<ChatMessage>,
     streamingMessage: ChatMessage?,
-    isThinking: Boolean,
-    thinkingText: String,
     isSearchActive: Boolean,
     searchQuery: String,
     currentSearchMatchIndex: Int,
@@ -152,6 +149,9 @@ fun FullBleedChatList(
                             val reasoning = turnReasoning.message
                             item(key = "reasoning-${reasoning.id}") {
                                 Column(modifier = Modifier.padding(bottom = 6.dp)) {
+                                    // Lead the turn with the assistant identity
+                                    // and timestamp, then the thinking block.
+                                    AssistantTurnHeader(timestamp = reasoning.timestamp)
                                     ReasoningCard(
                                         reasoningText = reasoning.reasoningText,
                                         isStreaming = reasoning.isStreaming,
@@ -163,7 +163,7 @@ fun FullBleedChatList(
                             when (entry) {
                                 is AgentEntry.Prose -> {
                                     val proseMessage = entry.message
-                                    val showTurnHeader = !firstProseSeen
+                                    val showTurnHeader = !firstProseSeen && turnReasoning == null
                                     val hoistedReasoning =
                                         turnReasoning != null &&
                                             proseMessage.id == turnReasoning.message.id
@@ -238,13 +238,6 @@ fun FullBleedChatList(
                             }
                         }
                     }
-                }
-            }
-
-            // Typing indicator — bouncing dots
-            if (isThinking) {
-                item(key = "typing_indicator") {
-                    TypingIndicator()
                 }
             }
 

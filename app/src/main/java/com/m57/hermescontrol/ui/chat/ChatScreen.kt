@@ -585,8 +585,6 @@ fun ChatScreen(
                         ChatMessageList(
                             messages = state.messages,
                             streamingMessage = streamingState.streamingMessage,
-                            isThinking = streamingState.isThinking,
-                            thinkingText = streamingState.thinkingText,
                             isSearchActive = state.isSearchActive,
                             searchQuery = state.searchQuery,
                             currentSearchMatchIndex = state.currentSearchMatchIndex,
@@ -613,8 +611,6 @@ fun ChatScreen(
                         FullBleedChatList(
                             messages = state.messages,
                             streamingMessage = streamingState.streamingMessage,
-                            isThinking = streamingState.isThinking,
-                            thinkingText = streamingState.thinkingText,
                             isSearchActive = state.isSearchActive,
                             searchQuery = state.searchQuery,
                             currentSearchMatchIndex = state.currentSearchMatchIndex,

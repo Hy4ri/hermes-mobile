@@ -34,8 +34,6 @@ import com.m57.hermescontrol.ui.common.EmptyState
 fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingMessage: ChatMessage?,
-    isThinking: Boolean,
-    thinkingText: String,
     isSearchActive: Boolean,
     searchQuery: String,
     currentSearchMatchIndex: Int,
@@ -152,13 +150,6 @@ fun ChatMessageList(
                             onImageClick = onImageClick,
                         )
                     }
-                }
-            }
-
-            // Typing indicator — bouncing dots
-            if (isThinking) {
-                item(key = "typing_indicator") {
-                    TypingIndicator()
                 }
             }
 

@@ -43,15 +43,12 @@ class FullBleedChatListTest {
     private fun render(
         messages: List<ChatMessage>,
         streamingMessage: ChatMessage? = null,
-        isThinking: Boolean = false,
         clarify: Boolean = false,
     ) {
         composeTestRule.setContent {
             FullBleedChatList(
                 messages = messages,
                 streamingMessage = streamingMessage,
-                isThinking = isThinking,
-                thinkingText = "",
                 isSearchActive = false,
                 searchQuery = "",
                 currentSearchMatchIndex = -1,

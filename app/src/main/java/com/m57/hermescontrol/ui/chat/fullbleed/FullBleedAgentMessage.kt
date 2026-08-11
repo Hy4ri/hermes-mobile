@@ -91,34 +91,7 @@ internal fun FullBleedAgentMessage(
                 .testTag("fullbleed_agent_message"),
     ) {
         if (showTurnHeader) {
-            Row(
-                modifier = Modifier.padding(bottom = 4.dp).testTag("fullbleed_agent_header"),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.fullbleed_role_agent),
-                    style =
-                        MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                    // Meta color (not primary): Nord's light mode reuses its
-                    // pastel Frost accent as primary, which fails >= 3:1 on a
-                    // light background. The header is metadata, so the dimmed
-                    // meta token is both more correct and gate-compliant in
-                    // every preset.
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text =
-                        com.m57.hermescontrol.ui.chat.formatTimestamp(
-                            message.timestamp,
-                            DateFormat.is24HourFormat(LocalContext.current),
-                        ),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            AssistantTurnHeader(message.timestamp)
         }
 
         if (showReasoning && message.reasoningText.isNotBlank()) {
@@ -176,5 +149,45 @@ internal fun FullBleedAgentMessage(
                 )
             }
         }
+    }
+}
+
+/**
+ * Agent turn header — "Agent · <time>". Shared by the prose message and the
+ * hoisted reasoning block so both can lead with the assistant identity and
+ * timestamp.
+ */
+@Composable
+internal fun AssistantTurnHeader(
+    timestamp: Long,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.padding(bottom = 4.dp).testTag("fullbleed_agent_header"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.fullbleed_role_agent),
+            style =
+                MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            // Meta color (not primary): Nord's light mode reuses its
+            // pastel Frost accent as primary, which fails >= 3:1 on a
+            // light background. The header is metadata, so the dimmed
+            // meta token is both more correct and gate-compliant in
+            // every preset.
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text =
+                com.m57.hermescontrol.ui.chat.formatTimestamp(
+                    timestamp,
+                    DateFormat.is24HourFormat(LocalContext.current),
+                ),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

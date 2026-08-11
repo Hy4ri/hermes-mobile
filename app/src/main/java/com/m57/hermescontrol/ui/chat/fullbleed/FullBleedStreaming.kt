@@ -29,6 +29,8 @@ internal fun StreamingFullBleedWithTypingEffect(
     streaming: ChatMessage,
     typingDelayMs: Int,
     isDark: Boolean,
+    showTurnHeader: Boolean = true,
+    showReasoning: Boolean = true,
     onAnimationComplete: () -> Unit = {},
 ) {
     var visibleWordCount by remember { mutableIntStateOf(0) }
@@ -72,7 +74,8 @@ internal fun StreamingFullBleedWithTypingEffect(
 
     FullBleedAgentMessage(
         message = streaming.copy(content = displayText),
-        showTurnHeader = true,
+        showTurnHeader = showTurnHeader,
+        showReasoning = showReasoning,
         isDarkTheme = isDark,
         searchQuery = "",
         isCurrentMatch = false,

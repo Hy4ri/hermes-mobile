@@ -60,3 +60,31 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
     flushAgent()
     return turns
 }
+
+/**
+ * Like [groupIntoTurns] but folds the in-flight streaming assistant message
+ * into the current agent turn, so it renders as part of the turn (reasoning
+ * hoist, turn headers, spacing) instead of as a detached tail item.
+ *
+ * Defensive: if the streaming message's id is already present in [messages]
+ * (commit race — the message landed while the UI still held the streaming
+ * copy), it is not appended again; a duplicate prose entry would produce a
+ * LazyColumn duplicate-key crash.
+ */
+fun groupIntoTurnsWithStreaming(
+    messages: List<ChatMessage>,
+    streamingMessage: ChatMessage?,
+): List<ChatTurn> {
+    if (streamingMessage == null || messages.any { it.id == streamingMessage.id }) {
+        return groupIntoTurns(messages)
+    }
+    val turns = groupIntoTurns(messages).toMutableList()
+    val prose = AgentEntry.Prose(streamingMessage)
+    val last = turns.lastOrNull()
+    if (last is ChatTurn.Agent) {
+        turns[turns.lastIndex] = ChatTurn.Agent(last.entries + prose)
+    } else {
+        turns += ChatTurn.Agent(listOf(prose))
+    }
+    return turns
+}

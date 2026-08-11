@@ -62,6 +62,7 @@ internal fun FullBleedAgentMessage(
     isDarkTheme: Boolean,
     searchQuery: String = "",
     isCurrentMatch: Boolean = false,
+    showReasoning: Boolean = true,
     onOpenAttachment: (Attachment) -> Unit = {},
     onSaveAttachment: (Attachment) -> Unit = {},
     savingAttachmentPath: String? = null,
@@ -120,7 +121,7 @@ internal fun FullBleedAgentMessage(
             }
         }
 
-        if (message.reasoningText.isNotBlank()) {
+        if (showReasoning && message.reasoningText.isNotBlank()) {
             ReasoningCard(
                 reasoningText = message.reasoningText,
                 isStreaming = message.isStreaming,

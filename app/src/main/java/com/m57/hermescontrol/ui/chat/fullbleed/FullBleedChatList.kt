@@ -23,6 +23,7 @@ import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
+import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import com.m57.hermescontrol.ui.chat.components.TypingIndicator
 import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -82,7 +83,10 @@ fun FullBleedChatList(
         }
     } else {
         val toolMilestones = toolCallMilestones(messages)
-        val turns = remember(messages) { groupIntoTurns(messages) }
+        val turns =
+            remember(messages, streamingMessage) {
+                groupIntoTurnsWithStreaming(messages, streamingMessage)
+            }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -136,33 +140,66 @@ fun FullBleedChatList(
 
                     is ChatTurn.Agent -> {
                         var firstProseSeen = false
+                        // Reasoning hoist: the turn's reasoning renders at the
+                        // TOP of the turn — above tool rows — so thinking
+                        // leads, then the tool work, then the answer. The
+                        // matching prose entry renders without its own card.
+                        val turnReasoning =
+                            turn.entries
+                                .filterIsInstance<AgentEntry.Prose>()
+                                .firstOrNull { it.message.reasoningText.isNotBlank() }
+                        if (turnReasoning != null) {
+                            val reasoning = turnReasoning.message
+                            item(key = "reasoning-${reasoning.id}") {
+                                Column(modifier = Modifier.padding(bottom = 6.dp)) {
+                                    ReasoningCard(
+                                        reasoningText = reasoning.reasoningText,
+                                        isStreaming = reasoning.isStreaming,
+                                    )
+                                }
+                            }
+                        }
                         turn.entries.forEach { entry ->
                             when (entry) {
                                 is AgentEntry.Prose -> {
                                     val proseMessage = entry.message
                                     val showTurnHeader = !firstProseSeen
+                                    val hoistedReasoning =
+                                        turnReasoning != null &&
+                                            proseMessage.id == turnReasoning.message.id
                                     val milestone = toolMilestones[entryIndex]
                                     item(key = "prose-${proseMessage.id}") {
                                         Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                                            FullBleedAgentMessage(
-                                                message = proseMessage,
-                                                showTurnHeader = showTurnHeader,
-                                                isDarkTheme = isDark,
-                                                searchQuery = if (isSearchActive) searchQuery else "",
-                                                isCurrentMatch =
-                                                    isCurrentMatchFor(
-                                                        messages,
-                                                        proseMessage.id,
-                                                        isSearchActive,
-                                                        currentSearchMatchIndex,
-                                                        searchMatchIndices,
-                                                    ),
-                                                onOpenAttachment = viewModel::openAttachment,
-                                                onSaveAttachment = onSaveAttachment,
-                                                savingAttachmentPath = savingAttachmentPath,
-                                                canSaveAttachment = savingAttachmentPath == null,
-                                                onImageClick = onImageClick,
-                                            )
+                                            if (proseMessage.isStreaming && typingEffectEnabled) {
+                                                StreamingFullBleedWithTypingEffect(
+                                                    streaming = proseMessage,
+                                                    typingDelayMs = typingEffectDelayMs,
+                                                    isDark = isDark,
+                                                    showTurnHeader = showTurnHeader,
+                                                    showReasoning = !hoistedReasoning,
+                                                )
+                                            } else {
+                                                FullBleedAgentMessage(
+                                                    message = proseMessage,
+                                                    showTurnHeader = showTurnHeader,
+                                                    isDarkTheme = isDark,
+                                                    searchQuery = if (isSearchActive) searchQuery else "",
+                                                    isCurrentMatch =
+                                                        isCurrentMatchFor(
+                                                            messages,
+                                                            proseMessage.id,
+                                                            isSearchActive,
+                                                            currentSearchMatchIndex,
+                                                            searchMatchIndices,
+                                                        ),
+                                                    showReasoning = !hoistedReasoning,
+                                                    onOpenAttachment = viewModel::openAttachment,
+                                                    onSaveAttachment = onSaveAttachment,
+                                                    savingAttachmentPath = savingAttachmentPath,
+                                                    canSaveAttachment = savingAttachmentPath == null,
+                                                    onImageClick = onImageClick,
+                                                )
+                                            }
                                             milestone?.let { count ->
                                                 ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
                                             }
@@ -199,34 +236,6 @@ fun FullBleedChatList(
                                     entryIndex++
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-            // Streaming message
-            streamingMessage?.let { streaming ->
-                item(key = "streaming-${streaming.id}") {
-                    Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                        if (typingEffectEnabled && streaming.isStreaming) {
-                            StreamingFullBleedWithTypingEffect(
-                                streaming = streaming,
-                                typingDelayMs = typingEffectDelayMs,
-                                isDark = isDark,
-                            )
-                        } else {
-                            FullBleedAgentMessage(
-                                message = streaming,
-                                showTurnHeader = true,
-                                isDarkTheme = isDark,
-                                searchQuery = "",
-                                isCurrentMatch = false,
-                                onOpenAttachment = viewModel::openAttachment,
-                                onSaveAttachment = onSaveAttachment,
-                                savingAttachmentPath = savingAttachmentPath,
-                                canSaveAttachment = savingAttachmentPath == null,
-                                onImageClick = onImageClick,
-                            )
                         }
                     }
                 }

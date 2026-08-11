@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat
 import com.m57.hermescontrol.ui.chat.fullbleed.AgentEntry
 import com.m57.hermescontrol.ui.chat.fullbleed.ChatTurn
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
+import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurnsWithStreaming
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -12,7 +13,8 @@ class FullBleedTurnsTest {
         role: MessageRole,
         content: String = "c-$id",
         toolStatus: ToolStatus? = null,
-    ) = ChatMessage(id = id, role = role, content = content, toolStatus = toolStatus)
+        isStreaming: Boolean = false,
+    ) = ChatMessage(id = id, role = role, content = content, toolStatus = toolStatus, isStreaming = isStreaming)
 
     private fun entries(vararg e: AgentEntry) = ChatTurn.Agent(e.toList())
 
@@ -89,5 +91,58 @@ class FullBleedTurnsTest {
             ),
             result,
         )
+    }
+
+    // ── groupIntoTurnsWithStreaming ────────────────────────────────────────
+
+    @Test
+    fun `null streaming message falls back to plain grouping`() {
+        val u = msg("u1", MessageRole.USER)
+        val a = msg("a1", MessageRole.ASSISTANT)
+        assertEquals(
+            groupIntoTurns(listOf(u, a)),
+            groupIntoTurnsWithStreaming(listOf(u, a), null),
+        )
+    }
+
+    @Test
+    fun `streaming prose appends to the current agent turn`() {
+        val u = msg("u1", MessageRole.USER)
+        val t = msg("t1", MessageRole.TOOL, toolStatus = ToolStatus.COMPLETED)
+        val s = msg("s1", MessageRole.ASSISTANT, content = "partial", isStreaming = true)
+        val result = groupIntoTurnsWithStreaming(listOf(u, t), s)
+        assertEquals(
+            listOf(ChatTurn.User(u), entries(AgentEntry.ToolRow(t), AgentEntry.Prose(s))),
+            result,
+        )
+    }
+
+    @Test
+    fun `streaming prose after a user turn opens a new agent turn`() {
+        val u = msg("u1", MessageRole.USER)
+        val s = msg("s1", MessageRole.ASSISTANT, content = "partial", isStreaming = true)
+        val result = groupIntoTurnsWithStreaming(listOf(u), s)
+        assertEquals(
+            listOf(ChatTurn.User(u), entries(AgentEntry.Prose(s))),
+            result,
+        )
+    }
+
+    @Test
+    fun `streaming message already present in messages is not duplicated`() {
+        val u = msg("u1", MessageRole.USER)
+        val s = msg("s1", MessageRole.ASSISTANT, content = "done", isStreaming = false)
+        // Commit race: the same id exists in both messages and streamingMessage.
+        val result = groupIntoTurnsWithStreaming(listOf(u, s), s.copy(isStreaming = true))
+        assertEquals(
+            listOf(ChatTurn.User(u), entries(AgentEntry.Prose(s))),
+            result,
+        )
+    }
+
+    @Test
+    fun `empty messages with streaming produce a single agent turn`() {
+        val s = msg("s1", MessageRole.ASSISTANT, content = "partial", isStreaming = true)
+        assertEquals(listOf(entries(AgentEntry.Prose(s))), groupIntoTurnsWithStreaming(emptyList(), s))
     }
 }

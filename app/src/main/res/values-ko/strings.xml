@@ -727,6 +727,9 @@
     <string name="analytics_output_tokens">출력</string>
     <string name="analytics_cache_read">캐시 읽기</string>
     <string name="analytics_reasoning">추론</string>
+    <string name="reasoning_copied">복사됨</string>
+    <string name="reasoning_show_full">전체 보기</string>
+    <string name="reasoning_show_less">줄이기</string>
     <string name="analytics_daily_cost">일일 예상 비용</string>
     <string name="analytics_loading_usage">사용 분석 불러오는 중…</string>
     <string name="analytics_no_cost_data">이 기간에 기록된 비용이 없습니다.</string>

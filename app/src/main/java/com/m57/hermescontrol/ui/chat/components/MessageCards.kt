@@ -13,6 +13,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,12 +25,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
@@ -58,8 +62,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -67,8 +73,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.CodeComment
 import com.m57.hermescontrol.theme.CodeKeyword
 import com.m57.hermescontrol.theme.CodeNumber
@@ -79,38 +87,64 @@ import com.m57.hermescontrol.theme.CodeTerminalBorder
 import com.m57.hermescontrol.theme.CodeTerminalMuted
 import com.m57.hermescontrol.theme.CodeTerminalText
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
+import kotlinx.coroutines.delay
 
 // ── ReasoningCard ─────────────────────────────────────────────────────────
 
 /**
- * Dark collapsible card showing the assistant's reasoning trace
+ * Collapsible card showing the assistant's reasoning trace
  * (reasoning-model thinking steps) before the final answer.
  *
  * Collapsed: "🧠 Reasoning · {N} steps" with chevron.
- * Expanded: full reasoning text in monospace bodySmall.
- * Streaming: pulsing indicator at bottom while [isStreaming].
+ * Expanded: reasoning text in monospace bodySmall, capped at ~40% of the
+ *           screen height with internal scroll; "Show full" lifts the cap.
+ * Long-press anywhere: copies the reasoning trace to the clipboard.
+ * Streaming: pulsing indicator at the bottom while [isStreaming].
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ReasoningCard(
     reasoningText: String,
     isStreaming: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
+    var fullHeight by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
     val stepCount = remember(reasoningText) { reasoningText.count { it == '\n' } + 1 }
+    val capHeight = with(LocalConfiguration.current) { (screenHeightDp * 0.4f).dp }
+
+    // Copy feedback: briefly show "Copied" then revert
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
 
     Card(
         modifier =
             modifier
                 .fillMaxWidth()
                 .then(if (!isStreaming) Modifier.animateContentSize() else Modifier)
+                .combinedClickable(
+                    onClick = { expanded = !expanded },
+                    onLongClick = {
+                        val clipboard =
+                            context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                ?: return@combinedClickable
+                        clipboard.setPrimaryClip(ClipData.newPlainText(null, reasoningText))
+                        copied = true
+                    },
+                )
                 .testTag("reasoning_card"),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             ),
         shape = RoundedCornerShape(12.dp),
-        onClick = { expanded = !expanded },
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -125,6 +159,14 @@ fun ReasoningCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
+                if (copied) {
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.reasoning_copied),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = if (expanded) "Collapse reasoning" else "Expand reasoning",
@@ -134,14 +176,30 @@ fun ReasoningCard(
             }
             AnimatedVisibility(visible = expanded) {
                 Column {
-                    Text(
-                        text = reasoningText,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
+                    Column(
+                        modifier =
+                            Modifier
+                                .heightIn(max = if (fullHeight) Dp.Unspecified else capHeight)
+                                .verticalScroll(scrollState),
+                    ) {
+                        Text(
+                            text = reasoningText,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
                     if (isStreaming) {
                         ReasoningPulsingDot(modifier = Modifier.padding(top = 6.dp))
+                    }
+                    if (fullHeight) {
+                        TextButton(onClick = { fullHeight = false }) {
+                            Text(stringResource(R.string.reasoning_show_less))
+                        }
+                    } else if (scrollState.maxValue > 0) {
+                        TextButton(onClick = { fullHeight = true }) {
+                            Text(stringResource(R.string.reasoning_show_full))
+                        }
                     }
                 }
             }

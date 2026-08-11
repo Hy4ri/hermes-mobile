@@ -1002,6 +1002,9 @@
     <string name="analytics_output_tokens">Output</string>
     <string name="analytics_cache_read">Cache read</string>
     <string name="analytics_reasoning">Reasoning</string>
+    <string name="reasoning_copied">Copied</string>
+    <string name="reasoning_show_full">Show full</string>
+    <string name="reasoning_show_less">Show less</string>
     <string name="analytics_daily_cost">Daily estimated cost</string>
     <string name="analytics_loading_usage">Loading usage analytics…</string>
     <string name="analytics_no_cost_data">No cost recorded in this period.</string>

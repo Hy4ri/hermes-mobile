@@ -21,7 +21,6 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.JsonRpcError
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
-import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.ui.chat.fakes.FakeChatPersistenceRepository
 import com.m57.hermescontrol.ui.chat.fakes.FakeSlashUsageStore
 import io.mockk.*
@@ -129,7 +128,6 @@ class ChatViewModelTest {
         every { ProfileSwitchCoordinator.switched } returns mockSwitchFlow
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
-        every { AuthManager.getChatStyle() } returns ChatStyle.BUBBLES
         every { AuthManager.isAutoReconnect() } returns false
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
@@ -2718,7 +2716,6 @@ class ChatViewModelTest {
             // re-reads AuthManager live (the real regression scenario).
             every { AuthManager.isTypingEffectEnabled() } returns false
             every { AuthManager.getTypingEffectDelayMs() } returns 50
-            every { AuthManager.getChatStyle() } returns ChatStyle.BUBBLES
             viewModel.refreshSettings()
             advanceUntilIdle()
 

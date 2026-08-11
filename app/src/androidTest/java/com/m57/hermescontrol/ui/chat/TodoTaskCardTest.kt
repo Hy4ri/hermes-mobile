@@ -42,7 +42,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ChatBubble(message = message, isDarkTheme = true)
+                ToolBubble(message = message)
             }
         }
 
@@ -66,7 +66,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ChatBubble(message = message, isDarkTheme = true)
+                ToolBubble(message = message)
             }
         }
 
@@ -90,7 +90,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ChatBubble(message = message, isDarkTheme = true)
+                ToolBubble(message = message)
             }
         }
 
@@ -113,7 +113,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ChatBubble(message = message, isDarkTheme = true)
+                ToolBubble(message = message)
             }
         }
 

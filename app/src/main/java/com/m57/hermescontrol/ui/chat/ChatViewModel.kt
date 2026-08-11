@@ -33,7 +33,6 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
-import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -274,9 +273,6 @@ data class ChatUiState(
     // Cached settings
     val typingEffectEnabled: Boolean = true,
     val typingEffectDelayMs: Int = 30,
-    // Chat rendering style (issue #866), cached like the typing-effect
-    // settings so ChatScreen can pick the renderer without a store read.
-    val chatStyle: ChatStyle = ChatStyle.FULL_BLEED,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Per-command usage counts for the slash-autocomplete ranking (issue
@@ -1723,7 +1719,6 @@ class ChatViewModel(
             state.copy(
                 typingEffectEnabled = AuthManager.isTypingEffectEnabled(),
                 typingEffectDelayMs = AuthManager.getTypingEffectDelayMs(),
-                chatStyle = AuthManager.getChatStyle(),
             )
         }
     }

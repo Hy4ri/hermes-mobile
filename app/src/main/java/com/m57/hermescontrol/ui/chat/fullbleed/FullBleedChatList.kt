@@ -28,12 +28,11 @@ import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
 
 /**
- * The chat message list for FULL-BLEED style (issue #866).
- *
- * Parallel renderer to [com.m57.hermescontrol.ui.chat.components.ChatMessageList]:
- * user messages keep their bubble (the universal anchor), agent turns render
- * full-bleed with a turn header, and tool rows / system events render as
- * distinct compact cards. Spacing contract:
+ * The chat message list for FULL-BLEED style (issue #866) — the single chat
+ * surface since the bubble renderer was removed. User messages keep their
+ * bubble (the universal anchor), agent turns render full-bleed with a turn
+ * header, and tool rows / system events render as distinct compact cards.
+ * Spacing contract:
  * - intra-turn: entries separated by 6.dp (Column padding on agent turn items)
  * - inter-turn: 12.dp bottom padding after each turn's last item
  *
@@ -112,7 +111,6 @@ fun FullBleedChatList(
                             Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                 renderChatBubble(
                                     message = userMessage,
-                                    isDark = isDark,
                                     searchQuery = searchQuery,
                                     isCurrentMatch =
                                         isCurrentMatchFor(
@@ -259,7 +257,6 @@ fun FullBleedChatList(
 @Composable
 private fun renderChatBubble(
     message: ChatMessage,
-    isDark: Boolean,
     searchQuery: String,
     isCurrentMatch: Boolean,
     onOpenAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit,
@@ -269,7 +266,6 @@ private fun renderChatBubble(
 ) {
     ChatBubble(
         message = message,
-        isDarkTheme = isDark,
         searchQuery = searchQuery,
         isCurrentMatch = isCurrentMatch,
         onOpenAttachment = onOpenAttachment,

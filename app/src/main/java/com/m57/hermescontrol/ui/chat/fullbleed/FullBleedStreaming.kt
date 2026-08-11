@@ -13,8 +13,7 @@ import kotlinx.coroutines.delay
 
 /**
  * Wraps a streaming [FullBleedAgentMessage] with a word-by-word typing reveal
- * effect (full-bleed counterpart to
- * [com.m57.hermescontrol.ui.chat.components.StreamingBubbleWithTypingEffect]).
+ * effect (full-bleed counterpart to the removed bubble streaming wrapper).
  *
  * Shows words one at a time at [typingDelayMs] intervals while the message is
  * still streaming. When streaming completes the full text is shown

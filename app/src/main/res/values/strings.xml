@@ -163,10 +163,6 @@
     <string name="settings_sec_chat">Chat</string>
     <string name="settings_item_typing_effect">Typing Effect</string>
     <string name="settings_desc_typing_effect">Animate new messages word by word</string>
-    <string name="settings_item_chat_style">Chat style</string>
-    <string name="settings_desc_chat_style">How agent replies are rendered</string>
-    <string name="chat_style_bubbles">Bubbles</string>
-    <string name="chat_style_full_bleed">Full-bleed</string>
     <string name="fullbleed_role_agent">Assistant</string>
     <string name="settings_item_typing_delay">Delay: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>

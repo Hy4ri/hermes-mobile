@@ -143,10 +143,6 @@
     <string name="settings_sec_chat">채팅</string>
     <string name="settings_item_typing_effect">타이핑 효과</string>
     <string name="settings_desc_typing_effect">새 메시지를 단어 단위로 애니메이션</string>
-    <string name="settings_item_chat_style">채팅 스타일</string>
-    <string name="settings_desc_chat_style">에이전트 응답 표시 방식</string>
-    <string name="chat_style_bubbles">버블</string>
-    <string name="chat_style_full_bleed">전체 폭</string>
     <string name="fullbleed_role_agent">어시스턴트</string>
     <string name="settings_item_typing_delay">지연: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>

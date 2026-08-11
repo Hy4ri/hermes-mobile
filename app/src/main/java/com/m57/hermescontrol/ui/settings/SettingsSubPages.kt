@@ -163,8 +163,6 @@ internal fun SettingsChatPage(
                 onTypingEffectEnabledChange = viewModel::onTypingEffectEnabledChange,
                 typingEffectDelayMs = state.typingEffectDelayMs,
                 onTypingEffectDelayMsChange = viewModel::onTypingEffectDelayMsChange,
-                chatStyle = state.chatStyle,
-                onChatStyleChange = viewModel::onChatStyleChange,
             )
         }
     }

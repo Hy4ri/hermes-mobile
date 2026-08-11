@@ -81,13 +81,11 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
-import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.ChatConnectionBanner
 import com.m57.hermescontrol.ui.chat.components.ChatInputBar
 import com.m57.hermescontrol.ui.chat.components.ChatLifecycleEffects
 import com.m57.hermescontrol.ui.chat.components.ChatLoadingOverlay
-import com.m57.hermescontrol.ui.chat.components.ChatMessageList
 import com.m57.hermescontrol.ui.chat.components.ChatResumeErrorOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
@@ -580,59 +578,32 @@ fun ChatScreen(
                     }
                 }
 
-                when (state.chatStyle) {
-                    ChatStyle.BUBBLES ->
-                        ChatMessageList(
-                            messages = state.messages,
-                            streamingMessage = streamingState.streamingMessage,
-                            isSearchActive = state.isSearchActive,
-                            searchQuery = state.searchQuery,
-                            currentSearchMatchIndex = state.currentSearchMatchIndex,
-                            searchMatchIndices = state.searchMatchIndices,
-                            typingEffectEnabled = state.typingEffectEnabled,
-                            typingEffectDelayMs = state.typingEffectDelayMs,
-                            maxToolCallsPerTurn = state.maxToolCallsPerTurn,
-                            isLoading = state.isLoading,
-                            isLoadingOlder = state.isLoadingOlder,
-                            isDark = isDark,
-                            listState = listState,
-                            lastAnimatedMessageId = lastAnimatedMessageId,
-                            onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
-                            viewModel = viewModel,
-                            clarifyRequest = state.clarifyRequest,
-                            onRespondClarify = viewModel::respondToClarify,
-                            onDismissClarify = viewModel::dismissClarify,
-                            onSaveAttachment = onSaveAttachment,
-                            savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
-                            onImageClick = { viewingImage = it },
-                        )
-
-                    ChatStyle.FULL_BLEED ->
-                        FullBleedChatList(
-                            messages = state.messages,
-                            streamingMessage = streamingState.streamingMessage,
-                            isSearchActive = state.isSearchActive,
-                            searchQuery = state.searchQuery,
-                            currentSearchMatchIndex = state.currentSearchMatchIndex,
-                            searchMatchIndices = state.searchMatchIndices,
-                            typingEffectEnabled = state.typingEffectEnabled,
-                            typingEffectDelayMs = state.typingEffectDelayMs,
-                            maxToolCallsPerTurn = state.maxToolCallsPerTurn,
-                            isLoading = state.isLoading,
-                            isLoadingOlder = state.isLoadingOlder,
-                            isDark = isDark,
-                            listState = listState,
-                            lastAnimatedMessageId = lastAnimatedMessageId,
-                            onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
-                            viewModel = viewModel,
-                            clarifyRequest = state.clarifyRequest,
-                            onRespondClarify = viewModel::respondToClarify,
-                            onDismissClarify = viewModel::dismissClarify,
-                            onSaveAttachment = onSaveAttachment,
-                            savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
-                            onImageClick = { viewingImage = it },
-                        )
-                }
+                // Full-bleed chat renderer (issue #866) — the single chat
+                // surface since the bubble renderer was removed.
+                FullBleedChatList(
+                    messages = state.messages,
+                    streamingMessage = streamingState.streamingMessage,
+                    isSearchActive = state.isSearchActive,
+                    searchQuery = state.searchQuery,
+                    currentSearchMatchIndex = state.currentSearchMatchIndex,
+                    searchMatchIndices = state.searchMatchIndices,
+                    typingEffectEnabled = state.typingEffectEnabled,
+                    typingEffectDelayMs = state.typingEffectDelayMs,
+                    maxToolCallsPerTurn = state.maxToolCallsPerTurn,
+                    isLoading = state.isLoading,
+                    isLoadingOlder = state.isLoadingOlder,
+                    isDark = isDark,
+                    listState = listState,
+                    lastAnimatedMessageId = lastAnimatedMessageId,
+                    onLastAnimatedMessageIdChange = { lastAnimatedMessageId = it },
+                    viewModel = viewModel,
+                    clarifyRequest = state.clarifyRequest,
+                    onRespondClarify = viewModel::respondToClarify,
+                    onDismissClarify = viewModel::dismissClarify,
+                    onSaveAttachment = onSaveAttachment,
+                    savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
+                    onImageClick = { viewingImage = it },
+                )
 
                 // Loading overlay
                 ChatLoadingOverlay(isLoading = state.isLoading && state.resumeError == null)

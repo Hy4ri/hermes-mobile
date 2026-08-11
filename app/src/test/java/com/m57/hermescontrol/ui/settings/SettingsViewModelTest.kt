@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.settings
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.theme.ChatStyle
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
 import io.mockk.every
@@ -66,7 +65,6 @@ class SettingsViewModelTest {
         every { AuthManager.getThemePreset() } returns ThemePreset.DEFAULT
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
-        every { AuthManager.getChatStyle() } returns ChatStyle.BUBBLES
         every { AuthManager.getConnectionProfiles() } returns emptyList()
         every { AuthManager.getSelectedProfileId() } answers { storedSelectedProfileId }
         every { AuthManager.baseUrl() } returns "http://127.0.0.1:9119/"
@@ -121,7 +119,6 @@ class SettingsViewModelTest {
             every { AuthManager.getThemePreset() } returns ThemePreset.CATPPUCCIN
             every { AuthManager.isTypingEffectEnabled() } returns false
             every { AuthManager.getTypingEffectDelayMs() } returns 15
-            every { AuthManager.getChatStyle() } returns ChatStyle.BUBBLES
             every { AuthManager.getConnectionProfiles() } returns testProfiles
             every { AuthManager.getAppLanguage() } returns "fr"
 

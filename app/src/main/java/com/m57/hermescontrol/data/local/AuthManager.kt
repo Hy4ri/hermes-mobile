@@ -75,7 +75,7 @@ object AuthManager {
     private val _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)
     val themePresetFlow: StateFlow<ThemePreset> = _themePresetFlow.asStateFlow()
 
-    private val _chatStyleFlow = MutableStateFlow<ChatStyle>(ChatStyle.BUBBLES)
+    private val _chatStyleFlow = MutableStateFlow<ChatStyle>(ChatStyle.FULL_BLEED)
     val chatStyleFlow: StateFlow<ChatStyle> = _chatStyleFlow.asStateFlow()
 
     private val _tokenFlow = MutableStateFlow<String?>(null)

@@ -276,7 +276,7 @@ data class ChatUiState(
     val typingEffectDelayMs: Int = 30,
     // Chat rendering style (issue #866), cached like the typing-effect
     // settings so ChatScreen can pick the renderer without a store read.
-    val chatStyle: ChatStyle = ChatStyle.BUBBLES,
+    val chatStyle: ChatStyle = ChatStyle.FULL_BLEED,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
     // Per-command usage counts for the slash-autocomplete ranking (issue

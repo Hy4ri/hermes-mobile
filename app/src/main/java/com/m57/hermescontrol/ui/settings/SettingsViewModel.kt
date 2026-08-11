@@ -36,7 +36,7 @@ data class SettingsUiState(
     val isSaved: Boolean = false,
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
-    val chatStyle: ChatStyle = ChatStyle.BUBBLES,
+    val chatStyle: ChatStyle = ChatStyle.FULL_BLEED,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",

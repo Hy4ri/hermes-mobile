@@ -534,7 +534,8 @@ fun ChatScreen(
                         SearchBarRow(
                             searchQuery = state.searchQuery,
                             onQueryChange = { viewModel.setSearchQuery(it) },
-                            searchMatchCount = state.searchMatchIndices.size,
+                            searchMatchCount = state.searchMatchTotal,
+                            searchMatchCapped = state.searchMatchCapped,
                             currentMatchIndex = state.currentSearchMatchIndex,
                             onNavigateUp = { viewModel.navigateSearchMatch(-1) },
                             onNavigateDown = { viewModel.navigateSearchMatch(1) },

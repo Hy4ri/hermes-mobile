@@ -101,6 +101,7 @@ fun SearchBarRow(
     searchQuery: String,
     onQueryChange: (String) -> Unit,
     searchMatchCount: Int,
+    searchMatchCapped: Boolean = false,
     currentMatchIndex: Int,
     onNavigateUp: () -> Unit,
     onNavigateDown: () -> Unit,
@@ -124,7 +125,9 @@ fun SearchBarRow(
         if (searchQuery.isNotEmpty()) {
             val countText =
                 if (searchMatchCount > 0) {
-                    "${currentMatchIndex + 1}/$searchMatchCount"
+                    // `500+` when the exact total exceeded the stored cap.
+                    val total = if (searchMatchCapped) "$searchMatchCount+" else "$searchMatchCount"
+                    "${currentMatchIndex + 1}/$total"
                 } else {
                     "0/0"
                 }

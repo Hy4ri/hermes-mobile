@@ -94,6 +94,15 @@ fun FullBleedChatList(
             remember(turns, isLoadingOlder) {
                 messageIdToLazyIndex(turns, leadingItems = if (isLoadingOlder) 1 else 0)
             }
+        // O(1) per-item lookups: current match id + ids that contain a match.
+        // These stay as remember()s so a search-state change recomputes only
+        // these expressions, not the whole list body.
+        val currentMatchId = remember(isSearchActive, searchMatchIndices, currentSearchMatchIndex) {
+            if (isSearchActive) currentMatchMessageId(messages, searchMatchIndices, currentSearchMatchIndex) else null
+        }
+        val matchedIds = remember(messages, searchMatchIndices) {
+            matchedMessageIds(messages, searchMatchIndices)
+        }
 
         // Scroll the current search match into view, word-focused. Lives here
         // (not in ChatLifecycleEffects) because only this composable knows
@@ -141,14 +150,7 @@ fun FullBleedChatList(
                                 renderChatBubble(
                                     message = userMessage,
                                     searchQuery = searchQuery,
-                                    isCurrentMatch =
-                                        isCurrentMatchFor(
-                                            messages,
-                                            userMessage.id,
-                                            isSearchActive,
-                                            currentSearchMatchIndex,
-                                            searchMatchIndices,
-                                        ),
+                                    isCurrentMatch = currentMatchId != null && currentMatchId == userMessage.id,
                                     onOpenAttachment = viewModel::openAttachment,
                                     onSaveAttachment = onSaveAttachment,
                                     savingAttachmentPath = savingAttachmentPath,
@@ -210,15 +212,16 @@ fun FullBleedChatList(
                                                     message = proseMessage,
                                                     showTurnHeader = showTurnHeader,
                                                     isDarkTheme = isDark,
-                                                    searchQuery = if (isSearchActive) searchQuery else "",
+                                                    // Highlight only bubbles that actually contain a match —
+                                                    // the rest skip the highlight scan entirely.
+                                                    searchQuery =
+                                                        if (isSearchActive && proseMessage.id in matchedIds) {
+                                                            searchQuery
+                                                        } else {
+                                                            ""
+                                                        },
                                                     isCurrentMatch =
-                                                        isCurrentMatchFor(
-                                                            messages,
-                                                            proseMessage.id,
-                                                            isSearchActive,
-                                                            currentSearchMatchIndex,
-                                                            searchMatchIndices,
-                                                        ),
+                                                        currentMatchId != null && currentMatchId == proseMessage.id,
                                                     showReasoning = !hoistedReasoning,
                                                     onOpenAttachment = viewModel::openAttachment,
                                                     onSaveAttachment = onSaveAttachment,
@@ -303,19 +306,4 @@ private fun renderChatBubble(
         canSaveAttachment = savingAttachmentPath == null,
         onImageClick = onImageClick,
     )
-}
-
-private fun isCurrentMatchFor(
-    messages: List<ChatMessage>,
-    messageId: String,
-    isSearchActive: Boolean,
-    currentSearchMatchIndex: Int,
-    searchMatchIndices: List<Int>,
-): Boolean {
-    if (!isSearchActive || currentSearchMatchIndex < 0 || currentSearchMatchIndex >= searchMatchIndices.size) {
-        return false
-    }
-    val index = messages.indexOfFirst { it.id == messageId }
-    if (index < 0) return false
-    return searchMatchIndices[currentSearchMatchIndex] == index
 }

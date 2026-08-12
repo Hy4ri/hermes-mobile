@@ -145,3 +145,32 @@ fun messageIdToLazyIndex(
     }
     return map
 }
+
+/**
+ * Resolve the message id of the CURRENT search match once, so per-item
+ * highlight lookups are O(1) id comparisons instead of O(n) linear scans
+ * (`messages.indexOfFirst` per rendered bubble was O(n²) per search update).
+ */
+fun currentMatchMessageId(
+    messages: List<ChatMessage>,
+    searchMatchIndices: List<Int>,
+    currentSearchMatchIndex: Int,
+): String? {
+    if (currentSearchMatchIndex < 0 || currentSearchMatchIndex >= searchMatchIndices.size) return null
+    val messageIndex = searchMatchIndices[currentSearchMatchIndex]
+    if (messageIndex < 0 || messageIndex >= messages.size) return null
+    return messages[messageIndex].id
+}
+
+/**
+ * Message ids that contain at least one search match. Bubbles outside this
+ * set skip their highlight scan entirely (they used to re-run it on every
+ * search-state change even with zero hits).
+ */
+fun matchedMessageIds(
+    messages: List<ChatMessage>,
+    searchMatchIndices: List<Int>,
+): Set<String> =
+    searchMatchIndices
+        .mapNotNull { messages.getOrNull(it)?.id }
+        .toSet()

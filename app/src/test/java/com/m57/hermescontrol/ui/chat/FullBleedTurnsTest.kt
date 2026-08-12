@@ -2,8 +2,10 @@ package com.m57.hermescontrol.ui.chat
 
 import com.m57.hermescontrol.ui.chat.fullbleed.AgentEntry
 import com.m57.hermescontrol.ui.chat.fullbleed.ChatTurn
+import com.m57.hermescontrol.ui.chat.fullbleed.currentMatchMessageId
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurnsWithStreaming
+import com.m57.hermescontrol.ui.chat.fullbleed.matchedMessageIds
 import com.m57.hermescontrol.ui.chat.fullbleed.messageIdToLazyIndex
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -181,5 +183,29 @@ class FullBleedTurnsTest {
         val map = messageIdToLazyIndex(groupIntoTurns(listOf(u1, u2)), leadingItems = 1)
         assertEquals(1, map["u1"])
         assertEquals(2, map["u2"])
+    }
+
+    // ── currentMatchMessageId / matchedMessageIds ─────────────────────────
+
+    @Test
+    fun `currentMatchMessageId resolves once for the current index`() {
+        val u1 = msg("u1", MessageRole.USER)
+        val a1 = msg("a1", MessageRole.ASSISTANT)
+        val msgs = listOf(u1, a1)
+        assertEquals("a1", currentMatchMessageId(msgs, listOf(0, 1), 1))
+        assertEquals("u1", currentMatchMessageId(msgs, listOf(0, 1), 0))
+        assertNull(currentMatchMessageId(msgs, listOf(0, 1), -1))
+        assertNull(currentMatchMessageId(msgs, emptyList(), 0))
+        assertNull(currentMatchMessageId(msgs, listOf(9), 0))
+    }
+
+    @Test
+    fun `matchedMessageIds returns unique ids for match indices`() {
+        val u1 = msg("u1", MessageRole.USER)
+        val a1 = msg("a1", MessageRole.ASSISTANT)
+        val a2 = msg("a2", MessageRole.ASSISTANT)
+        val msgs = listOf(u1, a1, a2)
+        assertEquals(setOf("u1", "a2"), matchedMessageIds(msgs, listOf(0, 2, 0)))
+        assertEquals(emptySet<String>(), matchedMessageIds(msgs, listOf(9)))
     }
 }

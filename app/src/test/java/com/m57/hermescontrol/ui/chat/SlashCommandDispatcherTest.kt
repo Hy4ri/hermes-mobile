@@ -82,6 +82,33 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `queue routes to QueuePrompt with stripped display content`() {
+        // /queue queues the prompt for after the current turn (PR #892). The
+        // optimistic bubble shows the queued TEXT, not the raw command, so the
+        // transcript sync dedupes it against the server echo ("/queue foo" vs
+        // "foo" would never match logically and both would render).
+        assertEquals(
+            SlashResult.QueuePrompt("do the thing"),
+            dispatcher.dispatch("/queue do the thing"),
+        )
+        assertEquals(
+            SlashResult.QueuePrompt("hi"),
+            dispatcher.dispatch("/q hi"),
+        )
+        assertEquals(
+            SlashResult.QueuePrompt("hi"),
+            dispatcher.dispatch("/QUEUE hi"),
+        )
+    }
+
+    @Test
+    fun `bare queue keeps the raw command as display content`() {
+        // No argument -> the usage message renders under the raw command.
+        assertEquals(SlashResult.QueuePrompt("/queue"), dispatcher.dispatch("/queue"))
+        assertEquals(SlashResult.QueuePrompt("/q"), dispatcher.dispatch("/q"))
+    }
+
+    @Test
     fun `command with args forwards to RpcDispatch`() {
         // Anything not /stop, /interrupt, /new goes to the backend.
         assertEquals(SlashResult.RpcDispatch, dispatcher.dispatch("/foo bar"))

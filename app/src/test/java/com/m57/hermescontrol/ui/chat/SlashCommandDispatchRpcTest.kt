@@ -220,6 +220,11 @@ class SlashCommandDispatchRpcTest {
             assertEquals(sessionId, sentSession.captured)
             assertEquals("do the thing", sentText.captured)
             assertEquals(true, sentQueued.captured)
+            // The optimistic bubble shows the queued TEXT (prefix stripped) so
+            // the transcript sync dedupes it against the server echo.
+            val userBubble =
+                vm.uiState.value.messages.lastOrNull { it.role == MessageRole.USER }
+            assertEquals("do the thing", userBubble?.content)
         }
 
     @Test

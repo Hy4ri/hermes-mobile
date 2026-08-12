@@ -83,6 +83,34 @@ class ChatViewModelTest {
         assertEquals(listOf(latest), merged)
     }
 
+    @Test
+    fun mergeTranscriptWithLive_matchingUserContentCollapsesLocalAndRestCopies() {
+        // /queue bubbles show the stripped queued text, so the optimistic
+        // local copy and the later REST echo share content — the sync merge
+        // must collapse them into one row instead of rendering a duplicate
+        // below its answer (PR #892 follow-up).
+        val local =
+            ChatMessage(
+                id = "ws-local-1",
+                role = MessageRole.USER,
+                content = "do the thing",
+                timestamp = 100L,
+            )
+        val rest =
+            ChatMessage(
+                id = "rest-sess-5",
+                role = MessageRole.USER,
+                content = "do the thing",
+                timestamp = 100L,
+            )
+
+        val merged = mergeTranscriptWithLive(listOf(rest), listOf(local))
+
+        assertEquals(1, merged.size)
+        // The richer local copy wins when both sides carry the same content.
+        assertEquals("ws-local-1", merged.single().id)
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)

@@ -31,7 +31,16 @@ class SlashCommandDispatcher {
             "/fork", "/branch" -> SlashResult.SessionBranch
             "/model" -> SlashResult.ModelSwitch
             "/update" -> SlashResult.Update
-            "/queue", "/q" -> SlashResult.QueuePrompt
+            "/queue", "/q" -> {
+                val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+                // Bubble shows the queued TEXT (prefix stripped) so the
+                // optimistic user message matches the server echo exactly —
+                // otherwise the transcript sync keeps both copies (logical
+                // dedupe can't match "/queue foo" vs "foo") and the echoed
+                // bubble lands below its answer. Bare command keeps the raw
+                // text so the usage message has something to sit under.
+                SlashResult.QueuePrompt(displayContent = arg.ifBlank { command })
+            }
             "/resume", "/history" -> SlashResult.OpenHistory
             else -> SlashResult.RpcDispatch
         }
@@ -90,6 +99,11 @@ sealed class SlashResult {
      * verified on-device). The ViewModel submits directly via `prompt.submit`
      * with `queued=true`, which the gateway honors as "run after, never
      * interrupt" regardless of `display.busy_input_mode`.
+     *
+     * [displayContent] is the optimistic user-bubble text: the queued text
+     * with the command prefix stripped (or the raw command when there is no
+     * argument). Matching the server echo verbatim lets the transcript sync
+     * dedupe the two copies of the same logical message.
      */
-    data object QueuePrompt : SlashResult()
+    data class QueuePrompt(val displayContent: String) : SlashResult()
 }

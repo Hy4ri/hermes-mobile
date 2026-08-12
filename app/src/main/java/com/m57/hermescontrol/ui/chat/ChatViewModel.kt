@@ -1396,7 +1396,14 @@ class ChatViewModel(
     fun clearAttachments() = attachmentsDelegate.clearAttachments()
 
     private fun handleSlashCommand(command: String) {
-        val userMsg = ChatMessage(role = MessageRole.USER, content = command)
+        // Classify FIRST (pure logic) — /queue's optimistic bubble must show
+        // the queued TEXT (prefix stripped, see QueuePrompt.displayContent) so
+        // it matches the server echo and the transcript sync dedupes instead
+        // of rendering a duplicate below its answer.
+        val result = slashDispatcher.dispatch(command)
+        val displayContent =
+            if (result is SlashResult.QueuePrompt) result.displayContent else command
+        val userMsg = ChatMessage(role = MessageRole.USER, content = displayContent)
         val sessionId = _uiState.value.currentSessionId
 
         _uiState.update { it.copy(messages = it.messages + userMsg) }
@@ -1428,7 +1435,7 @@ class ChatViewModel(
             slashUsageStore.recordUse(commandName)
         }
 
-        when (val result = slashDispatcher.dispatch(command)) {
+        when (result) {
             is SlashResult.Interrupt -> {
                 interruptSession()
             }

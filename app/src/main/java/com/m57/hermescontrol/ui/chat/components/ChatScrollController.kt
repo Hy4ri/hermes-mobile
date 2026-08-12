@@ -151,9 +151,27 @@ class ChatScrollController(
         scope.launch { listState.scrollToItem(index, offset) }
     }
 
-    /** Navigate to a search match index (serialized through [scope]). */
+    /**
+     * Navigate to a search match index (serialized through [scope]).
+     *
+     * Top-aligns the matched message, then nudges it down to ~1/3 of the
+     * viewport height so the highlighted word sits comfortably in view —
+     * a bare `animateScrollToItem` pins the message to the top (or bottom,
+     * when clamped) edge, hiding the match on tall messages. Mirrors the
+     * verified scrollToBottom pattern (top-align → measure → adjust).
+     */
     fun scrollToSearchMatch(index: Int) {
-        scope.launch { listState.animateScrollToItem(index) }
+        scope.launch {
+            listState.animateScrollToItem(index)
+            val info = listState.layoutInfo
+            val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return@launch
+            val viewportHeight = info.viewportEndOffset - info.viewportStartOffset
+            val targetTop = viewportHeight / 3
+            val delta = item.offset - targetTop
+            if (delta != 0) {
+                listState.animateScrollBy(delta.toFloat())
+            }
+        }
     }
 }
 

@@ -207,6 +207,14 @@ interface HermesApiService {
         @Body body: SessionRenameRequest,
     ): Response<Unit>
 
+    // Pin/unpin rides the same PATCH /api/sessions/{id} — body carries only
+    // {pinned} (backend SessionRename model, any subset accepted).
+    @PATCH("api/sessions/{id}")
+    suspend fun setSessionPinned(
+        @Path("id", encoded = true) sessionId: String,
+        @Body body: SessionRenameRequest,
+    ): Response<Unit>
+
     @POST("api/sessions/bulk-delete")
     suspend fun bulkDeleteSessions(
         @Body body: BulkDeleteRequest,

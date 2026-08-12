@@ -17,9 +17,11 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -96,6 +98,8 @@ class SessionsViewModelTest {
         )
     }
 
+    // ── Pagination (fluid load-more) ──────────────────────────────────────
+
     @Test
     fun `loadMore appends the next page and dedupes overlapping ids`() {
         val vm = createViewModel()
@@ -156,5 +160,75 @@ class SessionsViewModelTest {
         coVerify(exactly = 2) { mockApi.getSessions(any(), any(), any()) }
         assertEquals(listOf("s-1"), vm.uiState.value.sessions.map { it.id })
         assertFalse(vm.uiState.value.isLoadingMore)
+    }
+
+    // ── Pin / unpin ────────────────────────────────────────────────────────
+
+    @Test
+    fun `loaded list keeps pinned sessions on top`() {
+        val vm = createViewModel()
+        // Backend returns recency order with the pinned flag set; the client
+        // must lift pins above the rest while keeping the rest's order.
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions =
+                        listOf(
+                            SessionInfo("recent", pinned = false),
+                            SessionInfo("old-pinned", pinned = true),
+                        ),
+                    total = 2,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("old-pinned", "recent"), vm.uiState.value.sessions.map { it.id })
+    }
+
+    @Test
+    fun `togglePin moves the session to the top and sets the flag`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions = listOf(SessionInfo("s-1"), SessionInfo("s-2")),
+                    total = 2,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coEvery { mockApi.setSessionPinned(any(), any()) } returns Response.success(Unit)
+        vm.togglePin("s-2")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("s-2", "s-1"), vm.uiState.value.sessions.map { it.id })
+        assertEquals(true, vm.uiState.value.sessions.first().pinned)
+        assertEquals("Session pinned", vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `togglePin failure keeps the order and surfaces a toast`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions = listOf(SessionInfo("s-1", pinned = true), SessionInfo("s-2")),
+                    total = 2,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coEvery { mockApi.setSessionPinned(any(), any()) } returns
+            retrofit2.Response.error(500, "".toResponseBody(null))
+        vm.togglePin("s-2")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("s-1", "s-2"), vm.uiState.value.sessions.map { it.id })
+        assertFalse(vm.uiState.value.sessions[1].pinned ?: false)
+        assertNotNull(vm.uiState.value.toastMessage)
+        assertTrue(vm.uiState.value.toastMessage!!.contains("Pin failed"))
     }
 }

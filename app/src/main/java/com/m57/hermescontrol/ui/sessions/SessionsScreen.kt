@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Terminal
@@ -796,6 +797,7 @@ fun SessionsScreen(
                                         isSelecting = state.isSelecting,
                                         isSelected = session.id in state.selectedIds,
                                         isDeleting = session.id in state.deletingSessionIds,
+                                        isPinned = session.pinned == true,
                                         highlightBackground = primaryContainer,
                                         highlightForeground = onPrimaryContainer,
                                         onCardClick = {
@@ -816,6 +818,7 @@ fun SessionsScreen(
                                                 item.displayTitle,
                                             )
                                         },
+                                        onTogglePin = { viewModel.togglePin(session.id) },
                                         onDelete = { viewModel.requestDeleteSession(session.id) },
                                     )
                                 }
@@ -961,12 +964,14 @@ private fun SessionCard(
     isSelecting: Boolean,
     isSelected: Boolean,
     isDeleting: Boolean,
+    isPinned: Boolean,
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
     onToggleSelection: () -> Unit,
     onSelect: () -> Unit,
     onRename: () -> Unit,
+    onTogglePin: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -1040,18 +1045,30 @@ private fun SessionCard(
 
                 // Main content
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text =
-                            if (query.isNotBlank()) {
-                                highlightText(displayTitle, query, highlightBackground, highlightForeground)
-                            } else {
-                                AnnotatedString(displayTitle)
-                            },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text =
+                                if (query.isNotBlank()) {
+                                    highlightText(displayTitle, query, highlightBackground, highlightForeground)
+                                } else {
+                                    AnnotatedString(displayTitle)
+                                },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (isPinned) {
+                            Spacer(modifier = Modifier.width(spacing.xs))
+                            Icon(
+                                imageVector = Icons.Filled.PushPin,
+                                contentDescription = stringResource(R.string.sessions_pinned_indicator),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(spacing.xs))
 
@@ -1079,6 +1096,11 @@ private fun SessionCard(
                 expanded = menuExpanded,
                 onDismiss = { menuExpanded = false },
                 isDeleting = isDeleting,
+                isPinned = isPinned,
+                onTogglePin = {
+                    menuExpanded = false
+                    onTogglePin()
+                },
                 onSelect = {
                     menuExpanded = false
                     onSelect()
@@ -1253,21 +1275,40 @@ private fun SearchResultCard(
 }
 
 /**
- * Per-session hold menu (issue #785): Select / Rename / Delete. Opened by
- * long-pressing a session card. Delete lives here instead of on the card,
- * and Rename now lands on the working PATCH /api/sessions/{id} route.
+ * Per-session hold menu (issue #785): Pin/Unpin / Select / Rename / Delete.
+ * Opened by long-pressing a session card. The pin item is only shown when
+ * [onTogglePin] is provided (history cards; search-result cards omit it).
  */
 @Composable
 private fun SessionActionMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     isDeleting: Boolean,
+    isPinned: Boolean = false,
+    onTogglePin: (() -> Unit)? = null,
     onSelect: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val statusColors = LocalHermesStatusColors.current
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        if (onTogglePin != null) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(
+                            if (isPinned) {
+                                R.string.sessions_action_unpin
+                            } else {
+                                R.string.sessions_action_pin
+                            },
+                        ),
+                    )
+                },
+                leadingIcon = { Icon(Icons.Filled.PushPin, contentDescription = null) },
+                onClick = onTogglePin,
+            )
+        }
         DropdownMenuItem(
             text = { Text(stringResource(R.string.sessions_action_select)) },
             leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null) },

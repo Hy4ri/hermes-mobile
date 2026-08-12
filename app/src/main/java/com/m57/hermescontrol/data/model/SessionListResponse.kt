@@ -23,6 +23,9 @@ data class SessionInfo(
     val display_name: String? = null,
     val model: String? = null,
     val terminal_backend: String? = null,
+    // Durable "keep" flag: pinned sessions are exempt from the auto-archive
+    // sweep and are surfaced first in the history list (sorted client-side).
+    val pinned: Boolean? = null,
 )
 
 @Serializable
@@ -35,7 +38,10 @@ data class SessionStatsResponse(
 
 @Serializable
 data class SessionRenameRequest(
-    val title: String,
+    // Both fields are optional: the backend PATCH accepts any subset
+    // (SessionRename model: title/archived/pinned, omitted = unchanged).
+    val title: String? = null,
+    val pinned: Boolean? = null,
 )
 
 @Serializable

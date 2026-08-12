@@ -543,6 +543,9 @@
     <string name="sessions_action_delete_n">Delete %1$d</string>
     <string name="sessions_action_select">Select</string>
     <string name="sessions_action_rename">Rename</string>
+    <string name="sessions_action_pin">Pin</string>
+    <string name="sessions_action_unpin">Unpin</string>
+    <string name="sessions_pinned_indicator">Pinned</string>
     <string name="sessions_rename_title">Rename Session</string>
     <string name="sessions_rename_hint">Session title</string>
 

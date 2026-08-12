@@ -52,6 +52,13 @@ internal fun formatCompactCount(value: Int): String {
 
 private fun String.trimZeroes(): String = dropLastWhile { it == '0' }.trimEnd('.')
 
+/**
+ * Stable sort: pinned sessions first. The backend only back-fills pins into
+ * page 1 (it doesn't lift them to the top), so the client owns the ordering.
+ * Stability keeps recency order intact within each group.
+ */
+private fun List<SessionInfo>.pinnedFirst(): List<SessionInfo> = sortedBy { it.pinned != true }
+
 data class SessionsUiState(
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
@@ -112,7 +119,7 @@ class SessionsViewModel :
             onSuccess = { data ->
                 _uiState.update {
                     it.copy(
-                        sessions = data.sessions.orEmpty(),
+                        sessions = data.sessions.orEmpty().pinnedFirst(),
                         total = data.total,
                     )
                 }
@@ -150,7 +157,7 @@ class SessionsViewModel :
                         it.copy(
                             isLoading = false,
                             isLoadingMore = false,
-                            sessions = data.sessions.orEmpty(),
+                            sessions = data.sessions.orEmpty().pinnedFirst(),
                             total = data.total,
                             selectedIds = emptySet(),
                         )
@@ -193,7 +200,11 @@ class SessionsViewModel :
                             // session lands on top between page loads, offsets
                             // shift and the next page can repeat an id we already
                             // have — LazyColumn would crash on the duplicate key.
-                            sessions = (it.sessions + data.sessions).distinctBy { s -> s.id },
+                            // pinnedFirst keeps pinned sessions above the rest.
+                            sessions =
+                                (it.sessions + data.sessions)
+                                    .distinctBy { s -> s.id }
+                                    .pinnedFirst(),
                             total = data.total,
                         )
                     }
@@ -381,6 +392,52 @@ class SessionsViewModel :
                             renameDraft = "",
                             toastMessage = "Rename failed: ${result.error.message}",
                         )
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Pin / unpin (durable "keep" flag, exempts from auto-archive) ──────
+
+    /**
+     * Toggle the pinned flag on a session via PATCH /api/sessions/{id}
+     * ({pinned}). On success the session is flagged and re-sorted to the top
+     * of the history list immediately; the backend back-fills pins into
+     * page 1 on every load, so the pinned-first sort stays consistent.
+     */
+    fun togglePin(sessionId: String) {
+        val session = _uiState.value.sessions.find { it.id == sessionId } ?: return
+        val targetPinned = session.pinned != true
+        viewModelScope.launch {
+            val result =
+                safeApiCall {
+                    ApiClient.hermesApi.setSessionPinned(
+                        sessionId = sessionId,
+                        body = SessionRenameRequest(pinned = targetPinned),
+                    )
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            sessions =
+                                it.sessions
+                                    .map { s -> if (s.id == sessionId) s.copy(pinned = targetPinned) else s }
+                                    .pinnedFirst(),
+                            toastMessage =
+                                if (targetPinned) {
+                                    "Session pinned"
+                                } else {
+                                    "Session unpinned"
+                                },
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(toastMessage = "Pin failed: ${result.error.message}")
                     }
                 }
             }

@@ -96,7 +96,12 @@ fun FullBleedChatList(
         // (not in ChatLifecycleEffects) because only this composable knows
         // the message-id → lazy-item-index mapping. Reads search fields in
         // the effect (not the body), so only this effect restarts on change.
-        LaunchedEffect(searchState.isActive, searchState.currentIndex, searchState.matchIndices, searchState.matchOffsets) {
+        LaunchedEffect(
+            searchState.isActive,
+            searchState.currentIndex,
+            searchState.matchIndices,
+            searchState.matchOffsets,
+        ) {
             if (searchState.isActive &&
                 searchState.currentIndex >= 0 &&
                 searchState.currentIndex < searchState.matchIndices.size
@@ -206,7 +211,9 @@ fun FullBleedChatList(
                                                     // Highlight only bubbles that actually contain a match —
                                                     // the rest skip the highlight scan entirely.
                                                     searchQuery =
-                                                        if (searchState.isActive && proseMessage.id in searchState.matchedIds) {
+                                                        if (searchState.isActive &&
+                                                            proseMessage.id in searchState.matchedIds
+                                                        ) {
                                                             searchState.query
                                                         } else {
                                                             ""

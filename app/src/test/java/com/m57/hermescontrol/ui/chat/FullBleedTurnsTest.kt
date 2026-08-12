@@ -4,7 +4,9 @@ import com.m57.hermescontrol.ui.chat.fullbleed.AgentEntry
 import com.m57.hermescontrol.ui.chat.fullbleed.ChatTurn
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurns
 import com.m57.hermescontrol.ui.chat.fullbleed.groupIntoTurnsWithStreaming
+import com.m57.hermescontrol.ui.chat.fullbleed.messageIdToLazyIndex
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class FullBleedTurnsTest {
@@ -144,5 +146,40 @@ class FullBleedTurnsTest {
     fun `empty messages with streaming produce a single agent turn`() {
         val s = msg("s1", MessageRole.ASSISTANT, content = "partial", isStreaming = true)
         assertEquals(listOf(entries(AgentEntry.Prose(s))), groupIntoTurnsWithStreaming(emptyList(), s))
+    }
+
+    // ── messageIdToLazyIndex ───────────────────────────────────────────────
+
+    @Test
+    fun `lazy index maps simple user turns one to one`() {
+        val u1 = msg("u1", MessageRole.USER)
+        val u2 = msg("u2", MessageRole.USER)
+        val map = messageIdToLazyIndex(groupIntoTurns(listOf(u1, u2)))
+        assertEquals(2, map.size)
+        assertEquals(0, map["u1"])
+        assertEquals(1, map["u2"])
+    }
+
+    @Test
+    fun `lazy index accounts for the reasoning hoist item`() {
+        val a1 = ChatMessage(id = "a1", role = MessageRole.ASSISTANT, content = "prose", reasoningText = "thinking")
+        val t1 = msg("t1", MessageRole.TOOL)
+        val a2 = msg("a2", MessageRole.ASSISTANT)
+        val map = messageIdToLazyIndex(groupIntoTurns(listOf(a1, t1, a2)))
+        // reasoning-a1 item at lazy 0, prose a1 at 1, tool t1 at 2, prose a2 at 3
+        assertEquals(1, map["a1"])
+        assertEquals(3, map["a2"])
+        // tool rows are items but never map (not searchable).
+        assertNull(map["t1"])
+    }
+
+    @Test
+    fun `lazy index offsets by leading items`() {
+        val u1 = msg("u1", MessageRole.USER)
+        val u2 = msg("u2", MessageRole.USER)
+        // loading-older spinner occupies lazy item 0.
+        val map = messageIdToLazyIndex(groupIntoTurns(listOf(u1, u2)), leadingItems = 1)
+        assertEquals(1, map["u1"])
+        assertEquals(2, map["u2"])
     }
 }

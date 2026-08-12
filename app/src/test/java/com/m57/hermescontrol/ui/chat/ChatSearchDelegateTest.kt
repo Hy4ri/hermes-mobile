@@ -52,6 +52,7 @@ class ChatSearchDelegateTest {
             advanceTimeBy(1)
             runCurrent()
             assertEquals(listOf(0), uiState.value.searchMatchIndices)
+            assertEquals(listOf(0), uiState.value.searchMatchOffsets)
             assertEquals("alpha", uiState.value.searchQuery)
         }
 

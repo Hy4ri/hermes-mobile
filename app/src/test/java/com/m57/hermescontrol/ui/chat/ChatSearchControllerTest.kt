@@ -13,7 +13,7 @@ class ChatSearchControllerTest {
     ): ChatMessage = ChatMessage(role = role, content = content, reasoningText = reasoningText)
 
     @Test
-    fun `matches user and assistant visible text`() {
+    fun `matches user and assistant visible text with content offsets`() {
         val messages =
             listOf(
                 message(MessageRole.USER, "deploy the API"),
@@ -21,7 +21,10 @@ class ChatSearchControllerTest {
                 message(MessageRole.USER, "unrelated"),
             )
 
-        assertEquals(listOf(0, 1), controller.findMatches(messages, "deploy"))
+        assertEquals(
+            listOf(SearchMatch(0, 0), SearchMatch(1, 6)),
+            controller.findMatches(messages, "deploy"),
+        )
     }
 
     @Test
@@ -33,7 +36,7 @@ class ChatSearchControllerTest {
                 message(MessageRole.ASSISTANT, "all good"),
             )
 
-        assertEquals(listOf(0), controller.findMatches(messages, "check the logs"))
+        assertEquals(listOf(SearchMatch(0, 0)), controller.findMatches(messages, "check the logs"))
     }
 
     @Test
@@ -44,7 +47,7 @@ class ChatSearchControllerTest {
                 message(MessageRole.SYSTEM, "Approval requested: approve the terminal command"),
             )
 
-        assertEquals(listOf(0), controller.findMatches(messages, "approve"))
+        assertEquals(listOf(SearchMatch(0, 0)), controller.findMatches(messages, "approve"))
     }
 
     @Test
@@ -59,22 +62,58 @@ class ChatSearchControllerTest {
             )
 
         // Only the visible content is searchable — reasoning is invisible.
-        assertEquals(emptyList<Int>(), controller.findMatches(messages, "deployment"))
-        assertEquals(listOf(0), controller.findMatches(messages, "answer"))
+        assertEquals(emptyList<SearchMatch>(), controller.findMatches(messages, "deployment"))
+        assertEquals(listOf(SearchMatch(0, 12)), controller.findMatches(messages, "answer"))
     }
 
     @Test
     fun `matching is case insensitive`() {
         val messages = listOf(message(MessageRole.USER, "Deploy the API now"))
 
-        assertEquals(listOf(0), controller.findMatches(messages, "dEpLoY"))
+        assertEquals(listOf(SearchMatch(0, 0)), controller.findMatches(messages, "dEpLoY"))
+    }
+
+    @Test
+    fun `repeats the message index once per occurrence with each offset`() {
+        val messages = listOf(message(MessageRole.USER, "deploy deploy and deploy"))
+
+        // 3 hits in one message = 3 entries with their own character offsets.
+        assertEquals(
+            listOf(SearchMatch(0, 0), SearchMatch(0, 7), SearchMatch(0, 18)),
+            controller.findMatches(messages, "deploy"),
+        )
+    }
+
+    @Test
+    fun `counts occurrences across multiple messages`() {
+        val messages =
+            listOf(
+                message(MessageRole.USER, "deploy the api"),
+                message(MessageRole.ASSISTANT, "deploy deploy"),
+            )
+
+        assertEquals(
+            listOf(SearchMatch(0, 0), SearchMatch(1, 0), SearchMatch(1, 7)),
+            controller.findMatches(messages, "deploy"),
+        )
+    }
+
+    @Test
+    fun `regex special characters in the query are treated literally`() {
+        val messages = listOf(message(MessageRole.USER, "a+b c a+b"))
+
+        assertEquals(
+            listOf(SearchMatch(0, 0), SearchMatch(0, 6)),
+            controller.findMatches(messages, "a+b"),
+        )
+        assertEquals(emptyList<SearchMatch>(), controller.findMatches(messages, "a."))
     }
 
     @Test
     fun `blank query returns no matches`() {
         val messages = listOf(message(MessageRole.USER, "deploy"))
 
-        assertEquals(emptyList<Int>(), controller.findMatches(messages, " "))
+        assertEquals(emptyList<SearchMatch>(), controller.findMatches(messages, " "))
     }
 
     @Test

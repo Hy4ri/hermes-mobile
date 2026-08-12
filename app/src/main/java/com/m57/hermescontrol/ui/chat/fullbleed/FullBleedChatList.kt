@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +23,7 @@ import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
+import com.m57.hermescontrol.ui.chat.components.ChatScrollController
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import com.m57.hermescontrol.ui.chat.toolCallMilestones
@@ -50,6 +52,7 @@ fun FullBleedChatList(
     searchQuery: String,
     currentSearchMatchIndex: Int,
     searchMatchIndices: List<Int>,
+    searchMatchOffsets: List<Int>,
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
     maxToolCallsPerTurn: Int? = null,
@@ -57,6 +60,7 @@ fun FullBleedChatList(
     isLoadingOlder: Boolean,
     isDark: Boolean,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    scrollController: ChatScrollController,
     lastAnimatedMessageId: String?,
     onLastAnimatedMessageIdChange: (String?) -> Unit,
     viewModel: ChatViewModel,
@@ -83,6 +87,31 @@ fun FullBleedChatList(
             remember(messages, streamingMessage) {
                 groupIntoTurnsWithStreaming(messages, streamingMessage)
             }
+        // messageId → LazyColumn item index. The lazy list has EXTRA items
+        // vs the message list (reasoning hoists, tool rows), so search-match
+        // scrolling must resolve the lazy index, not use the message index.
+        val lazyIndexById =
+            remember(turns, isLoadingOlder) {
+                messageIdToLazyIndex(turns, leadingItems = if (isLoadingOlder) 1 else 0)
+            }
+
+        // Scroll the current search match into view, word-focused. Lives here
+        // (not in ChatLifecycleEffects) because only this composable knows
+        // the message-id → lazy-item-index mapping.
+        LaunchedEffect(isSearchActive, currentSearchMatchIndex, searchMatchIndices, searchMatchOffsets) {
+            if (isSearchActive &&
+                currentSearchMatchIndex >= 0 &&
+                currentSearchMatchIndex < searchMatchIndices.size
+            ) {
+                val messageIndex = searchMatchIndices[currentSearchMatchIndex]
+                if (messageIndex < 0 || messageIndex >= messages.size) return@LaunchedEffect
+                val lazyIndex = lazyIndexById[messages[messageIndex].id] ?: return@LaunchedEffect
+                val contentOffset = searchMatchOffsets.getOrElse(currentSearchMatchIndex) { 0 }
+                val contentLength = messages[messageIndex].content.length
+                scrollController.scrollToSearchMatch(lazyIndex, contentOffset, contentLength)
+            }
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),

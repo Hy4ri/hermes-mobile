@@ -32,9 +32,6 @@ fun ChatLifecycleEffects(
     errorMessage: String?,
     backgroundCompleteMessage: String?,
     openError: String?,
-    isSearchActive: Boolean,
-    currentSearchMatchIndex: Int,
-    searchMatchIndices: List<Int>,
     clarifyRequest: ClarifyUi?,
     sudoPrompt: SudoPromptUi?,
     secretPrompt: SecretPromptUi?,
@@ -133,18 +130,5 @@ fun ChatLifecycleEffects(
             onConfirm = viewModel::respondToSecret,
             onDismiss = viewModel::dismissSecret,
         )
-    }
-
-    // Scroll to current search match (serialized through the controller so it
-    // doesn't compete with auto-follow / FAB / send scrolls).
-    LaunchedEffect(isSearchActive, currentSearchMatchIndex, searchMatchIndices) {
-        if (isSearchActive &&
-            currentSearchMatchIndex >= 0 &&
-            currentSearchMatchIndex < searchMatchIndices.size &&
-            messages.isNotEmpty()
-        ) {
-            val targetIndex = searchMatchIndices[currentSearchMatchIndex]
-            scrollController.scrollToSearchMatch(targetIndex.coerceIn(0, messages.lastIndex))
-        }
     }
 }

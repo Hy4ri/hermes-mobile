@@ -269,6 +269,9 @@ data class ChatUiState(
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
     val searchMatchIndices: List<Int> = emptyList(),
+    // Parallel to searchMatchIndices: character offset of each occurrence
+    // within its message — lets the scroll land the actual word in view.
+    val searchMatchOffsets: List<Int> = emptyList(),
     val currentSearchMatchIndex: Int = -1,
     // Cached settings
     val typingEffectEnabled: Boolean = true,
@@ -2115,6 +2118,7 @@ class ChatViewModel(
                 isSearchActive = false,
                 searchQuery = "",
                 searchMatchIndices = emptyList(),
+                searchMatchOffsets = emptyList(),
                 currentSearchMatchIndex = -1,
                 showModelPicker = false,
                 modelPickerLoading = false,

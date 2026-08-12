@@ -88,3 +88,60 @@ fun groupIntoTurnsWithStreaming(
     }
     return turns
 }
+
+/**
+ * Map every visible chat message id to its LazyColumn item index in the
+ * full-bleed renderer.
+ *
+ * The lazy list does NOT have one item per message: each agent turn with a
+ * reasoning block emits an extra `reasoning-<id>` item BEFORE its prose, and
+ * tool rows / system events are items too. Scrolling a search match by raw
+ * message index therefore lands on the WRONG item whenever reasoning or tool
+ * rows precede the target — the classic "match is above/below the view" bug.
+ *
+ * Mirrors the item emission order in [FullBleedChatList] exactly:
+ * user turn → 1 item; agent turn → optional reasoning item, then one item per
+ * entry. [leadingItems] accounts for fixed items emitted before the turns
+ * (e.g. the `loading-older` spinner when paging).
+ *
+ * @return messageId → LazyColumn item index of the message's content item
+ *   (prose items for agent messages; user items for user messages).
+ */
+fun messageIdToLazyIndex(
+    turns: List<ChatTurn>,
+    leadingItems: Int = 0,
+): Map<String, Int> {
+    val map = mutableMapOf<String, Int>()
+    var itemIndex = leadingItems
+    turns.forEach { turn ->
+        when (turn) {
+            is ChatTurn.User -> {
+                map[turn.message.id] = itemIndex
+                itemIndex++
+            }
+
+            is ChatTurn.Agent -> {
+                val hasReasoning =
+                    turn.entries
+                        .filterIsInstance<AgentEntry.Prose>()
+                        .any { it.message.reasoningText.isNotBlank() }
+                if (hasReasoning) {
+                    // The reasoning-<id> hoist item occupies one slot.
+                    itemIndex++
+                }
+                turn.entries.forEach { entry ->
+                    when (entry) {
+                        is AgentEntry.Prose -> {
+                            map[entry.message.id] = itemIndex
+                            itemIndex++
+                        }
+
+                        is AgentEntry.ToolRow -> itemIndex++
+                        is AgentEntry.SystemEvent -> itemIndex++
+                    }
+                }
+            }
+        }
+    }
+    return map
+}

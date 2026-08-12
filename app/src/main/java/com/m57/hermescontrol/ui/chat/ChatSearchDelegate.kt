@@ -50,6 +50,7 @@ class ChatSearchDelegate(
                 it.copy(
                     searchQuery = query,
                     searchMatchIndices = emptyList(),
+                    searchMatchOffsets = emptyList(),
                     currentSearchMatchIndex = -1,
                 )
             }
@@ -72,14 +73,15 @@ class ChatSearchDelegate(
 
     private fun runSearch(query: String) {
         val messages = uiState.value.messages
-        val indices = searchController.findMatches(messages, query)
+        val matches = searchController.findMatches(messages, query)
 
         uiState.update {
             // Only update indices if the search query hasn't changed in the meantime
             if (it.searchQuery == query) {
                 it.copy(
-                    searchMatchIndices = indices,
-                    currentSearchMatchIndex = if (indices.isNotEmpty()) 0 else -1,
+                    searchMatchIndices = matches.map { m -> m.messageIndex },
+                    searchMatchOffsets = matches.map { m -> m.contentOffset },
+                    currentSearchMatchIndex = if (matches.isNotEmpty()) 0 else -1,
                 )
             } else {
                 it
@@ -107,6 +109,7 @@ class ChatSearchDelegate(
                 isSearchActive = false,
                 searchQuery = "",
                 searchMatchIndices = emptyList(),
+                searchMatchOffsets = emptyList(),
                 currentSearchMatchIndex = -1,
             )
         }

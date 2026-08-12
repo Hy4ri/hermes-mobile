@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import org.junit.Rule
@@ -54,11 +55,13 @@ class ReasoningCardTest {
 
         // "Show full" lifts the cap — must NOT crash the layout pass.
         composeTestRule.onNodeWithText("Show full").performClick()
-        composeTestRule.onNodeWithText("Show less").assertIsDisplayed()
+        // The card now grows taller than the viewport, so the toggle button
+        // sits below the fold — scroll it into view before asserting/clicking.
+        composeTestRule.onNodeWithText("Show less").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Show less").performClick()
 
         // And back down again.
-        composeTestRule.onNodeWithText("Show less").performClick()
-        composeTestRule.onNodeWithText("Show full").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Show full").performScrollTo().assertIsDisplayed()
     }
 
     @Test

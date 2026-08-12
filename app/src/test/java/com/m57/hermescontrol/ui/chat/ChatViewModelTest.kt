@@ -144,7 +144,7 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
-        every { HermesWsClient.sendMessage(any(), any(), any()) } answers {
+        every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
             reqCount++
             val id = "req-msg-$reqCount"
             arg<((String) -> Unit)?>(2)?.invoke(id)

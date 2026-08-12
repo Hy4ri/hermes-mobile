@@ -1456,10 +1456,32 @@ class ChatViewModel(
                 _uiState.update { it.copy(openHistoryRequested = true) }
             }
 
+            is SlashResult.QueuePrompt -> {
+                handleQueueCommand(command)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
         }
+    }
+
+    /**
+     * Queue a prompt to run after the current turn (backend contract
+     * `prompt.submit` `queued=true` — hermes-agent methods_prompt.py:147,
+     * _handle_busy_submit). The gateway then enqueues it as the next turn
+     * and NEVER redirects/interrupts the live turn, regardless of
+     * `display.busy_input_mode`. Intercepted client-side because the
+     * `command.dispatch` `queue` shim only echoes the text back as a plain
+     * submit, which loses the queued flag and hijacks the live turn.
+     */
+    private fun handleQueueCommand(command: String) {
+        val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+        if (arg.isBlank()) {
+            addAssistantMessage("usage: /queue <prompt>")
+            return
+        }
+        submitPrompt(arg, queued = true)
     }
 
     // ── Update from chat (issue #862) ────────────────────────────────────
@@ -1634,9 +1656,12 @@ class ChatViewModel(
     /**
      * Submits [text] as a prompt to the current session via WS, without
      * adding a duplicate user message. Used by [handleDispatchResult] when
-     * a slash command resolves to a normal user prompt (e.g. `/queue` → "help me").
+     * a slash command resolves to a normal user prompt (e.g. `/init` → "Scan this repo").
      */
-    private fun submitPrompt(text: String) {
+    private fun submitPrompt(
+        text: String,
+        queued: Boolean = false,
+    ) {
         if (text.isBlank()) return
         val sessionId = runtimeSessionId ?: return
         _uiState.update { it.copy(isAgentTyping = true) }
@@ -1645,6 +1670,7 @@ class ChatViewModel(
                 sessionId,
                 text,
                 onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
+                queued = queued,
             )
         }
     }

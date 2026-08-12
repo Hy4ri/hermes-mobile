@@ -31,6 +31,7 @@ class SlashCommandDispatcher {
             "/fork", "/branch" -> SlashResult.SessionBranch
             "/model" -> SlashResult.ModelSwitch
             "/update" -> SlashResult.Update
+            "/queue", "/q" -> SlashResult.QueuePrompt
             "/resume", "/history" -> SlashResult.OpenHistory
             else -> SlashResult.RpcDispatch
         }
@@ -80,4 +81,15 @@ sealed class SlashResult {
      * user picks a past session from history and resumes it from there.
      */
     data object OpenHistory : SlashResult()
+
+    /**
+     * Queue a prompt to run after the current turn. NOT command.dispatch —
+     * the backend's `queue` shim (methods_tools.py) only echoes the text back
+     * as a `send` payload that re-submits as a normal prompt, losing the
+     * queue semantics (a busy session then REDIRECTS the live turn instead —
+     * verified on-device). The ViewModel submits directly via `prompt.submit`
+     * with `queued=true`, which the gateway honors as "run after, never
+     * interrupt" regardless of `display.busy_input_mode`.
+     */
+    data object QueuePrompt : SlashResult()
 }

@@ -716,10 +716,21 @@ object HermesWsClient {
         sessionId: String,
         text: String,
         onSent: ((String) -> Unit)? = null,
+        queued: Boolean = false,
     ): String {
+        val params =
+            buildMap {
+                put("session_id", sessionId)
+                put("text", text)
+                // Explicit queue semantics: the gateway's busy-input policy
+                // forces "run after, never interrupt" when prompt.submit
+                // carries queued=true (hermes-agent methods_prompt.py
+                // _handle_busy_submit) — used by /queue.
+                if (queued) put("queued", true)
+            }
         return send(
             method = WsMethods.PROMPT_SUBMIT,
-            params = mapOf("session_id" to sessionId, "text" to text),
+            params = params,
             onSent = onSent,
         )
     }

@@ -108,7 +108,7 @@ class SlashCommandDispatchRpcTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
-        every { HermesWsClient.sendMessage(any(), any(), any()) } answers {
+        every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
             reqCount++
             val id = "req-msg-$reqCount"
             arg<((String) -> Unit)?>(2)?.invoke(id)
@@ -181,28 +181,94 @@ class SlashCommandDispatchRpcTest {
         }
 
     @Test
-    fun `slash command with args forwards arg separately`() =
+    fun `slash queue submits the arg with queued=true instead of command dispatch`() =
         runTest {
             val (vm, sessionId) = createViewModelWithSession()
 
             val methodCalls = mutableListOf<String>()
             val paramsCalls = mutableListOf<Map<String, Any>>()
+            val sentSession = slot<String>()
+            val sentText = slot<String>()
+            val sentQueued = slot<Boolean>()
             every {
                 HermesWsClient.request(capture(methodCalls), capture(paramsCalls), any())
             } answers {
                 CompletableDeferred<Any?>(Unit)
             }
+            every {
+                HermesWsClient.sendMessage(
+                    capture(sentSession),
+                    capture(sentText),
+                    any(),
+                    capture(sentQueued),
+                )
+            } answers {
+                "queued-msg-1"
+            }
 
             vm.sendMessage("/queue do the thing")
             advanceUntilIdle()
 
-            // Find the dispatch record (capture race — see the /help test).
-            val dispatchIndex = methodCalls.indexOf(WsMethods.COMMAND_DISPATCH)
-            assertTrue("expected COMMAND_DISPATCH, got $methodCalls", dispatchIndex >= 0)
-            val params = paramsCalls[dispatchIndex]
-            assertEquals("queue", params["name"])
-            assertEquals("do the thing", params["arg"])
-            assertEquals(sessionId, params["session_id"])
+            // /queue must NOT ride command.dispatch — the backend shim returns
+            // a "send" payload that re-submits WITHOUT the queued flag, and a
+            // busy session then redirects the live turn (verified on-device:
+            // {"status":"redirected"} while sleep 60 was running, message lost).
+            assertTrue(
+                "expected NO command.dispatch for /queue, got $methodCalls",
+                WsMethods.COMMAND_DISPATCH !in methodCalls,
+            )
+            assertEquals(sessionId, sentSession.captured)
+            assertEquals("do the thing", sentText.captured)
+            assertEquals(true, sentQueued.captured)
+        }
+
+    @Test
+    fun `slash queue with no arg shows usage and sends nothing`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+
+            val rpcMethods = mutableListOf<String>()
+            var sendCalls = 0
+            every {
+                HermesWsClient.request(capture(rpcMethods), any(), any())
+            } answers {
+                CompletableDeferred<Any?>(Unit)
+            }
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                sendCalls++
+                "queued-msg-1"
+            }
+
+            vm.sendMessage("/queue")
+            advanceUntilIdle()
+
+            val last = vm.uiState.value.messages.lastOrNull()
+            assertEquals("usage: /queue <prompt>", last?.content)
+            assertEquals(0, sendCalls)
+            assertTrue(
+                "expected NO command.dispatch for bare /queue, got $rpcMethods",
+                WsMethods.COMMAND_DISPATCH !in rpcMethods,
+            )
+        }
+
+    @Test
+    fun `slash q alias queues the arg with queued=true`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+
+            val sentText = slot<String>()
+            val sentQueued = slot<Boolean>()
+            every {
+                HermesWsClient.sendMessage(any(), capture(sentText), any(), capture(sentQueued))
+            } answers {
+                "queued-msg-1"
+            }
+
+            vm.sendMessage("/q hey there")
+            advanceUntilIdle()
+
+            assertEquals("hey there", sentText.captured)
+            assertEquals(true, sentQueued.captured)
         }
 
     @Test
@@ -521,7 +587,7 @@ class SlashCommandDispatchRpcTest {
             }
             // submitPrompt() forwards the returned prompt via wsClient.sendMessage.
             every {
-                HermesWsClient.sendMessage(any(), capture(sentText), any())
+                HermesWsClient.sendMessage(any(), capture(sentText), any(), any())
             } answers {
                 val id = "send-msg-1"
                 arg<((String) -> Unit)?>(2)?.invoke(id)

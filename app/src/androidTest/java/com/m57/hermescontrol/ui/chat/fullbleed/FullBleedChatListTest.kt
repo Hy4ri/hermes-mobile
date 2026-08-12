@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.ui.chat.ChatMessage
+import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.MessageRole
 import com.m57.hermescontrol.ui.chat.ToolStatus
@@ -53,11 +54,7 @@ class FullBleedChatListTest {
             FullBleedChatList(
                 messages = messages,
                 streamingMessage = streamingMessage,
-                isSearchActive = false,
-                searchQuery = "",
-                currentSearchMatchIndex = -1,
-                searchMatchIndices = emptyList(),
-                searchMatchOffsets = emptyList(),
+                searchState = ChatSearchState(),
                 typingEffectEnabled = false,
                 typingEffectDelayMs = 30,
                 isLoading = false,

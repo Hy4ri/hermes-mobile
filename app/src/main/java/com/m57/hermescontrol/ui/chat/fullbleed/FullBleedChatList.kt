@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.ui.chat.ChatBubble
 import com.m57.hermescontrol.ui.chat.ChatMessage
+import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
@@ -48,11 +49,7 @@ import com.m57.hermescontrol.ui.common.EmptyState
 fun FullBleedChatList(
     messages: List<ChatMessage>,
     streamingMessage: ChatMessage?,
-    isSearchActive: Boolean,
-    searchQuery: String,
-    currentSearchMatchIndex: Int,
-    searchMatchIndices: List<Int>,
-    searchMatchOffsets: List<Int>,
+    searchState: ChatSearchState,
     typingEffectEnabled: Boolean,
     typingEffectDelayMs: Int,
     maxToolCallsPerTurn: Int? = null,
@@ -94,28 +91,20 @@ fun FullBleedChatList(
             remember(turns, isLoadingOlder) {
                 messageIdToLazyIndex(turns, leadingItems = if (isLoadingOlder) 1 else 0)
             }
-        // O(1) per-item lookups: current match id + ids that contain a match.
-        // These stay as remember()s so a search-state change recomputes only
-        // these expressions, not the whole list body.
-        val currentMatchId = remember(isSearchActive, searchMatchIndices, currentSearchMatchIndex) {
-            if (isSearchActive) currentMatchMessageId(messages, searchMatchIndices, currentSearchMatchIndex) else null
-        }
-        val matchedIds = remember(messages, searchMatchIndices) {
-            matchedMessageIds(messages, searchMatchIndices)
-        }
 
         // Scroll the current search match into view, word-focused. Lives here
         // (not in ChatLifecycleEffects) because only this composable knows
-        // the message-id → lazy-item-index mapping.
-        LaunchedEffect(isSearchActive, currentSearchMatchIndex, searchMatchIndices, searchMatchOffsets) {
-            if (isSearchActive &&
-                currentSearchMatchIndex >= 0 &&
-                currentSearchMatchIndex < searchMatchIndices.size
+        // the message-id → lazy-item-index mapping. Reads search fields in
+        // the effect (not the body), so only this effect restarts on change.
+        LaunchedEffect(searchState.isActive, searchState.currentIndex, searchState.matchIndices, searchState.matchOffsets) {
+            if (searchState.isActive &&
+                searchState.currentIndex >= 0 &&
+                searchState.currentIndex < searchState.matchIndices.size
             ) {
-                val messageIndex = searchMatchIndices[currentSearchMatchIndex]
+                val messageIndex = searchState.matchIndices[searchState.currentIndex]
                 if (messageIndex < 0 || messageIndex >= messages.size) return@LaunchedEffect
                 val lazyIndex = lazyIndexById[messages[messageIndex].id] ?: return@LaunchedEffect
-                val contentOffset = searchMatchOffsets.getOrElse(currentSearchMatchIndex) { 0 }
+                val contentOffset = searchState.matchOffsets.getOrElse(searchState.currentIndex) { 0 }
                 val contentLength = messages[messageIndex].content.length
                 scrollController.scrollToSearchMatch(lazyIndex, contentOffset, contentLength)
             }
@@ -149,8 +138,10 @@ fun FullBleedChatList(
                             Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                 renderChatBubble(
                                     message = userMessage,
-                                    searchQuery = searchQuery,
-                                    isCurrentMatch = currentMatchId != null && currentMatchId == userMessage.id,
+                                    searchQuery = if (searchState.isActive) searchState.query else "",
+                                    isCurrentMatch =
+                                        searchState.currentMatchId != null &&
+                                            searchState.currentMatchId == userMessage.id,
                                     onOpenAttachment = viewModel::openAttachment,
                                     onSaveAttachment = onSaveAttachment,
                                     savingAttachmentPath = savingAttachmentPath,
@@ -215,13 +206,14 @@ fun FullBleedChatList(
                                                     // Highlight only bubbles that actually contain a match —
                                                     // the rest skip the highlight scan entirely.
                                                     searchQuery =
-                                                        if (isSearchActive && proseMessage.id in matchedIds) {
-                                                            searchQuery
+                                                        if (searchState.isActive && proseMessage.id in searchState.matchedIds) {
+                                                            searchState.query
                                                         } else {
                                                             ""
                                                         },
                                                     isCurrentMatch =
-                                                        currentMatchId != null && currentMatchId == proseMessage.id,
+                                                        searchState.currentMatchId != null &&
+                                                            searchState.currentMatchId == proseMessage.id,
                                                     showReasoning = !hoistedReasoning,
                                                     onOpenAttachment = viewModel::openAttachment,
                                                     onSaveAttachment = onSaveAttachment,

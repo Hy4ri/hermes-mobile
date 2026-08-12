@@ -2731,12 +2731,12 @@ class ChatViewModelTest {
             val viewModel = createViewModel()
             advanceUntilIdle()
 
-            assertFalse(viewModel.uiState.value.isSearchActive)
+            assertFalse(viewModel.searchState.isActive)
 
             viewModel.toggleSearch()
             advanceUntilIdle()
 
-            assertTrue(viewModel.uiState.value.isSearchActive)
+            assertTrue(viewModel.searchState.isActive)
 
             viewModel.setSearchQuery("test")
             advanceUntilIdle()
@@ -2744,8 +2744,8 @@ class ChatViewModelTest {
             viewModel.toggleSearch()
             advanceUntilIdle()
 
-            assertFalse(viewModel.uiState.value.isSearchActive)
-            assertEquals("", viewModel.uiState.value.searchQuery)
+            assertFalse(viewModel.searchState.isActive)
+            assertEquals("", viewModel.searchState.query)
         }
 
     @Test

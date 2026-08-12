@@ -7,6 +7,9 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -46,14 +49,19 @@ class ChatSearchDelegateTest {
             // Debounce window not closed yet — no scan has run.
             advanceTimeBy(149)
             runCurrent()
-            assertEquals(emptyList<Int>(), uiState.value.searchMatchIndices)
+            assertEquals(emptyList<Int>(), delegate.searchState.matchIndices)
 
             // Typing paused long enough — exactly one scan, for the final query.
             advanceTimeBy(1)
             runCurrent()
-            assertEquals(listOf(0), uiState.value.searchMatchIndices)
-            assertEquals(listOf(0), uiState.value.searchMatchOffsets)
-            assertEquals("alpha", uiState.value.searchQuery)
+            assertEquals(listOf(0), delegate.searchState.matchIndices)
+            assertEquals(listOf(0), delegate.searchState.matchOffsets)
+            assertEquals(1, delegate.searchState.matchTotal)
+            assertFalse(delegate.searchState.matchCapped)
+            assertEquals("alpha", delegate.searchState.query)
+            assertEquals(setOf("m0"), delegate.searchState.matchedIds)
+            assertEquals("m0", delegate.searchState.currentMatchId)
+            assertEquals(0, delegate.searchState.currentIndex)
         }
 
     @Test
@@ -76,8 +84,9 @@ class ChatSearchDelegateTest {
             runCurrent()
 
             // Only "beta" ever ran — a stale "alpha" scan must not land.
-            assertEquals(listOf(1), uiState.value.searchMatchIndices)
-            assertEquals("beta", uiState.value.searchQuery)
+            assertEquals(listOf(1), delegate.searchState.matchIndices)
+            assertEquals("beta", delegate.searchState.query)
+            assertEquals("m1", delegate.searchState.currentMatchId)
         }
 
     @Test
@@ -95,11 +104,68 @@ class ChatSearchDelegateTest {
             delegate.setSearchQuery("alpha")
             advanceTimeBy(150)
             runCurrent()
-            assertEquals(listOf(0), uiState.value.searchMatchIndices)
+            assertEquals(listOf(0), delegate.searchState.matchIndices)
 
             delegate.setSearchQuery("")
-            assertEquals(emptyList<Int>(), uiState.value.searchMatchIndices)
-            assertEquals(-1, uiState.value.currentSearchMatchIndex)
-            assertEquals("", uiState.value.searchQuery)
+            assertEquals(emptyList<Int>(), delegate.searchState.matchIndices)
+            assertEquals(-1, delegate.searchState.currentIndex)
+            assertNull(delegate.searchState.currentMatchId)
+            assertEquals("", delegate.searchState.query)
+        }
+
+    @Test
+    fun `navigation updates currentIndex and the current match id`() =
+        runTest {
+            val uiState = stateWith("alpha alpha alpha")
+            val delegate =
+                ChatSearchDelegate(
+                    scope = backgroundScope,
+                    uiState = uiState,
+                    dispatcher = StandardTestDispatcher(testScheduler),
+                    debounceMs = 150,
+                )
+
+            delegate.setSearchQuery("alpha")
+            advanceTimeBy(150)
+            runCurrent()
+            assertEquals(3, delegate.searchState.matchIndices.size)
+            assertEquals("m0", delegate.searchState.currentMatchId)
+
+            delegate.navigateSearchMatch(1)
+            assertEquals(1, delegate.searchState.currentIndex)
+            assertEquals("m0", delegate.searchState.currentMatchId)
+
+            delegate.navigateSearchMatch(-1)
+            assertEquals(0, delegate.searchState.currentIndex)
+        }
+
+    @Test
+    fun `clearSearch resets everything including matched sets`() =
+        runTest {
+            val uiState = stateWith("alpha one")
+            val delegate =
+                ChatSearchDelegate(
+                    scope = backgroundScope,
+                    uiState = uiState,
+                    dispatcher = StandardTestDispatcher(testScheduler),
+                    debounceMs = 150,
+                )
+
+            delegate.toggleSearch()
+            delegate.setSearchQuery("alpha")
+            advanceTimeBy(150)
+            runCurrent()
+            assertTrue(delegate.searchState.isActive)
+            assertEquals(setOf("m0"), delegate.searchState.matchedIds)
+
+            delegate.clearSearch()
+            assertFalse(delegate.searchState.isActive)
+            assertEquals("", delegate.searchState.query)
+            assertEquals(emptyList<Int>(), delegate.searchState.matchIndices)
+            assertEquals(0, delegate.searchState.matchTotal)
+            assertFalse(delegate.searchState.matchCapped)
+            assertEquals(-1, delegate.searchState.currentIndex)
+            assertEquals(emptySet<String>(), delegate.searchState.matchedIds)
+            assertNull(delegate.searchState.currentMatchId)
         }
 }

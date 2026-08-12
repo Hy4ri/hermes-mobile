@@ -135,6 +135,14 @@ class AuthManagerTest {
     }
 
     @Test
+    fun testGetAndSetLastKnownLatestTag() {
+        AuthManager.ensureDefaultProfile()
+        assertNull(AuthManager.getLastKnownLatestTag())
+        AuthManager.setLastKnownLatestTag("v1.22.0")
+        assertEquals("v1.22.0", AuthManager.getLastKnownLatestTag())
+    }
+
+    @Test
     fun testGetHostAndPortFromBaseUrl() {
         AuthManager.setBaseUrl("https://10.0.0.1:9090/")
         assertEquals("10.0.0.1", AuthManager.getHost())

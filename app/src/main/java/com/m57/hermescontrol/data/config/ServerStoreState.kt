@@ -28,4 +28,8 @@ data class ServerStoreState(
     // Null / mismatched with BuildConfig.VERSION_NAME → the About tab runs
     // its one-time check again (re-check on app version bump).
     val updateCheckDoneForVersion: String? = null,
+    // Latest release tag the silent check (issue #890) last saw. Persisted so
+    // a dismissed chat banner can return on a later launch without re-pinging
+    // GitHub (the once-per-version guard skips the check by then).
+    val lastKnownLatestTag: String? = null,
 )

@@ -6,7 +6,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.update.AppUpdateCache
 import com.m57.hermescontrol.data.update.AppUpdateChecker
+import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.UpdateInfo
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -63,9 +65,11 @@ class AppUpdateViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        AppUpdateCache.reset()
         mockkObject(AuthManager)
         every { AuthManager.getUpdateCheckDoneForVersion() } returns null
         every { AuthManager.setUpdateCheckDoneForVersion(any()) } returns Unit
+        every { AuthManager.setLastKnownLatestTag(any()) } returns Unit
 
         app = mockk(relaxed = true)
         every { app.cacheDir } returns File(System.getProperty("java.io.tmpdir"))
@@ -124,6 +128,30 @@ class AppUpdateViewModelTest {
             advanceUntilIdle()
 
             coVerify(exactly = 1) { checker.fetchLatestRelease() }
+        }
+
+    @Test
+    fun init_adoptsLaunchCheckResultWithoutNetwork() =
+        runTest {
+            // Issue #890: the launch check already ran for this version and
+            // found an update — the About tab must adopt it, not ping GitHub.
+            every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
+            AppUpdateCache.update(
+                AppUpdateState.UpdateAvailable(
+                    latestTag = "v1.22.0",
+                    apkUrl = "https://example.com/hermes-mobile-v1.22.0.apk",
+                    sizeBytes = 12345678L,
+                ),
+            )
+
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { checker.fetchLatestRelease() }
+            assertEquals(
+                AppUpdateState.UpdateAvailable("v1.22.0", "https://example.com/hermes-mobile-v1.22.0.apk", 12345678L),
+                vm.state.value,
+            )
         }
 
     // ── Manual check ────────────────────────────────────────────────────

@@ -648,4 +648,11 @@ object AuthManager {
     fun setUpdateCheckDoneForVersion(version: String) {
         serverStore.update { it.copy(updateCheckDoneForVersion = version) }
     }
+
+    /** Latest release tag the launch check (issue #890) persisted. */
+    fun getLastKnownLatestTag(): String? = serverStore.getLatestState().lastKnownLatestTag
+
+    fun setLastKnownLatestTag(tag: String) {
+        serverStore.update { it.copy(lastKnownLatestTag = tag) }
+    }
 }

@@ -983,6 +983,10 @@
     <string name="action_done">Done</string>
     <string name="action_close">Close</string>
 
+    <!-- Update notice banner (issue #890) -->
+    <string name="update_notice_banner_text">Hermes Mobile %1$s is available</string>
+    <string name="update_notice_banner_action">Update</string>
+
     <!-- Processes Screen (issue #532) -->
     <string name="processes_empty_title">No running processes</string>
     <string name="processes_empty_desc">Background processes for this session will appear here.</string>

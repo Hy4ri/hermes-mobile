@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.ui.settings.AppUpdateState
+import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.ui.settings.InfoRow
 import com.m57.hermescontrol.ui.settings.SectionCard
 

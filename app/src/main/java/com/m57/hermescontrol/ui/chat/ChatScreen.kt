@@ -77,8 +77,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.HistoryScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.SettingsAbout
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.update.AppUpdateCache
+import com.m57.hermescontrol.data.update.AppUpdateState
+import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -102,6 +106,7 @@ import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.UpdateNoticeBanner
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -516,6 +521,25 @@ fun ChatScreen(
                     onFix = { NavigationController.navigateTo(com.m57.hermescontrol.ProvidersScreen) },
                     onDismiss = { HermesWsClient.clearCredentialWarning() },
                 )
+            }
+
+            // Issue #890: launch update check — non-blocking banner when a
+            // newer release exists. "Update" jumps to the About-tab install
+            // flow; "Later" dismisses for the session (it returns next launch
+            // via the persisted latest tag). Release-only builds
+            // (UpdateNoticeManager.enabled = !BuildConfig.DEBUG).
+            val updateNotice by AppUpdateCache.state.collectAsStateWithLifecycle()
+            if (UpdateNoticeManager.enabled && !AppUpdateCache.dismissed) {
+                val noticeTag =
+                    (updateNotice as? AppUpdateState.UpdateAvailable)?.latestTag
+                        ?: UpdateNoticeManager.noticeTag()
+                if (noticeTag != null) {
+                    UpdateNoticeBanner(
+                        latestTag = noticeTag,
+                        onUpdate = { NavigationController.navigateTo(SettingsAbout) },
+                        onDismiss = { AppUpdateCache.dismiss() },
+                    )
+                }
             }
 
             AnimatedVisibility(

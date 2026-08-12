@@ -8,8 +8,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.update.AppUpdateCache
 import com.m57.hermescontrol.data.update.AppUpdateChecker
+import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.isNewerVersion
+import com.m57.hermescontrol.data.update.releaseTag
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,36 +21,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
-
-/** UI state of the About-tab in-app updater (issue #867). */
-sealed interface AppUpdateState {
-    /** Nothing shown yet (no check run in this session). */
-    data object Idle : AppUpdateState
-
-    /** A check is in flight. */
-    data object Checking : AppUpdateState
-
-    /** Latest release equals the installed version. */
-    data class UpToDate(val latestTag: String) : AppUpdateState
-
-    /** A newer release with an APK asset exists. */
-    data class UpdateAvailable(
-        val latestTag: String,
-        val apkUrl: String,
-        val sizeBytes: Long,
-    ) : AppUpdateState
-
-    /** APK download in progress; [progress] is 0..1. */
-    data class Downloading(val progress: Float) : AppUpdateState
-
-    /** Download finished and the system package installer was launched. */
-    data class Installing(val latestTag: String) : AppUpdateState
-
-    /** Install-from-unknown-sources not granted for this app yet. */
-    data object NeedsUnknownSourcesPermission : AppUpdateState
-
-    data class Error(val message: String) : AppUpdateState
-}
 
 /**
  * Drives the in-app self-update flow (issue #867): check the GitHub
@@ -76,6 +49,14 @@ class AppUpdateViewModel(
         // on every visit.
         if (AuthManager.getUpdateCheckDoneForVersion() != currentVersion) {
             checkForUpdate()
+        } else {
+            // Issue #890: the launch check (UpdateNoticeManager) already ran
+            // for this version — adopt its result instead of pinging GitHub
+            // again, so the About tab agrees with the chat banner.
+            val cached = AppUpdateCache.state.value
+            if (cached is AppUpdateState.UpdateAvailable || cached is AppUpdateState.UpToDate) {
+                _state.value = cached
+            }
         }
     }
 
@@ -115,6 +96,9 @@ class AppUpdateViewModel(
                 } else {
                     AppUpdateState.UpToDate(latestTag = info.tagName)
                 }
+            // Keep the launch notice (issue #890) in sync with manual checks.
+            AppUpdateCache.update(_state.value)
+            _state.value.releaseTag()?.let { AuthManager.setLastKnownLatestTag(it) }
         }
     }
 

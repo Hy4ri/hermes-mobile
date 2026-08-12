@@ -9,6 +9,7 @@ import coil.decode.ImageDecoderDecoder
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
+import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.ui.analytics.AnalyticsPreloader
 
 class HermesControlApp :
@@ -25,6 +26,9 @@ class HermesControlApp :
         // so the tab renders instantly when opened (the usage endpoint is slow on a
         // cold backend). Fire-and-forget; never blocks UI startup.
         AnalyticsPreloader.preload(this)
+        // Issue #890: silent once-per-version update check right after launch,
+        // so the chat screen can show an update banner without user interaction.
+        UpdateNoticeManager.checkOnLaunch()
     }
 
     override fun newImageLoader(): ImageLoader =

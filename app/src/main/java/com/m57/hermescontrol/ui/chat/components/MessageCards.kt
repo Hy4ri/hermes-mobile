@@ -73,7 +73,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
@@ -176,19 +175,26 @@ fun ReasoningCard(
             }
             AnimatedVisibility(visible = expanded) {
                 Column {
-                    Column(
+                    Text(
+                        text = reasoningText,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier =
                             Modifier
-                                .heightIn(max = if (fullHeight) Dp.Unspecified else capHeight)
-                                .verticalScroll(scrollState),
-                    ) {
-                        Text(
-                            text = reasoningText,
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
+                                .padding(top = 4.dp)
+                                .then(
+                                    if (!fullHeight) {
+                                        // Capped at ~40% of the screen with internal scroll.
+                                        Modifier.heightIn(max = capHeight).verticalScroll(scrollState)
+                                    } else {
+                                        // "Show full": render the whole trace at natural height.
+                                        // A scrollable must NEVER be measured with an infinite
+                                        // max height — inside a LazyColumn item (unbounded main
+                                        // axis) that combination throws IllegalStateException.
+                                        Modifier
+                                    },
+                                ),
+                    )
                     if (isStreaming) {
                         ReasoningPulsingDot(modifier = Modifier.padding(top = 6.dp))
                     }

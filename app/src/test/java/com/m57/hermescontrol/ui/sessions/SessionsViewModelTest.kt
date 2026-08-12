@@ -1,7 +1,11 @@
 package com.m57.hermescontrol.ui.sessions
 
+import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -19,6 +23,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionsViewModelTest {
@@ -89,5 +94,67 @@ class SessionsViewModelTest {
             "Find the deployment logs",
             cleanSearchSnippet("{\"role\":\"user\",\"content\":\">>>Find<<< the deployment logs\"}"),
         )
+    }
+
+    @Test
+    fun `loadMore appends the next page and dedupes overlapping ids`() {
+        val vm = createViewModel()
+
+        // Page 1: 2 sessions of 3 total — hasMore stays true.
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions = listOf(SessionInfo("s-1"), SessionInfo("s-2")),
+                    total = 3,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("s-1", "s-2"), vm.uiState.value.sessions.map { it.id })
+        assertTrue(vm.uiState.value.hasMore)
+        assertFalse(vm.uiState.value.isLoadingMore)
+
+        // Page 2 overlaps page 1 (offset churn: a new session landed on top
+        // between loads) — the duplicate id must not double-append.
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions = listOf(SessionInfo("s-3"), SessionInfo("s-2")),
+                    total = 3,
+                ),
+            )
+        vm.loadMore()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("s-1", "s-2", "s-3"), vm.uiState.value.sessions.map { it.id })
+        assertEquals(3, vm.uiState.value.total)
+        assertFalse(vm.uiState.value.hasMore)
+        assertFalse(vm.uiState.value.isLoadingMore)
+    }
+
+    @Test
+    fun `loadMore is a no-op while a load is already running`() {
+        val vm = createViewModel()
+
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions = listOf(SessionInfo("s-1")),
+                    total = 2,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Fire two loadMore calls back-to-back before the dispatcher runs: the
+        // first sets isLoadingMore=true synchronously, the second must be dropped.
+        vm.loadMore()
+        vm.loadMore()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // loadSessions (1) + exactly one loadMore (1) = 2 API hits total.
+        coVerify(exactly = 2) { mockApi.getSessions(any(), any(), any()) }
+        assertEquals(listOf("s-1"), vm.uiState.value.sessions.map { it.id })
+        assertFalse(vm.uiState.value.isLoadingMore)
     }
 }

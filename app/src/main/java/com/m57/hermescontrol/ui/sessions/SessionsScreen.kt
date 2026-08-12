@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -64,6 +65,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -117,6 +119,12 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.abs
+
+/**
+ * Auto-load the next history page when the user scrolls to within this many
+ * items of the end — a pre-load buffer so paging feels continuous.
+ */
+private const val AUTO_LOAD_THRESHOLD = 6
 
 /**
  * Maps a session source string to a Material icon for visual identification.
@@ -747,7 +755,32 @@ fun SessionsScreen(
                             }
 
                             // ── Session list ────────────────────────────────────
+                            val listState = rememberLazyListState()
+                            // Fluid infinite scroll: once the user reaches within
+                            // AUTO_LOAD_THRESHOLD items of the end, pull the next
+                            // page automatically. Driven by real scroll position
+                            // (layoutInfo is snapshot state), so it recomputes on
+                            // every scroll — not a frozen first-composition read.
+                            val nearListEnd by remember {
+                                derivedStateOf {
+                                    val info = listState.layoutInfo
+                                    val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+                                    lastVisible >= 0 &&
+                                        lastVisible >= info.totalItemsCount - AUTO_LOAD_THRESHOLD
+                                }
+                            }
+                            LaunchedEffect(
+                                nearListEnd,
+                                state.isLoadingMore,
+                                state.hasMore,
+                                state.isSearchMode,
+                            ) {
+                                if (nearListEnd && !state.isLoadingMore && state.hasMore && !state.isSearchMode) {
+                                    viewModel.loadMore()
+                                }
+                            }
                             LazyColumn(
+                                state = listState,
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = listPadding,
                                 verticalArrangement = listItemSpacing,

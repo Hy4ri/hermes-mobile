@@ -120,9 +120,12 @@ class SessionsViewModel :
         )
     }
 
-    /** Page size sent to the server — matches the default the gateway uses. */
+    /**
+     * Page size sent to the server. Matches the desktop sidebar's
+     * SIDEBAR_SESSIONS_PAGE_SIZE (50); the backend caps `limit` at 100.
+     */
     private companion object {
-        const val PAGE_SIZE = 20
+        const val PAGE_SIZE = 50
         const val SEARCH_DEBOUNCE_MS = 300L
     }
 
@@ -186,7 +189,11 @@ class SessionsViewModel :
                     _uiState.update {
                         it.copy(
                             isLoadingMore = false,
-                            sessions = it.sessions + data.sessions,
+                            // distinctBy guards offset-pagination churn: if a new
+                            // session lands on top between page loads, offsets
+                            // shift and the next page can repeat an id we already
+                            // have — LazyColumn would crash on the duplicate key.
+                            sessions = (it.sessions + data.sessions).distinctBy { s -> s.id },
                             total = data.total,
                         )
                     }

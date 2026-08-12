@@ -273,6 +273,9 @@ data class ChatUiState(
     // within its message — lets the scroll land the actual word in view.
     val searchMatchOffsets: List<Int> = emptyList(),
     val currentSearchMatchIndex: Int = -1,
+    // Exact total before the 500-entry cap; capped=true renders the counter as `N+`.
+    val searchMatchTotal: Int = 0,
+    val searchMatchCapped: Boolean = false,
     // Cached settings
     val typingEffectEnabled: Boolean = true,
     val typingEffectDelayMs: Int = 30,
@@ -2120,6 +2123,8 @@ class ChatViewModel(
                 searchMatchIndices = emptyList(),
                 searchMatchOffsets = emptyList(),
                 currentSearchMatchIndex = -1,
+                searchMatchTotal = 0,
+                searchMatchCapped = false,
                 showModelPicker = false,
                 modelPickerLoading = false,
                 currentSessionModel = null,

@@ -10,6 +10,7 @@ import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
@@ -103,9 +104,13 @@ class SettingsViewModel(
     }
 
     fun selectProfile(profileId: String?) {
-        AuthManager.setSelectedProfileId(profileId)
-        viewModelScope.launch(ioDispatcher) { loadSettings() }
-        ApiClient.rebuild()
+        viewModelScope.launch(ioDispatcher) {
+            // The coordinator re-homes EVERYTHING: selection + Retrofit +
+            // WebSocket re-dial, so chat doesn't stay glued to the previous
+            // server (issue: split-brain after connection-profile switch).
+            ProfileSwitchCoordinator.switchConnectionProfile(profileId)
+            loadSettings()
+        }
     }
 
     fun deleteProfile(profileId: String) {
@@ -114,14 +119,25 @@ class SettingsViewModel(
         AuthManager.setProfileToken(profileId, null)
         // Never leave selection null (issue #478): if the deleted profile was selected,
         // fall back to the default profile instead of clearing selection.
-        if (AuthManager.getSelectedProfileId() == profileId) {
-            if (updatedProfiles.none { it.id == AuthManager.DEFAULT_PROFILE_ID }) {
-                AuthManager.ensureDefaultProfile()
+        val reselectDefault =
+            if (AuthManager.getSelectedProfileId() == profileId) {
+                if (updatedProfiles.none { it.id == AuthManager.DEFAULT_PROFILE_ID }) {
+                    AuthManager.ensureDefaultProfile()
+                }
+                true
+            } else {
+                false
             }
-            AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID)
+        viewModelScope.launch(ioDispatcher) {
+            if (reselectDefault) {
+                // Same re-home as a manual switch: the WebSocket must leave
+                // the deleted server too, or chat keeps its stale socket.
+                ProfileSwitchCoordinator.switchConnectionProfile(AuthManager.DEFAULT_PROFILE_ID)
+            } else {
+                ApiClient.rebuild()
+            }
+            loadSettings()
         }
-        viewModelScope.launch(ioDispatcher) { loadSettings() }
-        ApiClient.rebuild()
     }
 
     // ── Profile add/edit dialog ──────────────────────────────────────────

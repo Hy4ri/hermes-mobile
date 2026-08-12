@@ -142,6 +142,32 @@ class AuthManagerTest {
     }
 
     @Test
+    fun testSetSelectedProfileId_refreshesBaseUrlFlow() {
+        AuthManager.ensureDefaultProfile()
+        AuthManager.setBaseUrl("http://10.0.0.1:9119/")
+        AuthManager.saveConnectionProfiles(
+            listOf(
+                ConnectionProfile(
+                    id = AuthManager.DEFAULT_PROFILE_ID,
+                    name = "Default",
+                    baseUrl = "http://10.0.0.1:9119/",
+                ),
+                ConnectionProfile(
+                    id = "prof-2",
+                    name = "Home",
+                    baseUrl = "http://10.0.0.2:9220/",
+                ),
+            ),
+        )
+
+        AuthManager.setSelectedProfileId("prof-2")
+
+        // contextFlow consumers must see the NEW server's URL after a
+        // connection-profile switch, not the previous one (split-brain fix).
+        assertEquals("http://10.0.0.2:9220/", AuthManager.baseUrlFlow.value)
+    }
+
+    @Test
     fun testGetAndSetAutoReconnect() {
         AuthManager.setAutoReconnect(false)
         assertEquals(false, AuthManager.isAutoReconnect())

@@ -113,5 +113,48 @@ class ProfileSwitchCoordinatorTest {
             verify(exactly = 0) { HermesWsClient.connect() }
         }
 
+    @Test
+    fun `connection switch re-homes selection retrofit and socket in order`() =
+        runTest {
+            every { AuthManager.setSelectedProfileId(any()) } returns Unit
+            every { ApiClient.rebuild() } returns Unit
+            coEvery { AuthManager.syncCookieStoreForProfile(any()) } returns Unit
+
+            ProfileSwitchCoordinator.switchConnectionProfile("prof-2")
+
+            // Load-bearing order: selection persists FIRST (token cache +
+            // cookie scope follow), Retrofit re-points, the cookie store swap
+            // is AWAITED (a racing dial mints the ticket with the previous
+            // server's cookie → 401 → dead socket), then the socket re-dials
+            // — so chat's wipe (via the broadcast) lands before the new
+            // gateway's gateway.ready auto-creates the fresh session.
+            coVerify(ordering = Ordering.SEQUENCE) {
+                AuthManager.setSelectedProfileId("prof-2")
+                ApiClient.rebuild()
+                AuthManager.syncCookieStoreForProfile("prof-2")
+                HermesWsClient.disconnect()
+                HermesWsClient.connect()
+            }
+        }
+
+    @Test
+    fun `connection switch broadcasts so chat wipes before the re-dial`() =
+        runTest {
+            every { AuthManager.setSelectedProfileId(any()) } returns Unit
+            every { ApiClient.rebuild() } returns Unit
+            coEvery { AuthManager.syncCookieStoreForProfile(any()) } returns Unit
+            // Subscribe BEFORE the switch — exactly how ChatViewModel does it.
+            val received = Channel<String>(Channel.UNLIMITED)
+            backgroundScope.launch {
+                ProfileSwitchCoordinator.connectionSwitched.collect { received.send(it) }
+            }
+            runCurrent()
+
+            ProfileSwitchCoordinator.switchConnectionProfile("prof-2")
+            runCurrent()
+
+            assertEquals("prof-2", received.tryReceive().getOrNull())
+        }
+
     private fun <T> errorResponse(code: Int): Response<T> = Response.error(code, "{}".toResponseBody(null))
 }

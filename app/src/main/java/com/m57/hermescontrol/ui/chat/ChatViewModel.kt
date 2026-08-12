@@ -576,6 +576,16 @@ class ChatViewModel(
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
                 }
         }
+        // Same wipe when the CONNECTION profile changes (different server):
+        // without it, gateway.ready on the re-dialed socket tries to resume
+        // the OLD server's session on the NEW server and fails (split-brain
+        // after connection-profile switch, reproduced live 2026-08-12).
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.connectionSwitched
+                .collect { _ ->
+                    resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
+                }
+        }
         // Slash-command usage ranking (issue #865): mirror the local usage
         // counts into state so the autocomplete can surface most-used
         // commands first. Best-effort — the store never throws.

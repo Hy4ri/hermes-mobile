@@ -106,6 +106,7 @@ class ChatUpdateCommandTest {
         // collectors park harmlessly.
         mockkObject(ProfileSwitchCoordinator)
         every { ProfileSwitchCoordinator.switched } returns MutableSharedFlow<String>()
+        every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
 
         every { HermesWsClient.send(any(), any(), any()) } answers {
             reqCount++

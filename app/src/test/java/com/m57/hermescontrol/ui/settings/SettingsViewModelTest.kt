@@ -3,8 +3,11 @@ package com.m57.hermescontrol.ui.settings
 import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.theme.ThemePreset
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
@@ -84,7 +87,15 @@ class SettingsViewModelTest {
         every { AuthManager.getProfileToken(any()) } returns null
         every { AuthManager.ensureDefaultProfile() } returns Unit
 
-        // Ensure ApiClient.rebuild() is stubbed (used by selectProfile)
+        // selectProfile/deleteProfile route the switch through the coordinator
+        // (selection + Retrofit + WebSocket re-dial). Mirror the selection
+        // side-effect like the real coordinator's setSelectedProfileId does,
+        // so loadSettings() observes the new selection.
+        mockkObject(ProfileSwitchCoordinator)
+        coEvery { ProfileSwitchCoordinator.switchConnectionProfile(any()) } answers {
+            storedSelectedProfileId = firstArg()
+            Unit
+        }
         every { ApiClient.rebuild() } returns Unit
     }
 
@@ -158,8 +169,7 @@ class SettingsViewModelTest {
         viewModel.selectProfile("prof-2")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        verify { AuthManager.setSelectedProfileId("prof-2") }
-        verify { ApiClient.rebuild() }
+        coVerify { ProfileSwitchCoordinator.switchConnectionProfile("prof-2") }
         assertEquals("prof-2", viewModel.uiState.value.selectedProfileId)
         assertEquals("Home", viewModel.uiState.value.renameProfileName)
     }
@@ -174,8 +184,7 @@ class SettingsViewModelTest {
         viewModel.selectProfile(AuthManager.DEFAULT_PROFILE_ID)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        verify { AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID) }
-        verify { ApiClient.rebuild() }
+        coVerify { ProfileSwitchCoordinator.switchConnectionProfile(AuthManager.DEFAULT_PROFILE_ID) }
         assertEquals(AuthManager.DEFAULT_PROFILE_ID, viewModel.uiState.value.selectedProfileId)
     }
 
@@ -187,11 +196,13 @@ class SettingsViewModelTest {
         val viewModel = createViewModel()
 
         viewModel.deleteProfile("prof-1")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         verify { AuthManager.saveConnectionProfiles(any()) }
         verify { AuthManager.setProfileToken("prof-1", null) }
-        verify { AuthManager.setSelectedProfileId(AuthManager.DEFAULT_PROFILE_ID) }
-        verify { ApiClient.rebuild() }
+        // The deleted profile was selected — the fallback switch re-homes
+        // everything (selection + Retrofit + WebSocket) to default.
+        coVerify { ProfileSwitchCoordinator.switchConnectionProfile(AuthManager.DEFAULT_PROFILE_ID) }
     }
 
     @Test
@@ -202,11 +213,13 @@ class SettingsViewModelTest {
         val viewModel = createViewModel()
 
         viewModel.deleteProfile("prof-2")
+        testDispatcher.scheduler.advanceUntilIdle()
 
         verify { AuthManager.saveConnectionProfiles(any()) }
         verify { AuthManager.setProfileToken("prof-2", null) }
         // Selected profile (prof-1) was NOT deleted — should NOT change selection
         verify(exactly = 0) { AuthManager.setSelectedProfileId(any()) }
+        coVerify(exactly = 0) { ProfileSwitchCoordinator.switchConnectionProfile(any()) }
         verify { ApiClient.rebuild() }
     }
 

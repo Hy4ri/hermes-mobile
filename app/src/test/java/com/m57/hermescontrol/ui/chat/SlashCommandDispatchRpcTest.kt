@@ -84,6 +84,7 @@ class SlashCommandDispatchRpcTest {
         // pattern) so the collectors park harmlessly.
         mockkObject(ProfileSwitchCoordinator)
         every { ProfileSwitchCoordinator.switched } returns MutableSharedFlow<String>()
+        every { ProfileSwitchCoordinator.connectionSwitched } returns MutableSharedFlow<String>()
 
         app = mockk(relaxed = true)
         fakeRepo = FakeChatPersistenceRepository()

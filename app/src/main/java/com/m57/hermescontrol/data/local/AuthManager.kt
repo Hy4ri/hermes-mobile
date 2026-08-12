@@ -382,6 +382,11 @@ object AuthManager {
             ActiveSessionHolder.clear()
         }
         serverStore.update { it.copy(selectedProfileId = id) }
+        // Keep contextFlow truthful: the base URL resolves per selected
+        // profile, so a connection-profile switch must re-emit the NEW
+        // server's URL (previously stale — reactive consumers saw the old
+        // server's URL after a switch).
+        _baseUrlFlow.value = serverStore.getLatestState().resolvedBaseUrl
         _selectedProfileFlow.value = id
         synchronized(this) {
             tokenInitialized = false
@@ -416,7 +421,17 @@ object AuthManager {
     private fun normalizedProfileId(profileId: String?): String =
         profileId?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
 
-    private suspend fun syncCookieStoreForProfile(profileId: String?) {
+    /**
+     * Swaps the cookie jar's ACTIVE store to the given profile's. Idempotent
+     * (no-op when the store is already active). Suspends because switching
+     * store reads/writes the encrypted prefs.
+     *
+     * Internal so the switch coordinator can AWAIT the swap before re-dialing
+     * the WebSocket — a dial that races it mints the WS ticket with the
+     * PREVIOUS server's cookie → 401 → dead socket (split-brain follow-up,
+     * reproduced live 2026-08-12).
+     */
+    internal suspend fun syncCookieStoreForProfile(profileId: String?) {
         if (!CookieManager.isInitialized()) return
         val normalizedId = normalizedProfileId(profileId)
         if (CookieManager.cookieJar.currentServer() != normalizedId) {
@@ -456,6 +471,7 @@ object AuthManager {
             appScope = null
         }
         _activeProfileId.value = null
+        _baseUrlFlow.value = ""
     }
 
     fun getToken(): String? {

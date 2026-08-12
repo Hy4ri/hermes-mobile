@@ -34,6 +34,9 @@ object ProfileSwitchCoordinator {
     private val _switched = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val switched: SharedFlow<String> = _switched.asSharedFlow()
 
+    private val _connectionSwitched = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val connectionSwitched: SharedFlow<String> = _connectionSwitched.asSharedFlow()
+
     suspend fun switchProfile(name: String): NetworkResult<Unit> {
         val result =
             withContext(Dispatchers.IO) {
@@ -52,5 +55,41 @@ object ProfileSwitchCoordinator {
             HermesWsClient.connect()
         }
         return result
+    }
+
+    /**
+     * Switches the CONNECTION profile — which server the app talks to (e.g.
+     * LAN "default" vs a Tailscale host). Unlike [switchProfile] (which only
+     * re-scopes the SERVER-side Hermes profile over the same socket), this
+     * re-points Retrofit AND re-dials the WebSocket, because the socket stays
+     * glued to the old server otherwise: after a switch every REST tab talks
+     * to the new server while chat keeps streaming from the old gateway
+     * (split-brain reproduced live 2026-08-12 on the hyari emulator).
+     *
+     * Order matters:
+     *  1. Persist the LOCAL selection — the token cache, cookie scope and
+     *     [AuthManager.contextFlow] re-home to the new profile.
+     *  2. Rebuild Retrofit so REST targets the new server.
+     *  3. Emit [connectionSwitched] BEFORE the socket re-dial, so chat wipes
+     *     its stale conversation first; the re-dialed socket then delivers
+     *     gateway.ready → handleGatewayReady auto-creates a FRESH session on
+     *     the new server (desktop requestFreshSession parity).
+     *  4. Re-dial the WebSocket off the main thread (the ticket mint does
+     *     blocking I/O — NetworkOnMainThreadException otherwise).
+     */
+    suspend fun switchConnectionProfile(profileId: String?) {
+        AuthManager.setSelectedProfileId(profileId)
+        ApiClient.rebuild()
+        _connectionSwitched.emit(profileId.orEmpty())
+        withContext(Dispatchers.IO) {
+            // The WS ticket mint reads the cookie jar's ACTIVE store; the
+            // selection change swaps that store asynchronously, so a dial
+            // that races it mints with the PREVIOUS server's cookie → 401 →
+            // aborted socket with no retry. Await the swap before dialing
+            // (idempotent no-op when it already landed).
+            AuthManager.syncCookieStoreForProfile(profileId)
+            HermesWsClient.disconnect()
+            HermesWsClient.connect()
+        }
     }
 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -199,7 +200,17 @@ internal fun SettingsBehaviorPage(
 @Composable
 internal fun SettingsAboutPage(
     onBack: () -> Unit,
-    viewModel: AppUpdateViewModel = viewModel(),
+    viewModel: AppUpdateViewModel =
+        viewModel {
+            val app =
+                this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+                    ?: error("Application not available")
+            // Explicit factory lambda: the default AndroidViewModelFactory
+            // resolves ctors via reflection, which cannot see Kotlin
+            // default-arg synthetic constructors — opening About crashed with
+            // NoSuchMethodException AppUpdateViewModel.<init>(Application).
+            AppUpdateViewModel(app)
+        },
 ) {
     val updateState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current

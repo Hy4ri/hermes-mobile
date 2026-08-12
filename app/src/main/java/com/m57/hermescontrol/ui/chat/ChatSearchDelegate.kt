@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -19,12 +20,16 @@ import kotlinx.coroutines.launch
  * @param dispatcher The [CoroutineDispatcher] used for the (CPU-bound) search
  *   work. Defaults to [Dispatchers.Default] — the original behavior — but can
  *   be injected to reuse a caller's context or customize per environment.
+ * @param debounceMs How long to wait after the last keystroke before running
+ *   the scan. Coalesces fast typing into one search instead of one full scan
+ *   per character.
  */
 class ChatSearchDelegate(
     private val scope: CoroutineScope,
     private val uiState: MutableStateFlow<ChatUiState>,
     private val searchController: ChatSearchController = ChatSearchController(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val debounceMs: Long = SEARCH_DEBOUNCE_MS,
 ) {
     private var searchJob: Job? = null
 
@@ -51,12 +56,18 @@ class ChatSearchDelegate(
             return
         }
 
-        // Keep local state in sync immediately so UI feels responsive.
+        // Keep local state in sync immediately so UI feels responsive, then
+        // debounce: cancel any pending scan and only run one after typing
+        // pauses for debounceMs (fast typing = one scan, not one per char).
         uiState.update {
             it.copy(searchQuery = query)
         }
 
-        searchJob = scope.launch(dispatcher) { runSearch(query) }
+        searchJob =
+            scope.launch(dispatcher) {
+                delay(debounceMs)
+                runSearch(query)
+            }
     }
 
     private fun runSearch(query: String) {
@@ -99,5 +110,10 @@ class ChatSearchDelegate(
                 currentSearchMatchIndex = -1,
             )
         }
+    }
+
+    private companion object {
+        /** Typing pause (ms) before a search scan runs. */
+        const val SEARCH_DEBOUNCE_MS = 150L
     }
 }

@@ -7,7 +7,16 @@ package com.m57.hermescontrol.ui.chat
  */
 class ChatSearchController {
     /**
-     * Find all message indices where [query] appears in the content.
+     * Find all message indices where [query] appears in the message's VISIBLE
+     * text — user bubbles and agent prose only.
+     *
+     * Tool rows, system events, and reasoning text are excluded:
+     * - they are not visible prose the user is looking for, so matches there
+     *   were invisible (nothing highlighted) yet still navigated/scrolled to
+     * - tool payloads dominate the chat's byte weight, so scanning them made
+     *   search slow on long sessions
+     * Reasoning lives in [ChatMessage.reasoningText] (not `content`), so it
+     * was never matched — this keeps it that way explicitly.
      */
     fun findMatches(
         messages: List<ChatMessage>,
@@ -15,7 +24,9 @@ class ChatSearchController {
     ): List<Int> {
         if (query.isBlank()) return emptyList()
         return messages.indices.filter { idx ->
-            messages[idx].content.contains(query, ignoreCase = true)
+            val message = messages[idx]
+            (message.role == MessageRole.USER || message.role == MessageRole.ASSISTANT) &&
+                message.content.contains(query, ignoreCase = true)
         }
     }
 

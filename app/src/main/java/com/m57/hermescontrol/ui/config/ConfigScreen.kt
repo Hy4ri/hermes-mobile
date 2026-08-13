@@ -1,19 +1,25 @@
 package com.m57.hermescontrol.ui.config
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -23,13 +29,18 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -37,10 +48,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.data.model.SchemaField
+import com.m57.hermescontrol.data.model.ConfigSchemaResponse
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.ExposedDropdownField
 import com.m57.hermescontrol.ui.common.HermesScaffold
@@ -58,9 +71,8 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
-import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
@@ -96,11 +108,11 @@ fun ConfigScreen(
         },
     ) { paddingValues ->
         when {
-            state.isLoading && state.config == null -> {
+            state.isLoading && state.values == null -> {
                 SkeletonListState(modifier = Modifier.padding(paddingValues))
             }
 
-            state.errorMessage != null && state.config == null -> {
+            state.errorMessage != null && state.values == null -> {
                 ErrorState(
                     message = state.errorMessage ?: "",
                     onRetry = { viewModel.loadAll() },
@@ -115,6 +127,8 @@ fun ConfigScreen(
                     onSearchQueryChange = viewModel::setSearchQuery,
                     onCategoryChange = viewModel::setActiveCategory,
                     onFieldChange = viewModel::updateField,
+                    onResetField = viewModel::resetField,
+                    onClearField = viewModel::clearField,
                     onSave = viewModel::saveConfig,
                     onYamlTextChange = viewModel::setYamlText,
                     onYamlSave = viewModel::saveYamlConfig,
@@ -133,6 +147,8 @@ private fun ConfigContent(
     onSearchQueryChange: (String) -> Unit,
     onCategoryChange: (String) -> Unit,
     onFieldChange: (String, JsonElement) -> Unit,
+    onResetField: (String) -> Unit,
+    onClearField: (String) -> Unit,
     onSave: () -> Unit,
     onYamlTextChange: (String) -> Unit,
     onYamlSave: () -> Unit,
@@ -232,38 +248,31 @@ private fun ConfigContent(
         }
 
         // ── Scrollable content ──
-        Column(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-        ) {
-            if (state.yamlMode) {
-                YAMLEditor(
-                    yamlText = state.yamlText ?: "",
-                    onYamlTextChange = onYamlTextChange,
-                    isSaving = state.yamlIsSaving,
-                    isLoading = state.yamlIsLoading,
-                    onSave = onYamlSave,
-                )
-            } else {
-                FormEditor(
-                    schema = state.schema,
-                    config = state.config,
-                    defaults = state.defaults,
-                    activeCategory = state.activeCategory,
-                    searchQuery = state.searchQuery,
-                    modifiedKeys = state.modifiedKeys,
-                    isSaving = state.isSaving,
-                    onCategoryChange = onCategoryChange,
-                    onFieldChange = onFieldChange,
-                    onSave = onSave,
-                    onResetCategory = onResetCategory,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+        if (state.yamlMode) {
+            YAMLEditor(
+                yamlText = state.yamlText ?: "",
+                onYamlTextChange = onYamlTextChange,
+                isSaving = state.yamlIsSaving,
+                isLoading = state.yamlIsLoading,
+                onSave = onYamlSave,
+            )
+        } else {
+            FormEditor(
+                values = state.values,
+                schema = state.schema,
+                defaults = state.defaults,
+                uncoveredPaths = state.uncoveredPaths,
+                activeCategory = state.activeCategory,
+                searchQuery = state.searchQuery,
+                modifiedKeys = state.modifiedKeys,
+                isSaving = state.isSaving,
+                onCategoryChange = onCategoryChange,
+                onFieldChange = onFieldChange,
+                onResetField = onResetField,
+                onClearField = onClearField,
+                onSave = onSave,
+                onResetCategory = onResetCategory,
+            )
         }
     }
 }
@@ -281,175 +290,29 @@ private fun YAMLEditor(
         return
     }
 
-    OutlinedTextField(
-        value = yamlText,
-        onValueChange = onYamlTextChange,
+    Column(
         modifier =
             Modifier
-                .fillMaxWidth()
-                .height(400.dp),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-        maxLines = Int.MAX_VALUE,
-    )
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    Button(
-        onClick = onSave,
-        modifier = Modifier.fillMaxWidth(),
-        enabled = !isSaving,
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
     ) {
-        if (isSaving) {
-            CircularProgressIndicator(
-                modifier = Modifier.width(16.dp),
-                strokeWidth = 2.dp,
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Filled.Save,
-                contentDescription = null,
-                modifier = Modifier.padding(end = 4.dp),
-            )
-            Text(
-                stringResource(R.string.config_action_save_yaml),
-            )
-        }
-    }
-}
-
-@Composable
-private fun FormEditor(
-    schema: com.m57.hermescontrol.data.model.ConfigSchemaResponse?,
-    config: Map<String, JsonElement>?,
-    defaults: Map<String, JsonElement>?,
-    activeCategory: String,
-    searchQuery: String,
-    modifiedKeys: Set<String>,
-    isSaving: Boolean,
-    onCategoryChange: (String) -> Unit,
-    onFieldChange: (String, JsonElement) -> Unit,
-    onSave: () -> Unit,
-    onResetCategory: (String) -> Unit,
-) {
-    if (schema == null || config == null) return
-
-    val isSearching = searchQuery.isNotBlank()
-    val categoryCounts =
-        remember(schema) {
-            schema.fields.values
-                .groupingBy { it.category ?: "general" }
-                .eachCount()
-        }
-
-    // Non-schema config values — all dot-paths in the config that aren't in the schema
-    val nonSchemaPaths =
-        remember(config, schema) {
-            collectUncoveredPaths(config, schema.fields.keys.toSet())
-        }
-
-    val isOtherCategory = activeCategory == "Other"
-
-    // Show tabs only when not searching
-    if (!isSearching) {
-        val allCategories =
-            if (nonSchemaPaths.isNotEmpty()) {
-                schema.category_order.filter { it in categoryCounts } + "Other"
-            } else {
-                schema.category_order.filter { it in categoryCounts }
-            }
-        ConfigTabs(
-            categories = allCategories,
-            categoryCounts = categoryCounts,
-            selectedCategory = activeCategory,
-            onCategorySelected = onCategoryChange,
+        OutlinedTextField(
+            value = yamlText,
+            onValueChange = onYamlTextChange,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            maxLines = Int.MAX_VALUE,
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-    }
+        Spacer(modifier = Modifier.height(12.dp))
 
-    // Fields list
-    if (isOtherCategory) {
-        // Render non-schema config dot-paths as read-only cards
-        nonSchemaPaths.forEach { dotPath ->
-            val jsonText = getJsonValue(config, dotPath)?.toString() ?: ""
-            Card(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                colors =
-                    CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    ),
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = dotPath,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = jsonText,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    } else {
-        val visibleFields: List<Pair<String, SchemaField>> =
-            remember(schema, activeCategory, searchQuery) {
-                if (isSearching) {
-                    val query = searchQuery.lowercase()
-                    schema.fields
-                        .filter { (key, field) ->
-                            val label = key.split(".").last().replace("_", " ")
-                            key.lowercase().contains(query) ||
-                                label.contains(query) ||
-                                (field.description?.lowercase()?.contains(query) == true) ||
-                                (field.category?.lowercase()?.contains(query) == true)
-                        }.entries
-                        .map { it.key to it.value }
-                } else {
-                    schema.fields
-                        .filter { (_, field) ->
-                            (field.category ?: "general") == activeCategory
-                        }.entries
-                        .map { it.key to it.value }
-                }
-            }
-        visibleFields.forEach { (key, field) ->
-            ConfigField(
-                key = key,
-                field = field,
-                currentValue = getJsonValue(config, key),
-                isModified = key in modifiedKeys,
-                onChange = { onFieldChange(key, it) },
-            )
-        }
-
-        if (visibleFields.isEmpty()) {
-            Text(
-                text = if (isSearching) "No settings match your search." else "No fields in this category.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 24.dp),
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    // Save + Reset buttons
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
         Button(
             onClick = onSave,
-            modifier = Modifier.weight(1f),
-            enabled = modifiedKeys.isNotEmpty() && !isSaving,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSaving,
         ) {
             if (isSaving) {
                 CircularProgressIndicator(
@@ -462,22 +325,206 @@ private fun FormEditor(
                     contentDescription = null,
                     modifier = Modifier.padding(end = 4.dp),
                 )
-                Text(stringResource(R.string.config_action_save))
+                Text(
+                    stringResource(R.string.config_action_save_yaml),
+                )
             }
         }
 
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun FormEditor(
+    values: Map<String, JsonElement>?,
+    schema: ConfigSchemaResponse?,
+    defaults: Map<String, JsonElement>?,
+    uncoveredPaths: List<String>,
+    activeCategory: String,
+    searchQuery: String,
+    modifiedKeys: Set<String>,
+    isSaving: Boolean,
+    onCategoryChange: (String) -> Unit,
+    onFieldChange: (String, JsonElement) -> Unit,
+    onResetField: (String) -> Unit,
+    onClearField: (String) -> Unit,
+    onSave: () -> Unit,
+    onResetCategory: (String) -> Unit,
+) {
+    if (schema == null || values == null) return
+
+    val isSearching = searchQuery.isNotBlank()
+    val categoryCounts =
+        remember(schema) {
+            schema.fields.values
+                .groupingBy { it.category ?: "general" }
+                .eachCount()
+        }
+
+    // Every row is a flat dot-path with an O(1) value lookup — no nested walks.
+    val rows: List<ConfigRow> =
+        remember(values, schema, uncoveredPaths) {
+            val covered =
+                schema.fields.map { (key, field) ->
+                    ConfigRow(key = key, field = field, value = values[key])
+                }
+            val uncovered =
+                uncoveredPaths.map { dotPath ->
+                    ConfigRow(key = dotPath, field = null, value = values[dotPath])
+                }
+            covered + uncovered
+        }
+
+    val visibleRows: List<ConfigRow> =
+        remember(rows, activeCategory, searchQuery) {
+            if (isSearching) {
+                rows.filter { rowMatchesQuery(it, searchQuery) }
+            } else {
+                rows.filter { row ->
+                    if (activeCategory == "Other") {
+                        row.isUncovered
+                    } else {
+                        !row.isUncovered && row.category == activeCategory
+                    }
+                }
+            }
+        }
+
+    val allCategories =
+        remember(schema, uncoveredPaths, categoryCounts) {
+            val ordered =
+                schema.category_order.filter { it in categoryCounts } +
+                    uncoveredPaths.takeIf { it.isNotEmpty() }?.let { listOf("Other") }.orEmpty()
+            ordered.ifEmpty { categoryCounts.keys.sorted() }
+        }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+    ) {
+        // Category tabs — hidden while searching
         if (!isSearching) {
-            OutlinedButton(
-                onClick = { onResetCategory(activeCategory) },
-                modifier = Modifier.weight(1f),
-                enabled = !isSaving,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 4.dp),
+            item(key = "tabs") {
+                ConfigTabs(
+                    categories = allCategories,
+                    categoryCounts = categoryCounts,
+                    selectedCategory = activeCategory,
+                    onCategorySelected = onCategoryChange,
                 )
-                Text(stringResource(R.string.config_action_reset))
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        } else {
+            item(key = "search-meta") {
+                val count = visibleRows.size
+                Text(
+                    text = if (count == 1) "1 result" else "$count results",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
+        }
+
+        if (activeCategory == "Other" && !isSearching) {
+            // Non-schema config values — read-only cards
+            items(uncoveredPaths, key = { it }) { dotPath ->
+                Card(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = dotPath,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = values[dotPath]?.let(::jsonText) ?: "",
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        } else {
+            items(visibleRows, key = { it.key }) { row ->
+                ConfigFieldCard(
+                    row = row,
+                    defaultValue = defaults?.get(row.key),
+                    isModified = row.key in modifiedKeys,
+                    showCategoryChip = isSearching,
+                    onChange = { onFieldChange(row.key, it) },
+                    onReset = { onResetField(row.key) },
+                    onClear = { onClearField(row.key) },
+                )
+            }
+
+            if (visibleRows.isEmpty()) {
+                item(key = "empty") {
+                    Text(
+                        text =
+                            if (isSearching) {
+                                "No settings match your search."
+                            } else {
+                                "No fields in this category."
+                            },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+                }
+            }
+        }
+
+        // Save + Reset buttons
+        item(key = "actions") {
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                    enabled = modifiedKeys.isNotEmpty() && !isSaving,
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.width(16.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Save,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                        Text(stringResource(R.string.config_action_save))
+                    }
+                }
+
+                if (!isSearching) {
+                    OutlinedButton(
+                        onClick = { onResetCategory(activeCategory) },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isSaving,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                        Text(stringResource(R.string.config_action_reset))
+                    }
+                }
             }
         }
     }
@@ -518,22 +565,20 @@ private fun ConfigTabs(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConfigField(
-    key: String,
-    field: SchemaField,
-    currentValue: JsonElement?,
+private fun ConfigFieldCard(
+    row: ConfigRow,
+    defaultValue: JsonElement?,
     isModified: Boolean,
+    showCategoryChip: Boolean,
     onChange: (JsonElement) -> Unit,
+    onReset: () -> Unit,
+    onClear: () -> Unit,
 ) {
-    val label =
-        key
-            .split(".")
-            .last()
-            .replace("_", " ")
-            .replaceFirstChar { it.uppercase() }
-    val description = field.description ?: key.replace(".", " → ").replace("_", " ").replaceFirstChar { it.uppercase() }
+    val field = row.field
+    val description =
+        field?.description
+            ?: row.key.replace(".", " → ").replace("_", " ").replaceFirstChar { it.uppercase() }
 
     Card(
         modifier =
@@ -551,12 +596,79 @@ private fun ConfigField(
             ),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = if (isModified) FontWeight.Bold else FontWeight.Medium,
-            )
-            if (!field.type.isNullOrEmpty() && field.type != "string") {
+            // ── Header row: category chip (searching), label, actions ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (showCategoryChip) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Text(
+                            text = row.category.replaceFirstChar { it.uppercase() },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                Text(
+                    text = row.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (isModified) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+
+                if (isModified) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .padding(start = 6.dp)
+                                .size(8.dp),
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                        ) {}
+                    }
+                }
+
+                if (defaultValue != null && defaultValue != row.value) {
+                    CompactIconButton(
+                        icon = Icons.Filled.Refresh,
+                        contentDescription = "Reset to default",
+                        onClick = onReset,
+                    )
+                }
+
+                if (field?.clearable == true && row.valueText.isNotEmpty()) {
+                    CompactIconButton(
+                        icon = Icons.Filled.Clear,
+                        contentDescription = "Clear value",
+                        onClick = onClear,
+                    )
+                }
+            }
+
+            if (field == null) {
+                // Uncovered path reached via search — show its value read-only
+                Text(
+                    text = row.valueText,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                return@Column
+            }
+
+            if (field.type.isNotEmpty() && field.type != "string") {
                 Text(
                     text = field.type,
                     style = MaterialTheme.typography.labelSmall,
@@ -580,20 +692,30 @@ private fun ConfigField(
                             modifier = Modifier.weight(1f),
                         )
                         Switch(
-                            checked = (currentValue as? JsonPrimitive)?.booleanOrNull ?: false,
+                            checked = (row.value as? JsonPrimitive)?.booleanOrNull ?: false,
                             onCheckedChange = { onChange(JsonPrimitive(it)) },
                         )
                     }
                 }
 
                 "select" -> {
-                    ExposedDropdownField(
-                        label = label,
-                        options = field.options ?: emptyList(),
-                        selectedValue = (currentValue as? JsonPrimitive)?.content ?: "",
-                        onOptionSelected = { onChange(JsonPrimitive(it)) },
-                    )
-                    if (description != label) {
+                    if (field.searchable) {
+                        SearchableSelectField(
+                            key = row.key,
+                            label = row.label,
+                            options = field.options ?: emptyList(),
+                            selectedValue = (row.value as? JsonPrimitive)?.content ?: "",
+                            onOptionSelected = { onChange(JsonPrimitive(it)) },
+                        )
+                    } else {
+                        ExposedDropdownField(
+                            label = row.label,
+                            options = field.options ?: emptyList(),
+                            selectedValue = (row.value as? JsonPrimitive)?.content ?: "",
+                            onOptionSelected = { onChange(JsonPrimitive(it)) },
+                        )
+                    }
+                    if (description != row.label) {
                         Text(
                             text = description,
                             style = MaterialTheme.typography.bodySmall,
@@ -604,41 +726,27 @@ private fun ConfigField(
                 }
 
                 "number" -> {
-                    OutlinedTextField(
-                        value =
-                            currentValue?.let {
-                                if (it is JsonPrimitive) it.content else ""
-                            } ?: "",
-                        onValueChange = { text ->
-                            text.toDoubleOrNull()?.let { doubleVal ->
-                                if (doubleVal == doubleVal.toLong().toDouble()) {
-                                    onChange(JsonPrimitive(doubleVal.toLong()))
-                                } else {
-                                    onChange(JsonPrimitive(doubleVal))
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(description) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
+                    NumberField(
+                        key = row.key,
+                        value = row.value,
+                        label = description,
+                        onChange = onChange,
+                    )
+                }
+
+                "object", "list" -> {
+                    JsonField(
+                        key = row.key,
+                        value = row.value,
+                        label = description,
+                        onChange = onChange,
                     )
                 }
 
                 else -> {
-                    // String or other type
-                    val textValue =
-                        currentValue?.let {
-                            when (it) {
-                                is JsonPrimitive -> it.content
-                                is JsonObject -> it.toString()
-                                is JsonArray -> it.toString()
-                            }
-                        } ?: ""
-
+                    // String
                     OutlinedTextField(
-                        value = textValue,
+                        value = (row.value as? JsonPrimitive)?.content ?: "",
                         onValueChange = { onChange(JsonPrimitive(it)) },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text(description) },
@@ -651,55 +759,218 @@ private fun ConfigField(
     }
 }
 
-/** Recursively find all config dot-paths not covered by the schema. */
-private fun collectUncoveredPaths(
-    config: Map<String, JsonElement>,
-    schemaPaths: Set<String>,
-    prefix: String = "",
-): List<String> {
-    val result = mutableListOf<String>()
-    for ((key, value) in config) {
-        val dotPath = if (prefix.isEmpty()) key else "$prefix.$key"
-        // If this exact path is in the schema, it's covered — skip entirely
-        if (dotPath in schemaPaths) continue
-        if (value is JsonObject) {
-            // Before recursing deeper, check if this whole sub-tree has any schema coverage
-            val hasSchemaCoverage = schemaPaths.any { it == dotPath || it.startsWith("$dotPath.") }
-            if (hasSchemaCoverage) {
-                // Schema covers some sub-paths — recurse to find what's NOT covered
-                result.addAll(collectUncoveredPaths(value, schemaPaths, dotPath))
-            } else {
-                // No schema coverage at all for this subtree — add the whole thing
-                result.add(dotPath)
-            }
-        } else if (value is JsonArray) {
-            // Arrays: check if the path is in schema; if not, add it
-            if (dotPath !in schemaPaths) {
-                result.add(dotPath)
-            }
-        } else {
-            // Leaf value (string, number, boolean, null) not in schema
-            result.add(dotPath)
-        }
-    }
-    return result.sorted()
+/** Compact header action icon (reset / clear). */
+@Composable
+private fun CompactIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = contentDescription,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier =
+            Modifier
+                .padding(start = 4.dp)
+                .size(18.dp)
+                .clickable(onClick = onClick),
+    )
 }
 
-/** Get a nested value from a flat config Map using a dot-path key. */
-private fun getJsonValue(
-    config: Map<String, JsonElement>,
-    dotPath: String,
-): JsonElement? {
-    val parts = dotPath.split(".")
-    var current: JsonElement? = null
-    for (i in parts.indices) {
-        val key = parts[i]
-        if (i == 0) {
-            current = config[key]
-        } else {
-            current = (current as? JsonObject)?.get(key)
+/**
+ * Searchable dropdown (schema `searchable: true`, e.g. timezone's 590 options).
+ * Typing filters the menu; only a picked option (or an exact-match on blur)
+ * commits — closed-world, matching the desktop SearchableSelect. The first
+ * keystroke after focus starts a FRESH filter (the existing value's prefix is
+ * stripped) so typing "amman" over "Asia/Amman" doesn't append to it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchableSelectField(
+    key: String,
+    label: String,
+    options: List<String>,
+    selectedValue: String,
+    onOptionSelected: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember(key) { mutableStateOf(selectedValue) }
+    var hasFocus by remember { mutableStateOf(false) }
+    var untouched by remember(key) { mutableStateOf(true) }
+
+    LaunchedEffect(selectedValue) {
+        if (!hasFocus) {
+            query = selectedValue
+            untouched = true
         }
-        if (current == null) return null
     }
-    return current
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { newText ->
+                if (untouched && query == selectedValue && newText.startsWith(selectedValue)) {
+                    // Fresh filter over a pre-filled value: drop the old value
+                    query = newText.removePrefix(selectedValue)
+                } else {
+                    query = newText
+                }
+                untouched = false
+                expanded = true
+            },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                    .onFocusChanged {
+                        hasFocus = it.isFocused
+                        if (!it.isFocused) {
+                            untouched = true
+                            if (query in options && query != selectedValue) {
+                                onOptionSelected(query)
+                            } else {
+                                query = selectedValue
+                            }
+                        }
+                    },
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            singleLine = true,
+            shape = RoundedCornerShape(8.dp),
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            val filtered = options.filter { it.contains(query, ignoreCase = true) }
+            if (filtered.isEmpty()) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "No matches",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = {},
+                )
+            } else {
+                filtered.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            query = option
+                            onOptionSelected(option)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Number editor with local text state. The value is committed only when the
+ * text parses, and the field's text never snaps while focused — so typing
+ * intermediate states like "0." or "42.0" works instead of dropping keys.
+ */
+@Composable
+private fun NumberField(
+    key: String,
+    value: JsonElement?,
+    label: String,
+    onChange: (JsonElement) -> Unit,
+) {
+    var text by remember(key) { mutableStateOf((value as? JsonPrimitive)?.content ?: "") }
+    var hasFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!hasFocus) text = (value as? JsonPrimitive)?.content ?: ""
+    }
+
+    OutlinedTextField(
+        value = text,
+        onValueChange = { newText ->
+            text = newText
+            newText.toDoubleOrNull()?.let { doubleVal ->
+                onChange(
+                    if (doubleVal == doubleVal.toLong().toDouble()) {
+                        JsonPrimitive(doubleVal.toLong())
+                    } else {
+                        JsonPrimitive(doubleVal)
+                    },
+                )
+            }
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .onFocusChanged {
+                    hasFocus = it.isFocused
+                    if (!it.isFocused) text = (value as? JsonPrimitive)?.content ?: ""
+                },
+        isError = text.isNotEmpty() && text.toDoubleOrNull() == null,
+        label = { Text(label) },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        singleLine = true,
+        shape = RoundedCornerShape(8.dp),
+    )
+}
+
+/**
+ * Object/list JSON editor with local text state. Commits only valid JSON;
+ * invalid input shows an error but is never sent. Multi-line + monospace.
+ */
+@Composable
+private fun JsonField(
+    key: String,
+    value: JsonElement?,
+    label: String,
+    onChange: (JsonElement) -> Unit,
+) {
+    var text by remember(key) { mutableStateOf(value?.let(::jsonText) ?: "") }
+    var hasFocus by remember { mutableStateOf(false) }
+    var invalid by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!hasFocus) text = value?.let(::jsonText) ?: ""
+    }
+
+    OutlinedTextField(
+        value = text,
+        onValueChange = { newText ->
+            text = newText
+            val parsed = runCatching { Json.parseToJsonElement(newText) }.getOrNull()
+            invalid = newText.isNotBlank() && parsed == null
+            if (parsed != null && newText.isNotBlank()) {
+                onChange(parsed)
+            }
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 96.dp)
+                .onFocusChanged {
+                    hasFocus = it.isFocused
+                    if (!it.isFocused) {
+                        invalid = false
+                        text = value?.let(::jsonText) ?: ""
+                    }
+                },
+        isError = invalid,
+        supportingText =
+            if (invalid) {
+                { Text("Invalid JSON") }
+            } else {
+                null
+            },
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        label = { Text(label) },
+        maxLines = Int.MAX_VALUE,
+    )
 }

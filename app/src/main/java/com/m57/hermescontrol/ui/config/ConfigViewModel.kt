@@ -20,13 +20,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 data class ConfigUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
-    val config: Map<String, JsonElement>? = null,
+    /** Flattened dot-path → value map (see [flattenConfig]). */
+    val values: Map<String, JsonElement>? = null,
     val schema: ConfigSchemaResponse? = null,
     val defaults: Map<String, JsonElement>? = null,
+    /** Config paths present but not covered by the schema (the "Other" tab). */
+    val uncoveredPaths: List<String> = emptyList(),
     val path: String? = null,
     val yamlText: String? = null,
     val modifiedKeys: Set<String> = emptySet(),
@@ -68,7 +72,7 @@ class ConfigViewModel :
                     val rawResult = rawDeferred.await()
 
                     if (configResult is NetworkResult.Success) {
-                        val configData = configResult.data
+                        val values = flattenConfig(configResult.data)
                         val schema = (schemaResult as? NetworkResult.Success)?.data
                         val defaults = (defaultsResult as? NetworkResult.Success)?.data
                         val path = (rawResult as? NetworkResult.Success)?.data?.path
@@ -76,9 +80,14 @@ class ConfigViewModel :
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                config = configData,
+                                values = values,
                                 schema = schema,
                                 defaults = defaults,
+                                uncoveredPaths =
+                                    collectUncoveredPaths(
+                                        values,
+                                        schema?.fields?.keys ?: emptySet(),
+                                    ),
                                 path = path,
                                 activeCategory =
                                     if (schema?.category_order?.isNotEmpty() == true) {
@@ -108,17 +117,34 @@ class ConfigViewModel :
         value: JsonElement,
     ) {
         pendingChanges[key] = value
-        val state = _uiState.value
-
-        // Apply the change locally so the UI reflects it immediately
-        val updatedConfig =
-            state.config?.let { config ->
-                applyNestedValue(config, key, value)
-            }
-
         _uiState.update {
             it.copy(
-                config = updatedConfig,
+                values = it.values?.toMutableMap()?.apply { this[key] = value },
+                modifiedKeys = pendingChanges.keys.toSet(),
+            )
+        }
+    }
+
+    /** Reset ONE field to its default value (pending until Save). */
+    fun resetField(key: String) {
+        val state = _uiState.value
+        val defaultVal = state.defaults?.get(key) ?: return
+        pendingChanges[key] = defaultVal
+        _uiState.update {
+            it.copy(
+                values = it.values?.toMutableMap()?.apply { this[key] = defaultVal },
+                modifiedKeys = pendingChanges.keys.toSet(),
+            )
+        }
+    }
+
+    /** Clear a clearable field to blank (e.g. timezone → system default). */
+    fun clearField(key: String) {
+        val blank = JsonPrimitive("")
+        pendingChanges[key] = blank
+        _uiState.update {
+            it.copy(
+                values = it.values?.toMutableMap()?.apply { this[key] = blank },
                 modifiedKeys = pendingChanges.keys.toSet(),
             )
         }
@@ -193,7 +219,9 @@ class ConfigViewModel :
                     _uiState.update {
                         it.copy(
                             isSaving = false,
-                            config = (configResult as? NetworkResult.Success)?.data ?: it.config,
+                            values =
+                                (configResult as? NetworkResult.Success)?.data?.let(::flattenConfig)
+                                    ?: it.values,
                             modifiedKeys = emptySet(),
                             toastMessage = "Configuration saved successfully",
                         )
@@ -233,7 +261,9 @@ class ConfigViewModel :
                     _uiState.update {
                         it.copy(
                             yamlIsSaving = false,
-                            config = (configResult as? NetworkResult.Success)?.data ?: it.config,
+                            values =
+                                (configResult as? NetworkResult.Success)?.data?.let(::flattenConfig)
+                                    ?: it.values,
                             toastMessage = "YAML configuration saved",
                         )
                     }
@@ -262,15 +292,20 @@ class ConfigViewModel :
             }
 
         var count = 0
+        val updatedValues = state.values?.toMutableMap()
         for ((key, _) in categoryFields) {
             val defaultVal = defaults[key]
             if (defaultVal != null) {
                 pendingChanges[key] = defaultVal
+                updatedValues?.set(key, defaultVal)
                 count++
             }
         }
         _uiState.update {
-            it.copy(modifiedKeys = pendingChanges.keys.toSet())
+            it.copy(
+                values = updatedValues ?: it.values,
+                modifiedKeys = pendingChanges.keys.toSet(),
+            )
         }
 
         if (count > 0) {
@@ -282,34 +317,6 @@ class ConfigViewModel :
 
     override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
-    }
-
-    /** Apply a value at a dot-path like "terminal.backend" into a flat config map. */
-    private fun applyNestedValue(
-        config: Map<String, JsonElement>,
-        dotPath: String,
-        value: JsonElement,
-    ): Map<String, JsonElement> {
-        val parts = dotPath.split(".")
-        if (parts.size == 1) {
-            val mutable = config.toMutableMap()
-            mutable[parts[0]] = value
-            return mutable
-        }
-        val topKey = parts.first()
-        val rest = parts.drop(1).joinToString(".")
-        val topValue = config[topKey]
-        val nestedJson = (topValue as? JsonObject) ?: JsonObject(emptyMap())
-        val updatedNested =
-            applyNestedValue(
-                nestedJson,
-                rest,
-                value,
-            )
-        val nestedObj = JsonObject(updatedNested)
-        val mutable = config.toMutableMap()
-        mutable[topKey] = nestedObj
-        return mutable
     }
 
     /** Build a nested JSON changeset from dot-path pending changes. */
@@ -333,18 +340,15 @@ class ConfigViewModel :
             current[parts.last()] = value
         }
 
-        fun toJsonObject(map: Map<String, Any>): JsonObject {
-            val content =
-                map.mapValues { (_, v) ->
-                    if (v is Map<*, *>) {
-                        @Suppress("UNCHECKED_CAST")
-                        toJsonObject(v as Map<String, Any>)
-                    } else {
-                        v as JsonElement
-                    }
+        fun toJsonObject(map: Map<String, Any>): Map<String, JsonElement> =
+            map.mapValues { (_, v) ->
+                if (v is Map<*, *>) {
+                    @Suppress("UNCHECKED_CAST")
+                    JsonObject(toJsonObject(v as Map<String, Any>))
+                } else {
+                    v as JsonElement
                 }
-            return JsonObject(content)
-        }
+            }
 
         return toJsonObject(root)
     }

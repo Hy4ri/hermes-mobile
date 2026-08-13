@@ -26,6 +26,8 @@ data class SchemaField(
     val description: String? = null,
     val category: String? = null,
     val options: List<String>? = null,
+    val searchable: Boolean = false,
+    val clearable: Boolean = false,
 )
 
 @Serializable

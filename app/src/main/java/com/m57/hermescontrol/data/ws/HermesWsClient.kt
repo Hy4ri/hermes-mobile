@@ -450,28 +450,34 @@ object HermesWsClient {
                     .post("{}".toRequestBody())
                     .build()
 
-            // Run network call on Dispatchers.IO to avoid NetworkOnMainThreadException
-            val response =
+            // Run the ENTIRE call on Dispatchers.IO — execute() already hops,
+            // but ResponseBody.string() reads the socket on the CALLING
+            // thread. When the caller is main (kanban events connect), that
+            // read throws NetworkOnMainThreadException and the mint fails.
+            val (code, body) =
                 kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-                    client.newCall(request).execute()
+                    client.newCall(request).execute().use { resp ->
+                        resp.code to resp.body?.string()
+                    }
                 }
 
-            response.use {
-                if (response.isSuccessful) {
-                    val body = response.body.string()
-                    val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
-                    val ticket = ticketMatch?.groupValues?.getOrNull(1)
-                    if (!ticket.isNullOrBlank()) {
-                        return TicketRequestResult(ticket, null)
-                    }
-                    Log.w(TAG, "WS ticket mint failed: response body did not contain ticket")
-                } else {
-                    Log.w(TAG, "WS ticket mint failed: HTTP ${response.code}")
-                    return TicketRequestResult(null, response.code)
+            if (body != null && code in 200..299) {
+                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
+                val ticket = ticketMatch?.groupValues?.getOrNull(1)
+                if (!ticket.isNullOrBlank()) {
+                    return TicketRequestResult(ticket, null)
                 }
+                Log.w(TAG, "WS ticket mint failed: response body did not contain ticket")
+            } else {
+                Log.w(TAG, "WS ticket mint failed: HTTP $code")
+                return TicketRequestResult(null, code)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "WS ticket mint failed: ${e.javaClass.simpleName}")
+            // Include the stack: the exception class alone (e.g.
+            // NetworkOnMainThreadException) can't show WHICH caller on what
+            // thread tripped the mint (main-scope kanban events connect vs
+            // the WS reconnect path).
+            Log.w(TAG, "WS ticket mint failed: ${e.javaClass.simpleName}", e)
             return TicketRequestResult(null, null, exception = true)
         }
         return TicketRequestResult(null, null)

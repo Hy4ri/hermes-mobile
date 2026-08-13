@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
+import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.Buffer
@@ -31,22 +32,28 @@ internal object DashboardSessionTokenRefresher {
                     .url(baseUrl)
                     .get()
                     .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                // Cap the read — the SPA HTML can be large, and we only need the
-                // injected token near the top of the document. Reading the whole
-                // body into a String risks OOM on low-end devices.
-                val html =
-                    response.body.source().use { source ->
-                        val buffer = Buffer()
-                        source.read(buffer, MAX_BODY_BYTES)
-                        buffer.readUtf8()
-                    }
-                tokenPattern
-                    .find(html)
-                    ?.groupValues
-                    ?.getOrNull(1)
-                    ?.takeIf { it.isNotBlank() }
+            // execute() + body read on Dispatchers.IO: the body read touches
+            // the socket on the CALLING thread otherwise — when that is main
+            // (loopback ticket mint from the kanban events connect), it throws
+            // NetworkOnMainThreadException (same bug class as requestWsTicket).
+            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@runBlocking null
+                    // Cap the read — the SPA HTML can be large, and we only need the
+                    // injected token near the top of the document. Reading the whole
+                    // body into a String risks OOM on low-end devices.
+                    val html =
+                        response.body.source().use { source ->
+                            val buffer = Buffer()
+                            source.read(buffer, MAX_BODY_BYTES)
+                            buffer.readUtf8()
+                        }
+                    tokenPattern
+                        .find(html)
+                        ?.groupValues
+                        ?.getOrNull(1)
+                        ?.takeIf { it.isNotBlank() }
+                }
             }
         } catch (_: Exception) {
             null

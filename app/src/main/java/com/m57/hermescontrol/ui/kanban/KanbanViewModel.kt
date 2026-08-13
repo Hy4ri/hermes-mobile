@@ -121,6 +121,15 @@ class KanbanViewModel(
     }
 
     fun selectBoard(board: KanbanBoard) {
+        val current = _uiState.value.selectedBoard
+        if (current?.id == board.id) {
+            // Already-active board: reload its data and (re)connect the events
+            // stream WITHOUT the /switch round-trip — refresh and createTask
+            // re-select the same board and must not POST a redundant switch.
+            viewModelScope.launch { loadBoardIntoState(board) }
+            connectEvents(board)
+            return
+        }
         _uiState.update { it.copy(selectedBoard = board, isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             val switchResult =

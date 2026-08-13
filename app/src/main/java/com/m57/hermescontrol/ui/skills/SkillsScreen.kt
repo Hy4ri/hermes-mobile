@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
@@ -113,11 +112,19 @@ fun SkillsScreen(
         modifier = modifier,
         title = { Text(stringResource(R.string.skills_screen_title)) },
         navigationIcon = NavIcon.Menu(onOpen = onOpenDrawer),
+        isRefreshing = state.isLoading,
+        onRefresh = {
+            if (state.viewMode == SkillsViewMode.INSTALLED) {
+                viewModel.loadSkills()
+            } else {
+                viewModel.loadHubSources()
+            }
+        },
         actions = {
             if (state.viewMode == SkillsViewMode.INSTALLED) {
                 IconButton(onClick = { viewModel.updateSkillsFromHub() }) {
                     Icon(
-                        imageVector = Icons.Filled.Refresh,
+                        imageVector = Icons.Filled.CloudDownload,
                         contentDescription = stringResource(R.string.content_desc_update_skills_hub),
                     )
                 }

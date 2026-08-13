@@ -35,6 +35,11 @@
 }
 
 # ── AndroidX Security Crypto ─────────────────────────────────────────────
+# EncryptedSharedPreferences / MasterKey resolve primitives via Tink's
+# reflection-based Registry. Without -keep, R8 obfuscates those classes and
+# token reads silently fail (401 on every API call, "Session expired").
+-keep class androidx.security.crypto.** { *; }
+-keep class com.google.crypto.tink.** { *; }
 -dontwarn androidx.security.crypto.**
 
 # ── Tink / Error Prone ───────────────────────────────────────────────────

@@ -384,7 +384,7 @@ internal fun highlightSyntax(code: String): AnnotatedString =
                 } else if (m.first.first > last.first.first) {
                     // Overlap, this match starts later — it wins the overlapping portion
                     // Keep the last match's pre-overlap, then replace
-                    resolved.removeLast()
+                    resolved.removeAt(resolved.lastIndex)
                     // Split: keep text before overlap from last match
                     if (last.first.first < m.first.first) {
                         resolved.add(last.first.first..<m.first.first to last.second)

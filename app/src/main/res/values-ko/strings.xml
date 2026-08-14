@@ -47,6 +47,31 @@
     <string name="billing_credits_remaining">남은 크레딧: %1$s</string>
     <string name="billing_plan">요금제</string>
     <string name="billing_topup">충전</string>
+    <string name="billing_available_plans">사용 가능한 요금제</string>
+    <string name="billing_current_plan_badge">현재 요금제</string>
+    <string name="billing_scheduled_badge">예정됨</string>
+    <string name="billing_upgrade">업그레이드</string>
+    <string name="billing_downgrade">다운그레이드</string>
+    <string name="billing_choose">선택</string>
+    <string name="billing_resume">요금제 유지</string>
+    <string name="billing_undo_change">변경 취소</string>
+    <string name="billing_scheduled_downgrade_banner">예정된 변경: %2$s에 %1$s(으)로 변경됩니다. 그때까지 현재 요금제가 유지됩니다.</string>
+    <string name="billing_scheduled_cancellation_banner">예정된 취소: %1$s에 취소됩니다. 기간 종료 시까지 요금제가 유지됩니다.</string>
+    <string name="billing_cancel_subscription">구독 취소</string>
+    <string name="billing_cancel_dialog_title">구독 취소</string>
+    <string name="billing_cancel_dialog_message">%1$s 요금제를 취소하시겠습니까? %2$s까지 활성 상태로 유지된 후 갱신되지 않습니다. 남은 크레딧은 기간 종료 시까지 유지됩니다.</string>
+    <string name="billing_cancel_dialog_confirm">구독 취소 확인</string>
+    <string name="billing_preview_dialog_title">요금제 변경 확인</string>
+    <string name="billing_preview_upgrade_message">%1$s(으)로 업그레이드합니다. 지금 %2$s이(가) 비례 청구됩니다.</string>
+    <string name="billing_preview_downgrade_message">%1$s(으)로 변경 — %2$s부터 적용됩니다. 오늘은 청구되지 않으며 그때까지 현재 요금제가 유지됩니다.</string>
+    <string name="billing_preview_credits_delta">월간 크레딧 변경: %1$s</string>
+    <string name="billing_preview_confirm_upgrade">결제 및 업그레이드</string>
+    <string name="billing_preview_confirm_change">변경 확인</string>
+    <string name="billing_open_portal">포털 열기</string>
+    <string name="billing_manage_portal">포털에서 관리</string>
+    <string name="billing_monthly_credits_suffix">월 %1$s 크레딧</string>
+    <string name="billing_price_per_month">월 %1$s</string>
+    <string name="billing_team_notice">이 계정은 %1$s(팀)에 연결되어 있습니다. 팀 계정은 공유 크레딧으로 실행됩니다.</string>
 
     <!-- Navigation & Drawer -->
     <string name="nav_drawer_title">헤르메스</string>

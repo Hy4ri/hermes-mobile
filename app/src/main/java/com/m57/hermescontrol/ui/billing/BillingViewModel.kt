@@ -31,6 +31,7 @@ data class BillingUiState(
     val subscription: SubscriptionStateResponse? = null,
     val usage: UsageBarsResponse? = null,
     val preview: com.m57.hermescontrol.data.model.SubscriptionPreviewResponse? = null,
+    val previewingTierId: String? = null,
     /** Set when an RPC method is unavailable on the connected backend (e.g. -32601). */
     val featureUnavailable: Boolean = false,
     val errorMessage: String? = null,
@@ -110,12 +111,23 @@ class BillingViewModel : ViewModel() {
 
     fun preview(subscriptionTypeId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
+            _uiState.update {
+                it.copy(
+                    isActionInFlight = true,
+                    errorMessage = null,
+                    actionMessage = null,
+                    previewingTierId = subscriptionTypeId,
+                )
+            }
             runCatching { BillingRepository.previewSubscription(subscriptionTypeId) }
                 .onSuccess { preview ->
                     if (preview == null) {
                         _uiState.update {
-                            it.copy(isActionInFlight = false, errorMessage = "No billing data returned")
+                            it.copy(
+                                isActionInFlight = false,
+                                errorMessage = "No billing data returned",
+                                previewingTierId = null,
+                            )
                         }
                         return@onSuccess
                     }
@@ -124,6 +136,7 @@ class BillingViewModel : ViewModel() {
                             it.copy(
                                 isActionInFlight = false,
                                 errorMessage = preview.error ?: preview.message ?: "Preview unavailable",
+                                previewingTierId = null,
                             )
                         }
                     } else {
@@ -134,15 +147,47 @@ class BillingViewModel : ViewModel() {
                         it.copy(
                             isActionInFlight = false,
                             errorMessage = (e as? HermesWsClient.HermesRpcException)?.message ?: e.message,
+                            previewingTierId = null,
                         )
                     }
                 }
         }
     }
 
+    fun clearPreview() {
+        _uiState.update { it.copy(preview = null, previewingTierId = null) }
+    }
+
+    fun clearTransientState() {
+        _uiState.update {
+            it.copy(
+                errorMessage = null,
+                actionMessage = null,
+                preview = null,
+                previewingTierId = null,
+            )
+        }
+    }
+
+    fun clearActionMessage() {
+        _uiState.update { it.copy(actionMessage = null) }
+    }
+
+    fun clearErrorMessage() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
     fun upgrade(subscriptionTypeId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
+            _uiState.update {
+                it.copy(
+                    isActionInFlight = true,
+                    errorMessage = null,
+                    actionMessage = null,
+                    preview = null,
+                    previewingTierId = null,
+                )
+            }
             runCatching { BillingRepository.upgradeSubscription(subscriptionTypeId) }
                 .onSuccess { resp ->
                     if (resp == null) {
@@ -196,7 +241,15 @@ class BillingViewModel : ViewModel() {
         cancel: Boolean? = null,
     ) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isActionInFlight = true, errorMessage = null, actionMessage = null) }
+            _uiState.update {
+                it.copy(
+                    isActionInFlight = true,
+                    errorMessage = null,
+                    actionMessage = null,
+                    preview = null,
+                    previewingTierId = null,
+                )
+            }
             runCatching { BillingRepository.changeSubscription(SubscriptionChangeRequest(subscriptionTypeId, cancel)) }
                 .onSuccess { resp ->
                     if (resp == null) {

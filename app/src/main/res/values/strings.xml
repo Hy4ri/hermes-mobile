@@ -64,6 +64,31 @@
     <string name="billing_credits_remaining">Credits remaining: %1$s</string>
     <string name="billing_plan">Plan</string>
     <string name="billing_topup">Top-up</string>
+    <string name="billing_available_plans">Available Plans</string>
+    <string name="billing_current_plan_badge">Current Plan</string>
+    <string name="billing_scheduled_badge">Scheduled</string>
+    <string name="billing_upgrade">Upgrade</string>
+    <string name="billing_downgrade">Downgrade</string>
+    <string name="billing_choose">Choose</string>
+    <string name="billing_resume">Resume Plan</string>
+    <string name="billing_undo_change">Undo Change</string>
+    <string name="billing_scheduled_downgrade_banner">Scheduled change: switches to %1$s on %2$s. You keep your current plan until then.</string>
+    <string name="billing_scheduled_cancellation_banner">Scheduled cancellation: cancels on %1$s. Plan remains active until period ends.</string>
+    <string name="billing_cancel_subscription">Cancel Subscription</string>
+    <string name="billing_cancel_dialog_title">Cancel Subscription</string>
+    <string name="billing_cancel_dialog_message">Cancel your %1$s plan? It will stay active until %2$s, then will not renew. You keep your remaining credits until the period ends.</string>
+    <string name="billing_cancel_dialog_confirm">Confirm Cancellation</string>
+    <string name="billing_preview_dialog_title">Confirm Plan Change</string>
+    <string name="billing_preview_upgrade_message">Upgrade to %1$s. You will be charged %2$s now (prorated).</string>
+    <string name="billing_preview_downgrade_message">Change to %1$s — takes effect on %2$s. No charge today; you keep your current plan until then.</string>
+    <string name="billing_preview_credits_delta">Monthly credits change: %1$s</string>
+    <string name="billing_preview_confirm_upgrade">Pay &amp; Upgrade</string>
+    <string name="billing_preview_confirm_change">Confirm Change</string>
+    <string name="billing_open_portal">Open Portal</string>
+    <string name="billing_manage_portal">Manage on Portal</string>
+    <string name="billing_monthly_credits_suffix">%1$s credits/mo</string>
+    <string name="billing_price_per_month">%1$s/mo</string>
+    <string name="billing_team_notice">This account is connected to %1$s (Team). Team accounts run on shared credits.</string>
 
     <!-- Navigation & Drawer -->
     <string name="nav_drawer_title">Hermes</string>

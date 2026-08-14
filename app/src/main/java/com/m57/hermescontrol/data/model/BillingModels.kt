@@ -51,6 +51,7 @@ data class SubscriptionStateResponse(
     val tiers: List<SubscriptionTier> = emptyList(),
     val portal_url: String? = null,
     val error: String? = null,
+    val usage: UsageBarsResponse? = null,
 )
 
 @Serializable
@@ -131,6 +132,15 @@ data class SubscriptionPreviewResponse(
     val error: String? = null,
     val message: String? = null,
     val payload: SubscriptionPreviewPayload? = null,
+    val effect: String? = null,
+    val reason: String? = null,
+    val current_tier_id: String? = null,
+    val current_tier_name: String? = null,
+    val target_tier_id: String? = null,
+    val target_tier_name: String? = null,
+    val monthly_credits_delta: String? = null,
+    val amount_due_now_cents: Int? = null,
+    val effective_at: String? = null,
     val subscription_type_id: String? = null,
     val subscription_type_name: String? = null,
     val price: String? = null,

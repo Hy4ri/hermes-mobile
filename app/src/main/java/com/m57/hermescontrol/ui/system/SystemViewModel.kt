@@ -348,7 +348,7 @@ class SystemViewModel :
     fun runCuratorNow() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runCurator() } },
-            label = "Curator run",
+            label = "运行技能维护器",
         )
     }
 
@@ -433,14 +433,14 @@ class SystemViewModel :
     fun runSecurityAudit() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runSecurityAudit() } },
-            label = "Security audit",
+            label = "安全审计",
         )
     }
 
     fun runPromptSize() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runPromptSize() } },
-            label = "Prompt size check",
+            label = "提示词大小检查",
         )
     }
 
@@ -454,14 +454,14 @@ class SystemViewModel :
     fun runConfigMigrate() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runConfigMigrate() } },
-            label = "Config migrate",
+            label = "迁移配置",
         )
     }
 
     fun runUpdateSkills() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.updateSkillsFromHub() } },
-            label = "Skills update",
+            label = "更新技能",
         )
     }
 
@@ -654,7 +654,7 @@ class SystemViewModel :
     fun pruneCheckpoints() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.pruneCheckpoints() } },
-            label = "Checkpoint prune",
+            label = "清理检查点",
         )
     }
 

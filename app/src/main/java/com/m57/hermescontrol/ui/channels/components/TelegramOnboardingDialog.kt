@@ -87,12 +87,12 @@ internal fun TelegramOnboardingDialog(
 
                     OnboardingPhase.WAITING -> {
                         Text(
-                            text = "Open Telegram and scan the QR code displayed in the app.",
+                            text = "打开 Telegram 扫描应用内显示的二维码。",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         if (state.onboardingExpiresIn.isNotEmpty()) {
                             Text(
-                                text = "QR code expires in: ${state.onboardingExpiresIn}",
+                                text = "二维码将在 ${state.onboardingExpiresIn} 后过期",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -102,13 +102,13 @@ internal fun TelegramOnboardingDialog(
                     OnboardingPhase.READY -> {
                         state.onboardingBotUsername?.let { username ->
                             Text(
-                                text = "Connected as @$username",
+                                text = "已连接为 @$username",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Allowed users:",
+                            text = "允许的用户：",
                             style = MaterialTheme.typography.titleSmall,
                         )
                         state.onboardingDetectedOwnerId?.let { ownerId ->
@@ -146,12 +146,12 @@ internal fun TelegramOnboardingDialog(
                             OutlinedTextField(
                                 value = state.onboardingNewAllowedId,
                                 onValueChange = onNewAllowedIdChange,
-                                placeholder = { Text("Telegram user ID") },
+                                placeholder = { Text("Telegram 用户 ID") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
                             )
                             IconButton(onClick = onAddAllowedId) {
-                                Icon(Icons.Filled.Add, contentDescription = "Add user ID")
+                                Icon(Icons.Filled.Add, contentDescription = "添加用户 ID")
                             }
                         }
                     }
@@ -165,7 +165,7 @@ internal fun TelegramOnboardingDialog(
                                 CircularProgressIndicator()
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Saving configuration…",
+                                    text = "正在保存配置…",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
@@ -183,7 +183,7 @@ internal fun TelegramOnboardingDialog(
                         onClick = onApply,
                         enabled = state.onboardingAllowedIds.isNotEmpty(),
                     ) {
-                        Text("Save and restart")
+                        Text("保存并重启")
                     }
                 }
 

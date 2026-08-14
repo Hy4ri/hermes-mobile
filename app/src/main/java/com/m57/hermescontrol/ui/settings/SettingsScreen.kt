@@ -131,6 +131,7 @@ private fun appearanceSummary(state: SettingsUiState): String {
     val lang =
         when (state.appLanguage) {
             "system" -> stringResource(R.string.language_system)
+            "zh" -> stringResource(R.string.language_chinese)
             "ko" -> stringResource(R.string.language_korean)
             else -> stringResource(R.string.language_english)
         }

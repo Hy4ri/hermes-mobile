@@ -101,7 +101,7 @@ fun ConfigScreen(
                 IconButton(onClick = { viewModel.saveConfig() }) {
                     Icon(
                         imageVector = Icons.Filled.Save,
-                        contentDescription = "Save changes",
+                        contentDescription = "保存更改",
                     )
                 }
             }
@@ -166,7 +166,7 @@ private fun ConfigContent(
             // Path display
             state.path?.let { path ->
                 Text(
-                    text = "Path: $path",
+                    text = "路径：$path",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 8.dp),
@@ -195,7 +195,7 @@ private fun ConfigContent(
                     SearchBar(
                         query = state.searchQuery,
                         onQueryChange = onSearchQueryChange,
-                        placeholder = "Search settings…",
+                        placeholder = "搜索设置…",
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -643,7 +643,7 @@ private fun ConfigFieldCard(
                 if (defaultValue != null && defaultValue != row.value) {
                     CompactIconButton(
                         icon = Icons.Filled.Refresh,
-                        contentDescription = "Reset to default",
+                        contentDescription = "重置为默认",
                         onClick = onReset,
                     )
                 }
@@ -651,7 +651,7 @@ private fun ConfigFieldCard(
                 if (field?.clearable == true && row.valueText.isNotEmpty()) {
                     CompactIconButton(
                         icon = Icons.Filled.Clear,
-                        contentDescription = "Clear value",
+                        contentDescription = "清除值",
                         onClick = onClear,
                     )
                 }
@@ -852,7 +852,7 @@ private fun SearchableSelectField(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            text = "No matches",
+                            text = "无匹配",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
@@ -965,7 +965,7 @@ private fun JsonField(
         isError = invalid,
         supportingText =
             if (invalid) {
-                { Text("Invalid JSON") }
+                { Text("无效的 JSON") }
             } else {
                 null
             },

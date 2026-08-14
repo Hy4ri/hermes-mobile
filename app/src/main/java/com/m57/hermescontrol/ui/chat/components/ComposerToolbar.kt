@@ -71,7 +71,7 @@ fun ComposerToolbar(
         ) {
             Icon(
                 imageVector = Icons.Default.AttachFile,
-                contentDescription = "Attach file",
+                contentDescription = "附加文件",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

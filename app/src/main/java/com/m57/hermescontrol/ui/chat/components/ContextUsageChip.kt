@@ -103,7 +103,7 @@ fun ContextUsageChip(
             ) {
                 if (compressionCount != null && compressionCount > 0) {
                     Text(
-                        text = "compressed ×$compressionCount",
+                        text = "已压缩 ×$compressionCount",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.tertiary,
                         maxLines = 1,

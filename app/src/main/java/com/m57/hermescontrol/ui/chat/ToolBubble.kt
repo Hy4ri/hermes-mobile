@@ -491,7 +491,7 @@ private fun ExpandedToolContent(
         // ── Duration footer ──
         view.durationLabel?.let {
             Text(
-                text = "Duration: $it",
+                text = "耗时：$it",
                 style =
                     MaterialTheme.typography.labelSmall.copy(
                         color = contentColor.copy(alpha = 0.5f),
@@ -593,7 +593,7 @@ internal fun SecurityRiskChip(
         )
         if (riskData.redacted && (riskData.risk == "high" || riskData.risk == "medium")) {
             Text(
-                text = "· redacted",
+                text = "· 已脱敏",
                 style = MaterialTheme.typography.labelSmall,
                 color = chipColor.copy(alpha = 0.7f),
             )

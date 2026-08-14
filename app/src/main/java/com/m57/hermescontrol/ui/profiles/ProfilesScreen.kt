@@ -137,7 +137,7 @@ fun ProfilesScreen(
                 }) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Create Profile",
+                        contentDescription = "创建配置",
                     )
                 }
             }
@@ -296,7 +296,7 @@ fun ProfilesScreen(
                                                     IconButton(onClick = { showMenu = true }) {
                                                         Icon(
                                                             imageVector = Icons.Default.MoreVert,
-                                                            contentDescription = "More options",
+                                                            contentDescription = "更多选项",
                                                         )
                                                     }
 

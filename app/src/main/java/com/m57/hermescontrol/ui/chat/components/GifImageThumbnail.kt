@@ -125,7 +125,7 @@ fun GifImageThumbnail(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = "Play GIF",
+                        contentDescription = "播放 GIF",
                         modifier = Modifier.size(32.dp),
                         tint = MaterialTheme.colorScheme.onSurface,
                     )

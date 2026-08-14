@@ -157,7 +157,7 @@ fun ModelScreen(
                         SearchBar(
                             query = query,
                             onQueryChange = { query = it },
-                            placeholder = "Search models...",
+                            placeholder = "搜索模型…",
                         )
                     }
 
@@ -221,7 +221,7 @@ fun ModelScreen(
     if (state.modelPickerConfirmMessage != null) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissModelPickerConfirm() },
-            title = { Text("Expensive Model") },
+            title = { Text("高成本模型") },
             text = { Text(state.modelPickerConfirmMessage!!) },
             confirmButton = {
                 Button(onClick = { viewModel.confirmModelPickerExpensive() }) {
@@ -240,7 +240,7 @@ fun ModelScreen(
     if (state.showMainModelPicker) {
         ModelPickerDialog(
             providers = state.providers,
-            title = "Set Main Model",
+            title = "设置主模型",
             isLoading = state.isLoading && state.providers.isEmpty(),
             pinnedModels = state.pinnedModels,
             onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
@@ -266,7 +266,7 @@ fun ModelScreen(
     if (state.showAuxModelPicker) {
         ModelPickerDialog(
             providers = state.providers,
-            title = "Set Aux: ${state.auxPickerTask}",
+            title = "设置辅助：${state.auxPickerTask}",
             isLoading = state.isLoading && state.providers.isEmpty(),
             pinnedModels = state.pinnedModels,
             onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
@@ -330,12 +330,12 @@ private fun ModelSettingsSection(
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = "Model Settings",
+                    text = "模型设置",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "applies to new sessions",
+                    text = "适用于新会话",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -353,7 +353,7 @@ private fun ModelSettingsSection(
                         modifier = Modifier.size(16.dp),
                     )
                 },
-                label = "Main model",
+                label = "主模型",
                 value = if (mainProvider.isNotBlank()) "$mainProvider · $mainModel" else "(unset)",
                 actionLabel = "Change",
                 onAction = onSetMainModel,
@@ -371,7 +371,7 @@ private fun ModelSettingsSection(
                         modifier = Modifier.size(16.dp),
                     )
                 },
-                label = "Auxiliary tasks",
+                label = "辅助任务",
                 value =
                     if (auxOverrideCount > 0) {
                         "$auxOverrideCount override · ${AUX_TASKS.size - auxOverrideCount} auto"
@@ -394,7 +394,7 @@ private fun ModelSettingsSection(
                         modifier = Modifier.size(16.dp),
                     )
                 },
-                label = "Mixture of Agents",
+                label = "多 Agent 混合",
                 value = if (moaEnabled) moaSummary else "not loaded",
                 actionLabel = "Configure",
                 onAction = onConfigureMoa,
@@ -461,7 +461,7 @@ private fun AuxTasksDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Auxiliary Tasks") },
+        title = { Text("辅助任务") },
         text = {
             Column {
                 Text(
@@ -530,7 +530,7 @@ private fun AuxTasksDialog(
                 ) {
                     Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Reset all to auto")
+                    Text("全部重置为自动")
                 }
             }
         },

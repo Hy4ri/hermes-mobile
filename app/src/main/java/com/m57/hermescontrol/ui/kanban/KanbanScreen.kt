@@ -129,7 +129,7 @@ fun KanbanScreen(
                             SearchBar(
                                 query = query,
                                 onQueryChange = { query = it },
-                                placeholder = "Filter tasks by title, status, or assignee...",
+                                placeholder = "按标题、状态或负责人筛选任务…",
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                             // Board selector tab row

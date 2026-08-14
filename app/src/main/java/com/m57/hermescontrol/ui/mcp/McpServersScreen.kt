@@ -154,7 +154,7 @@ fun McpServersScreen(
                         SearchBar(
                             query = query,
                             onQueryChange = { query = it },
-                            placeholder = "Search MCP servers...",
+                            placeholder = "搜索 MCP 服务器…",
                         )
                     }
 
@@ -171,7 +171,7 @@ fun McpServersScreen(
                     } else if (filteredServers.isEmpty()) {
                         item(key = "no-match") {
                             Text(
-                                text = "No servers match \"$query\"",
+                                text = "没有匹配\"$query\"的服务器",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(spacing.md),

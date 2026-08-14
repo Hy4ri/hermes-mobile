@@ -303,7 +303,7 @@ private fun IdentityStep(
             value = description,
             onValueChange = onDescriptionChange,
             label = { Text(stringResource(R.string.profiles_builder_label_description)) },
-            placeholder = { Text("Describe the purpose of this profile") },
+            placeholder = { Text("描述此配置的用途") },
             modifier = Modifier.fillMaxWidth(),
             maxLines = 4,
         )
@@ -470,17 +470,17 @@ private fun McpStep(
                                     fontWeight = FontWeight.Bold,
                                 )
                                 Text(
-                                    text = "Transport: ${server.transport.uppercase()}",
+                                    text = "传输：${server.transport.uppercase()}",
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                                 if (server.transport == "sse") {
                                     Text(
-                                        text = "URL: ${server.url}",
+                                        text = "URL：${server.url}",
                                         style = MaterialTheme.typography.labelSmall,
                                     )
                                 } else {
                                     Text(
-                                        text = "Command: ${server.command}",
+                                        text = "命令：${server.command}",
                                         style = MaterialTheme.typography.labelSmall,
                                     )
                                 }
@@ -490,7 +490,7 @@ private fun McpStep(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remove Server",
+                                    contentDescription = "移除服务器",
                                 )
                             }
                         }

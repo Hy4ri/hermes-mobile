@@ -518,7 +518,7 @@ internal fun InlineAttachment(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Download,
-                                contentDescription = "Save ${attachment.name}",
+                                contentDescription = "保存 ${attachment.name}",
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }

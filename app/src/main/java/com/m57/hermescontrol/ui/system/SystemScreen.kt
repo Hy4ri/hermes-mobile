@@ -854,7 +854,7 @@ private fun LazyListScope.gatewaySection(
                     // Auth required
                     status.auth_required?.let { auth ->
                         InfoRow(
-                            label = "Auth required",
+                            label = "需要认证",
                             value = if (auth) "yes" else "no",
                         )
                     }
@@ -1670,7 +1670,7 @@ private fun LazyListScope.actionLogSection(
                                 }
                                 if (lines.size > 20) {
                                     Text(
-                                        text = "... ${lines.size - 20} more line(s)",
+                                        text = "… 还有 ${lines.size - 20} 行",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

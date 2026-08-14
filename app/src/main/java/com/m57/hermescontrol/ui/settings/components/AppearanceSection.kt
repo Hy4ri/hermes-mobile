@@ -201,6 +201,7 @@ internal fun AppearanceSection(
             listOf(
                 LocaleContextWrapper.SYSTEM_LANGUAGE to stringResource(R.string.language_system),
                 "en" to stringResource(R.string.language_english),
+                "zh" to stringResource(R.string.language_chinese),
                 "ko" to stringResource(R.string.language_korean),
             )
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {

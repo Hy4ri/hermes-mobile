@@ -161,7 +161,7 @@ fun WebhooksScreen(
                         value = state.createFormDescription,
                         onValueChange = viewModel::updateCreateFormDescription,
                         label = { Text(stringResource(R.string.webhooks_field_description)) },
-                        placeholder = { Text("What this webhook does...") },
+                        placeholder = { Text("此 Webhook 的作用…") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -291,7 +291,7 @@ fun WebhooksScreen(
                                     )
                                     state.baseUrl?.let {
                                         Text(
-                                            text = "Receiver URL: $it",
+                                            text = "接收地址：$it",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1,
@@ -446,7 +446,7 @@ private fun SubscriptionCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             imageVector = Icons.Filled.Lock,
-                            contentDescription = "Secret configured",
+                            contentDescription = "已配置密钥",
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.primary,
                         )
@@ -482,7 +482,7 @@ private fun SubscriptionCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = "Delete subscription",
+                            contentDescription = "删除订阅",
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                         )

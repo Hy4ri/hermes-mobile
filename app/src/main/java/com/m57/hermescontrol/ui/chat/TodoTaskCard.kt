@@ -76,7 +76,7 @@ internal fun TodoTaskCard(
                         )
                     }
                     Text(
-                        text = "Tasks $completed/${items.size}",
+                        text = "任务 $completed/${items.size}",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f),

@@ -95,12 +95,12 @@ fun ModelPickerDialog(
             Column {
                 if (isLoading) {
                     LoadingState(
-                        subtitle = "Loading models…",
+                        subtitle = "正在加载模型…",
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else if (providers.isEmpty() && pinnedModels.isEmpty()) {
                     Text(
-                        text = "No models available.",
+                        text = "没有可用模型。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -143,7 +143,7 @@ fun ModelPickerDialog(
                     SearchBar(
                         query = pickerQuery,
                         onQueryChange = { pickerQuery = it },
-                        placeholder = "Search models and providers...",
+                        placeholder = "搜索模型和提供商…",
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 

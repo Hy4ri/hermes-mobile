@@ -67,7 +67,7 @@ fun ContextDetailSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Context window",
+                text = "上下文窗口",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -117,15 +117,15 @@ fun ContextDetailSheet(
             )
 
             // Breakdown rows
-            ContextRow(label = "Prompt (input)", value = breakdown.inputTokens)
-            ContextRow(label = "Completion (output)", value = breakdown.outputTokens)
-            ContextRow(label = "Cache read", value = breakdown.cacheReadTokens)
-            ContextRow(label = "Cache write", value = breakdown.cacheWriteTokens)
+            ContextRow(label = "提示词（输入）", value = breakdown.inputTokens)
+            ContextRow(label = "补全（输出）", value = breakdown.outputTokens)
+            ContextRow(label = "缓存读取", value = breakdown.cacheReadTokens)
+            ContextRow(label = "缓存写入", value = breakdown.cacheWriteTokens)
             ContextRow(label = "Reasoning", value = breakdown.reasoningTokens)
             ContextRow(label = "Messages", value = breakdown.messageCount.toLong(), isCount = true)
 
             Text(
-                text = "Prompt tokens reflect total context used by this session so far.",
+                text = "提示词 token 反映此会话迄今使用的总上下文。",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp),

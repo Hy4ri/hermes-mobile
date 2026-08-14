@@ -161,7 +161,7 @@ fun WebhooksScreen(
                         value = state.createFormDescription,
                         onValueChange = viewModel::updateCreateFormDescription,
                         label = { Text(stringResource(R.string.webhooks_field_description)) },
-                        placeholder = { Text("此 Webhook 的作用…") },
+                        placeholder = { Text(stringResource(R.string.webhooks_placeholder)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -291,7 +291,7 @@ fun WebhooksScreen(
                                     )
                                     state.baseUrl?.let {
                                         Text(
-                                            text = "接收地址：$it",
+                                            text = stringResource(R.string.webhooks_receiver_url, it),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1,
@@ -446,7 +446,7 @@ private fun SubscriptionCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             imageVector = Icons.Filled.Lock,
-                            contentDescription = "已配置密钥",
+                            contentDescription = stringResource(R.string.webhooks_secret_configured),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.primary,
                         )
@@ -482,7 +482,7 @@ private fun SubscriptionCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = "删除订阅",
+                            contentDescription = stringResource(R.string.webhooks_delete_subscription),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                         )

@@ -2968,8 +2968,11 @@ class ChatViewModel(
         if (items.isEmpty()) return
 
         val baseUrl = AuthManager.getBaseUrl()
-        val token = AuthManager.getToken()
-        if (baseUrl.isBlank() || token.isNullOrBlank()) return
+        if (baseUrl.isBlank()) return
+        // NOTE: no token gate here. Gated (basic-auth) dashboards download via
+        // the session cookie, and even loopback hosts can serve files with an
+        // empty query token — requiring a non-blank token dropped every MEDIA
+        // attachment on gate-auth connections where getToken() returns null.
 
         val existingUrls =
             current.attachments
@@ -2978,7 +2981,7 @@ class ChatViewModel(
                 .toSet()
         val newAttachments =
             items.mapNotNull { item ->
-                val url = GatewayFileClient.buildDownloadUrl(baseUrl, token, item.path) ?: return@mapNotNull null
+                val url = GatewayFileClient.buildDownloadUrl(baseUrl, "", item.path) ?: return@mapNotNull null
                 if (url in existingUrls) return@mapNotNull null
                 Attachment(
                     uri = url,

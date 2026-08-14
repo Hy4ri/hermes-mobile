@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.ContextBreakdown
 import kotlin.math.min
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 /**
  * Detail sheet shown when the context meter chip is tapped. Lists the session's
@@ -67,7 +69,7 @@ fun ContextDetailSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "上下文窗口",
+                text = stringResource(R.string.context_window),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -117,15 +119,15 @@ fun ContextDetailSheet(
             )
 
             // Breakdown rows
-            ContextRow(label = "提示词（输入）", value = breakdown.inputTokens)
-            ContextRow(label = "补全（输出）", value = breakdown.outputTokens)
-            ContextRow(label = "缓存读取", value = breakdown.cacheReadTokens)
-            ContextRow(label = "缓存写入", value = breakdown.cacheWriteTokens)
+            ContextRow(label = stringResource(R.string.context_prompt_input), value = breakdown.inputTokens)
+            ContextRow(label = stringResource(R.string.context_completion_output), value = breakdown.outputTokens)
+            ContextRow(label = stringResource(R.string.context_cache_read), value = breakdown.cacheReadTokens)
+            ContextRow(label = stringResource(R.string.context_cache_write), value = breakdown.cacheWriteTokens)
             ContextRow(label = "Reasoning", value = breakdown.reasoningTokens)
             ContextRow(label = "Messages", value = breakdown.messageCount.toLong(), isCount = true)
 
             Text(
-                text = "提示词 token 反映此会话迄今使用的总上下文。",
+                text = stringResource(R.string.context_tokens_note),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp),

@@ -66,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import android.app.Application
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -125,8 +126,10 @@ private fun formatDuration(totalSeconds: Double): String {
 fun SystemScreen(
     modifier: Modifier = Modifier,
     onOpenDrawer: (() -> Unit)? = null,
-    viewModel: SystemViewModel = viewModel { SystemViewModel() },
+    viewModel: SystemViewModel? = null,
 ) {
+    val app = LocalContext.current.applicationContext as Application
+    val viewModel = viewModel ?: viewModel { SystemViewModel(app) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
@@ -854,7 +857,7 @@ private fun LazyListScope.gatewaySection(
                     // Auth required
                     status.auth_required?.let { auth ->
                         InfoRow(
-                            label = "需要认证",
+                            label = stringResource(R.string.system_auth_required),
                             value = if (auth) "yes" else "no",
                         )
                     }
@@ -1670,7 +1673,7 @@ private fun LazyListScope.actionLogSection(
                                 }
                                 if (lines.size > 20) {
                                     Text(
-                                        text = "… 还有 ${lines.size - 20} 行",
+                                        text = stringResource(R.string.system_more_lines, lines.size - 20),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

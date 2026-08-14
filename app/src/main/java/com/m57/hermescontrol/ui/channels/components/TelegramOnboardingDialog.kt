@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.channels.ChannelsUiState
 import com.m57.hermescontrol.ui.channels.OnboardingPhase
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 @Composable
 internal fun TelegramOnboardingDialog(
@@ -87,12 +89,12 @@ internal fun TelegramOnboardingDialog(
 
                     OnboardingPhase.WAITING -> {
                         Text(
-                            text = "打开 Telegram 扫描应用内显示的二维码。",
+                            text = stringResource(R.string.tg_onboarding_scan_hint),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         if (state.onboardingExpiresIn.isNotEmpty()) {
                             Text(
-                                text = "二维码将在 ${state.onboardingExpiresIn} 后过期",
+                                text = stringResource(R.string.tg_onboarding_qr_expires, state.onboardingExpiresIn),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -102,13 +104,13 @@ internal fun TelegramOnboardingDialog(
                     OnboardingPhase.READY -> {
                         state.onboardingBotUsername?.let { username ->
                             Text(
-                                text = "已连接为 @$username",
+                                text = stringResource(R.string.tg_onboarding_connected_as, username),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "允许的用户：",
+                            text = stringResource(R.string.tg_onboarding_allowed_users),
                             style = MaterialTheme.typography.titleSmall,
                         )
                         state.onboardingDetectedOwnerId?.let { ownerId ->
@@ -146,12 +148,12 @@ internal fun TelegramOnboardingDialog(
                             OutlinedTextField(
                                 value = state.onboardingNewAllowedId,
                                 onValueChange = onNewAllowedIdChange,
-                                placeholder = { Text("Telegram 用户 ID") },
+                                placeholder = { Text(stringResource(R.string.tg_onboarding_user_id_placeholder)) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
                             )
                             IconButton(onClick = onAddAllowedId) {
-                                Icon(Icons.Filled.Add, contentDescription = "添加用户 ID")
+                                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.tg_onboarding_add_user_id))
                             }
                         }
                     }
@@ -165,7 +167,7 @@ internal fun TelegramOnboardingDialog(
                                 CircularProgressIndicator()
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "正在保存配置…",
+                                    text = stringResource(R.string.tg_onboarding_saving),
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
@@ -183,7 +185,7 @@ internal fun TelegramOnboardingDialog(
                         onClick = onApply,
                         enabled = state.onboardingAllowedIds.isNotEmpty(),
                     ) {
-                        Text("保存并重启")
+                        Text(stringResource(R.string.tg_onboarding_save_restart))
                     }
                 }
 

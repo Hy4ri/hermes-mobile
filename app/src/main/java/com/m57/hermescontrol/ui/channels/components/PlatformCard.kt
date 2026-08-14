@@ -226,7 +226,7 @@ internal fun PlatformCard(
                     } else {
                         Icon(
                             imageVector = Icons.Filled.Delete,
-                            contentDescription = "移除平台",
+                            contentDescription = stringResource(R.string.platform_remove_desc),
                             tint = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -246,7 +246,7 @@ internal fun PlatformCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "扫码设置",
+                        text = stringResource(R.string.platform_setup_qr),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
@@ -267,8 +267,8 @@ internal fun PlatformCard(
     if (showRemoveConfirm) {
         AlertDialog(
             onDismissRequest = { showRemoveConfirm = false },
-            title = { Text("移除 ${platform.name}？") },
-            text = { Text("这将永久移除该平台的配置。") },
+            title = { Text(stringResource(R.string.platform_remove_confirm_title, platform.name)) },
+            text = { Text(stringResource(R.string.platform_remove_confirm_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {

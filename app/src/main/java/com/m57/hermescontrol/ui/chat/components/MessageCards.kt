@@ -153,7 +153,7 @@ fun ReasoningCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "推理 · $stepCount 步",
+                    text = stringResource(R.string.message_reasoning_steps, stepCount),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
@@ -491,7 +491,7 @@ fun ClarifyBubble(
             OutlinedTextField(
                 value = typedText,
                 onValueChange = { typedText = it },
-                label = { Text("你的回复") },
+                label = { Text(stringResource(R.string.message_your_response)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )

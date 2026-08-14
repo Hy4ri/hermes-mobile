@@ -169,7 +169,7 @@ fun PluginsScreen(
                         SearchBar(
                             query = query,
                             onQueryChange = { query = it },
-                            placeholder = "搜索插件…",
+                            placeholder = stringResource(R.string.plugins_search_placeholder),
                         )
                     }
 
@@ -336,7 +336,7 @@ private fun InstallSection(
                 value = state.installUrl,
                 onValueChange = { viewModel.updateInstallUrl(it) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("owner/repo、owner/repo/subdir 或 https://...") },
+                placeholder = { Text(stringResource(R.string.plugins_repo_placeholder)) },
                 singleLine = true,
                 enabled = !state.installBusy,
             )

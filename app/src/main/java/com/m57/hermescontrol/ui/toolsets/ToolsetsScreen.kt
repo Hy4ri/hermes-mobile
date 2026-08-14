@@ -135,7 +135,7 @@ fun ToolsetsScreen(
                                 SearchBar(
                                     query = query,
                                     onQueryChange = { query = it },
-                                    placeholder = "搜索工具集…",
+                                    placeholder = stringResource(R.string.toolsets_search_placeholder),
                                 )
                             }
                             items(filteredToolsets, key = { it.name }) { toolset ->

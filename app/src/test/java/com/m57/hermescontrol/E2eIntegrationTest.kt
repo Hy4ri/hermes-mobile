@@ -1182,7 +1182,7 @@ class E2eIntegrationTest {
                 Response.success(UpdateCheckResponse())
             coEvery { mockApiService.triggerBackup(BackupTriggerRequest()) } returns Response.success(ActionResponse())
 
-            val viewModel = SystemViewModel()
+            val viewModel = SystemViewModel(mockApp)
             viewModel.loadAll()
             advanceUntilIdle()
 

@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.system
 
+import android.app.Application
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -14,6 +16,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SystemViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
+    private val mockApp = mockk<Application>(relaxed = true)
 
     @Before
     fun setup() {
@@ -27,7 +30,7 @@ class SystemViewModelTest {
 
     @Test
     fun `openUpdateConfirm sets updateConfirmOpen to true`() {
-        val viewModel = SystemViewModel()
+        val viewModel = SystemViewModel(mockApp)
 
         assertFalse(viewModel.uiState.value.updateConfirmOpen)
 
@@ -38,7 +41,7 @@ class SystemViewModelTest {
 
     @Test
     fun `closeUpdateConfirm sets updateConfirmOpen to false`() {
-        val viewModel = SystemViewModel()
+        val viewModel = SystemViewModel(mockApp)
 
         // First open it
         viewModel.openUpdateConfirm()

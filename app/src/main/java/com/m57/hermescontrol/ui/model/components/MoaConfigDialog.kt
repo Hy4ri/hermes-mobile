@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.data.model.MoaConfigPreset
 import com.m57.hermescontrol.data.model.MoaModelSlot
 import com.m57.hermescontrol.ui.common.SearchBar
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 @Composable
 internal fun MoaConfigDialog(
@@ -58,7 +60,7 @@ internal fun MoaConfigDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("多 Agent 混合") },
+        title = { Text(stringResource(R.string.moa_title)) },
         text = {
             if (pickerTarget != null && effectivePreset != null) {
                 // Inline model picker within the dialog
@@ -228,13 +230,13 @@ private fun MoaConfigEditor(
 ) {
     Column {
         Text(
-            text = "预设会作为多 Agent 混合提供商下的模型显示。",
+            text = stringResource(R.string.moa_presets_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         if (effectivePreset == null) {
-            Text("未配置预设", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.moa_no_presets), style = MaterialTheme.typography.bodyMedium)
             return
         }
 
@@ -248,7 +250,7 @@ private fun MoaConfigEditor(
         ) {
             // Simplified preset dropdown with buttons
             if (presetNames.isNotEmpty()) {
-                Text("预设：", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.moa_preset_label), style = MaterialTheme.typography.bodySmall)
                 presetNames.forEach { name ->
                     TextButton(
                         onClick = { onSelectPreset(name) },
@@ -286,7 +288,7 @@ private fun MoaConfigEditor(
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 enabled = presetNames.size > 1,
             ) {
-                Text("设为默认", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.moa_set_default), style = MaterialTheme.typography.labelSmall)
             }
             OutlinedButton(
                 onClick = onDeletePreset,
@@ -306,13 +308,13 @@ private fun MoaConfigEditor(
             OutlinedTextField(
                 value = newPresetName,
                 onValueChange = onNewPresetNameChange,
-                placeholder = { Text("新预设名称", style = MaterialTheme.typography.bodySmall) },
+                placeholder = { Text(stringResource(R.string.moa_new_preset_name), style = MaterialTheme.typography.bodySmall) },
                 singleLine = true,
                 modifier = Modifier.weight(1f).height(48.dp),
                 textStyle = MaterialTheme.typography.bodySmall,
             )
             IconButton(onClick = onAddPreset, enabled = newPresetName.isNotBlank()) {
-                Icon(Icons.Outlined.Add, contentDescription = "添加预设")
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.moa_add_preset))
             }
         }
 
@@ -320,7 +322,7 @@ private fun MoaConfigEditor(
 
         // Reference models
         Text(
-            text = "参考模型",
+            text = stringResource(R.string.moa_reference_models),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold,
         )
@@ -355,7 +357,7 @@ private fun MoaConfigEditor(
         ) {
             Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(modifier = Modifier.width(4.dp))
-            Text("添加参考模型", style = MaterialTheme.typography.labelSmall)
+            Text(stringResource(R.string.moa_add_reference), style = MaterialTheme.typography.labelSmall)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -412,7 +414,7 @@ private fun MoaSlotPicker(
         SearchBar(
             query = pickerQuery,
             onQueryChange = { pickerQuery = it },
-            placeholder = "搜索提供商…",
+            placeholder = stringResource(R.string.moa_search_providers),
         )
         Spacer(modifier = Modifier.height(8.dp))
 

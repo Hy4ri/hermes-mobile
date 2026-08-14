@@ -188,7 +188,7 @@ private fun ProviderCard(
                 provider.status.sourceLabel?.let { label ->
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "通过 $label",
+                        text = stringResource(R.string.providers_via, label),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )

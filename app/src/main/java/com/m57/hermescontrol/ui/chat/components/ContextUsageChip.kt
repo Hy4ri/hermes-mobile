@@ -19,6 +19,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import kotlin.math.min
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 /**
  * Compact "used / full context" meter for the chat screen.
@@ -103,7 +105,7 @@ fun ContextUsageChip(
             ) {
                 if (compressionCount != null && compressionCount > 0) {
                     Text(
-                        text = "已压缩 ×$compressionCount",
+                        text = stringResource(R.string.context_compressed, compressionCount),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.tertiary,
                         maxLines = 1,

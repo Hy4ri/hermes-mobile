@@ -257,7 +257,7 @@ fun SkillsStep(
                                 }
                                 if (!skill.source.isNullOrBlank()) {
                                     Text(
-                                        text = "来源：${skill.source}",
+                                        text = stringResource(R.string.skills_source, skill.source),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontStyle = FontStyle.Italic,

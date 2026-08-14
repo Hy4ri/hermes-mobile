@@ -1,9 +1,12 @@
 package com.m57.hermescontrol.ui.system
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.annotation.StringRes
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.BuildConfig
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.ActionResponse
 import com.m57.hermescontrol.data.model.ActionStatusResponse
 import com.m57.hermescontrol.data.model.BackupTriggerRequest
@@ -83,8 +86,8 @@ data class SystemUiState(
     val updateConfirmOpen: Boolean = false,
 )
 
-class SystemViewModel :
-    ViewModel(),
+class SystemViewModel(application: Application) :
+    AndroidViewModel(application),
     ToastHost {
     companion object {
         private const val TAG = "SystemViewModel"
@@ -348,7 +351,7 @@ class SystemViewModel :
     fun runCuratorNow() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runCurator() } },
-            label = "运行技能维护器",
+            labelRes = R.string.system_curator_run,
         )
     }
 
@@ -433,35 +436,35 @@ class SystemViewModel :
     fun runSecurityAudit() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runSecurityAudit() } },
-            label = "安全审计",
+            labelRes = R.string.system_security_audit,
         )
     }
 
     fun runPromptSize() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runPromptSize() } },
-            label = "提示词大小检查",
+            labelRes = R.string.system_prompt_size_check,
         )
     }
 
     fun runDump() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runDump() } },
-            label = "Dump",
+            labelRes = R.string.system_dump,
         )
     }
 
     fun runConfigMigrate() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.runConfigMigrate() } },
-            label = "迁移配置",
+            labelRes = R.string.system_config_migrate,
         )
     }
 
     fun runUpdateSkills() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.updateSkillsFromHub() } },
-            label = "更新技能",
+            labelRes = R.string.system_skills_update,
         )
     }
 
@@ -654,7 +657,7 @@ class SystemViewModel :
     fun pruneCheckpoints() {
         runOperation(
             apiCall = { safeApiCall { ApiClient.hermesApi.pruneCheckpoints() } },
-            label = "清理检查点",
+            labelRes = R.string.system_checkpoint_prune,
         )
     }
 
@@ -786,18 +789,18 @@ class SystemViewModel :
 
     private fun runOperation(
         apiCall: suspend () -> NetworkResult<ActionResponse>,
-        label: String,
+        @StringRes labelRes: Int,
     ) {
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) { apiCall() }
             when (result) {
                 is NetworkResult.Success -> {
                     result.data.name?.let { pollActionStatus(it) }
-                    _uiState.update { it.copy(toastMessage = "$label started") }
+                    _uiState.update { it.copy(toastMessage = getApplication<Application>().getString(R.string.system_action_started, getApplication<Application>().getString(labelRes))) }
                 }
 
                 is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "$label failed: ${result.error.message}") }
+                    _uiState.update { it.copy(toastMessage = getApplication<Application>().getString(R.string.system_action_failed, getApplication<Application>().getString(labelRes), result.error.message)) }
                 }
             }
         }

@@ -786,7 +786,7 @@ fun ChatScreen(
         if (state.showModelPicker) {
             ModelPickerDialog(
                 providers = state.modelPickerProviders,
-                title = "切换模型（当前对话）",
+                title = stringResource(R.string.chat_switch_model_title),
                 isLoading = state.modelPickerLoading && state.modelPickerProviders.isEmpty(),
                 pinnedModels = state.modelPickerPinned,
                 onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },

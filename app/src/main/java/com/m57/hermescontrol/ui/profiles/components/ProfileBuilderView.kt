@@ -303,7 +303,7 @@ private fun IdentityStep(
             value = description,
             onValueChange = onDescriptionChange,
             label = { Text(stringResource(R.string.profiles_builder_label_description)) },
-            placeholder = { Text("描述此配置的用途") },
+            placeholder = { Text(stringResource(R.string.profile_builder_placeholder)) },
             modifier = Modifier.fillMaxWidth(),
             maxLines = 4,
         )
@@ -470,7 +470,7 @@ private fun McpStep(
                                     fontWeight = FontWeight.Bold,
                                 )
                                 Text(
-                                    text = "传输：${server.transport.uppercase()}",
+                                    text = stringResource(R.string.profile_transport, server.transport.uppercase()),
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                                 if (server.transport == "sse") {
@@ -480,7 +480,7 @@ private fun McpStep(
                                     )
                                 } else {
                                     Text(
-                                        text = "命令：${server.command}",
+                                        text = stringResource(R.string.profile_command, server.command ?: ""),
                                         style = MaterialTheme.typography.labelSmall,
                                     )
                                 }
@@ -490,7 +490,7 @@ private fun McpStep(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "移除服务器",
+                                    contentDescription = stringResource(R.string.profile_remove_server),
                                 )
                             }
                         }

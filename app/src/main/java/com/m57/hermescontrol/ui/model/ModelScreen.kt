@@ -157,7 +157,7 @@ fun ModelScreen(
                         SearchBar(
                             query = query,
                             onQueryChange = { query = it },
-                            placeholder = "搜索模型…",
+                            placeholder = stringResource(R.string.model_search_placeholder),
                         )
                     }
 
@@ -221,7 +221,7 @@ fun ModelScreen(
     if (state.modelPickerConfirmMessage != null) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissModelPickerConfirm() },
-            title = { Text("高成本模型") },
+            title = { Text(stringResource(R.string.model_expensive_title)) },
             text = { Text(state.modelPickerConfirmMessage!!) },
             confirmButton = {
                 Button(onClick = { viewModel.confirmModelPickerExpensive() }) {
@@ -240,7 +240,7 @@ fun ModelScreen(
     if (state.showMainModelPicker) {
         ModelPickerDialog(
             providers = state.providers,
-            title = "设置主模型",
+            title = stringResource(R.string.model_set_main),
             isLoading = state.isLoading && state.providers.isEmpty(),
             pinnedModels = state.pinnedModels,
             onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
@@ -266,7 +266,7 @@ fun ModelScreen(
     if (state.showAuxModelPicker) {
         ModelPickerDialog(
             providers = state.providers,
-            title = "设置辅助：${state.auxPickerTask}",
+            title = stringResource(R.string.model_set_aux, state.auxPickerTask),
             isLoading = state.isLoading && state.providers.isEmpty(),
             pinnedModels = state.pinnedModels,
             onPinToggle = { provider, model -> viewModel.togglePinModel(provider, model) },
@@ -330,12 +330,12 @@ private fun ModelSettingsSection(
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = "模型设置",
+                    text = stringResource(R.string.model_settings),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "适用于新会话",
+                    text = stringResource(R.string.model_new_sessions),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -353,7 +353,7 @@ private fun ModelSettingsSection(
                         modifier = Modifier.size(16.dp),
                     )
                 },
-                label = "主模型",
+                label = stringResource(R.string.model_main_label),
                 value = if (mainProvider.isNotBlank()) "$mainProvider · $mainModel" else "(unset)",
                 actionLabel = "Change",
                 onAction = onSetMainModel,
@@ -371,7 +371,7 @@ private fun ModelSettingsSection(
                         modifier = Modifier.size(16.dp),
                     )
                 },
-                label = "辅助任务",
+                label = stringResource(R.string.model_aux_tasks_label),
                 value =
                     if (auxOverrideCount > 0) {
                         "$auxOverrideCount override · ${AUX_TASKS.size - auxOverrideCount} auto"
@@ -394,7 +394,7 @@ private fun ModelSettingsSection(
                         modifier = Modifier.size(16.dp),
                     )
                 },
-                label = "多 Agent 混合",
+                label = stringResource(R.string.model_moa_label),
                 value = if (moaEnabled) moaSummary else "not loaded",
                 actionLabel = "Configure",
                 onAction = onConfigureMoa,
@@ -461,7 +461,7 @@ private fun AuxTasksDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("辅助任务") },
+        title = { Text(stringResource(R.string.model_aux_tasks_title)) },
         text = {
             Column {
                 Text(
@@ -530,7 +530,7 @@ private fun AuxTasksDialog(
                 ) {
                     Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("全部重置为自动")
+                    Text(stringResource(R.string.model_reset_all_auto))
                 }
             }
         },

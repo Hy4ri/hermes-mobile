@@ -44,12 +44,20 @@ object GatewayFileClient {
         if (trimmedBase.isBlank()) return null
         val norm = normalizePath(path) ?: return null
         val encPath = URLEncoder.encode(norm, StandardCharsets.UTF_8.name()).replace("+", "%20")
-        return if (token.isNotBlank()) {
-            val encToken = URLEncoder.encode(token, StandardCharsets.UTF_8.name()).replace("+", "%20")
-            "$trimmedBase$DOWNLOAD_PATH?path=$encPath&token=$encToken"
-        } else {
-            "$trimmedBase$DOWNLOAD_PATH?path=$encPath"
-        }
+        // Gated (basic-auth) dashboards authenticate the download via the
+        // session cookie in the shared CookieJar — a `?token=` query param is
+        // not consulted (the WS ticket the app stores is meaningless here), so
+        // don't stamp a bogus token into the URL. Loopback mode still needs it:
+        // there the query token IS the auth (auth_middleware compares it to the
+        // injected _SESSION_TOKEN).
+        val authQuery =
+            if (token.isNotBlank() && !AuthManager.isGatedMode()) {
+                val encToken = URLEncoder.encode(token, StandardCharsets.UTF_8.name()).replace("+", "%20")
+                "&token=$encToken"
+            } else {
+                ""
+            }
+        return "$trimmedBase$DOWNLOAD_PATH?path=$encPath$authQuery"
     }
 
     /**

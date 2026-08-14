@@ -28,6 +28,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 @Composable
 fun GifImageThumbnail(
@@ -125,7 +127,7 @@ fun GifImageThumbnail(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = "播放 GIF",
+                        contentDescription = stringResource(R.string.gif_play),
                         modifier = Modifier.size(32.dp),
                         tint = MaterialTheme.colorScheme.onSurface,
                     )

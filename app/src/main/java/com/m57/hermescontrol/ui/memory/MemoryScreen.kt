@@ -305,12 +305,12 @@ private fun SelfImprovementSection(graph: LearningGraphResponse?) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     StatCard(
-                        label = "已学习技能",
+                        label = stringResource(R.string.memory_learned_skills),
                         value = "${skillNodes.size}",
                         modifier = Modifier.weight(1f),
                     )
                     StatCard(
-                        label = "记忆与事实",
+                        label = stringResource(R.string.memory_memories_facts),
                         value = "${memoryNodes.size}",
                         modifier = Modifier.weight(1f),
                     )
@@ -318,7 +318,7 @@ private fun SelfImprovementSection(graph: LearningGraphResponse?) {
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "最近的 Agent 自我改进事件",
+                    text = stringResource(R.string.memory_recent_events),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,

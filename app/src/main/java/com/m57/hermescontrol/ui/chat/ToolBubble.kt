@@ -491,7 +491,7 @@ private fun ExpandedToolContent(
         // ── Duration footer ──
         view.durationLabel?.let {
             Text(
-                text = "耗时：$it",
+                text = stringResource(R.string.tool_duration, it),
                 style =
                     MaterialTheme.typography.labelSmall.copy(
                         color = contentColor.copy(alpha = 0.5f),
@@ -593,7 +593,7 @@ internal fun SecurityRiskChip(
         )
         if (riskData.redacted && (riskData.risk == "high" || riskData.risk == "medium")) {
             Text(
-                text = "· 已脱敏",
+                text = stringResource(R.string.tool_redacted),
                 style = MaterialTheme.typography.labelSmall,
                 color = chipColor.copy(alpha = 0.7f),
             )

@@ -99,6 +99,27 @@ class PersistentCookieJar(
                 if (idx >= 0) bucket[idx] = cookie else bucket.add(cookie)
             }
         }
+        // Session cookies are host-agnostic: mirror every dashboard session
+        // cookie into the WILDCARD_HOST bucket (the same place the legacy
+        // migration buckets blank-domain cookies) so the authenticated
+        // session survives a host switch. Without this, logging in over one
+        // reachable address (e.g. Tailscale 100.x) and later talking to the
+        // same dashboard over another (e.g. LAN 192.168.x) loses the cookie
+        // entirely — every authenticated download / API call then 401s even
+        // though the WebSocket (dialed on the current host) keeps working.
+        val sessionCookies = cookies.filter { isSessionCookie(it) }
+        if (sessionCookies.isNotEmpty()) {
+            val wildcard =
+                cache
+                    .getOrPut(serverId) { ConcurrentHashMap() }
+                    .getOrPut(WILDCARD_HOST) { mutableListOf() }
+            synchronized(wildcard) {
+                for (cookie in sessionCookies) {
+                    val idx = wildcard.indexOfFirst { it.name == cookie.name && it.path == cookie.path }
+                    if (idx >= 0) wildcard[idx] = cookie else wildcard.add(cookie)
+                }
+            }
+        }
         // Persist the whole server scope asynchronously.
         persist(serverId)
     }
@@ -108,11 +129,22 @@ class PersistentCookieJar(
         val hostKey = url.host
         val hosts = cache[serverId] ?: return emptyList()
         val now = System.currentTimeMillis()
+        // The WILDCARD bucket holds session cookies that must be usable on
+        // ANY host of this server scope (the dashboard is reachable over
+        // several IPs). They are exempted from the host-only domain match —
+        // OkHttp would reject them for a different host — but never sent to
+        // other servers because the scope itself is per-server.
         val buckets = listOfNotNull(hosts[hostKey], hosts[WILDCARD_HOST])
+        val seen = mutableSetOf<Pair<String, String>>()
         synchronized(buckets) {
             return buckets.flatMap { bucket ->
                 synchronized(bucket) {
-                    bucket.filter { it.matches(url) && (it.expiresAt > now || isSessionCookie(it)) }
+                    bucket.filter { cookie ->
+                        val alive = cookie.expiresAt > now || isSessionCookie(cookie)
+                        val usable = isSessionCookie(cookie) || cookie.matches(url)
+                        val key = cookie.name to cookie.path
+                        alive && usable && seen.add(key)
+                    }
                 }
             }
         }

@@ -183,7 +183,7 @@ fun ChannelsScreen(
                         SearchBar(
                             query = query,
                             onQueryChange = { query = it },
-                            placeholder = "搜索渠道…",
+                            placeholder = stringResource(R.string.channels_search_placeholder),
                         )
                     }
 
@@ -350,7 +350,7 @@ internal fun ConfigureForm(
                 }
                 field.expiresAt?.let { expiry ->
                     Text(
-                        text = "过期时间：${formatTimestamp(expiry)}",
+                        text = stringResource(R.string.channels_expiry_format, formatTimestamp(expiry)),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall,
                     )
@@ -438,7 +438,7 @@ private fun AdminSection(envPath: String) {
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "凭据将写入 $envPath",
+                    text = stringResource(R.string.channels_creds_path_format, envPath),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

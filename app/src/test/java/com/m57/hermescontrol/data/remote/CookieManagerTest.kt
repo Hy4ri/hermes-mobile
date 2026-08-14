@@ -103,7 +103,7 @@ class CookieManagerTest {
     }
 
     @Test
-    fun setSessionCookie_hostScoped_onlyMatchesThatHost() =
+    fun setSessionCookie_isUsableAcrossHosts() =
         runTest {
             val jar = fakeJar()
             CookieManager.setSessionCookie("sess-xyz", ep("dashboard.local"))
@@ -115,8 +115,11 @@ class CookieManagerTest {
             assertEquals(1, onHost.size)
             assertEquals("sess-xyz", onHost[0].value)
 
+            // Session cookie mirrors to the WILDCARD bucket — usable on any
+            // host within the same server scope (WiFi/Tailscale switch-safe).
             val offHost = jar.loadForRequest("http://other.local/".toHttpUrl())
-            assertEquals(0, offHost.size)
+            assertEquals(1, offHost.size)
+            assertEquals("sess-xyz", offHost[0].value)
         }
 
     @Test

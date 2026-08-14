@@ -171,13 +171,13 @@ private fun AnalyticsContent(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = "最常用组件",
+                    text = stringResource(R.string.analytics_most_used_components),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "你最常用的模型、技能和工具概览。",
+                    text = stringResource(R.string.analytics_overview_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -221,7 +221,7 @@ private fun AnalyticsContent(
             } else {
                 item {
                     Text(
-                        text = "暂无模型数据",
+                        text = stringResource(R.string.analytics_no_model_data),
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -243,7 +243,7 @@ private fun AnalyticsContent(
             } else {
                 item {
                     Text(
-                        text = "暂无技能数据",
+                        text = stringResource(R.string.analytics_no_skill_data),
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -260,7 +260,7 @@ private fun AnalyticsContent(
             } else {
                 item {
                     Text(
-                        text = "暂无工具数据",
+                        text = stringResource(R.string.analytics_no_tool_data),
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

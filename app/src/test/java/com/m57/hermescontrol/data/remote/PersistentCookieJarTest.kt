@@ -54,7 +54,7 @@ class PersistentCookieJarTest {
         }
 
     @Test
-    fun cookie_doesNotLeakToOtherHost() =
+    fun sessionCookie_isUsableAcrossHostsWithinServer() =
         runTest {
             val jar = makeJar()
             jar.useStore("server-a")
@@ -63,8 +63,12 @@ class PersistentCookieJarTest {
                 listOf(sessionCookie("dashboard.local", "abc123")),
             )
 
+            // Session cookies mirror to the WILDCARD bucket (host-agnostic)
+            // so the authenticated session survives WiFi/Tailscale host
+            // switches — but only within the same server scope.
             val loaded = jar.loadForRequest("http://evil.local/".toHttpUrl())
-            assertTrue(loaded.isEmpty())
+            assertEquals(1, loaded.size)
+            assertEquals("abc123", loaded[0].value)
         }
 
     @Test

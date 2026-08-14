@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.TodoItem
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 /**
  * Inspection sheet displaying active & completed subagent tasks and agent todos.
@@ -78,7 +80,7 @@ fun SubagentInspectionSheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "任务与计划检查",
+                        text = stringResource(R.string.subagent_task_plan_inspection),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
@@ -96,7 +98,7 @@ fun SubagentInspectionSheet(
 
             if (indicators.isEmpty() && todos.isEmpty()) {
                 Text(
-                    text = "没有活动任务或计划项。",
+                    text = stringResource(R.string.subagent_no_active),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 16.dp),
@@ -120,7 +122,7 @@ fun SubagentInspectionSheet(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "AGENT 计划",
+                                    text = stringResource(R.string.subagent_agent_plan),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary,
@@ -242,7 +244,7 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
             if (!indicator.summary.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "摘要：${indicator.summary}",
+                    text = stringResource(R.string.subagent_summary, indicator.summary),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -260,7 +262,7 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
-                        text = "实时转录",
+                        text = stringResource(R.string.subagent_live_transcript),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.outline,

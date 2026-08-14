@@ -5,8 +5,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.HermesControlTheme
 import org.junit.Rule
 import org.junit.Test
@@ -47,7 +50,7 @@ class TodoTaskCardTest {
         }
 
         composeTestRule.onNodeWithTag("todo_task_card").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Tasks 1/3").assertIsDisplayed()
+        composeTestRule.onNodeWithText(taskCount(1, 3)).assertIsDisplayed()
         composeTestRule.onNodeWithText("Finished").assertIsDisplayed()
         composeTestRule.onNodeWithText("Working").assertIsDisplayed()
         composeTestRule.onNodeWithText("Later").assertIsDisplayed()
@@ -94,7 +97,7 @@ class TodoTaskCardTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Tasks 1/4").assertIsDisplayed()
+        composeTestRule.onNodeWithText(taskCount(1, 4)).assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Completed").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("Cancelled").assertIsDisplayed()
         composeTestRule.onNodeWithText("Running alias").assertIsDisplayed()
@@ -118,5 +121,10 @@ class TodoTaskCardTest {
         }
 
         composeTestRule.onNodeWithTag("todo_task_card").assertDoesNotExist()
+    }
+
+    private fun taskCount(completed: Int, total: Int): String {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        return context.getString(R.string.todo_task_count, completed, total)
     }
 }

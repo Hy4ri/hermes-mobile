@@ -129,7 +129,7 @@ fun KanbanScreen(
                             SearchBar(
                                 query = query,
                                 onQueryChange = { query = it },
-                                placeholder = "按标题、状态或负责人筛选任务…",
+                                placeholder = stringResource(R.string.kanban_filter_placeholder),
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                             // Board selector tab row

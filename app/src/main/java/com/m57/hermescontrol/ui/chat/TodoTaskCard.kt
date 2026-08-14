@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 @Composable
 internal fun TodoTaskCard(
@@ -76,7 +78,7 @@ internal fun TodoTaskCard(
                         )
                     }
                     Text(
-                        text = "任务 $completed/${items.size}",
+                        text = stringResource(R.string.todo_task_count, completed, items.size),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f),

@@ -1,14 +1,34 @@
 package com.m57.hermescontrol.data.remote
 
+import com.m57.hermescontrol.data.config.ServerStore
+import com.m57.hermescontrol.data.config.ServerStoreState
+import com.m57.hermescontrol.data.local.AuthManager
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class GatewayFileClientTest {
     private val base = "https://gw.example.com:9119"
     private val tok = "s e/cret"
+
+    @Before
+    fun setUp() {
+        // AuthManager.isGatedMode() reads serverStore — inject a mock whose
+        // wsAuthParam is NOT "ticket" so the tests exercise the loopback
+        // branch (token stamped into the URL). Keeps this builder test
+        // independent of real AuthManager initialization.
+        val mockStore = mockk<ServerStore>(relaxed = true)
+        every { mockStore.getLatestState() } returns
+            ServerStoreState(wsAuthParam = "bearer")
+        val field = AuthManager::class.java.getDeclaredField("_serverStore")
+        field.isAccessible = true
+        field.set(AuthManager, mockStore)
+    }
 
     @Test
     fun `buildDownloadUrl encodes path and token`() {

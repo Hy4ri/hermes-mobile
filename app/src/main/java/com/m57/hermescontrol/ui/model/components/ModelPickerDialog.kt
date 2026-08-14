@@ -39,6 +39,8 @@ import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.ui.common.LoadingState
 import com.m57.hermescontrol.ui.common.SearchBar
+import androidx.compose.ui.res.stringResource
+import com.m57.hermescontrol.R
 
 /**
  * Reusable model picker used by both the global model screen and the
@@ -95,12 +97,12 @@ fun ModelPickerDialog(
             Column {
                 if (isLoading) {
                     LoadingState(
-                        subtitle = "正在加载模型…",
+                        subtitle = stringResource(R.string.model_picker_loading),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else if (providers.isEmpty() && pinnedModels.isEmpty()) {
                     Text(
-                        text = "没有可用模型。",
+                        text = stringResource(R.string.model_picker_no_models),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -143,7 +145,7 @@ fun ModelPickerDialog(
                     SearchBar(
                         query = pickerQuery,
                         onQueryChange = { pickerQuery = it },
-                        placeholder = "搜索模型和提供商…",
+                        placeholder = stringResource(R.string.model_picker_search),
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 

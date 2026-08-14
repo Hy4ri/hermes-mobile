@@ -236,7 +236,7 @@ fun VideoViewerDialog(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = "播放视频",
+                            contentDescription = stringResource(R.string.video_play),
                             tint = MaterialTheme.colorScheme.inverseOnSurface,
                             modifier = Modifier.size(40.dp),
                         )

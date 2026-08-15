@@ -5,6 +5,12 @@ import com.m57.hermescontrol.data.config.ServerStoreState
 import com.m57.hermescontrol.data.local.AuthManager
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -101,4 +107,50 @@ class GatewayFileClientTest {
         assertEquals("report.pdf", GatewayFileClient.parseFilename("attachment; filename=\"report.pdf\""))
         assertEquals("a b.png", GatewayFileClient.parseFilename("inline; filename*=UTF-8''a%20b.png"))
     }
+
+    @Test
+    fun `copyChunked copies input to output byte-for-byte`() =
+        runTest {
+            // >64 KiB so the copy exercises multiple chunks (buffer is 64 KiB).
+            val payload = ByteArray(200_000) { (it % 251).toByte() }
+            val output = java.io.ByteArrayOutputStream()
+            GatewayFileClient.copyChunked(java.io.ByteArrayInputStream(payload), output)
+            assertTrue(output.toByteArray().contentEquals(payload))
+        }
+
+    @Test
+    fun `copyChunked aborts mid-copy when the job is cancelled`() =
+        runTest {
+            // Input that parks on its 2nd chunk read until the gate opens, so
+            // the test can cancel the job *while* the copy is in flight.
+            val gate = CompletableDeferred<Unit>()
+            val blockingInput =
+                object : java.io.InputStream() {
+                    var reads = 0
+
+                    override fun read(): Int = 1
+
+                    override fun read(
+                        b: ByteArray,
+                        off: Int,
+                        len: Int,
+                    ): Int {
+                        reads++
+                        if (reads == 2) kotlinx.coroutines.runBlocking { gate.await() }
+                        return if (reads <= 3) 1 else -1
+                    }
+                }
+            val output = java.io.ByteArrayOutputStream()
+            val job =
+                CoroutineScope(Dispatchers.Default).launch {
+                    GatewayFileClient.copyChunked(blockingInput, output)
+                }
+            runCurrent()
+            job.cancel()
+            gate.complete(Unit)
+            job.join()
+            // If copyChunked swallowed the cancellation, the job would have
+            // completed normally; a cancelled completion proves propagation.
+            assertTrue(job.isCancelled)
+        }
 }

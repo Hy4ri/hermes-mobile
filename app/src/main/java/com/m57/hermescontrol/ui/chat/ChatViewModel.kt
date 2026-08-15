@@ -3023,8 +3023,8 @@ class ChatViewModel(
      *   already grants read access for the picked document. If that fails
      *   (e.g. the permission lapsed), we copy to cache and retry via
      *   FileProvider so the tap is never a silent no-op.
-     * - GATEWAY (agent `MEDIA:`) files: fetch the bytes via
-     *   [GatewayFileClient], write them to a cache file, and open with
+     * - GATEWAY (agent `MEDIA:`) files: stream the file to cache via
+     *   [GatewayFileClient] (chunked — never held in memory), then open with
      *   [android.content.Intent.ACTION_VIEW] through FileProvider — so a
      *   remote phone can view agent-delivered files in-place.
      *
@@ -3041,8 +3041,9 @@ class ChatViewModel(
         }
         // GATEWAY, or LOCAL direct-open failed → fetch/copy then open.
         val path = gatewayPathFor(attachment)
+        val cacheDir = java.io.File(ctx.cacheDir, "gateway_files")
         viewModelScope.launch(ioDispatcher) {
-            when (val result = GatewayFileClient.fetch(path)) {
+            when (val result = GatewayFileClient.fetch(path, cacheDir)) {
                 is GatewayFileResult.Success -> {
                     openBytes(ctx, result.file)
                 }
@@ -3077,16 +3078,22 @@ class ChatViewModel(
     ) {
         if (_uiState.value.savingAttachmentPath != null) return
         val path = gatewayPathFor(attachment)
+        val cacheDir =
+            java.io.File(getApplication<Application>().applicationContext.cacheDir, "gateway_files")
         _uiState.update { it.copy(savingAttachmentPath = path) }
         viewModelScope.launch(ioDispatcher) {
             try {
-                when (val result = GatewayFileClient.fetch(path)) {
+                when (val result = GatewayFileClient.fetch(path, cacheDir)) {
                     is GatewayFileResult.Success -> {
                         val resolver = getApplication<Application>().contentResolver
                         runCatching {
                             resolver
                                 .openOutputStream(destination, "wt")
-                                ?.use { it.write(result.file.bytes) }
+                                ?.use { output ->
+                                    result.file.cacheFile.inputStream().use { input ->
+                                        GatewayFileClient.copyChunked(input, output)
+                                    }
+                                }
                                 ?: error("destination is unavailable")
                         }.onSuccess {
                             showOpenError("Saved ${result.file.name}")
@@ -3122,21 +3129,17 @@ class ChatViewModel(
             ?: attachment.uri.removePrefix("gateway:").takeIf { it != attachment.uri }
             ?: attachment.name
 
-    /** Open bytes written to a cache file via FileProvider + ACTION_VIEW. */
+    /** Open a gateway file already streamed to cache via FileProvider + ACTION_VIEW. */
     private fun openBytes(
         ctx: android.content.Context,
         file: GatewayFile,
     ) {
         runCatching {
-            val dir = java.io.File(ctx.cacheDir, "gateway_files").also { it.mkdirs() }
-            val safeName = file.name.replace(Regex("[/\\\\]"), "_").ifBlank { "file" }
-            val out = java.io.File(dir, safeName)
-            out.writeBytes(file.bytes)
             val uri =
                 androidx.core.content.FileProvider.getUriForFile(
                     ctx,
                     "${ctx.packageName}.fileprovider",
-                    out,
+                    file.cacheFile,
                 )
             openWithView(ctx, uri, file.mimeType)
         }.onFailure { showOpenError("Could not open ${file.name}: ${it.message}") }

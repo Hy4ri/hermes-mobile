@@ -1,12 +1,17 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
 import okhttp3.Request
+import java.io.File
 import java.io.IOException
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.UUID
 import java.util.regex.Pattern
+import kotlin.coroutines.coroutineContext
 
 /**
  * Client for the gateway's managed-files download endpoint
@@ -98,35 +103,103 @@ object GatewayFileClient {
             else -> null
         }
 
-    /** Fetch a gateway-hosted file using the current [AuthManager] credentials. */
-    suspend fun fetch(path: String): GatewayFileResult =
-        fetch(path, AuthManager.getBaseUrl(), AuthManager.getToken().orEmpty())
+    /** Fetch a gateway-hosted file using the current [AuthManager] credentials,
+     * streaming the response body straight to [cacheDir] so large files never
+     * sit in the app heap (a ~100 MB download used to OOM: the whole body was
+     * slurped into one [ByteArray] first). */
+    suspend fun fetch(
+        path: String,
+        cacheDir: File,
+    ): GatewayFileResult = fetch(path, AuthManager.getBaseUrl(), AuthManager.getToken().orEmpty(), cacheDir)
 
     /** Fetch a gateway-hosted file with explicit credentials (testable). */
     suspend fun fetch(
         path: String,
         baseUrl: String,
         token: String,
+        cacheDir: File,
     ): GatewayFileResult {
         val url =
             buildDownloadUrl(baseUrl, token, path)
                 ?: return GatewayFileResult.Failure(IllegalArgumentException("not an absolute gateway path: $path"))
+        val call = OkHttpProvider.base.newCall(Request.Builder().url(url).build())
+        val resp = call.execute()
         return try {
-            val request = Request.Builder().url(url).build()
-            OkHttpProvider.base.newCall(request).execute().use { resp ->
-                classifyStatus(resp.code)?.let { return it }
-                if (!resp.isSuccessful) {
-                    return GatewayFileResult.Failure(IOException("HTTP ${resp.code}"))
-                }
-                val body = resp.body.bytes()
-                val name =
-                    resp.header("Content-Disposition")?.let { parseFilename(it) }
-                        ?: fileNameFromPath(path)
-                val mime = resp.header("Content-Type") ?: "application/octet-stream"
-                GatewayFileResult.Success(GatewayFile(name, mime, body))
+            classifyStatus(resp.code)?.let { return it }
+            if (!resp.isSuccessful) {
+                return GatewayFileResult.Failure(IOException("HTTP ${resp.code}"))
             }
+            val name =
+                resp.header("Content-Disposition")?.let { parseFilename(it) }
+                    ?: fileNameFromPath(path)
+            val mime = resp.header("Content-Type") ?: "application/octet-stream"
+            val cacheFile =
+                streamBodyToCache(resp, cacheDir, name)
+                    ?: return GatewayFileResult.Failure(IOException("failed to write $name to cache"))
+            GatewayFileResult.Success(GatewayFile(name, mime, cacheFile))
+        } catch (e: CancellationException) {
+            // Never swallow cancellation — the caller's job was cancelled.
+            throw e
         } catch (e: Throwable) {
             GatewayFileResult.Failure(e)
+        } finally {
+            resp.close()
+        }
+    }
+
+    /** Stream the response body into a fresh file under [cacheDir] in 64 KiB
+     * chunks (peak heap stays ~constant no matter the file size), sweeping
+     * cache files older than a day first. Returns the written file, or null
+     * on any I/O failure. Cancellation-safe: the copy loop checks the calling
+     * coroutine's job, and a cancelled fetch deletes the partial file. */
+    private suspend fun streamBodyToCache(
+        resp: okhttp3.Response,
+        cacheDir: File,
+        name: String,
+    ): File? {
+        val body = resp.body ?: return null
+        val safeName = name.replace(Regex("[/\\\\]"), "_").ifBlank { "file" }
+        val dir = cacheDir.also { it.mkdirs() }
+        sweepOldCacheFiles(dir)
+        val target = File(dir, "${UUID.randomUUID().toString().take(8)}-$safeName")
+        return try {
+            body.byteStream().use { input ->
+                target.outputStream().use { output ->
+                    copyChunked(input, output)
+                }
+            }
+            target
+        } catch (e: CancellationException) {
+            target.delete()
+            throw e
+        } catch (e: Throwable) {
+            target.delete()
+            null
+        }
+    }
+
+    /** Copy [input] to [output] in 64 KiB chunks so peak heap stays constant
+     * regardless of file size, aborting if the calling coroutine is cancelled
+     * (used by both the download stream and save-to-document). */
+    internal suspend fun copyChunked(
+        input: java.io.InputStream,
+        output: java.io.OutputStream,
+    ) {
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            coroutineContext.ensureActive()
+            val read = input.read(buffer)
+            if (read < 0) break
+            output.write(buffer, 0, read)
+        }
+    }
+
+    /** Best-effort cleanup of gateway cache files older than a day (the cache
+     * dir is evictable by the OS anyway; this keeps it from growing forever). */
+    private fun sweepOldCacheFiles(dir: File) {
+        val cutoff = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
+        dir.listFiles()?.forEach { file ->
+            if (file.isFile && file.lastModified() < cutoff) file.delete()
         }
     }
 
@@ -148,25 +221,13 @@ object GatewayFileClient {
     private val FILENAME_RE = Regex("""filename\*?=(?:UTF-8'')?"?([^";]+)"?""", RegexOption.IGNORE_CASE)
 }
 
-/** A file fetched from the gateway. */
+/** A file fetched from the gateway, already streamed to disk under
+ * [cacheFile] (never held in memory — see [GatewayFileClient.fetch]). */
 data class GatewayFile(
     val name: String,
     val mimeType: String,
-    val bytes: ByteArray,
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is GatewayFile) return false
-        return name == other.name && mimeType == other.mimeType && bytes.contentEquals(other.bytes)
-    }
-
-    override fun hashCode(): Int {
-        var r = name.hashCode()
-        r = 31 * r + mimeType.hashCode()
-        r = 31 * r + bytes.contentHashCode()
-        return r
-    }
-}
+    val cacheFile: File,
+)
 
 /** Outcome of [GatewayFileClient.fetch]. */
 sealed interface GatewayFileResult {

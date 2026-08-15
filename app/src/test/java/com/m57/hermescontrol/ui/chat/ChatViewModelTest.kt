@@ -3396,10 +3396,10 @@ class ChatViewModelTest {
             every { app.cacheDir } returns cacheDir
 
             mockkObject(GatewayFileClient)
-            val bytes = "hello".toByteArray()
+            val file = java.io.File(cacheDir, "note.txt").apply { writeBytes("hello".toByteArray()) }
             coEvery {
-                GatewayFileClient.fetch(any())
-            } returns GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", bytes))
+                GatewayFileClient.fetch(any(), any())
+            } returns GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
 
             val intentSlot = slot<Intent>()
             // android.jar stubs Intent ctor/setters to throw "not mocked" in unit tests;
@@ -3430,7 +3430,7 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // fetch was invoked (proves we entered the IO launch)
-            coVerify { GatewayFileClient.fetch(any()) }
+            coVerify { GatewayFileClient.fetch(any(), any()) }
             // ACTION_VIEW intent delivered, with the right type + grant flag.
             verify { app.startActivity(any()) }
             verify { intentSlot.captured.setDataAndType(any(), eq("text/plain")) }
@@ -3443,9 +3443,11 @@ class ChatViewModelTest {
     fun `saveAttachment writes gateway file to selected document`() =
         runTest {
             mockkObject(GatewayFileClient)
-            val bytes = "downloaded".toByteArray()
-            coEvery { GatewayFileClient.fetch("/tmp/note.txt") } returns
-                GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", bytes))
+            val file =
+                java.io.File(System.getProperty("java.io.tmpdir"), "note_${System.nanoTime()}.txt")
+                    .apply { writeText("downloaded") }
+            coEvery { GatewayFileClient.fetch("/tmp/note.txt", any()) } returns
+                GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
             val resolver = mockk<android.content.ContentResolver>()
             val output = java.io.ByteArrayOutputStream()
             val destination = mockk<android.net.Uri>()
@@ -3465,7 +3467,7 @@ class ChatViewModelTest {
             vm.saveAttachment(attachment, destination)
             advanceUntilIdle()
 
-            assertArrayEquals(bytes, output.toByteArray())
+            assertArrayEquals("downloaded".toByteArray(), output.toByteArray())
             assertNull(vm.uiState.value.savingAttachmentPath)
             assertEquals("Saved note.txt", vm.uiState.value.openError)
         }
@@ -3478,7 +3480,7 @@ class ChatViewModelTest {
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
             coEvery {
-                GatewayFileClient.fetch("/tmp/missing.pdf")
+                GatewayFileClient.fetch("/tmp/missing.pdf", any())
             } returns GatewayFileResult.NotFound
 
             val (viewModel, _) = createViewModelWithSession()
@@ -3508,8 +3510,15 @@ class ChatViewModelTest {
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
             every { resolver.openOutputStream(destination, "wt") } throws IllegalStateException("write failed")
-            coEvery { GatewayFileClient.fetch("/tmp/report.pdf") } returns
-                GatewayFileResult.Success(GatewayFile("report.pdf", "application/pdf", byteArrayOf(1)))
+            coEvery { GatewayFileClient.fetch("/tmp/report.pdf", any()) } returns
+                GatewayFileResult.Success(
+                    GatewayFile(
+                        "report.pdf",
+                        "application/pdf",
+                        java.io.File(System.getProperty("java.io.tmpdir"), "report_${System.nanoTime()}.pdf")
+                            .apply { writeBytes(byteArrayOf(1)) },
+                    ),
+                )
 
             val viewModel = createViewModel()
             viewModel.saveAttachment(
@@ -3534,7 +3543,7 @@ class ChatViewModelTest {
             mockkObject(GatewayFileClient)
             val firstResult = CompletableDeferred<GatewayFileResult>()
             val fetchedPaths = mutableListOf<String>()
-            coEvery { GatewayFileClient.fetch(capture(fetchedPaths)) } coAnswers { firstResult.await() }
+            coEvery { GatewayFileClient.fetch(capture(fetchedPaths), any()) } coAnswers { firstResult.await() }
             val resolver = mockk<android.content.ContentResolver>(relaxed = true)
             every { app.contentResolver } returns resolver
             val viewModel = createViewModel()
@@ -3567,7 +3576,7 @@ class ChatViewModelTest {
         runTest {
             mockkObject(GatewayFileClient)
             coEvery {
-                GatewayFileClient.fetch(any())
+                GatewayFileClient.fetch(any(), any())
             } returns GatewayFileResult.NotFound
 
             val vm = createViewModel()

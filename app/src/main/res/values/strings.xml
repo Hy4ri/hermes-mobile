@@ -169,6 +169,7 @@
     <string name="settings_delay_100ms">100 ms</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
+    <string name="settings_sec_language">Language</string>
     <string name="settings_about_app_name">Hermes Mobile</string>
     <string name="settings_about_version">Version</string>
     <string name="settings_about_build">Build</string>

@@ -146,6 +146,7 @@
     <string name="settings_delay_100ms">100 毫秒</string>
     <string name="settings_action_test_connection">测试连接</string>
     <string name="settings_sec_about">关于</string>
+    <string name="settings_sec_language">语言</string>
     <string name="settings_about_app_name">Hermes Mobile</string>
     <string name="settings_about_version">版本</string>
     <string name="settings_about_build">构建</string>

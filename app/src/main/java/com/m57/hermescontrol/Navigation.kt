@@ -56,6 +56,7 @@ import com.m57.hermescontrol.ui.settings.SettingsAppearancePage
 import com.m57.hermescontrol.ui.settings.SettingsBehaviorPage
 import com.m57.hermescontrol.ui.settings.SettingsChatPage
 import com.m57.hermescontrol.ui.settings.SettingsConnectionPage
+import com.m57.hermescontrol.ui.settings.SettingsLanguagePage
 import com.m57.hermescontrol.ui.settings.SettingsViewModel
 import com.m57.hermescontrol.ui.toolsets.ToolsetDetailScreen
 import kotlinx.coroutines.launch
@@ -109,6 +110,12 @@ private fun appEntryProvider(
     }
     entry<SettingsAppearance> {
         SettingsAppearancePage(
+            onBack = { NavigationController.goBack() },
+            viewModel = viewModel { SettingsViewModel() },
+        )
+    }
+    entry<SettingsLanguage> {
+        SettingsLanguagePage(
             onBack = { NavigationController.goBack() },
             viewModel = viewModel { SettingsViewModel() },
         )

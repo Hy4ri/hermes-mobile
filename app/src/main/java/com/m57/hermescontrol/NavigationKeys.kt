@@ -75,6 +75,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object SettingsAppearance : NavKey
 
+@Serializable data object SettingsLanguage : NavKey
+
 @Serializable data object SettingsChat : NavKey
 
 @Serializable data object SettingsBehavior : NavKey

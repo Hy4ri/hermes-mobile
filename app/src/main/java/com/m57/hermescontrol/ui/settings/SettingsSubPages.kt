@@ -36,6 +36,7 @@ import com.m57.hermescontrol.ui.settings.components.AppearanceSection
 import com.m57.hermescontrol.ui.settings.components.BehaviorSection
 import com.m57.hermescontrol.ui.settings.components.ChatSection
 import com.m57.hermescontrol.ui.settings.components.ConnectionSection
+import com.m57.hermescontrol.ui.settings.components.LanguageSection
 import com.m57.hermescontrol.ui.settings.components.TestConnectionButton
 import com.m57.hermescontrol.ui.settings.components.TestResultCard
 
@@ -132,6 +133,32 @@ internal fun SettingsAppearancePage(
                 onUseDynamicColorsChange = viewModel::onUseDynamicColorsChange,
                 themePreset = state.themePreset,
                 onThemePresetChange = viewModel::onThemePresetChange,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun SettingsLanguagePage(
+    onBack: () -> Unit,
+    viewModel: SettingsViewModel = viewModel { SettingsViewModel() },
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    HermesScaffold(
+        title = { Text(stringResource(R.string.settings_sec_language)) },
+        navigationIcon = NavIcon.Back(onBack),
+        drawerGesturesEnabled = false,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            LanguageSection(
                 appLanguage = state.appLanguage,
                 onAppLanguageChange = viewModel::onAppLanguageChange,
             )

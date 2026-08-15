@@ -3443,11 +3443,24 @@ class ChatViewModelTest {
     fun `saveAttachment writes gateway file to selected document`() =
         runTest {
             mockkObject(GatewayFileClient)
+            val cacheDir =
+                java.io.File(
+                    System.getProperty("java.io.tmpdir"),
+                    "gw_save_${System.nanoTime()}",
+                ).apply { mkdirs() }
+            every { app.cacheDir } returns cacheDir
+            every { app.applicationContext } returns app
+            every { app.getApplicationContext() } returns app
             val file =
                 java.io.File(System.getProperty("java.io.tmpdir"), "note_${System.nanoTime()}.txt")
                     .apply { writeText("downloaded") }
             coEvery { GatewayFileClient.fetch("/tmp/note.txt", any()) } returns
                 GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
+            // copyChunked is mocked with the object — restore real copy so the
+            // saved document actually receives the bytes.
+            coEvery { GatewayFileClient.copyChunked(any(), any()) } coAnswers {
+                firstArg<java.io.InputStream>().copyTo(secondArg<java.io.OutputStream>())
+            }
             val resolver = mockk<android.content.ContentResolver>()
             val output = java.io.ByteArrayOutputStream()
             val destination = mockk<android.net.Uri>()
@@ -3476,6 +3489,14 @@ class ChatViewModelTest {
     fun `saveAttachment never deletes the selected document when download fails`() =
         runTest {
             mockkObject(GatewayFileClient)
+            val cacheDir =
+                java.io.File(
+                    System.getProperty("java.io.tmpdir"),
+                    "gw_save_${System.nanoTime()}",
+                ).apply { mkdirs() }
+            every { app.cacheDir } returns cacheDir
+            every { app.applicationContext } returns app
+            every { app.getApplicationContext() } returns app
             val resolver = mockk<android.content.ContentResolver>(relaxed = true)
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
@@ -3506,6 +3527,14 @@ class ChatViewModelTest {
     fun `saveAttachment never deletes the selected document when writing fails`() =
         runTest {
             mockkObject(GatewayFileClient)
+            val cacheDir =
+                java.io.File(
+                    System.getProperty("java.io.tmpdir"),
+                    "gw_save_${System.nanoTime()}",
+                ).apply { mkdirs() }
+            every { app.cacheDir } returns cacheDir
+            every { app.applicationContext } returns app
+            every { app.getApplicationContext() } returns app
             val resolver = mockk<android.content.ContentResolver>(relaxed = true)
             val destination = mockk<android.net.Uri>()
             every { app.contentResolver } returns resolver
@@ -3541,6 +3570,14 @@ class ChatViewModelTest {
     fun `saveAttachment ignores overlapping saves`() =
         runTest {
             mockkObject(GatewayFileClient)
+            val cacheDir =
+                java.io.File(
+                    System.getProperty("java.io.tmpdir"),
+                    "gw_save_${System.nanoTime()}",
+                ).apply { mkdirs() }
+            every { app.cacheDir } returns cacheDir
+            every { app.applicationContext } returns app
+            every { app.getApplicationContext() } returns app
             val firstResult = CompletableDeferred<GatewayFileResult>()
             val fetchedPaths = mutableListOf<String>()
             coEvery { GatewayFileClient.fetch(capture(fetchedPaths), any()) } coAnswers { firstResult.await() }
@@ -3575,6 +3612,14 @@ class ChatViewModelTest {
     fun `openAttachment GATEWAY not-found surfaces openError`() =
         runTest {
             mockkObject(GatewayFileClient)
+            val cacheDir =
+                java.io.File(
+                    System.getProperty("java.io.tmpdir"),
+                    "gw_open_${System.nanoTime()}",
+                ).apply { mkdirs() }
+            every { app.cacheDir } returns cacheDir
+            every { app.applicationContext } returns app
+            every { app.getApplicationContext() } returns app
             coEvery {
                 GatewayFileClient.fetch(any(), any())
             } returns GatewayFileResult.NotFound

@@ -796,11 +796,28 @@ class SystemViewModel(application: Application) :
             when (result) {
                 is NetworkResult.Success -> {
                     result.data.name?.let { pollActionStatus(it) }
-                    _uiState.update { it.copy(toastMessage = getApplication<Application>().getString(R.string.system_action_started, getApplication<Application>().getString(labelRes))) }
+                    _uiState.update {
+                        it.copy(
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    R.string.system_action_started,
+                                    getApplication<Application>().getString(labelRes),
+                                ),
+                        )
+                    }
                 }
 
                 is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = getApplication<Application>().getString(R.string.system_action_failed, getApplication<Application>().getString(labelRes), result.error.message)) }
+                    _uiState.update {
+                        it.copy(
+                            toastMessage =
+                                getApplication<Application>().getString(
+                                    R.string.system_action_failed,
+                                    getApplication<Application>().getString(labelRes),
+                                    result.error.message,
+                                ),
+                        )
+                    }
                 }
             }
         }

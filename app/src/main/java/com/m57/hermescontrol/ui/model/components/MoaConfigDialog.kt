@@ -34,13 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.MoaConfigPreset
 import com.m57.hermescontrol.data.model.MoaModelSlot
 import com.m57.hermescontrol.ui.common.SearchBar
-import androidx.compose.ui.res.stringResource
-import com.m57.hermescontrol.R
 
 @Composable
 internal fun MoaConfigDialog(
@@ -308,7 +308,12 @@ private fun MoaConfigEditor(
             OutlinedTextField(
                 value = newPresetName,
                 onValueChange = onNewPresetNameChange,
-                placeholder = { Text(stringResource(R.string.moa_new_preset_name), style = MaterialTheme.typography.bodySmall) },
+                placeholder = {
+                    Text(
+                        stringResource(R.string.moa_new_preset_name),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
                 singleLine = true,
                 modifier = Modifier.weight(1f).height(48.dp),
                 textStyle = MaterialTheme.typography.bodySmall,

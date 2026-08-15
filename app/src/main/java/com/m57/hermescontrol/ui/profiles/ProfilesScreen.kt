@@ -296,7 +296,10 @@ fun ProfilesScreen(
                                                     IconButton(onClick = { showMenu = true }) {
                                                         Icon(
                                                             imageVector = Icons.Default.MoreVert,
-                                                            contentDescription = stringResource(R.string.profiles_more_options),
+                                                            contentDescription =
+                                                                stringResource(
+                                                                    R.string.profiles_more_options,
+                                                                ),
                                                         )
                                                     }
 

@@ -28,12 +28,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.channels.ChannelsUiState
 import com.m57.hermescontrol.ui.channels.OnboardingPhase
-import androidx.compose.ui.res.stringResource
-import com.m57.hermescontrol.R
 
 @Composable
 internal fun TelegramOnboardingDialog(
@@ -153,7 +153,10 @@ internal fun TelegramOnboardingDialog(
                                 modifier = Modifier.weight(1f),
                             )
                             IconButton(onClick = onAddAllowedId) {
-                                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.tg_onboarding_add_user_id))
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = stringResource(R.string.tg_onboarding_add_user_id),
+                                )
                             }
                         }
                     }

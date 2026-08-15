@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Mobile — Native Android client for Hermes Agent</title>
+  <meta name="description" content="Hermes Mobile is the open-source native Android client for Hermes Agent. Real-time chat, cron management, session resume, Kanban, skills and more — from your pocket. Available on F-Droid and GitHub Releases.">
+  <meta name="keywords" content="Hermes Agent, Android, mobile client, open source, F-Droid, AI assistant, hermes mobile">
+  <link rel="canonical" href="https://hy4ri.github.io/hermes-mobile/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Hermes Mobile — Native Android client for Hermes Agent">
+  <meta property="og:description" content="Chat, automation, productivity, and agent configuration — from your phone.">
+  <meta property="og:url" content="https://hy4ri.github.io/hermes-mobile/">
+  <meta name="theme-color" content="#0d0f12">
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --surface: #161a20;
+      --border: #262c36;
+      --text: #e8eaed;
+      --muted: #9aa4b2;
+      --accent: #f5b842;
+      --accent-ink: #14100a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+    header { padding: 72px 0 40px; text-align: center; }
+    .logo {
+      display: inline-flex; align-items: center; gap: 12px;
+      font-size: 15px; font-weight: 600; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 8px 18px; margin-bottom: 28px;
+    }
+    .logo .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    h1 { font-size: 42px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
+    h1 .accent { color: var(--accent); }
+    .tagline { font-size: 18px; color: var(--muted); max-width: 620px; margin: 0 auto 32px; }
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-block; padding: 12px 26px; border-radius: 10px;
+      font-size: 15px; font-weight: 600; text-decoration: none;
+      border: 1px solid var(--border); color: var(--text); transition: 0.15s ease;
+    }
+    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+    .btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+    section { padding: 44px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .sub { color: var(--muted); margin-bottom: 28px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px;
+    }
+    .card h3 { font-size: 16px; margin-bottom: 6px; }
+    .card p { font-size: 14px; color: var(--muted); }
+    .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+    .shots img {
+      width: 100%; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    ol.steps { list-style: none; counter-reset: step; }
+    ol.steps li {
+      counter-increment: step; position: relative;
+      padding: 16px 16px 16px 60px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px;
+      font-size: 15px;
+    }
+    ol.steps li::before {
+      content: counter(step); position: absolute; left: 16px; top: 14px;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--accent); color: var(--accent-ink);
+      font-weight: 700; font-size: 14px; display: flex;
+      align-items: center; justify-content: center;
+    }
+    code {
+      background: #0d0f12; border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 6px; font-size: 13px;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    }
+    footer { padding: 36px 0 64px; text-align: center; color: var(--muted); font-size: 14px; }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    @media (max-width: 640px) {
+      h1 { font-size: 30px; }
+      header { padding: 48px 0 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo"><span class="dot"></span> Hermes Agent · Android</div>
+      <h1>Hermes <span class="accent">Mobile</span></h1>
+      <p class="tagline">The native Android client for Hermes Agent. Chat, automation, productivity, and agent configuration — from your phone.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://f-droid.org/packages/com.m57.hermescontrol/">Get it on F-Droid</a>
+        <a class="btn" href="https://github.com/Hy4ri/hermes-mobile/releases/latest">Latest release</a>
+        <a class="btn" href="https://github.com/Hy4ri/hermes-mobile">Source code</a>
+      </div>
+    </header>
+
+    <section>
+      <h2>Features</h2>
+      <p class="sub">Everything your agent can do, in your pocket.</p>
+      <div class="grid">
+        <div class="card"><h3>Real-time chat</h3><p>Message your agent with Room-backed local history and inline reply notifications.</p></div>
+        <div class="card"><h3>System config</h3><p>Manage profiles, skills, plugins, toolsets, and LLM model/provider selections.</p></div>
+        <div class="card"><h3>Operations</h3><p>Stream live logs, manage cron jobs, edit environment keys, test webhooks, monitor processes.</p></div>
+        <div class="card"><h3>Gateway status</h3><p>WebSocket connection, MCP servers, messaging channels, and OAuth providers at a glance.</p></div>
+        <div class="card"><h3>Productivity</h3><p>Kanban boards, agent milestones, and session history — all in the app.</p></div>
+        <div class="card"><h3>Analytics &amp; billing</h3><p>Usage analytics dashboard and billing/subscription management.</p></div>
+        <div class="card"><h3>Theming</h3><p>6 built-in color presets plus Material You dynamic colors on supported devices.</p></div>
+        <div class="card"><h3>Modern UX</h3><p>Native Material 3 design with pull-to-refresh and customizable bottom navigation.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Screenshots</h2>
+      <p class="sub">Chat, cron, Kanban, and skills screens.</p>
+      <div class="shots">
+        <img src="screenshots/chat.png" alt="Hermes Mobile chat screen">
+        <img src="screenshots/cron.png" alt="Hermes Mobile cron jobs screen">
+        <img src="screenshots/kanban.png" alt="Hermes Mobile Kanban screen">
+        <img src="screenshots/skills.png" alt="Hermes Mobile skills screen">
+      </div>
+    </section>
+
+    <section>
+      <h2>Quick start</h2>
+      <p class="sub">Point the app at your Hermes gateway and go.</p>
+      <ol class="steps">
+        <li>Install from <a href="https://f-droid.org/packages/com.m57.hermescontrol/">F-Droid</a>, <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FHy4ri%2Fhermes-mobile">Obtainium</a>, or <a href="https://github.com/Hy4ri/hermes-mobile/releases/latest">GitHub Releases</a>.</li>
+        <li>Start your dashboard on the host: <code>hermes dashboard --host 0.0.0.0</code></li>
+        <li>Tap <strong>Sign in</strong>, enter the host and port — the app auto-detects the auth mode.</li>
+      </ol>
+    </section>
+
+    <footer>
+      <p>Copyright © 2026 M57 (Hy4ri) · <a href="https://github.com/Hy4ri/hermes-mobile/blob/main/LICENSE">Apache License 2.0</a> · <a href="https://github.com/Hy4ri/hermes-mobile">GitHub</a></p>
+    </footer>
+  </div>
+</body>
+</html>

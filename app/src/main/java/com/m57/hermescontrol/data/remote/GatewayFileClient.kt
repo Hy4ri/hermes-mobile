@@ -10,6 +10,7 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 import kotlin.coroutines.coroutineContext
 
@@ -33,6 +34,14 @@ import kotlin.coroutines.coroutineContext
  */
 object GatewayFileClient {
     private const val DOWNLOAD_PATH = "/api/files/download"
+
+    /** Downloads are reused for this long before a fresh fetch is made. */
+    private const val CACHE_REUSE_TTL_MS = 10 * 60 * 1000L
+
+    /** Path → content-type map from the last download of that path, so cache
+     * hits can still hand the viewer the right type (the header is only known
+     * when the file is actually fetched). */
+    private val mimeByPath = ConcurrentHashMap<String, String>()
 
     /**
      * Pure builder for the authenticated download URL.
@@ -122,6 +131,20 @@ object GatewayFileClient {
         val url =
             buildDownloadUrl(baseUrl, token, path)
                 ?: return GatewayFileResult.Failure(IllegalArgumentException("not an absolute gateway path: $path"))
+        // Cache fast path: a recent download of this path is reused as-is, so
+        // repeat opens skip the network entirely. Stale entries fall through
+        // to a fresh fetch, which overwrites the cache file.
+        val cacheName = cacheFileNameFor(path)
+        val fresh = File(cacheDir, cacheName).takeIf { isFreshCacheFile(it) }
+        if (fresh != null) {
+            return GatewayFileResult.Success(
+                GatewayFile(
+                    name = fileNameFromPath(path),
+                    mimeType = mimeByPath[path] ?: "application/octet-stream",
+                    cacheFile = fresh,
+                ),
+            )
+        }
         val call = OkHttpProvider.base.newCall(Request.Builder().url(url).build())
         val resp = call.execute()
         return try {
@@ -134,8 +157,9 @@ object GatewayFileClient {
                     ?: fileNameFromPath(path)
             val mime = resp.header("Content-Type") ?: "application/octet-stream"
             val cacheFile =
-                streamBodyToCache(resp, cacheDir, name)
+                streamBodyToCache(resp, cacheDir, cacheName)
                     ?: return GatewayFileResult.Failure(IOException("failed to write $name to cache"))
+            mimeByPath[path] = mime
             GatewayFileResult.Success(GatewayFile(name, mime, cacheFile))
         } catch (e: CancellationException) {
             // Never swallow cancellation — the caller's job was cancelled.
@@ -147,33 +171,54 @@ object GatewayFileClient {
         }
     }
 
-    /** Stream the response body into a fresh file under [cacheDir] in 64 KiB
-     * chunks (peak heap stays ~constant no matter the file size), sweeping
-     * cache files older than a day first. Returns the written file, or null
-     * on any I/O failure. Cancellation-safe: the copy loop checks the calling
-     * coroutine's job, and a cancelled fetch deletes the partial file. */
+    /** Deterministic cache filename for a gateway path: the same path always
+     * maps to the same file, so repeat opens reuse the download instead of
+     * re-fetching (a random name would orphan every previous copy). */
+    internal fun cacheFileNameFor(path: String): String {
+        val key = UUID.nameUUIDFromBytes(path.toByteArray(StandardCharsets.UTF_8)).toString().take(12)
+        val safeName = fileNameFromPath(path).replace(Regex("[/\\\\]"), "_").ifBlank { "file" }
+        return "$key-$safeName"
+    }
+
+    /** True when [file] is a regular file young enough to reuse (TTL). */
+    internal fun isFreshCacheFile(
+        file: File,
+        now: Long = System.currentTimeMillis(),
+    ): Boolean = file.isFile && now - file.lastModified() < CACHE_REUSE_TTL_MS
+
+    /** Stream the response body into the deterministic [cacheName] file under
+     * [cacheDir] in 64 KiB chunks (peak heap stays ~constant no matter the
+     * file size), sweeping cache files older than a day first. The body is
+     * written to a temp file and renamed into place only on success, so a
+     * failed re-download never destroys a previously-good cache entry.
+     * Cancellation-safe: the copy loop checks the calling coroutine's job,
+     * and a cancelled fetch deletes the partial temp file. */
     private suspend fun streamBodyToCache(
         resp: okhttp3.Response,
         cacheDir: File,
-        name: String,
+        cacheName: String,
     ): File? {
         val body = resp.body ?: return null
-        val safeName = name.replace(Regex("[/\\\\]"), "_").ifBlank { "file" }
         val dir = cacheDir.also { it.mkdirs() }
         sweepOldCacheFiles(dir)
-        val target = File(dir, "${UUID.randomUUID().toString().take(8)}-$safeName")
+        val target = File(dir, cacheName)
+        val tmp = File(dir, ".$cacheName.tmp-${UUID.randomUUID().toString().take(8)}")
         return try {
             body.byteStream().use { input ->
-                target.outputStream().use { output ->
+                tmp.outputStream().use { output ->
                     copyChunked(input, output)
                 }
             }
+            if (!tmp.renameTo(target)) {
+                tmp.delete()
+                return null
+            }
             target
         } catch (e: CancellationException) {
-            target.delete()
+            tmp.delete()
             throw e
         } catch (e: Throwable) {
-            target.delete()
+            tmp.delete()
             null
         }
     }

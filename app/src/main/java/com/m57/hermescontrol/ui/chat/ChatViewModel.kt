@@ -258,6 +258,9 @@ data class ChatUiState(
     // Attachment feedback — surfaced as a non-blocking snackbar (issue #724)
     val openError: String? = null,
     val savingAttachmentPath: String? = null,
+    // Gateway file currently being downloaded for open — drives the inline
+    // loading indicator on the attachment card (issue #913 follow-up).
+    val openingAttachmentPath: String? = null,
     val clarifyRequest: ClarifyUi? = null,
     // Sudo / secret prompts — surfaced as dialogs (issue #524)
     val sudoPrompt: SudoPromptUi? = null,
@@ -3041,30 +3044,39 @@ class ChatViewModel(
         }
         // GATEWAY, or LOCAL direct-open failed → fetch/copy then open.
         val path = gatewayPathFor(attachment)
+        // Show a loading indicator on the attachment card while the file
+        // streams down (mirrors the save spinner; cleared in all outcomes).
+        _uiState.update { it.copy(openingAttachmentPath = path) }
         viewModelScope.launch(ioDispatcher) {
-            when (val result = GatewayFileClient.fetch(path)) {
-                is GatewayFileResult.Success -> {
-                    openBytes(ctx, result.file)
-                }
+            try {
+                when (val result = GatewayFileClient.fetch(path)) {
+                    is GatewayFileResult.Success -> {
+                        openBytes(ctx, result.file)
+                    }
 
-                is GatewayFileResult.NotFound -> {
-                    showOpenError("File not found on gateway: ${attachment.name}")
-                }
+                    is GatewayFileResult.NotFound -> {
+                        showOpenError("File not found on gateway: ${attachment.name}")
+                    }
 
-                is GatewayFileResult.Forbidden -> {
-                    showOpenError("Access denied: ${attachment.name}")
-                }
+                    is GatewayFileResult.Forbidden -> {
+                        showOpenError("Access denied: ${attachment.name}")
+                    }
 
-                is GatewayFileResult.TooLarge -> {
-                    showOpenError("File too large to open: ${attachment.name}")
-                }
+                    is GatewayFileResult.TooLarge -> {
+                        showOpenError("File too large to open: ${attachment.name}")
+                    }
 
-                is GatewayFileResult.Unauthorized -> {
-                    showOpenError("Session expired — reconnect to open: ${attachment.name}")
-                }
+                    is GatewayFileResult.Unauthorized -> {
+                        showOpenError("Session expired — reconnect to open: ${attachment.name}")
+                    }
 
-                is GatewayFileResult.Failure -> {
-                    showOpenError("Could not open ${attachment.name}: ${result.throwable.message}")
+                    is GatewayFileResult.Failure -> {
+                        showOpenError("Could not open ${attachment.name}: ${result.throwable.message}")
+                    }
+                }
+            } finally {
+                _uiState.update {
+                    if (it.openingAttachmentPath == path) it.copy(openingAttachmentPath = null) else it
                 }
             }
         }

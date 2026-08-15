@@ -66,6 +66,7 @@ fun FullBleedChatList(
     onDismissClarify: (() -> Unit)? = null,
     onSaveAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit = {},
     savingAttachmentPath: String? = null,
+    openingAttachmentPath: String? = null,
     onImageClick: (ImageViewerModel) -> Unit = {},
 ) {
     if (messages.isEmpty() && !isLoading) {
@@ -150,6 +151,7 @@ fun FullBleedChatList(
                                     onOpenAttachment = viewModel::openAttachment,
                                     onSaveAttachment = onSaveAttachment,
                                     savingAttachmentPath = savingAttachmentPath,
+                                    openingAttachmentPath = openingAttachmentPath,
                                     onImageClick = onImageClick,
                                 )
                                 milestone?.let { count ->
@@ -225,6 +227,7 @@ fun FullBleedChatList(
                                                     onOpenAttachment = viewModel::openAttachment,
                                                     onSaveAttachment = onSaveAttachment,
                                                     savingAttachmentPath = savingAttachmentPath,
+                                                    openingAttachmentPath = openingAttachmentPath,
                                                     canSaveAttachment = savingAttachmentPath == null,
                                                     onImageClick = onImageClick,
                                                 )
@@ -300,6 +303,7 @@ private fun renderChatBubble(
     onOpenAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit,
     onSaveAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit,
     savingAttachmentPath: String?,
+    openingAttachmentPath: String?,
     onImageClick: (ImageViewerModel) -> Unit,
 ) {
     ChatBubble(
@@ -309,6 +313,7 @@ private fun renderChatBubble(
         onOpenAttachment = onOpenAttachment,
         onSaveAttachment = onSaveAttachment,
         savingAttachmentPath = savingAttachmentPath,
+        openingAttachmentPath = openingAttachmentPath,
         canSaveAttachment = savingAttachmentPath == null,
         onImageClick = onImageClick,
     )

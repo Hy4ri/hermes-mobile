@@ -92,6 +92,7 @@ fun ChatBubble(
     onOpenAttachment: (Attachment) -> Unit = {},
     onSaveAttachment: (Attachment) -> Unit = {},
     savingAttachmentPath: String? = null,
+    openingAttachmentPath: String? = null,
     canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -191,6 +192,7 @@ fun ChatBubble(
                                     onOpen = { onOpenAttachment(it) },
                                     onSave = { onSaveAttachment(it) },
                                     savingPath = savingAttachmentPath,
+                                    openingPath = openingAttachmentPath,
                                     canSave = canSaveAttachment,
                                     onImageClick = onImageClick,
                                 )
@@ -432,11 +434,13 @@ internal fun InlineAttachment(
     onOpen: (Attachment) -> Unit,
     onSave: (Attachment) -> Unit,
     savingPath: String?,
+    openingPath: String?,
     canSave: Boolean,
     onImageClick: (ImageViewerModel) -> Unit,
 ) {
     val attachmentPath = attachment.gatewayUrl?.let(::gatewayPathFromUrl) ?: attachment.name
     val isSaving = savingPath != null && savingPath == attachmentPath
+    val isOpening = openingPath != null && openingPath == attachmentPath
     val clickable = Modifier.clickable { onOpen(attachment) }
     if (attachment.isVideo) {
         var showVideoDialog by remember { mutableStateOf(false) }
@@ -504,6 +508,13 @@ internal fun InlineAttachment(
                         color = textColor.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.labelSmall,
                     )
+                }
+                if (isOpening) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
                 }
                 if (attachment.gatewayUrl != null) {
                     IconButton(

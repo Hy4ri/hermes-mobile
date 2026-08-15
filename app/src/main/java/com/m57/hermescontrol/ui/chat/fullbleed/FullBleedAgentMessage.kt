@@ -66,6 +66,7 @@ internal fun FullBleedAgentMessage(
     onOpenAttachment: (Attachment) -> Unit = {},
     onSaveAttachment: (Attachment) -> Unit = {},
     savingAttachmentPath: String? = null,
+    openingAttachmentPath: String? = null,
     canSaveAttachment: Boolean = true,
     onImageClick: (ImageViewerModel) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -124,6 +125,7 @@ internal fun FullBleedAgentMessage(
                     onOpen = { onOpenAttachment(it) },
                     onSave = { onSaveAttachment(it) },
                     savingPath = savingAttachmentPath,
+                    openingPath = openingAttachmentPath,
                     canSave = canSaveAttachment,
                     onImageClick = onImageClick,
                 )

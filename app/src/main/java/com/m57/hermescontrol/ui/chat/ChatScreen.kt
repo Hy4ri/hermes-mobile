@@ -625,6 +625,7 @@ fun ChatScreen(
                     onDismissClarify = viewModel::dismissClarify,
                     onSaveAttachment = onSaveAttachment,
                     savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
+                    openingAttachmentPath = state.openingAttachmentPath,
                     onImageClick = { viewingImage = it },
                 )
 

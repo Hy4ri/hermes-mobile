@@ -34,6 +34,7 @@ fun ChatMessageEntity.toUiModel(): ChatMessage =
                 "FAILED" -> ToolStatus.FAILED
                 else -> null
             },
+        displayKind = displayKind,
     )
 
 fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
@@ -48,4 +49,5 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         toolCallId = toolCallId,
         toolStatus = toolStatus?.name,
         isStreaming = isStreaming,
+        displayKind = displayKind,
     )

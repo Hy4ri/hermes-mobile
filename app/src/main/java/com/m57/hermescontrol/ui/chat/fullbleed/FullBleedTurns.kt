@@ -46,15 +46,20 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
     }
 
     messages.forEach { message ->
-        when (message.role) {
-            MessageRole.USER -> {
+        when {
+            // Timeline markers (display_kind) ride as role=user rows but are
+            // NOT user turns — group them as system-style timeline entries so
+            // they render as centered chips, not fake user bubbles (issue #904).
+            message.displayKind != null -> agentEntries += AgentEntry.SystemEvent(message)
+
+            message.role == MessageRole.USER -> {
                 flushAgent()
                 turns += ChatTurn.User(message)
             }
 
-            MessageRole.ASSISTANT -> agentEntries += AgentEntry.Prose(message)
-            MessageRole.TOOL -> agentEntries += AgentEntry.ToolRow(message)
-            MessageRole.SYSTEM -> agentEntries += AgentEntry.SystemEvent(message)
+            MessageRole.ASSISTANT == message.role -> agentEntries += AgentEntry.Prose(message)
+            MessageRole.TOOL == message.role -> agentEntries += AgentEntry.ToolRow(message)
+            MessageRole.SYSTEM == message.role -> agentEntries += AgentEntry.SystemEvent(message)
         }
     }
     flushAgent()

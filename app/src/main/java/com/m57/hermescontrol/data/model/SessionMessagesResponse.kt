@@ -39,6 +39,15 @@ data class SessionMessage(
     val reasoning: JsonElement? = null,
     val reasoning_text: JsonElement? = null,
     val tool_call_id: String? = null,
+    /**
+     * Timeline-marker tag (backend NS-656 lineage, issue #904): markers like
+     * `model_switch` / `personality_switch` / `auto_continue` ride as
+     * role=user rows so strict providers accept them mid-conversation, but
+     * they are NOT user turns. Nullable/additive — old backends omit it.
+     */
+    val display_kind: String? = null,
+    /** Display-only metadata for the marker (e.g. delegation result counts). */
+    val display_metadata: JsonElement? = null,
 ) {
     val timestampText: String?
         get() = (timestamp as? JsonPrimitive)?.content

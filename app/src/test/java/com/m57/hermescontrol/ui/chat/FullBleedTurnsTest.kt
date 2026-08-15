@@ -82,6 +82,45 @@ class FullBleedTurnsTest {
     }
 
     @Test
+    fun `display_kind marker is a SystemEvent entry not a user turn`() {
+        val marker =
+            msg("m1", MessageRole.USER, content = "[System: The active model has changed to gpt-5]")
+                .copy(displayKind = "model_switch")
+        val result = groupIntoTurns(listOf(marker))
+        assertEquals(listOf<ChatTurn>(entries(AgentEntry.SystemEvent(marker))), result)
+    }
+
+    @Test
+    fun `marker between assistant and user does not close the agent turn`() {
+        val a = msg("a1", MessageRole.ASSISTANT)
+        val marker =
+            msg("m1", MessageRole.USER, content = "marker")
+                .copy(displayKind = "personality_switch")
+        val u = msg("u1", MessageRole.USER)
+        val result = groupIntoTurns(listOf(a, marker, u))
+        assertEquals(
+            listOf(
+                entries(AgentEntry.Prose(a), AgentEntry.SystemEvent(marker)),
+                ChatTurn.User(u),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `marker only closes nothing and trailing marker lands in agent turn`() {
+        val u = msg("u1", MessageRole.USER)
+        val marker =
+            msg("m1", MessageRole.USER, content = "marker")
+                .copy(displayKind = "auto_continue")
+        val result = groupIntoTurns(listOf(u, marker))
+        assertEquals(
+            listOf(ChatTurn.User(u), entries(AgentEntry.SystemEvent(marker))),
+            result,
+        )
+    }
+
+    @Test
     fun `user message closes the current agent turn`() {
         val a1 = msg("a1", MessageRole.ASSISTANT)
         val u = msg("u1", MessageRole.USER)

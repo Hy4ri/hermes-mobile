@@ -11,7 +11,7 @@ import java.io.File
 
 @Database(
     entities = [ChatMessageEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class HermesDatabase : RoomDatabase() {
@@ -68,13 +68,30 @@ abstract class HermesDatabase : RoomDatabase() {
                         }
                     }
 
+                val migration5to6 =
+                    object : Migration(5, 6) {
+                        override fun migrate(db: SupportSQLiteDatabase) {
+                            // Issue #904: timeline markers (display_kind) keep
+                            // their tag through the Room cache so a cached
+                            // marker never degrades back into a user bubble.
+                            db.execSQL(
+                                "ALTER TABLE `chat_messages` ADD COLUMN `display_kind` TEXT",
+                            )
+                        }
+                    }
+
                 instance ?: Room
                     .databaseBuilder(
                         context.applicationContext,
                         HermesDatabase::class.java,
                         "hermes_control.db",
                     ).openHelperFactory(factory)
-                    .addMigrations(migration2to3, migration3to4, migration4to5)
+                    .addMigrations(
+                        migration2to3,
+                        migration3to4,
+                        migration4to5,
+                        migration5to6,
+                    )
                     .fallbackToDestructiveMigration(false)
                     .build()
                     .also { instance = it }

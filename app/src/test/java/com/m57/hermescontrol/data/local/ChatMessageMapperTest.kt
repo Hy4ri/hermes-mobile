@@ -161,4 +161,36 @@ class ChatMessageMapperTest {
 
         assertEquals("r", roundTripped.reasoningText)
     }
+
+    @Test
+    fun roundTripPreservesDisplayKind() {
+        val ui =
+            ChatMessage(
+                id = "msg-4",
+                role = MessageRole.USER,
+                content = "[System: ...changed to gpt-5...]",
+                displayKind = "model_switch",
+                timestamp = 4000L,
+            )
+
+        val roundTripped = ui.toEntity("s").toUiModel()
+
+        assertEquals("model_switch", roundTripped.displayKind)
+        assertEquals(MessageRole.USER, roundTripped.role)
+    }
+
+    @Test
+    fun roundTripWithoutDisplayKindStaysNull() {
+        val ui =
+            ChatMessage(
+                id = "msg-5",
+                role = MessageRole.USER,
+                content = "plain user text",
+                timestamp = 5000L,
+            )
+
+        val roundTripped = ui.toEntity("s").toUiModel()
+
+        assertNull(roundTripped.displayKind)
+    }
 }

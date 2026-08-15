@@ -4,6 +4,7 @@ import com.m57.hermescontrol.data.remote.OkHttpProvider
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import org.junit.Assert.assertEquals
@@ -418,6 +419,49 @@ class ModelSerializationTest {
         assertEquals("unknown", response.disk?.pressure)
         assertNull(response.disk?.total_mb)
         assertNull(response.disk?.free_mb)
+    }
+
+    @Test
+    fun testSessionMessageDeserialization_displayKindMarker() {
+        val jsonStr =
+            """
+            {
+                "id": 42,
+                "role": "user",
+                "content": "[System: The active model for this chat has changed to gpt-5 via provider openai. From this point forward, use this runtime metadata when answering questions about what model/provider is active.]",
+                "timestamp": 1755260000000,
+                "display_kind": "model_switch",
+                "display_metadata": {
+                    "delegation_id": "dlg-1",
+                    "task_count": 3
+                }
+            }
+            """.trimIndent()
+        val message = json.decodeFromString<SessionMessage>(jsonStr)
+        assertEquals(42, message.id)
+        assertEquals("user", message.role)
+        assertEquals("model_switch", message.display_kind)
+        val metadata = message.display_metadata
+        assertNotNull(metadata)
+        val delegationId =
+            (metadata as? JsonObject)?.get("delegation_id") as? JsonPrimitive
+        assertEquals("dlg-1", delegationId?.content)
+    }
+
+    @Test
+    fun testSessionMessageDeserialization_missingDisplayKind() {
+        val jsonStr =
+            """
+            {
+                "id": 7,
+                "role": "assistant",
+                "content": "hi"
+            }
+            """.trimIndent()
+        val message = json.decodeFromString<SessionMessage>(jsonStr)
+        assertEquals(7, message.id)
+        assertNull(message.display_kind)
+        assertNull(message.display_metadata)
     }
 
     @Test

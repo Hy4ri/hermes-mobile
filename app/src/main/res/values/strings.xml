@@ -1089,6 +1089,13 @@
     <string name="memory_memories_facts">Memories &amp; Facts</string>
     <string name="memory_recent_events">Recent Agent Self-Improvement Events</string>
     <string name="message_reasoning_steps">Reasoning · %1$s steps</string>
+
+    <!-- Timeline markers (issue #904) -->
+    <string name="timeline_marker_model_switch">Model switched</string>
+    <string name="timeline_marker_model_switch_to">Model switched to %1$s</string>
+    <string name="timeline_marker_personality_switch">Personality switched</string>
+    <string name="timeline_marker_auto_continue">Turn auto-continued</string>
+    <string name="timeline_marker_delegation_complete">Delegated task completed</string>
     <string name="message_your_response">Your response</string>
     <string name="moa_add_preset">Add preset</string>
     <string name="moa_add_reference">Add reference model</string>

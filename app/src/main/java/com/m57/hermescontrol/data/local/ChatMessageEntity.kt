@@ -40,4 +40,6 @@ data class ChatMessageEntity(
     val toolStatus: String? = null,
     @ColumnInfo(name = "is_streaming")
     val isStreaming: Boolean = false,
+    @ColumnInfo(name = "display_kind")
+    val displayKind: String? = null,
 )

@@ -59,6 +59,13 @@ data class ChatMessage(
      * Transient — not persisted to SQLite.
      */
     val progressPreview: String? = null,
+    /**
+     * Timeline-marker tag carried from the backend's `display_kind`
+     * (issue #904): `model_switch` / `personality_switch` / `auto_continue`
+     * ride as role=user rows but are NOT user input — the chat list renders
+     * them as centered timeline chips instead of user bubbles.
+     */
+    val displayKind: String? = null,
 )
 
 /**

@@ -2919,6 +2919,7 @@ class ChatViewModel(
                     attachments = attachments,
                     timestamp = timestamp,
                     isStreaming = false,
+                    displayKind = msg.display_kind,
                 ),
             )
         }

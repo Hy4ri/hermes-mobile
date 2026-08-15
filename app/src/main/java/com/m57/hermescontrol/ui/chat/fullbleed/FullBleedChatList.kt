@@ -256,10 +256,17 @@ fun FullBleedChatList(
                                     val sysMessage = entry.message
                                     item(key = "sys-${sysMessage.id}") {
                                         Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                                            FullBleedSystemEvent(
-                                                message = sysMessage,
-                                                onRespondApproval = viewModel::respondToApproval,
-                                            )
+                                            if (sysMessage.displayKind != null) {
+                                                // Timeline marker (issue #904):
+                                                // model/personality switches and
+                                                // auto-continues render as a chip.
+                                                TimelineMarkerChip(message = sysMessage)
+                                            } else {
+                                                FullBleedSystemEvent(
+                                                    message = sysMessage,
+                                                    onRespondApproval = viewModel::respondToApproval,
+                                                )
+                                            }
                                         }
                                     }
                                     entryIndex++

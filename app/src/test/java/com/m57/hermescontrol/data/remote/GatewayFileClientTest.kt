@@ -5,8 +5,15 @@ import com.m57.hermescontrol.data.config.ServerStoreState
 import com.m57.hermescontrol.data.local.AuthManager
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -101,4 +108,75 @@ class GatewayFileClientTest {
         assertEquals("report.pdf", GatewayFileClient.parseFilename("attachment; filename=\"report.pdf\""))
         assertEquals("a b.png", GatewayFileClient.parseFilename("inline; filename*=UTF-8''a%20b.png"))
     }
+
+    @Test
+    fun `cacheFileNameFor is deterministic per path`() {
+        val first = GatewayFileClient.cacheFileNameFor("/tmp/report.pdf")
+        val second = GatewayFileClient.cacheFileNameFor("/tmp/report.pdf")
+        val other = GatewayFileClient.cacheFileNameFor("/tmp/other.pdf")
+        assertEquals(first, second)
+        assertNotEquals(first, other)
+        assertTrue(first.endsWith("-report.pdf"))
+    }
+
+    @Test
+    fun `isFreshCacheFile respects the TTL`() {
+        val dir = java.io.File(System.getProperty("java.io.tmpdir"), "gwcache_${System.nanoTime()}").apply { mkdirs() }
+        try {
+            val fresh = java.io.File(dir, "fresh").apply { writeText("x") }
+            fresh.setLastModified(System.currentTimeMillis() - 60_000L) // 1 min old
+            val stale = java.io.File(dir, "stale").apply { writeText("x") }
+            stale.setLastModified(System.currentTimeMillis() - 60 * 60 * 1000L) // 1 h old
+            assertTrue(GatewayFileClient.isFreshCacheFile(fresh))
+            assertFalse(GatewayFileClient.isFreshCacheFile(stale))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `copyChunked copies input to output byte-for-byte`() =
+        runTest {
+            // >64 KiB so the copy exercises multiple chunks (buffer is 64 KiB).
+            val payload = ByteArray(200_000) { (it % 251).toByte() }
+            val output = java.io.ByteArrayOutputStream()
+            GatewayFileClient.copyChunked(java.io.ByteArrayInputStream(payload), output)
+            assertTrue(output.toByteArray().contentEquals(payload))
+        }
+
+    @Test
+    fun `copyChunked aborts mid-copy when the job is cancelled`() =
+        runTest {
+            // Input that parks on its 2nd chunk read until the gate opens, so
+            // the test can cancel the job *while* the copy is in flight.
+            val gate = CompletableDeferred<Unit>()
+            val blockingInput =
+                object : java.io.InputStream() {
+                    var reads = 0
+
+                    override fun read(): Int = 1
+
+                    override fun read(
+                        b: ByteArray,
+                        off: Int,
+                        len: Int,
+                    ): Int {
+                        reads++
+                        if (reads == 2) kotlinx.coroutines.runBlocking { gate.await() }
+                        return if (reads <= 3) 1 else -1
+                    }
+                }
+            val output = java.io.ByteArrayOutputStream()
+            val job =
+                CoroutineScope(Dispatchers.Default).launch {
+                    GatewayFileClient.copyChunked(blockingInput, output)
+                }
+            runCurrent()
+            job.cancel()
+            gate.complete(Unit)
+            job.join()
+            // If copyChunked swallowed the cancellation, the job would have
+            // completed normally; a cancelled completion proves propagation.
+            assertTrue(job.isCancelled)
+        }
 }

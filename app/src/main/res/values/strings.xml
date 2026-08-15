@@ -793,6 +793,14 @@
     <string name="gateway_action_restart">Restart</string>
     <string name="gateway_sec_active_platforms">Active Platforms</string>
 
+    <!-- Host pressure banner (issue #903) -->
+    <string name="pressure_banner_disk_critical">Agent\'s disk is almost full — new messages, memories, and settings may fail to save</string>
+    <string name="pressure_banner_disk_elevated">Agent\'s disk is filling up — consider clearing old sessions or expanding storage</string>
+    <string name="pressure_banner_disk_free_suffix"> · %1$d MB free</string>
+    <string name="pressure_banner_memory_critical">Agent is almost out of memory and may restart</string>
+    <string name="pressure_banner_memory_oom">Agent restarted unexpectedly — most likely it ran out of memory</string>
+    <string name="pressure_banner_memory_elevated">Agent is running low on memory</string>
+
     <!-- CronJobs Screen -->
     <string name="cron_empty_title">No cron jobs</string>
     <string name="cron_empty_desc">Scheduled tasks from Hermes will appear here.</string>

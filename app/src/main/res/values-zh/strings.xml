@@ -699,6 +699,12 @@
     <string name="gateway_action_stop">停止</string>
     <string name="gateway_action_restart">重启</string>
     <string name="gateway_sec_active_platforms">活动平台</string>
+    <string name="pressure_banner_disk_critical">代理磁盘几乎已满 — 新消息、记忆和设置可能无法保存</string>
+    <string name="pressure_banner_disk_elevated">代理磁盘正在填满 — 建议清理旧会话或扩展存储</string>
+    <string name="pressure_banner_disk_free_suffix"> · 剩余 %1$d MB</string>
+    <string name="pressure_banner_memory_critical">代理内存即将耗尽，可能重启</string>
+    <string name="pressure_banner_memory_oom">代理意外重启 — 很可能是内存不足导致</string>
+    <string name="pressure_banner_memory_elevated">代理内存不足</string>
     <string name="cron_empty_title">没有定时任务</string>
     <string name="cron_empty_desc">Hermes 的定时任务将显示在这里。</string>
     <string name="cron_status_active">启用</string>

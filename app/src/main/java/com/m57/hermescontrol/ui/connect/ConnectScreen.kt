@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.ui.common.PressureBanner
 
 @Composable
 fun ConnectScreen(
@@ -353,6 +354,12 @@ fun ConnectScreen(
                             )
                         }
                     }
+                }
+                // Host-health advisory (issue #903): memory/disk pressure from
+                // the /api/status probe — explains a struggling host before or
+                // after a failed connect attempt.
+                state.status?.let { status ->
+                    PressureBanner(memory = status.memory, disk = status.disk)
                 }
             }
         }

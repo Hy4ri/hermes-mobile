@@ -328,6 +328,8 @@ class ModelSerializationTest {
         assertNull(response.active_sessions)
         assertNull(response.auth_required)
         assertNull(response.gateway_platforms)
+        assertNull(response.memory)
+        assertNull(response.disk)
     }
 
     @Test
@@ -351,6 +353,71 @@ class ModelSerializationTest {
         assertNotNull(iosPlatform)
         assertNull(iosPlatform!!.state)
         assertNull(iosPlatform.error_code)
+    }
+
+    @Test
+    fun testStatusResponseDeserialization_memoryAndDiskBlocks() {
+        val jsonStr =
+            """
+            {
+                "version": "1.0.0",
+                "memory": {
+                    "pressure": "elevated",
+                    "gateway_rss_mb": 512,
+                    "system_total_mb": 8192,
+                    "system_available_mb": 900,
+                    "swap_used_mb": 2048,
+                    "sampled_at": "2026-08-14T19:00:00+00:00",
+                    "last_boot_unclean": true,
+                    "last_boot_suspected_oom": false,
+                    "boot_id": "2026-08-14T18:00:00+00:00"
+                },
+                "disk": {
+                    "pressure": "critical",
+                    "total_mb": 512000,
+                    "free_mb": 200,
+                    "used_percent": 99.9
+                }
+            }
+            """.trimIndent()
+        val response = json.decodeFromString<StatusResponse>(jsonStr)
+        assertEquals("elevated", response.memory?.pressure)
+        assertEquals(512, response.memory?.gateway_rss_mb)
+        assertEquals(8192, response.memory?.system_total_mb)
+        assertEquals(900, response.memory?.system_available_mb)
+        assertEquals(2048, response.memory?.swap_used_mb)
+        assertEquals(true, response.memory?.last_boot_unclean)
+        assertEquals(false, response.memory?.last_boot_suspected_oom)
+        assertEquals("2026-08-14T18:00:00+00:00", response.memory?.boot_id)
+        assertEquals("critical", response.disk?.pressure)
+        assertEquals(512000, response.disk?.total_mb)
+        assertEquals(200, response.disk?.free_mb)
+        assertEquals(99.9, response.disk?.used_percent ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun testStatusResponseDeserialization_pressureUnknownDegrades() {
+        val jsonStr =
+            """
+            {
+                "memory": {
+                    "pressure": "unknown",
+                    "gateway_rss_mb": null,
+                    "last_boot_unclean": false,
+                    "last_boot_suspected_oom": false
+                },
+                "disk": {
+                    "pressure": "unknown"
+                }
+            }
+            """.trimIndent()
+        val response = json.decodeFromString<StatusResponse>(jsonStr)
+        assertEquals("unknown", response.memory?.pressure)
+        assertNull(response.memory?.system_total_mb)
+        assertEquals(false, response.memory?.last_boot_unclean)
+        assertEquals("unknown", response.disk?.pressure)
+        assertNull(response.disk?.total_mb)
+        assertNull(response.disk?.free_mb)
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.m57.hermescontrol.data.config.ConnectionProfile
 import com.m57.hermescontrol.data.config.resolveBaseUrl
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.HealthStatus
+import com.m57.hermescontrol.data.model.StatusResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -33,6 +34,7 @@ data class ConnectUiState(
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfile: ConnectionProfile? = null,
     val health: HealthStatus? = null,
+    val status: StatusResponse? = null,
 )
 
 class ConnectViewModel(
@@ -61,6 +63,7 @@ class ConnectViewModel(
             )
         }
         loadHealth()
+        loadStatus()
     }
 
     /**
@@ -80,6 +83,28 @@ class ConnectViewModel(
                 }
             if (result is NetworkResult.Success) {
                 _uiState.update { it.copy(health = result.data) }
+            }
+        }
+    }
+
+    /**
+     * Best-effort `/api/status` probe (issue #903): surfaces the host
+     * memory/disk pressure banner on the connection screen. Fired on screen
+     * load (saved credentials) and after a failed connect, so an OOM-thrashing
+     * or disk-full host explains itself instead of looking like a dead agent.
+     * Failures are silent (status stays null and the screen shows no banner).
+     */
+    fun loadStatus() {
+        val state = _uiState.value
+        val endpoint = runCatching { ServerEndpoint.parseForBuild(state.baseUrl) }.getOrNull()
+        if (endpoint == null || state.token.isBlank()) return
+        viewModelScope.launch {
+            val result =
+                safeApiCall {
+                    ApiClient.createTempService(endpoint.baseUrl.toString(), state.token).getStatus()
+                }
+            if (result is NetworkResult.Success) {
+                _uiState.update { it.copy(status = result.data) }
             }
         }
     }
@@ -180,7 +205,12 @@ class ConnectViewModel(
                     }
                     ApiClient.rebuild()
                     _uiState.update {
-                        it.copy(isConnecting = false, connectionSuccess = true, errorMessage = null)
+                        it.copy(
+                            isConnecting = false,
+                            connectionSuccess = true,
+                            errorMessage = null,
+                            status = result.data,
+                        )
                     }
                 }
 
@@ -282,6 +312,8 @@ class ConnectViewModel(
                             }
                         }
                     _uiState.update { it.copy(isConnecting = false, errorMessage = msg) }
+                    // Best-effort: explain a failing host via its pressure rollup.
+                    loadStatus()
                 }
             }
         }

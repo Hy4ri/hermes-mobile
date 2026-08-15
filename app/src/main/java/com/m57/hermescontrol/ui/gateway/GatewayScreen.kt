@@ -39,6 +39,7 @@ import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.PressureBanner
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 
@@ -107,6 +108,11 @@ fun GatewayScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
                             val isRunning = status?.gateway_running == true
+
+                            // Host-health advisory (issue #903): memory/disk pressure
+                            status?.let { s ->
+                                PressureBanner(memory = s.memory, disk = s.disk)
+                            }
 
                             // Status Overview Card
                             Card(

@@ -3039,9 +3039,13 @@ class ChatViewModel(
                 .onSuccess { return }
                 .onFailure { /* fall through to cache-copy below */ }
         }
-        // GATEWAY, or LOCAL direct-open failed → fetch/copy then open.
+        // GATEWAY, or LOCAL direct-open failed → try WPS deep-link streaming
+        // first (ticket URL → `wps://open?url=...`), fall back to
+        // fetch/copy-then-open when the device has no WPS handler or the
+        // hand-off failed.
         val path = gatewayPathFor(attachment)
         viewModelScope.launch(ioDispatcher) {
+            if (openGatewayStreaming(ctx, path)) return@launch
             when (val result = GatewayFileClient.fetch(path)) {
                 is GatewayFileResult.Success -> {
                     openBytes(ctx, result.file)
@@ -3121,6 +3125,60 @@ class ChatViewModel(
         attachment.gatewayUrl?.let(::gatewayPathFromUrl)
             ?: attachment.uri.removePrefix("gateway:").takeIf { it != attachment.uri }
             ?: attachment.name
+
+    /** Try to open a gateway file with WPS streaming via its deep link:
+     * `wps://open?url=<urlencoded signed ticket URL>`. The ticket URL is
+     * cookie-free and short-lived, so WPS can stream the file directly over
+     * LAN or Tailscale without the app downloading it first. Returns true
+     * only when the intent was handed to a handler; false on any failure so
+     * the caller falls back to download-then-open. Only document-ish
+     * attachments (MediaKind.FILE) are routed this way — images render
+     * inline and audio/video go through their own players.
+     */
+    private suspend fun openGatewayStreaming(
+        ctx: android.content.Context,
+        path: String,
+    ): Boolean {
+        if (mediaKindForPath(path) != MediaKind.FILE) return false
+        val ticketUrl = GatewayFileClient.mintDownloadUrl(path) ?: return false
+        val wpsUri = android.net.Uri.parse("wps://open?url=" + android.net.Uri.encode(ticketUrl))
+        // Route straight to WPS by trying the known WPS packages explicitly.
+        // This avoids the system resolver chooser on every tap and doesn't
+        // depend on package visibility (which MIUI can restrict), unlike
+        // queryIntentActivities. Falls back to the implicit chooser when no
+        // candidate package is installed.
+        val wpsCandidates =
+            listOf(
+                "cn.wps.moffice",
+                "cn.wps.moffice_eng",
+                "cn.wps.moffice_global",
+                "cn.wps.moffice_main",
+            )
+        for (pkg in wpsCandidates) {
+            val intent =
+                android.content.Intent(android.content.Intent.ACTION_VIEW, wpsUri).apply {
+                    setPackage(pkg)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            try {
+                ctx.startActivity(intent)
+                return true
+            } catch (e: Throwable) {
+                // Candidate not installed / not a handler → try the next one.
+            }
+        }
+        // No known WPS package resolved → let the system resolver choose.
+        val fallback =
+            android.content.Intent(android.content.Intent.ACTION_VIEW, wpsUri).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        return try {
+            ctx.startActivity(fallback)
+            true
+        } catch (e: Throwable) {
+            false
+        }
+    }
 
     /** Open bytes written to a cache file via FileProvider + ACTION_VIEW. */
     private fun openBytes(

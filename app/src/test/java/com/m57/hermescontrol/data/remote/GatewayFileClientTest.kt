@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.config.ServerStoreState
 import com.m57.hermescontrol.data.local.AuthManager
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -100,5 +101,16 @@ class GatewayFileClientTest {
     fun `parseFilename extracts from content-disposition`() {
         assertEquals("report.pdf", GatewayFileClient.parseFilename("attachment; filename=\"report.pdf\""))
         assertEquals("a b.png", GatewayFileClient.parseFilename("inline; filename*=UTF-8''a%20b.png"))
+    }
+
+    @Test
+    fun `mintDownloadUrl returns null on blank base url`() {
+        val blankStore = mockk<ServerStore>(relaxed = true)
+        every { blankStore.getLatestState() } returns
+            ServerStoreState(wsAuthParam = "ticket", baseUrl = "")
+        val field = AuthManager::class.java.getDeclaredField("_serverStore")
+        field.isAccessible = true
+        field.set(AuthManager, blankStore)
+        assertNull(runBlocking { GatewayFileClient.mintDownloadUrl("/tmp/report.docx") })
     }
 }

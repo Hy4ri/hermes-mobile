@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
 import com.m57.hermescontrol.data.local.AuthManager
+import kotlinx.serialization.Serializable
 import okhttp3.Request
 import java.io.IOException
 import java.net.URLDecoder
@@ -87,6 +88,39 @@ object GatewayFileClient {
         return expanded
     }
 
+    /** Mint a short-lived signed download URL for an external viewer (WPS etc.).
+     *
+     * Calls ``GET /api/files/download-ticket?path=<enc>`` with the shared
+     * CookieJar (gated basic-auth session). The returned URL is HMAC-signed,
+     * valid ~5 minutes, bound to exactly this file, and needs no cookie — so
+     * an external viewer that can't attach cookies or headers (WPS deep link)
+     * can stream it directly over LAN/Tailscale. Returns null on any failure;
+     * the caller falls back to the cookie-authenticated [fetch] below.
+     */
+    suspend fun mintDownloadUrl(path: String): String? {
+        return try {
+            val baseUrl = AuthManager.getBaseUrl()
+            if (baseUrl.isBlank()) return null
+            val norm = normalizePath(path) ?: return null
+            val encPath = URLEncoder.encode(norm, StandardCharsets.UTF_8.name()).replace("+", "%20")
+            val url = "${baseUrl.trimEnd('/')}/api/files/download-ticket?path=$encPath"
+            val request = Request.Builder().url(url).build()
+            OkHttpProvider.probe.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val body = resp.body?.string() ?: return null
+                runCatching { OkHttpProvider.json.decodeFromString<DownloadTicketResponse>(body) }
+                    .getOrNull()
+                    ?.url
+                    ?.takeIf { it.isNotBlank() }
+            }
+        } catch (e: Throwable) {
+            // Unconfigured server, bad path, network error, or unrecognised
+            // response — treat as "no ticket" so the caller falls back to the
+            // cookie-authenticated download.
+            null
+        }
+    }
+
     /** Map an HTTP status to a non-success result; `null` means "let the
      * caller treat the body as a successful file." */
     internal fun classifyStatus(code: Int): GatewayFileResult? =
@@ -147,6 +181,14 @@ object GatewayFileClient {
 
     private val FILENAME_RE = Regex("""filename\*?=(?:UTF-8'')?"?([^";]+)"?""", RegexOption.IGNORE_CASE)
 }
+
+/** JSON envelope for `GET /api/files/download-ticket`. */
+@Serializable
+private data class DownloadTicketResponse(
+    val ok: Boolean = false,
+    val url: String = "",
+    val path: String = "",
+)
 
 /** A file fetched from the gateway. */
 data class GatewayFile(

@@ -9,6 +9,15 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <queries>
+        <!-- See wps:// (and file-type) VIEW handlers to route deep links to
+             WPS explicitly instead of showing the system resolver chooser. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="wps" />
+        </intent>
+    </queries>
+
     <application
         android:name=".HermesControlApp"
         android:allowBackup="false"

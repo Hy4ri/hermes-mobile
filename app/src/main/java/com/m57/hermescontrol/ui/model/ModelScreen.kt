@@ -820,6 +820,10 @@ private fun ProviderCard(
                                             } else {
                                                 MaterialTheme.colorScheme.onSurface
                                             },
+                                        // Weight + wrap: a long model name grows
+                                        // the row vertically instead of pushing
+                                        // the check/pin buttons off-screen.
+                                        modifier = Modifier.weight(1f),
                                     )
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,

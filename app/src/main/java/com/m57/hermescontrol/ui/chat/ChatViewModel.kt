@@ -2867,7 +2867,7 @@ class ChatViewModel(
                         items
                             .mapNotNull { item ->
                                 val url =
-                                    GatewayFileClient.buildDownloadUrl(
+                                    GatewayFileClient.buildMediaUrl(
                                         baseUrl,
                                         token,
                                         item.path,
@@ -2985,7 +2985,8 @@ class ChatViewModel(
                 .toSet()
         val newAttachments =
             items.mapNotNull { item ->
-                val url = GatewayFileClient.buildDownloadUrl(baseUrl, "", item.path) ?: return@mapNotNull null
+                val token = AuthManager.getToken().orEmpty()
+                val url = GatewayFileClient.buildMediaUrl(baseUrl, token, item.path) ?: return@mapNotNull null
                 if (url in existingUrls) return@mapNotNull null
                 Attachment(
                     uri = url,

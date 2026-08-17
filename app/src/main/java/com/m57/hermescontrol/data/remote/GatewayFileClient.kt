@@ -34,6 +34,7 @@ import kotlin.coroutines.coroutineContext
  */
 object GatewayFileClient {
     private const val DOWNLOAD_PATH = "/api/files/download"
+    private const val STREAM_PATH = "/api/files/stream"
 
     /** Downloads are reused for this long before a fresh fetch is made. */
     private const val CACHE_REUSE_TTL_MS = 10 * 60 * 1000L
@@ -46,13 +47,52 @@ object GatewayFileClient {
     /**
      * Pure builder for the authenticated download URL.
      *
-     * @return the full URL, or `null` if [baseUrl]/[token] are blank or
-     * [path] is not an absolute (or `~/`) host path.
+     * @return the full URL, or `null` if [baseUrl] is blank or [path] is not an
+     * absolute (or `~/`) host path.
      */
     fun buildDownloadUrl(
         baseUrl: String,
         token: String,
         path: String,
+    ): String? = buildUrl(baseUrl, token, path, DOWNLOAD_PATH)
+
+    /**
+     * Pure builder for the authenticated media streaming URL (`/api/files/stream`).
+     *
+     * Supports HTTP Range requests and inline content disposition for seekable audio & video (issue #920).
+     */
+    fun buildStreamUrl(
+        baseUrl: String,
+        token: String,
+        path: String,
+    ): String? = buildUrl(baseUrl, token, path, STREAM_PATH)
+
+    /**
+     * Build the best URL for a gateway host file: `/api/files/stream` for seekable audio/video
+     * with Range support (issue #920), and `/api/files/download` for images, documents, and other files.
+     */
+    fun buildMediaUrl(
+        baseUrl: String,
+        token: String,
+        path: String,
+    ): String? {
+        val kind = com.m57.hermescontrol.ui.chat.mediaKindForPath(path)
+        val endpoint =
+            if (kind == com.m57.hermescontrol.ui.chat.MediaKind.AUDIO ||
+                kind == com.m57.hermescontrol.ui.chat.MediaKind.VIDEO
+            ) {
+                STREAM_PATH
+            } else {
+                DOWNLOAD_PATH
+            }
+        return buildUrl(baseUrl, token, path, endpoint)
+    }
+
+    private fun buildUrl(
+        baseUrl: String,
+        token: String,
+        path: String,
+        endpointPath: String,
     ): String? {
         val trimmedBase = baseUrl.trimEnd('/')
         if (trimmedBase.isBlank()) return null
@@ -71,7 +111,7 @@ object GatewayFileClient {
             } else {
                 ""
             }
-        return "$trimmedBase$DOWNLOAD_PATH?path=$encPath$authQuery"
+        return "$trimmedBase$endpointPath?path=$encPath$authQuery"
     }
 
     /**
@@ -198,7 +238,7 @@ object GatewayFileClient {
         cacheDir: File,
         cacheName: String,
     ): File? {
-        val body = resp.body ?: return null
+        val body = resp.body
         val dir = cacheDir.also { it.mkdirs() }
         sweepOldCacheFiles(dir)
         val target = File(dir, cacheName)

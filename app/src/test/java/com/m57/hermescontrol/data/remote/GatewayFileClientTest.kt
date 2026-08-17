@@ -77,6 +77,27 @@ class GatewayFileClientTest {
     }
 
     @Test
+    fun `buildStreamUrl encodes path and token with stream endpoint`() {
+        val url = GatewayFileClient.buildStreamUrl(base, tok, "/tmp/video.mp4")!!
+        assertTrue(url.startsWith("$base/api/files/stream?"))
+        assertTrue(url.contains("path=%2Ftmp%2Fvideo.mp4"))
+        assertTrue(url.contains("token="))
+    }
+
+    @Test
+    fun `buildMediaUrl routes audio and video to stream and others to download`() {
+        val videoUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/clip.mp4")!!
+        val audioUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/voice.ogg")!!
+        val imageUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/photo.jpg")!!
+        val docUrl = GatewayFileClient.buildMediaUrl(base, tok, "/tmp/report.pdf")!!
+
+        assertTrue(videoUrl.startsWith("$base/api/files/stream?"))
+        assertTrue(audioUrl.startsWith("$base/api/files/stream?"))
+        assertTrue(imageUrl.startsWith("$base/api/files/download?"))
+        assertTrue(docUrl.startsWith("$base/api/files/download?"))
+    }
+
+    @Test
     fun `normalizePath expands tilde`() {
         val home = System.getenv("HOME") ?: "/home/test"
         assertEquals("$home/foo.png", GatewayFileClient.normalizePath("~/foo.png"))

@@ -1062,8 +1062,8 @@ private fun resolveImageUrl(uri: String): String {
     }
     val baseUrl = runCatching { AuthManager.getBaseUrl() }.getOrDefault("")
     val token = runCatching { AuthManager.getToken() }.getOrNull().orEmpty()
-    val downloadUrl = GatewayFileClient.buildDownloadUrl(baseUrl, token, trimmed)
-    if (downloadUrl != null) return downloadUrl
+    val mediaUrl = GatewayFileClient.buildMediaUrl(baseUrl, token, trimmed)
+    if (mediaUrl != null) return mediaUrl
 
     if (baseUrl.isNotBlank() && (trimmed.startsWith("/api/") || trimmed.startsWith("api/"))) {
         val cleanPath = if (trimmed.startsWith("/")) trimmed else "/$trimmed"

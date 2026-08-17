@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
@@ -563,15 +562,6 @@ private fun ServerCard(
                     Icon(Icons.Filled.Science, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(spacing.xs))
                     Text(stringResource(R.string.mcp_servers_action_test), maxLines = 1)
-                }
-                FilledTonalButton(
-                    onClick = { viewModel.restartServer(server.name) },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                ) {
-                    Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(spacing.xs))
-                    Text(stringResource(R.string.mcp_servers_action_restart), maxLines = 1)
                 }
                 IconButton(onClick = { viewModel.deleteServer(server.name) }) {
                     Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete))

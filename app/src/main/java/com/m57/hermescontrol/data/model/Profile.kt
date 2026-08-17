@@ -48,11 +48,6 @@ data class UpdateProfileModelRequest(
 )
 
 @Serializable
-data class CloneProfileRequest(
-    val name: String,
-)
-
-@Serializable
 data class UpdateProfileDescriptionRequest(
     val description: String,
 )
@@ -89,6 +84,9 @@ data class CreateProfileRequest(
     val mcp_servers: List<McpServerConfigInput>? = null,
     val keep_skills: Boolean? = null,
     val hub_skills: List<String>? = null,
+    val clone_from: String? = null,
+    val clone_all: Boolean? = null,
+    val clone_from_default: Boolean? = null,
 )
 
 @Serializable

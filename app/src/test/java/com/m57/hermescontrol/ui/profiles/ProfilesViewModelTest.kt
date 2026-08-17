@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.profiles
 
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
+import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.ModelOptionsResponse
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
@@ -310,5 +311,38 @@ class ProfilesViewModelTest {
 
         assertNull(vm.uiState.value.activeProfileName)
         assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to switch profile"))
+    }
+
+    @Test
+    fun `cloneProfile success calls createProfile with clone_from and reloads`() {
+        coEvery { mockApi.createProfile(any()) } returns Response.success(Unit)
+
+        val vm = createViewModel()
+        vm.cloneProfile("default", "dev-copy")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify {
+            mockApi.createProfile(
+                CreateProfileRequest(
+                    name = "dev-copy",
+                    clone_from = "default",
+                ),
+            )
+        }
+        assertTrue(vm.uiState.value.toastMessage!!.contains("cloned successfully"))
+        assertFalse(vm.uiState.value.isLoading)
+        coVerify { mockApi.getProfiles() }
+    }
+
+    @Test
+    fun `cloneProfile failure surfaces toast and stops loading`() {
+        coEvery { mockApi.createProfile(any()) } returns errorResponse(400)
+
+        val vm = createViewModel()
+        vm.cloneProfile("default", "dev-copy")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to clone profile"))
+        assertFalse(vm.uiState.value.isLoading)
     }
 }

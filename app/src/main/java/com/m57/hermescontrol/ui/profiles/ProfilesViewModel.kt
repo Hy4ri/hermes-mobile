@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.profiles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
-import com.m57.hermescontrol.data.model.CloneProfileRequest
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.ModelProvider
@@ -242,9 +241,11 @@ class ProfilesViewModel(
             val result =
                 withContext(ioDispatcher) {
                     safeApiCall {
-                        ApiClient.hermesApi.cloneProfile(
-                            sourceProfileName,
-                            CloneProfileRequest(newProfileName),
+                        ApiClient.hermesApi.createProfile(
+                            CreateProfileRequest(
+                                name = newProfileName,
+                                clone_from = sourceProfileName,
+                            ),
                         )
                     }
                 }

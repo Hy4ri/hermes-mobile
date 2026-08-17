@@ -60,9 +60,3 @@ data class BulkDeleteResponse(
 data class PruneRequest(
     val days: Int,
 )
-
-@Serializable
-data class SessionPromptResponse(
-    val prompt: String? = null,
-    val id: String? = null,
-)

@@ -162,26 +162,6 @@ class McpServersViewModel :
         }
     }
 
-    fun restartServer(name: String) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(toastMessage = "Restarting server '$name'…") }
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.restartMcpServer(name) }
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Server '$name' restarted") }
-                    loadServers()
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to restart server: ${result.error.message}") }
-                }
-            }
-        }
-    }
-
     // ── Add server form ──────────────────────────────────────
 
     fun toggleAddForm() {

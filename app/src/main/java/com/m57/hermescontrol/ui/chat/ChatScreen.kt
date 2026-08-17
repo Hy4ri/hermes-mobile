@@ -801,6 +801,7 @@ fun ChatScreen(
         if (showContextSheet && state.contextBreakdown != null) {
             ContextDetailSheet(
                 breakdown = state.contextBreakdown!!,
+                usedTokens = state.usedContextTokens,
                 fullTokens = state.fullContextTokens,
                 onDismiss = { showContextSheet = false },
             )

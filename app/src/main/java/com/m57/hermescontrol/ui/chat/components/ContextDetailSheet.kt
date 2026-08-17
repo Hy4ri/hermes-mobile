@@ -33,13 +33,15 @@ import kotlin.math.min
  * token breakdown (input / output / cache read / cache write / reasoning) and
  * the message count, plus a prominent used / full bar.
  *
- * `fullTokens` is the model context window (denominator); `breakdown` carries
- * the per-category counts from `GET /api/sessions/{id}`.
+ * @param breakdown Sourced per-category token counts from `GET /api/sessions/{id}`.
+ * @param usedTokens Tokens currently in the active session prompt window (matches ContextUsageChip), or null.
+ * @param fullTokens The active model's full context window (denominator).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContextDetailSheet(
     breakdown: ContextBreakdown,
+    usedTokens: Long?,
     fullTokens: Long?,
     onDismiss: () -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(),
@@ -49,7 +51,7 @@ fun ContextDetailSheet(
         sheetState = sheetState,
     ) {
         val full = fullTokens ?: 0L
-        val used = breakdown.inputTokens
+        val used = usedTokens ?: breakdown.inputTokens
         val fraction = if (full > 0L) min(1f, used.toFloat() / full.toFloat()) else 0f
         val pct = (fraction * 100).toInt()
         val statusColors = LocalHermesStatusColors.current

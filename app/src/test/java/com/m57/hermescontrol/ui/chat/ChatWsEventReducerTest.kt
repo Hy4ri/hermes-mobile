@@ -869,4 +869,51 @@ class ChatWsEventReducerTest {
         assertEquals(listOf(line1, line2, summary), allAssistant.map { it.content })
         assertEquals(null, result.streamingState.streamingMessage)
     }
+
+    @Test
+    fun testSessionUsage_updatesCompressionCountAndContextTokens() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val usagePayload =
+            mapOf(
+                "usage" to
+                    mapOf(
+                        "compressions" to 2,
+                        "context_used" to 8500L,
+                        "context_max" to 128000L,
+                        "total" to 25000L,
+                    ),
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-1"),
+                currentSessionId = "session-1",
+            )
+        assertEquals(2, result.state.compressionCount)
+        assertEquals(8500L, result.state.usedContextTokens)
+        assertEquals(128000L, result.state.fullContextTokens)
+    }
+
+    @Test
+    fun testSessionUsage_differentSession_isIgnored() {
+        val state = ChatUiState(currentSessionId = "session-1", compressionCount = 1)
+        val usagePayload =
+            mapOf(
+                "usage" to
+                    mapOf(
+                        "compressions" to 5,
+                        "context_used" to 99999L,
+                    ),
+            )
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.SessionUsage(data = usagePayload, sessionId = "session-other"),
+                currentSessionId = "session-1",
+            )
+        assertEquals(1, result.state.compressionCount)
+        assertEquals(null, result.state.usedContextTokens)
+    }
 }

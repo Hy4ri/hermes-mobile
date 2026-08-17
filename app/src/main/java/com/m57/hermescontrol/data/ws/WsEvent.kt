@@ -161,6 +161,16 @@ sealed class WsEvent {
         val data: Map<String, Any?>?,
     ) : WsEvent()
 
+    /**
+     * Live token & compression usage snapshot emitted during a turn (issue #919).
+     * Carried in `session.usage` push events (`tui_gateway/server.py` `_start_usage_ticker`).
+     * Payload: `{ "usage": { "compressions": Int, "context_used": Long, "context_max": Long, ... } }`
+     */
+    data class SessionUsage(
+        val data: Map<String, Any?>?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── RPC responses ────────────────────────────────────────────────────
 
     data class RpcResult(

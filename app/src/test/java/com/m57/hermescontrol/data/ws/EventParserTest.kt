@@ -634,4 +634,38 @@ class EventParserTest {
         assertEquals("sub-456", subagentEvent.payload?.get("subagent_id"))
         assertEquals("analyzing docs...", subagentEvent.payload?.get("text"))
     }
+
+    @Test
+    fun testParseSessionUsage_returnsSessionUsageEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "session.usage",
+                        "session_id" to "sess-123",
+                        "payload" to
+                            mapOf(
+                                "usage" to
+                                    mapOf(
+                                        "compressions" to 3,
+                                        "context_used" to 12500,
+                                        "context_max" to 128000,
+                                        "total" to 45000,
+                                    ),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.SessionUsage)
+        val sessionUsage = event as WsEvent.SessionUsage
+        assertEquals("sess-123", sessionUsage.sessionId)
+        val usage = sessionUsage.data?.get("usage") as? Map<*, *>
+        assertEquals(3, (usage?.get("compressions") as? Number)?.toInt())
+        assertEquals(12500, (usage?.get("context_used") as? Number)?.toInt())
+    }
 }

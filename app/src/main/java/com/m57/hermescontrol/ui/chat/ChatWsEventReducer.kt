@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.toJsonElement
@@ -72,6 +73,7 @@ object ChatWsEventReducer {
                 is WsEvent.ToolGenerating -> event.sessionId
                 is WsEvent.SubagentEvent -> event.sessionId
                 is WsEvent.ReviewSummary -> event.sessionId
+                is WsEvent.SessionUsage -> event.sessionId
                 else -> null
             }
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
@@ -128,6 +130,8 @@ object ChatWsEventReducer {
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
 
             is WsEvent.ReviewSummary -> onReviewSummary(state, streamingState, event)
+
+            is WsEvent.SessionUsage -> onSessionUsage(state, streamingState, event)
 
             is WsEvent.RpcError -> onRpcError(state, streamingState, event)
 
@@ -833,6 +837,27 @@ object ChatWsEventReducer {
             state = state.copy(subagentIndicators = indicators),
             streamingState = streamingState,
         )
+    }
+
+    private fun onSessionUsage(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.SessionUsage,
+    ): ReducerResult {
+        val snapshot =
+            parseUsageSnapshot(event.data)
+                ?: return ReducerResult(state = state, streamingState = streamingState)
+        var updatedState = state
+        if (snapshot.compressions != null) {
+            updatedState = updatedState.copy(compressionCount = snapshot.compressions)
+        }
+        if (snapshot.contextUsed != null && snapshot.contextUsed > 0L) {
+            updatedState = updatedState.copy(usedContextTokens = snapshot.contextUsed)
+        }
+        if (snapshot.contextMax != null && snapshot.contextMax > 0L) {
+            updatedState = updatedState.copy(fullContextTokens = snapshot.contextMax)
+        }
+        return ReducerResult(state = updatedState, streamingState = streamingState)
     }
 }
 

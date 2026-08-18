@@ -30,6 +30,7 @@ internal fun timelineMarkerLabelRes(kind: String?): Int? =
         "async_delegation_complete" -> R.string.timeline_marker_delegation_complete
         "skill_invocation" -> R.string.timeline_marker_skill_invocation
         "internal_notification" -> R.string.timeline_marker_internal_notification
+        "max_iterations_reached" -> R.string.timeline_marker_max_iterations
         else -> null
     }
 

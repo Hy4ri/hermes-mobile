@@ -26,6 +26,10 @@ class TimelineMarkerTest {
             R.string.timeline_marker_internal_notification,
             timelineMarkerLabelRes("internal_notification"),
         )
+        assertEquals(
+            R.string.timeline_marker_max_iterations,
+            timelineMarkerLabelRes("max_iterations_reached"),
+        )
     }
 
     @Test

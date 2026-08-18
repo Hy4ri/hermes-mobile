@@ -28,6 +28,23 @@ sealed interface AgentEntry {
 }
 
 /**
+ * Stable content prefix the backend uses for its max-iterations runtime nudge
+ * (`handle_max_iterations` in run_agent.py → chat_completion_helpers.py, text
+ * sourced from `agent.context_compressor.MAX_ITERATIONS_SUMMARY_REQUEST`). The
+ * backend persists it as a plain `role="user"` row with NO `display_kind`
+ * (SessionDB projection strips underscore metadata flags), so on the mobile
+ * side it would otherwise render as a fake user bubble. Treat it as a system
+ * event so it gets the distinct system design instead.
+ */
+private const val MAX_ITERATIONS_SYSTEM_MARKER =
+    "You've reached the maximum number of tool-calling iterations allowed."
+
+private fun ChatMessage.isSyntheticSystemRow(): Boolean =
+    role == MessageRole.USER &&
+        displayKind == null &&
+        content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
+
+/**
  * Split a flat message list into turns for the full-bleed renderer.
  *
  * Each USER message closes the current agent turn (if any) and opens a User
@@ -50,7 +67,16 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
             // Timeline markers (display_kind) ride as role=user rows but are
             // NOT user turns — group them as system-style timeline entries so
             // they render as centered chips, not fake user bubbles (issue #904).
-            message.displayKind != null -> agentEntries += AgentEntry.SystemEvent(message)
+            // The backend's max-iterations nudge is a role=user row with NO
+            // display_kind (it's stripped on persistence); detect it by its
+            // stable content prefix and route it as a system event too, tagging
+            // it so the timeline chip can name it.
+            message.displayKind != null ->
+                agentEntries += AgentEntry.SystemEvent(message)
+
+            message.isSyntheticSystemRow() ->
+                agentEntries +=
+                    AgentEntry.SystemEvent(message.copy(displayKind = "max_iterations_reached"))
 
             message.role == MessageRole.USER -> {
                 flushAgent()

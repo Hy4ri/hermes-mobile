@@ -754,4 +754,5 @@
     <string name="image_viewer_share_failed">이미지를 공유할 수 없음</string>
     <string name="timeline_marker_skill_invocation">스킬 호출됨</string>
     <string name="timeline_marker_internal_notification">시스템 알림</string>
+    <string name="timeline_marker_max_iterations">도구 호출 한도 도달</string>
 </resources>

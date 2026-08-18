@@ -91,6 +91,25 @@ class FullBleedTurnsTest {
     }
 
     @Test
+    fun `max-iterations nudge is a SystemEvent not a user bubble`() {
+        // Backend persists the max-iterations notice as a plain role=user row
+        // with NO display_kind (it's stripped on SessionDB persistence); the
+        // mobile must still treat it as a system event so it renders with the
+        // distinct system design instead of a fake user bubble.
+        val content =
+            "You've reached the maximum number of tool-calling iterations allowed. " +
+                "Please provide a final response."
+        val nudge = msg("n1", MessageRole.USER, content = content)
+        val result = groupIntoTurns(listOf(nudge))
+        assertEquals(
+            listOf<ChatTurn>(
+                entries(AgentEntry.SystemEvent(nudge.copy(displayKind = "max_iterations_reached"))),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `marker between assistant and user does not close the agent turn`() {
         val a = msg("a1", MessageRole.ASSISTANT)
         val marker =

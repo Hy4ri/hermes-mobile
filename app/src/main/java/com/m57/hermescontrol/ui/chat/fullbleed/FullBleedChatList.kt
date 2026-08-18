@@ -276,6 +276,28 @@ fun FullBleedChatList(
                                 }
                             }
                         }
+
+                        // Cursor-style "N files changed" card (desktop parity) — emitted
+                        // once per agent turn after its tool rows, folding every file
+                        // edit into one row per file with summed +/-.
+                        val turnToolMessages =
+                            turn.entries
+                                .filterIsInstance<AgentEntry.ToolRow>()
+                                .map { it.message }
+                        val cardKey =
+                            turn.entries.firstOrNull()?.let { entry ->
+                                when (entry) {
+                                    is AgentEntry.Prose -> entry.message.id
+                                    is AgentEntry.ToolRow -> entry.message.id
+                                    is AgentEntry.SystemEvent -> entry.message.id
+                                }
+                            } ?: "turn-$entryIndex"
+                        item(key = "changed-files-$cardKey") {
+                            val changedFiles = remember(turnToolMessages) { deriveChangedFiles(turnToolMessages) }
+                            if (changedFiles.isNotEmpty()) {
+                                ChangedFilesCard(files = changedFiles)
+                            }
+                        }
                     }
                 }
             }

@@ -8,17 +8,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.ui.chat.ChatMessage
-import com.m57.hermescontrol.ui.chat.SystemBubble
-import com.m57.hermescontrol.ui.chat.ToolBubble
 
 /**
- * Tool-row treatment inside the full-bleed renderer (issue #866).
+ * Tool-row treatment inside the full-bleed renderer (issue #866, redone for
+ * desktop parity).
  *
- * ToolBubble is ALREADY a compact dimmed card (surfaceContainerHigh, 8dp
- * radius, collapsed summary with expand/copy/raw-json/risk-chip) — distinct
- * from agent prose by design. In full-bleed mode we reuse it verbatim so the
- * verified tool-rendering logic is never duplicated, adding only a 16dp
- * start indent so tool rows align with the full-bleed prose margin.
+ * The old [com.m57.hermescontrol.ui.chat.ToolBubble] Card is gone — tool calls
+ * now render as inline, always-expanded rows (1:1 with the desktop app's
+ * `ToolEntry`), folded into the agent turn in original order. [InlineToolRow]
+ * owns the entire treatment; this wrapper only supplies the 16dp full-bleed
+ * indent so tool rows align with the prose margin.
  */
 @Composable
 internal fun FullBleedToolRow(
@@ -32,26 +31,6 @@ internal fun FullBleedToolRow(
                 .padding(start = 16.dp, end = 16.dp)
                 .testTag("fullbleed_tool_row"),
     ) {
-        ToolBubble(message)
+        InlineToolRow(message)
     }
-}
-
-/**
- * System-event treatment inside the full-bleed renderer (issue #866).
- *
- * Reuses [SystemBubble] verbatim — it already renders as a centered, dimmed,
- * italic caption (with approval buttons and the Self-improvement review card
- * handling intact), which keeps system events visually distinct from prose.
- */
-@Composable
-internal fun FullBleedSystemEvent(
-    message: ChatMessage,
-    onRespondApproval: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    SystemBubble(
-        message = message,
-        onRespondApproval = onRespondApproval,
-        modifier = modifier.testTag("fullbleed_system_event"),
-    )
 }

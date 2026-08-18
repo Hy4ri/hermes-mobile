@@ -10,7 +10,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.theme.HermesControlTheme
+import com.m57.hermescontrol.ui.chat.fullbleed.InlineToolRow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,7 +45,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ToolBubble(message = message)
+                InlineToolRow(message = message)
             }
         }
 
@@ -69,7 +69,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ToolBubble(message = message)
+                InlineToolRow(message = message)
             }
         }
 
@@ -93,7 +93,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ToolBubble(message = message)
+                InlineToolRow(message = message)
             }
         }
 
@@ -116,7 +116,7 @@ class TodoTaskCardTest {
 
         composeTestRule.setContent {
             HermesControlTheme {
-                ToolBubble(message = message)
+                InlineToolRow(message = message)
             }
         }
 

@@ -141,6 +141,8 @@
     <string name="chat_tool_fallback">Tool</string>
     <string name="chat_tool_show_raw">Show Raw JSON</string>
     <string name="chat_tool_show_parsed">Show Parsed Output</string>
+    <string name="files_changed_one">1 file changed</string>
+    <string name="files_changed">%1$d files changed</string>
     <string name="content_desc_new_chat">New Chat</string>
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_copy">Copy</string>

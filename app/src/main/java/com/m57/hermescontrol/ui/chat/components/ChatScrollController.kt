@@ -11,7 +11,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
 
 /**
  * Owns all chat scroll behavior (issue #682):
@@ -58,10 +61,21 @@ class ChatScrollController(
     private var lastMessageCount: Int = 0
 
     /**
-     * Pixel tolerance for "at bottom" detection. Kept small so a reader a few
-     * px above the fold is still considered not-at-bottom (no accidental pulls).
+     * Guard flag: true while a programmatic scroll-to-bottom is in flight.
+     * Prevents [observeUserScrollPosition] from flipping [isFollowingBottom]
+     * to false during the layout race — the scroll targets the old last item,
+     * Compose lays out the new item below, and [isAtBottom] momentarily
+     * returns false before the second scroll pass catches it.
      */
-    var bottomPixelTolerance by mutableStateOf(8)
+    private var isProgrammaticScroll by mutableStateOf(false)
+
+    /**
+     * Pixel tolerance for "at bottom" detection. Covers the LazyColumn's
+     * bottom contentPadding (8dp ≈ 24px on hdpi) plus a small margin so
+     * that soft-keyboard transitions and fractional rendering don't falsely
+     * break follow mode.
+     */
+    var bottomPixelTolerance by mutableStateOf(48)
 
     /** Serialized scroll scope — all scroll jobs funnel through here. */
     fun launchScroll(block: suspend CoroutineScope.() -> Unit) {
@@ -82,7 +96,10 @@ class ChatScrollController(
                         isFollowingBottom = true
                         // Reaching the bottom means the reader caught up.
                         pendingCount = 0
-                    } else {
+                    } else if (!isProgrammaticScroll) {
+                        // Only break follow on USER-initiated scrolls.
+                        // During programmatic scrolls the viewport is
+                        // transiently not-at-bottom while new items lay out.
                         isFollowingBottom = false
                     }
                 }
@@ -114,9 +131,47 @@ class ChatScrollController(
         if (isFollowingBottom) {
             // Pin instantly so rapid streamed tokens don't queue competing
             // animations; the reader stays glued to the growing tail.
-            scope.launch { listState.scrollToBottom(animated = false) }
+            // Use layout-aware scrolling to survive the Compose layout race.
+            scope.launch {
+                isProgrammaticScroll = true
+                try {
+                    scrollToBottomAwaitingLayout()
+                } finally {
+                    isProgrammaticScroll = false
+                }
+            }
         } else {
             pendingCount += newMessages
+        }
+    }
+
+    /**
+     * Scroll to the true bottom of the list, waiting for Compose to lay out
+     * any newly added items first.
+     *
+     * The race: state.messages changes → LaunchedEffect fires onTailChanged →
+     * scrollToBottom uses layoutInfo.totalItemsCount which still reflects the
+     * OLD item count → scrolls to the old last item → the new item lays out
+     * below the viewport → isAtBottom returns false → follow mode breaks.
+     *
+     * Fix: yield to let the composition/layout pass run, then scroll. If the
+     * item count still hasn't caught up (rare, heavy layout), wait briefly
+     * via snapshotFlow on the layout info.
+     */
+    private suspend fun scrollToBottomAwaitingLayout() {
+        // Yield twice: first for recomposition, second for layout.
+        yield()
+        yield()
+        listState.scrollToBottom(animated = false)
+        // If we're still not at the bottom after the first scroll (e.g. a
+        // new item was laid out between the scroll and now), do one more pass.
+        if (!listState.isAtBottom(bottomPixelTolerance)) {
+            // Wait up to 150ms for the layout to settle with the new items.
+            withTimeoutOrNull(150L) {
+                snapshotFlow { listState.layoutInfo.totalItemsCount }
+                    .first { it > 0 }
+            }
+            listState.scrollToBottom(animated = false)
         }
     }
 
@@ -124,7 +179,14 @@ class ChatScrollController(
     fun jumpToBottom(animated: Boolean = false) {
         pendingCount = 0
         isFollowingBottom = true
-        scope.launch { listState.scrollToBottom(animated = animated) }
+        scope.launch {
+            isProgrammaticScroll = true
+            try {
+                listState.scrollToBottom(animated = animated)
+            } finally {
+                isProgrammaticScroll = false
+            }
+        }
     }
 
     /** FAB tap: resume following + clear unread. */

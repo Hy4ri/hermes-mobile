@@ -584,6 +584,8 @@
     <string name="cron_edit_field_run_continuity">실행 연속성</string>
     <string name="cron_edit_hint_run_continuity">이 작업의 이전 출력을 매 실행에 주입</string>
     <string name="cron_badge_continuity">연속</string>
+    <string name="cron_detail_dispatch_error">발송 오류</string>
+    <string name="cron_badge_dispatch_error">실행 실패</string>
     <string name="cron_edit_hint_schedule">예: 0 9 * * * 또는 every 2h</string>
     <string name="cron_edit_hint_deliver">예: origin, local, all, 또는 telegram:chat_id</string>
     <string name="cron_edit_hint_skills">한 줄에 하나씩</string>

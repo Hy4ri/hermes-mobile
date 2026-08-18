@@ -5,6 +5,7 @@ import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronBlueprintListResponse
 import com.m57.hermescontrol.data.model.CronJob
+import com.m57.hermescontrol.data.model.CronJobFireError
 import com.m57.hermescontrol.data.model.DeliveryTarget
 import com.m57.hermescontrol.data.model.DeliveryTargetsResponse
 import com.m57.hermescontrol.data.model.InstantiateBlueprintRequest
@@ -30,6 +31,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -527,5 +529,29 @@ class CronJobsViewModelTest {
             updateSlot.captured.updates["context_from"],
         )
         assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `loadCronJobs surfaces last_fire_error on a job`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJobs() } returns
+            Response.success(
+                listOf(
+                    CronJob(
+                        id = "j11",
+                        name = "Flaky job",
+                        schedule = JsonPrimitive("every 1h"),
+                        last_fire_error = CronJobFireError(at = "2026-08-18T09:00:00", detail = "gateway unreachable"),
+                    ),
+                ),
+            )
+
+        vm.loadCronJobs()
+        settle()
+
+        val job = vm.uiState.value.jobs.first()
+        assertNotNull(job.last_fire_error)
+        assertEquals("gateway unreachable", job.last_fire_error?.detail)
+        assertEquals("2026-08-18T09:00:00", job.last_fire_error?.at)
     }
 }

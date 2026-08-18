@@ -10,6 +10,18 @@ data class CronJobRepeat(
     val completed: Int = 0,
 )
 
+/**
+ * Missed scheduled-fire record stamped on the job when the scheduler cannot
+ * forward a fire to the gateway loopback (gateway down / api_server not bound).
+ * `{at: iso, detail: str}` — see hermes-agent cron/jobs.py `_stamp_fire_error`.
+ * A successful run clears it.
+ */
+@Serializable
+data class CronJobFireError(
+    val at: String? = null,
+    val detail: String? = null,
+)
+
 @Serializable
 data class CronJob(
     val id: String,
@@ -24,6 +36,9 @@ data class CronJob(
     val last_run_at: String? = null,
     val last_error: String? = null,
     val last_delivery_error: String? = null,
+    // Missed scheduled-fire stamp (gateway unreachable / api_server not bound).
+    // Nested {at, detail} object — see CronJobFireError.
+    val last_fire_error: CronJobFireError? = null,
     // Full editor fields — all optional with defaults for backward compat
     val enabled: Boolean? = null,
     val prompt: String? = null,

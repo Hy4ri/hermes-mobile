@@ -194,6 +194,14 @@ fun CronJobsScreen(
                                             status = StatusBadgeType.INFO,
                                         )
                                     }
+                                    // Dispatch error badge: a scheduled fire was missed
+                                    // (gateway unreachable / api_server not bound).
+                                    if (job.last_fire_error != null) {
+                                        StatusBadge(
+                                            text = stringResource(R.string.cron_badge_dispatch_error),
+                                            status = StatusBadgeType.ERROR,
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(spacing.xs))
                                 Text(
@@ -304,6 +312,20 @@ fun CronJobsScreen(
                     RunDetailRow("Schedule", CronExpressionFormatter.cronToHumanReadable(job.scheduleText))
                     if (job.last_error != null && job.last_error.isNotBlank()) {
                         RunDetailRow("Error", job.last_error)
+                    }
+                    job.last_fire_error?.let { fireErr ->
+                        if (fireErr.detail != null || fireErr.at != null) {
+                            RunDetailRow(
+                                stringResource(R.string.cron_detail_dispatch_error),
+                                buildString {
+                                    fireErr.detail?.let { append(it) }
+                                    fireErr.at?.let { at ->
+                                        if (fireErr.detail != null) append(" ")
+                                        append("($at)")
+                                    }
+                                },
+                            )
+                        }
                     }
                     job.script?.let { if (it.isNotBlank()) RunDetailRow("Script", it) }
                     job.monitorSource?.let { if (it.isNotBlank()) RunDetailRow("Monitor", it) }

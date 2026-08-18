@@ -1102,6 +1102,8 @@
     <string name="timeline_marker_personality_switch">Personality switched</string>
     <string name="timeline_marker_auto_continue">Turn auto-continued</string>
     <string name="timeline_marker_delegation_complete">Delegated task completed</string>
+    <string name="timeline_marker_skill_invocation">Skill invoked</string>
+    <string name="timeline_marker_internal_notification">System notification</string>
     <string name="message_your_response">Your response</string>
     <string name="moa_add_preset">Add preset</string>
     <string name="moa_add_reference">Add reference model</string>

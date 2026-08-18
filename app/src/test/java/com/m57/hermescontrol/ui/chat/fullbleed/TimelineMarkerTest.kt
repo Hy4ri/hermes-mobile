@@ -18,6 +18,14 @@ class TimelineMarkerTest {
             R.string.timeline_marker_delegation_complete,
             timelineMarkerLabelRes("async_delegation_complete"),
         )
+        assertEquals(
+            R.string.timeline_marker_skill_invocation,
+            timelineMarkerLabelRes("skill_invocation"),
+        )
+        assertEquals(
+            R.string.timeline_marker_internal_notification,
+            timelineMarkerLabelRes("internal_notification"),
+        )
     }
 
     @Test

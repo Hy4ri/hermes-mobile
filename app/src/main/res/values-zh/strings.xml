@@ -979,6 +979,8 @@
     <string name="timeline_marker_personality_switch">人格已切换</string>
     <string name="timeline_marker_auto_continue">回合已自动继续</string>
     <string name="timeline_marker_delegation_complete">委派任务已完成</string>
+    <string name="timeline_marker_skill_invocation">技能已调用</string>
+    <string name="timeline_marker_internal_notification">系统通知</string>
     <string name="message_your_response">你的回复</string>
     <string name="moa_add_preset">添加预设</string>
     <string name="moa_add_reference">添加参考模型</string>

@@ -28,6 +28,8 @@ internal fun timelineMarkerLabelRes(kind: String?): Int? =
         "personality_switch" -> R.string.timeline_marker_personality_switch
         "auto_continue" -> R.string.timeline_marker_auto_continue
         "async_delegation_complete" -> R.string.timeline_marker_delegation_complete
+        "skill_invocation" -> R.string.timeline_marker_skill_invocation
+        "internal_notification" -> R.string.timeline_marker_internal_notification
         else -> null
     }
 

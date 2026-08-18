@@ -347,6 +347,7 @@
     <string name="sessions_prune_desc">지정된 일수보다 오래된 세션을 삭제합니다.</string>
     <string name="sessions_prune_days_label">일수 기준</string>
     <string name="sessions_prune_confirm">정리</string>
+    <string name="sessions_fork_indicator">분기된 세션</string>
     <string name="sessions_delete_title">세션 삭제?</string>
     <string name="sessions_delete_message">정말 \"%1$s\"을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.</string>
     <string name="sessions_bulk_delete_title">세션 삭제?</string>

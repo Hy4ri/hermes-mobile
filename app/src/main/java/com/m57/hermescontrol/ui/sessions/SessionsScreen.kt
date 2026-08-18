@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
@@ -791,8 +792,9 @@ fun SessionsScreen(
                                     SessionCard(
                                         session = session,
                                         displayTitle = item.displayTitle,
-                                        depth = item.depth,
                                         branchStem = item.branchStem,
+                                        isFork = item.isFork,
+                                        forkDepth = item.forkDepth,
                                         query = state.searchQuery,
                                         isSelecting = state.isSelecting,
                                         isSelected = session.id in state.selectedIds,
@@ -958,8 +960,9 @@ fun SessionsScreen(
 private fun SessionCard(
     session: com.m57.hermescontrol.data.model.SessionInfo,
     displayTitle: String,
-    depth: Int,
     branchStem: String?,
+    isFork: Boolean = false,
+    forkDepth: Int = 0,
     query: String,
     isSelecting: Boolean,
     isSelected: Boolean,
@@ -984,7 +987,6 @@ private fun SessionCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(start = (depth * 16).dp)
                 .testTag("session_card_${session.id}")
                 .combinedClickable(
                     onClick = onCardClick,
@@ -1022,13 +1024,25 @@ private fun SessionCard(
                     Spacer(modifier = Modifier.width(spacing.sm))
                 }
 
-                // Branch tree stem
-                if (branchStem != null && !isSelecting) {
-                    Text(
-                        text = branchStem,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.outline,
+                // Fork marker: a fork icon + its nesting depth, so a chain reads
+                // 🍴1 → 🍴2 → 🍴3 and a branch-off pops out. No indentation — the
+                // number carries the structure so names never get squished.
+                if (isFork && !isSelecting) {
+                    Icon(
+                        imageVector = Icons.Filled.CallSplit,
+                        contentDescription = stringResource(R.string.sessions_fork_indicator),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
                     )
+                    if (forkDepth > 0) {
+                        Spacer(modifier = Modifier.width(spacing.xs))
+                        Text(
+                            text = forkDepth.toString(),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     Spacer(modifier = Modifier.width(spacing.sm))
                 }
 

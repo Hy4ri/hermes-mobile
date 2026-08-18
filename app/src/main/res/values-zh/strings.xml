@@ -473,6 +473,7 @@
     <string name="sessions_action_pin">置顶</string>
     <string name="sessions_action_unpin">取消置顶</string>
     <string name="sessions_pinned_indicator">已置顶</string>
+    <string name="sessions_fork_indicator">分支会话</string>
     <string name="sessions_rename_title">重命名会话</string>
     <string name="sessions_rename_hint">会话标题</string>
     <string name="toolsets_empty_title">没有工具集数据</string>

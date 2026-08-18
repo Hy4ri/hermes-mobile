@@ -729,6 +729,9 @@
     <string name="cron_edit_field_script">脚本</string>
     <string name="cron_edit_field_workdir">工作目录</string>
     <string name="cron_edit_field_no_agent">无 Agent（仅脚本）</string>
+    <string name="cron_edit_field_run_continuity">运行连续性</string>
+    <string name="cron_edit_hint_run_continuity">将本任务上一次的输出注入到每次运行中</string>
+    <string name="cron_badge_continuity">连续</string>
     <string name="cron_edit_monitor_mode">监控模式</string>
     <string name="cron_edit_monitor_off">关</string>
     <string name="cron_edit_monitor_script">脚本</string>

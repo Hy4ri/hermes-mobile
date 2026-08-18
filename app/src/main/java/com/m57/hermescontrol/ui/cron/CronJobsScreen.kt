@@ -186,6 +186,14 @@ fun CronJobsScreen(
                                             )
                                         }
                                     }
+                                    // Run-continuity badge: the job's own previous
+                                    // output is injected into each run.
+                                    if (job.context_from?.contains("self") == true) {
+                                        StatusBadge(
+                                            text = stringResource(R.string.cron_badge_continuity),
+                                            status = StatusBadgeType.INFO,
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(spacing.xs))
                                 Text(
@@ -267,6 +275,7 @@ fun CronJobsScreen(
             state = state.editorState,
             onFieldChange = { name, value -> viewModel.updateEditorField(name, value) },
             onToggleNoAgent = { viewModel.toggleNoAgent() },
+            onToggleRunContinuity = { viewModel.toggleRunContinuity() },
             onSetMonitorMode = { viewModel.setMonitorMode(it) },
             onSelectBlueprint = { viewModel.selectBlueprint(it) },
             onBlueprintFieldChange = { name, value -> viewModel.updateBlueprintValue(name, value) },
@@ -331,6 +340,7 @@ fun CronJobEditorDialog(
     state: CronJobEditorState,
     onFieldChange: (String, String) -> Unit,
     onToggleNoAgent: () -> Unit,
+    onToggleRunContinuity: () -> Unit,
     onSetMonitorMode: (String) -> Unit,
     onSelectBlueprint: (String?) -> Unit,
     onBlueprintFieldChange: (String, String) -> Unit,
@@ -569,6 +579,30 @@ fun CronJobEditorDialog(
                                     text = stringResource(R.string.cron_edit_field_no_agent),
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
+                            }
+
+                            // Run Continuity toggle (recurring jobs: inject own
+                            // previous output into each run via context_from=["self"])
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = state.runContinuity,
+                                    onCheckedChange = { onToggleRunContinuity() },
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stringResource(R.string.cron_edit_field_run_continuity),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.cron_edit_hint_run_continuity),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    )
+                                }
                             }
 
                             // Monitor mode (disabled for no-agent jobs — the

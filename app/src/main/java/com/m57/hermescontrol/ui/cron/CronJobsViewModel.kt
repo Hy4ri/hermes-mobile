@@ -58,6 +58,10 @@ data class CronJobEditorState(
     val workdir: String = "",
     val enabled: Boolean = true,
     val no_agent: Boolean = false,
+    // Run continuity: when true, the job's own previous output is injected
+    // into each subsequent run via context_from=["self"] (backend cron
+    // self-continuity). Only meaningful for recurring jobs.
+    val runContinuity: Boolean = false,
     // Monitor mode: one of monitor_script / monitor_url set at a time
     // (mutually exclusive on the backend; incompatible with no_agent).
     val monitorMode: String = "off", // "off" | "script" | "url"
@@ -309,6 +313,7 @@ class CronJobsViewModel :
                                     workdir = job.workdir.orEmpty(),
                                     enabled = job.enabled ?: true,
                                     no_agent = job.no_agent ?: false,
+                                    runContinuity = job.context_from?.contains("self") ?: false,
                                     monitorMode =
                                         when {
                                             !job.monitor_script.isNullOrBlank() -> "script"
@@ -425,6 +430,8 @@ class CronJobsViewModel :
                         updates["script"] = editor.script.ifBlank { null }
                         updates["workdir"] = editor.workdir.ifBlank { null }
                         updates["no_agent"] = editor.no_agent
+                        // Run continuity: send ["self"] when on, null (clears) when off.
+                        updates["context_from"] = if (editor.runContinuity) listOf("self") else null
                         // Blank clears the monitor source on the backend (empty
                         // string or null both mean "clear the field").
                         updates["monitor_script"] = editor.monitor_script.ifBlank { null }
@@ -488,6 +495,7 @@ class CronJobsViewModel :
                         script = editor.script.ifBlank { null },
                         workdir = editor.workdir.ifBlank { null },
                         no_agent = editor.no_agent,
+                        context_from = if (editor.runContinuity) listOf("self") else null,
                         monitor_script = editor.monitor_script.ifBlank { null },
                         monitor_url = editor.monitor_url.ifBlank { null },
                     ),
@@ -553,11 +561,24 @@ class CronJobsViewModel :
             "base_url" -> copy(base_url = value)
             "script" -> copy(script = value)
             "workdir" -> copy(workdir = value)
+            "run_continuity" -> copy(runContinuity = value.toBooleanStrictOrNull() ?: false)
             // Monitor fields are mutually exclusive: entering one clears the other.
             "monitor_script" -> copy(monitor_script = value, monitor_url = if (value.isNotBlank()) "" else monitor_url)
             "monitor_url" -> copy(monitor_url = value, monitor_script = if (value.isNotBlank()) "" else monitor_script)
             else -> this
         }
+
+    fun toggleRunContinuity() {
+        _uiState.update {
+            it.copy(
+                editorState =
+                    it.editorState.copy(
+                        runContinuity = !it.editorState.runContinuity,
+                        toastMessage = null,
+                    ),
+            )
+        }
+    }
 
     fun toggleNoAgent() {
         _uiState.update {

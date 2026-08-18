@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.cron
 
+import com.m57.hermescontrol.data.model.CreateCronJobRequest
 import com.m57.hermescontrol.data.model.CronBlueprint
 import com.m57.hermescontrol.data.model.CronBlueprintField
 import com.m57.hermescontrol.data.model.CronBlueprintListResponse
@@ -469,5 +470,62 @@ class CronJobsViewModelTest {
         val updateSlot = slot<UpdateCronJobRequest>()
         coVerify { mockApi.updateCronJob(eq("j8"), capture(updateSlot)) }
         assertEquals(JsonNull, updateSlot.captured.updates["monitor_script"])
+    }
+
+    @Test
+    fun `new job with run continuity sends context_from self in create`() {
+        val vm = createViewModel()
+        vm.openNewJobDialog()
+        settle()
+        vm.updateEditorField("name", "Daily digest")
+        vm.updateEditorField("schedule", "every 1d")
+        vm.toggleRunContinuity()
+        val created = CronJob(id = "j9", name = "Daily digest")
+        coEvery { mockApi.createCronJob(any()) } returns Response.success(created)
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.saveEditor()
+        settle()
+
+        val createSlot = slot<CreateCronJobRequest>()
+        coVerify(exactly = 1) { mockApi.createCronJob(capture(createSlot)) }
+        assertEquals(listOf("self"), createSlot.captured.context_from)
+        assertFalse(vm.uiState.value.editorState.isOpen)
+    }
+
+    @Test
+    fun `edit save preserves run continuity from loaded job`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getCronJob("j10") } returns
+            Response.success(
+                CronJob(
+                    id = "j10",
+                    name = "Daily digest",
+                    schedule = JsonPrimitive("every 1d"),
+                    context_from = listOf("self"),
+                ),
+            )
+        coEvery { mockApi.updateCronJob(eq("j10"), any()) } returns
+            Response.success(CronJob(id = "j10", name = "Daily digest"))
+        coEvery { mockApi.getCronJobs() } returns Response.success(emptyList())
+
+        vm.openEditJobDialog("j10")
+        settle()
+
+        assertTrue(vm.uiState.value.editorState.runContinuity)
+
+        vm.updateEditorField("name", "Renamed digest")
+        vm.saveEditor()
+        settle()
+
+        val updateSlot = slot<UpdateCronJobRequest>()
+        coVerify { mockApi.updateCronJob(eq("j10"), capture(updateSlot)) }
+        assertEquals(
+            kotlinx.serialization.json.JsonArray(
+                listOf(JsonPrimitive("self")),
+            ),
+            updateSlot.captured.updates["context_from"],
+        )
+        assertFalse(vm.uiState.value.editorState.isOpen)
     }
 }

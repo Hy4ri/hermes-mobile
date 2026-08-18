@@ -826,6 +826,9 @@
     <string name="cron_edit_field_script">Script</string>
     <string name="cron_edit_field_workdir">Work Directory</string>
     <string name="cron_edit_field_no_agent">No agent (script-only)</string>
+    <string name="cron_edit_field_run_continuity">Run continuity</string>
+    <string name="cron_edit_hint_run_continuity">Inject this job\'s previous output into each run</string>
+    <string name="cron_badge_continuity">Continuity</string>
     <string name="cron_edit_monitor_mode">Monitor mode</string>
     <string name="cron_edit_monitor_off">Off</string>
     <string name="cron_edit_monitor_script">Script</string>

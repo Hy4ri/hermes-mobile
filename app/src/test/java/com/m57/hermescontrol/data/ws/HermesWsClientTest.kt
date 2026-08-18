@@ -1099,20 +1099,33 @@ class HermesWsClientTest {
         // Force server to close socket 1 to trigger reconnect
         serverSocket1?.close(1001, "Server shutting down")
 
-        // Wait for status to become RECONNECTING
-        runBlocking {
-            withTimeout(
-                15_000,
-            ) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.RECONNECTING } }
-        }
+        // Wait for the reconnect to trigger. With the test backoff forced to
+        // 0ms the RECONNECTING state is transient and can be emitted + consumed
+        // before this collector attaches, so we don't gate on the exact
+        // intermediate state — we require it to have progressed (RECONNECTING
+        // or later). The definitive proof is the second socket opening below.
+        val statusNow = HermesWsClient.connectionStatus.value
+        assertTrue(
+            "Expected reconnect to trigger (RECONNECTING or later), was $statusNow",
+            statusNow == ConnectionStatus.RECONNECTING ||
+                statusNow == ConnectionStatus.CONNECTING ||
+                statusNow == ConnectionStatus.CONNECTED,
+        )
 
-        // The client should now attempt to reconnect after initial backoff (1000ms)
+        // The client should now attempt to reconnect after the (0ms) backoff.
         // Wait for the second connection to hit the server. Generous ceiling:
         // loaded CI runners routinely stretch short wall-clock windows.
-        assertTrue("Failed to reconnect", connect2Latch.await(30, TimeUnit.SECONDS))
-
-        // Restore production backoff so later tests see the default.
-        HermesWsClient.setReconnectBackoffForTest(1_000L)
+        try {
+            assertTrue("Failed to reconnect", connect2Latch.await(30, TimeUnit.SECONDS))
+            runBlocking {
+                withTimeout(15_000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } }
+            }
+            assertEquals(ConnectionStatus.CONNECTED, HermesWsClient.connectionStatus.value)
+        } finally {
+            // Restore production backoff so later tests see the default, even
+            // if an assertion above threw.
+            HermesWsClient.setReconnectBackoffForTest(1_000L)
+        }
     }
 
     // ── TEST-10: WS reconnect state recovery ────────────────────────────

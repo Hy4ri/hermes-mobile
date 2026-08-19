@@ -48,6 +48,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hrm.latex.renderer.LatexAutoWrap
+import com.hrm.latex.renderer.measure.LatexMeasurerState
 import com.hrm.latex.renderer.measure.rememberLatexMeasurer
 import com.hrm.latex.renderer.model.LatexConfig
 import com.hrm.latex.renderer.model.LatexTheme
@@ -98,6 +99,7 @@ fun MarkdownText(
 
     val linkColor = MaterialTheme.colorScheme.primary
     val blocks = remember(text) { parseBlocks(text) }
+    val latexMeasurer = rememberLatexMeasurer()
 
     Column(modifier = modifier.fillMaxWidth()) {
         for (block in blocks) {
@@ -143,6 +145,7 @@ fun MarkdownText(
                     MarkdownInlineText(
                         text = block.text,
                         textColor = textColor,
+                        latexMeasurer = latexMeasurer,
                         style =
                             MaterialTheme.typography.bodyMedium
                                 .copy(fontSize = fontSize, fontWeight = FontWeight.Bold),
@@ -168,6 +171,7 @@ fun MarkdownText(
                         MarkdownInlineText(
                             text = block.text,
                             textColor = textColor,
+                            latexMeasurer = latexMeasurer,
                             style = MaterialTheme.typography.bodyMedium,
                             searchQuery = searchQuery,
                             isCurrentMatch = isCurrentMatch,
@@ -204,6 +208,7 @@ fun MarkdownText(
                         MarkdownInlineText(
                             text = block.text,
                             textColor = textColor,
+                            latexMeasurer = latexMeasurer,
                             style = MaterialTheme.typography.bodyMedium,
                             searchQuery = searchQuery,
                             isCurrentMatch = isCurrentMatch,
@@ -228,6 +233,7 @@ fun MarkdownText(
                         MarkdownInlineText(
                             text = block.text,
                             textColor = textColor,
+                            latexMeasurer = latexMeasurer,
                             style = MaterialTheme.typography.bodyMedium,
                             searchQuery = searchQuery,
                             isCurrentMatch = isCurrentMatch,
@@ -255,6 +261,7 @@ fun MarkdownText(
                         MarkdownInlineText(
                             text = block.text,
                             textColor = textColor,
+                            latexMeasurer = latexMeasurer,
                             style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                             searchQuery = searchQuery,
                             isCurrentMatch = isCurrentMatch,
@@ -364,6 +371,7 @@ fun MarkdownText(
                                 MarkdownInlineText(
                                     text = note.text,
                                     textColor = textColor,
+                                    latexMeasurer = latexMeasurer,
                                     style = MaterialTheme.typography.bodySmall,
                                     searchQuery = searchQuery,
                                     isCurrentMatch = isCurrentMatch,
@@ -380,6 +388,7 @@ fun MarkdownText(
                     MarkdownInlineText(
                         text = block.text,
                         textColor = textColor,
+                        latexMeasurer = latexMeasurer,
                         style = MaterialTheme.typography.bodyMedium,
                         searchQuery = searchQuery,
                         isCurrentMatch = isCurrentMatch,
@@ -423,6 +432,7 @@ private fun tryParseVideo(line: String): MdBlock.Video? {
 private fun MarkdownInlineText(
     text: String,
     textColor: Color,
+    latexMeasurer: LatexMeasurerState,
     style: TextStyle,
     searchQuery: String,
     isCurrentMatch: Boolean,
@@ -435,7 +445,7 @@ private fun MarkdownInlineText(
         Text(
             text =
                 remember(text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                    parseInline(text, textColor, searchQuery, isCurrentMatch, linkColor, highlights)
+                    parseInlineSource(text, textColor, searchQuery, isCurrentMatch, linkColor, highlights)
                 },
             color = textColor,
             style = style,
@@ -450,11 +460,10 @@ private fun MarkdownInlineText(
             theme = LatexTheme.light(color = textColor, backgroundColor = Color.Transparent),
             accessibilityEnabled = true,
         )
-    val measurer = rememberLatexMeasurer(config)
     val inlineContent = mutableMapOf<String, InlineTextContent>()
     segments.forEachIndexed { index, segment ->
         if (segment is InlineMathSegment.Math) {
-            measurer.inlineContent(segment.latex, config)?.let { inlineContent["latex-$index"] = it }
+            latexMeasurer.inlineContent(segment.latex, config)?.let { inlineContent["latex-$index"] = it }
         }
     }
     val annotated =
@@ -468,7 +477,7 @@ private fun MarkdownInlineText(
 
                     is InlineMathSegment.Text -> {
                         append(
-                            parseInline(
+                            parseInlineSource(
                                 segment.value,
                                 textColor,
                                 searchQuery,
@@ -891,6 +900,29 @@ internal fun parseInline(
     isCurrentMatch: Boolean,
     linkColor: Color,
     highlights: SearchHighlightColors,
+): AnnotatedString =
+    parseInlineSource(
+        text =
+            splitInlineMath(text).joinToString(separator = "") { segment ->
+                when (segment) {
+                    is InlineMathSegment.Math -> segment.latex
+                    is InlineMathSegment.Text -> segment.value
+                }
+            },
+        textColor = textColor,
+        searchQuery = searchQuery,
+        isCurrentMatch = isCurrentMatch,
+        linkColor = linkColor,
+        highlights = highlights,
+    )
+
+private fun parseInlineSource(
+    text: String,
+    textColor: Color,
+    searchQuery: String,
+    isCurrentMatch: Boolean,
+    linkColor: Color,
+    highlights: SearchHighlightColors,
 ): AnnotatedString {
     val searchHighlightColor =
         if (isCurrentMatch) {
@@ -901,13 +933,7 @@ internal fun parseInline(
 
     return buildAnnotatedString {
         var i = 0
-        val src =
-            splitInlineMath(text).joinToString(separator = "") { segment ->
-                when (segment) {
-                    is InlineMathSegment.Math -> segment.latex
-                    is InlineMathSegment.Text -> segment.value
-                }
-            }
+        val src = text
         while (i < src.length) {
             when {
                 // ***bold italic***

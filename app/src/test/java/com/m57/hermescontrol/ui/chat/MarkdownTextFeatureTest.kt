@@ -35,8 +35,8 @@ private val DEFAULT_HIGHLIGHTS =
     )
 
 /**
- * Verifies the hand-rolled Markdown parser covers the feature set requested for issue #572
- * (math excluded by decision). Each test asserts the block/inline structure actually parses —
+ * Verifies the hand-rolled Markdown parser covers the feature set requested for issue #572.
+ * Each test asserts the block/inline structure actually parses —
  * not just that it compiles. Inline assertions avoid referencing Compose text types (FontWeight,
  * BaselineShift, etc.) that aren't on the unit-test classpath; we inspect SpanStyle fields
  * structurally instead.
@@ -64,12 +64,33 @@ class MarkdownTextFeatureTest {
         assertEquals(TableAlign.RIGHT, table.alignments[2])
     }
 
-    // 2. MATH — excluded; ensure a math-looking string stays plain, not crashed
+    // 2. MATH
     @Test
-    fun testMath_isTreatedAsPlainText() {
-        val md = "E = mc^2^ and `x = (-b ± √(b²-4ac)) / 2a`"
-        val block = parseBlocks(md).single() as MdBlock.Paragraph
-        assertEquals(md, block.text)
+    fun testDisplayMath_parsesToMathBlock() {
+        val block = parseBlocks("\$\$\\frac{1}{2}\$\$").single()
+
+        assertEquals("Math", block::class.simpleName)
+    }
+
+    @Test
+    fun testInlineMath_stripsDelimitersFromFallbackText() {
+        val parsed = parseInline("Energy \$E=mc^2\$.", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+
+        assertEquals("Energy E=mc^2.", parsed.toString())
+    }
+
+    @Test
+    fun testBracketDisplayMath_parsesToMathBlock() {
+        val block = parseBlocks("\\[\n\\frac{1}{2}\n\\]").single()
+
+        assertEquals("Math", block::class.simpleName)
+    }
+
+    @Test
+    fun testParenthesizedInlineMath_stripsDelimitersFromFallbackText() {
+        val parsed = parseInline("Energy \\(E=mc^2\\).", Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+
+        assertEquals("Energy E=mc^2.", parsed.toString())
     }
 
     // 3. STRIKETHROUGH

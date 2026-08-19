@@ -29,6 +29,7 @@ coil = "2.7.0"
 room = "2.7.1"
 sqlcipher = "4.17.0"
 datastore = "1.1.2"
+latex = "1.5.3"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
@@ -80,6 +81,11 @@ androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
+
+# Native Compose LaTeX rendering
+latex-base = { module = "io.github.huarangmeng:latex-base", version.ref = "latex" }
+latex-parser = { module = "io.github.huarangmeng:latex-parser", version.ref = "latex" }
+latex-renderer = { module = "io.github.huarangmeng:latex-renderer", version.ref = "latex" }
 
 # Image loading
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }

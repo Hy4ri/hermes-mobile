@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
@@ -34,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -44,6 +47,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hrm.latex.renderer.LatexAutoWrap
+import com.hrm.latex.renderer.measure.rememberLatexMeasurer
+import com.hrm.latex.renderer.model.LatexConfig
+import com.hrm.latex.renderer.model.LatexTheme
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.GatewayFileClient
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -65,7 +72,7 @@ private val ORDERED_RE = Regex("""^\s*\d+\.\s+(.*)""")
  * Supports: fenced ```code``` blocks (horizontal scroll + copy), inline `code`, **bold**, *italic*,
  * ***bold italic***, ~~strike~~, ==highlight==, ^sup^ / ~sub~, <kbd>keys</kbd>, headings,
  * bullet/ordered/task lists, > blockquotes, definition lists, tables, --- rules, footnotes, and
- * [links](url) / bare URLs. (Math is intentionally out of scope for this hand-rolled renderer.)
+ * [links](url) / bare URLs, and inline/display LaTeX math using `$…$` / `$$…$$`.
  */
 @Composable
 fun MarkdownText(
@@ -103,6 +110,19 @@ fun MarkdownText(
                     )
                 }
 
+                is MdBlock.Math -> {
+                    LatexAutoWrap(
+                        latex = block.latex,
+                        config =
+                            LatexConfig(
+                                fontSize = 18.sp,
+                                theme = LatexTheme.light(color = textColor, backgroundColor = Color.Transparent),
+                                accessibilityEnabled = true,
+                            ),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    )
+                }
+
                 is MdBlock.Hr -> {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
@@ -120,15 +140,16 @@ fun MarkdownText(
                             5 -> 15.sp
                             else -> 14.sp
                         }
-                    Text(
-                        text =
-                            remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor, highlights)
-                            },
-                        color = textColor,
+                    MarkdownInlineText(
+                        text = block.text,
+                        textColor = textColor,
                         style =
                             MaterialTheme.typography.bodyMedium
                                 .copy(fontSize = fontSize, fontWeight = FontWeight.Bold),
+                        searchQuery = searchQuery,
+                        isCurrentMatch = isCurrentMatch,
+                        linkColor = linkColor,
+                        highlights = highlights,
                         modifier = Modifier.padding(vertical = 2.dp),
                     )
                 }
@@ -144,20 +165,14 @@ fun MarkdownText(
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(end = 6.dp),
                         )
-                        Text(
-                            text =
-                                remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(
-                                        block.text,
-                                        textColor,
-                                        searchQuery,
-                                        isCurrentMatch,
-                                        linkColor,
-                                        highlights,
-                                    )
-                                },
-                            color = textColor,
+                        MarkdownInlineText(
+                            text = block.text,
+                            textColor = textColor,
                             style = MaterialTheme.typography.bodyMedium,
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
+                            linkColor = linkColor,
+                            highlights = highlights,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -186,20 +201,14 @@ fun MarkdownText(
                                 },
                             modifier = Modifier.size(18.dp).padding(top = 1.dp, end = 6.dp),
                         )
-                        Text(
-                            text =
-                                remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(
-                                        block.text,
-                                        textColor,
-                                        searchQuery,
-                                        isCurrentMatch,
-                                        linkColor,
-                                        highlights,
-                                    )
-                                },
-                            color = textColor,
+                        MarkdownInlineText(
+                            text = block.text,
+                            textColor = textColor,
                             style = MaterialTheme.typography.bodyMedium,
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
+                            linkColor = linkColor,
+                            highlights = highlights,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -216,20 +225,14 @@ fun MarkdownText(
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(end = 6.dp),
                         )
-                        Text(
-                            text =
-                                remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(
-                                        block.text,
-                                        textColor,
-                                        searchQuery,
-                                        isCurrentMatch,
-                                        linkColor,
-                                        highlights,
-                                    )
-                                },
-                            color = textColor,
+                        MarkdownInlineText(
+                            text = block.text,
+                            textColor = textColor,
                             style = MaterialTheme.typography.bodyMedium,
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
+                            linkColor = linkColor,
+                            highlights = highlights,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -249,20 +252,14 @@ fun MarkdownText(
                                     .background(textColor.copy(alpha = 0.35f)),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text =
-                                remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                    parseInline(
-                                        block.text,
-                                        textColor,
-                                        searchQuery,
-                                        isCurrentMatch,
-                                        linkColor,
-                                        highlights,
-                                    )
-                                },
-                            color = textColor,
+                        MarkdownInlineText(
+                            text = block.text,
+                            textColor = textColor,
                             style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                            searchQuery = searchQuery,
+                            isCurrentMatch = isCurrentMatch,
+                            linkColor = linkColor,
+                            highlights = highlights,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -364,20 +361,14 @@ fun MarkdownText(
                                     color = textColor,
                                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                 )
-                                Text(
-                                    text =
-                                        remember(note.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                            parseInline(
-                                                note.text,
-                                                textColor,
-                                                searchQuery,
-                                                isCurrentMatch,
-                                                linkColor,
-                                                highlights,
-                                            )
-                                        },
-                                    color = textColor,
+                                MarkdownInlineText(
+                                    text = note.text,
+                                    textColor = textColor,
                                     style = MaterialTheme.typography.bodySmall,
+                                    searchQuery = searchQuery,
+                                    isCurrentMatch = isCurrentMatch,
+                                    linkColor = linkColor,
+                                    highlights = highlights,
                                     modifier = Modifier.weight(1f),
                                 )
                             }
@@ -386,13 +377,14 @@ fun MarkdownText(
                 }
 
                 is MdBlock.Paragraph -> {
-                    Text(
-                        text =
-                            remember(block.text, searchQuery, isCurrentMatch, textColor, linkColor) {
-                                parseInline(block.text, textColor, searchQuery, isCurrentMatch, linkColor, highlights)
-                            },
-                        color = textColor,
+                    MarkdownInlineText(
+                        text = block.text,
+                        textColor = textColor,
                         style = MaterialTheme.typography.bodyMedium,
+                        searchQuery = searchQuery,
+                        isCurrentMatch = isCurrentMatch,
+                        linkColor = linkColor,
+                        highlights = highlights,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     )
                 }
@@ -425,6 +417,77 @@ private fun tryParseVideo(line: String): MdBlock.Video? {
         return MdBlock.Video(uri = uri, alt = m.groupValues[1].trim())
     }
     return null
+}
+
+@Composable
+private fun MarkdownInlineText(
+    text: String,
+    textColor: Color,
+    style: TextStyle,
+    searchQuery: String,
+    isCurrentMatch: Boolean,
+    linkColor: Color,
+    highlights: SearchHighlightColors,
+    modifier: Modifier = Modifier,
+) {
+    val segments = remember(text) { splitInlineMath(text) }
+    if (segments.none { it is InlineMathSegment.Math }) {
+        Text(
+            text =
+                remember(text, searchQuery, isCurrentMatch, textColor, linkColor) {
+                    parseInline(text, textColor, searchQuery, isCurrentMatch, linkColor, highlights)
+                },
+            color = textColor,
+            style = style,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val config =
+        LatexConfig(
+            fontSize = style.fontSize,
+            theme = LatexTheme.light(color = textColor, backgroundColor = Color.Transparent),
+            accessibilityEnabled = true,
+        )
+    val measurer = rememberLatexMeasurer(config)
+    val inlineContent = mutableMapOf<String, InlineTextContent>()
+    segments.forEachIndexed { index, segment ->
+        if (segment is InlineMathSegment.Math) {
+            measurer.inlineContent(segment.latex, config)?.let { inlineContent["latex-$index"] = it }
+        }
+    }
+    val annotated =
+        buildAnnotatedString {
+            segments.forEachIndexed { index, segment ->
+                when (segment) {
+                    is InlineMathSegment.Math -> {
+                        val id = "latex-$index"
+                        if (id in inlineContent) appendInlineContent(id, segment.latex) else append(segment.latex)
+                    }
+
+                    is InlineMathSegment.Text -> {
+                        append(
+                            parseInline(
+                                segment.value,
+                                textColor,
+                                searchQuery,
+                                isCurrentMatch,
+                                linkColor,
+                                highlights,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    Text(
+        text = annotated,
+        inlineContent = inlineContent,
+        color = textColor,
+        style = style,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -485,6 +548,93 @@ private fun tableTextAlign(align: TableAlign?): TextAlign? =
         else -> null
     }
 
+internal sealed interface InlineMathSegment {
+    data class Text(val value: String) : InlineMathSegment
+
+    data class Math(val latex: String) : InlineMathSegment
+}
+
+/** Splits `$…$` without treating escaped dollars or inline-code contents as math. */
+internal fun splitInlineMath(text: String): List<InlineMathSegment> {
+    val segments = mutableListOf<InlineMathSegment>()
+    var plainStart = 0
+    var i = 0
+
+    while (i < text.length) {
+        if (text[i] == '`' && !text.isEscaped(i)) {
+            val codeEnd = text.indexOf('`', i + 1)
+            i = if (codeEnd == -1) text.length else codeEnd + 1
+            continue
+        }
+        if (text.startsWith("\\(", i)) {
+            val end = text.indexOf("\\)", i + 2)
+            if (end != -1 && end > i + 2) {
+                if (plainStart < i) segments.add(InlineMathSegment.Text(text.substring(plainStart, i)))
+                segments.add(InlineMathSegment.Math(text.substring(i + 2, end)))
+                i = end + 2
+                plainStart = i
+                continue
+            }
+        }
+        if (text[i] != '$' || text.isEscaped(i) || text.getOrNull(i + 1) == '$') {
+            i++
+            continue
+        }
+
+        var end = i + 1
+        while (end < text.length && (text[end] != '$' || text.isEscaped(end))) end++
+        if (end >= text.length || end == i + 1 || text[end - 1].isWhitespace()) {
+            i++
+            continue
+        }
+
+        if (plainStart < i) segments.add(InlineMathSegment.Text(text.substring(plainStart, i)))
+        segments.add(InlineMathSegment.Math(text.substring(i + 1, end)))
+        i = end + 1
+        plainStart = i
+    }
+
+    if (plainStart < text.length) segments.add(InlineMathSegment.Text(text.substring(plainStart)))
+    return segments.ifEmpty { listOf(InlineMathSegment.Text(text)) }
+}
+
+private fun String.isEscaped(index: Int): Boolean {
+    var slashes = 0
+    var i = index - 1
+    while (i >= 0 && this[i] == '\\') {
+        slashes++
+        i--
+    }
+    return slashes % 2 == 1
+}
+
+private fun tryParseDisplayMath(
+    lines: List<String>,
+    start: Int,
+): Pair<MdBlock.Math, Int>? {
+    val first = lines[start].trim()
+    if (first.startsWith("\\[")) {
+        if (first.length > 4 && first.endsWith("\\]")) {
+            val latex = first.substring(2, first.length - 2).trim()
+            return latex.takeIf { it.isNotEmpty() }?.let { MdBlock.Math(it) to start + 1 }
+        }
+        if (first != "\\[") return null
+        val end = (start + 1 until lines.size).firstOrNull { lines[it].trim() == "\\]" } ?: return null
+        val latex = lines.subList(start + 1, end).joinToString("\n").trim()
+        return latex.takeIf { it.isNotEmpty() }?.let { MdBlock.Math(it) to end + 1 }
+    }
+    if (!first.startsWith("$$")) return null
+    if (first.length > 4 && first.endsWith("$$")) {
+        val latex = first.substring(2, first.length - 2).trim()
+        return latex.takeIf { it.isNotEmpty() }?.let { MdBlock.Math(it) to start + 1 }
+    }
+    if (first != "$$") return null
+
+    val end = (start + 1 until lines.size).firstOrNull { lines[it].trim() == "$$" } ?: return null
+    val latex = lines.subList(start + 1, end).joinToString("\n").trim()
+    return latex.takeIf { it.isNotEmpty() }?.let { MdBlock.Math(it) to end + 1 }
+}
+
 /**
  * Splits source text into Markdown blocks. Fenced code blocks (```...```) are extracted first;
  * everything else is grouped into headings, lists, tables, rules, footnotes, or paragraphs.
@@ -503,6 +653,13 @@ internal fun parseBlocks(src: String): List<MdBlock> {
         if (fnMatch != null) {
             footnotes.add(Footnote(fnMatch.groupValues[1], fnMatch.groupValues[2]))
             i++
+            continue
+        }
+
+        val displayMath = tryParseDisplayMath(lines, i)
+        if (displayMath != null) {
+            blocks.add(displayMath.first)
+            i = displayMath.second
             continue
         }
 
@@ -712,6 +869,7 @@ private fun fallthroughToParagraph(
         !isHorizontalRule(lines[i]) &&
         !isTableStart(lines, i) &&
         !isDefListStart(lines, i) &&
+        tryParseDisplayMath(lines, i) == null &&
         FN_DEF_RE.matchAt(lines[i], 0) == null
     ) {
         para.add(lines[i])
@@ -743,7 +901,13 @@ internal fun parseInline(
 
     return buildAnnotatedString {
         var i = 0
-        val src = text
+        val src =
+            splitInlineMath(text).joinToString(separator = "") { segment ->
+                when (segment) {
+                    is InlineMathSegment.Math -> segment.latex
+                    is InlineMathSegment.Text -> segment.value
+                }
+            }
         while (i < src.length) {
             when {
                 // ***bold italic***
@@ -977,6 +1141,10 @@ internal sealed interface MdBlock {
     data class Code(
         val code: String,
         val language: String? = null,
+    ) : MdBlock
+
+    data class Math(
+        val latex: String,
     ) : MdBlock
 
     data class Heading(

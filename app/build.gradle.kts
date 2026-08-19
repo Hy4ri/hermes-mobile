@@ -165,6 +165,11 @@ dependencies {
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.kotlinx.serialization.json)
 
+    // Native Compose LaTeX rendering
+    implementation(libs.latex.base)
+    implementation(libs.latex.parser)
+    implementation(libs.latex.renderer)
+
     // Image loading
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)

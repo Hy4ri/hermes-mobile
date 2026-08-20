@@ -457,11 +457,11 @@ object HermesWsClient {
             val (code, body) =
                 kotlinx.coroutines.runBlocking(Dispatchers.IO) {
                     client.newCall(request).execute().use { resp ->
-                        resp.code to resp.body?.string()
+                        resp.code to resp.body.string()
                     }
                 }
 
-            if (body != null && code in 200..299) {
+            if (code in 200..299) {
                 val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
                 val ticket = ticketMatch?.groupValues?.getOrNull(1)
                 if (!ticket.isNullOrBlank()) {

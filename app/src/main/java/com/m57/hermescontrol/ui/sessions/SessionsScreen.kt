@@ -31,8 +31,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
@@ -1029,7 +1029,7 @@ private fun SessionCard(
                 // number carries the structure so names never get squished.
                 if (isFork && !isSelecting) {
                     Icon(
-                        imageVector = Icons.Filled.CallSplit,
+                        imageVector = Icons.AutoMirrored.Filled.CallSplit,
                         contentDescription = stringResource(R.string.sessions_fork_indicator),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp),

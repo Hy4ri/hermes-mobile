@@ -21,12 +21,12 @@
           };
         };
 
-        buildToolsVersion = "36.0.0";
+        buildToolsVersion = "37.0.0";
         androidSdk =
           (pkgs.androidenv.composeAndroidPackages {
-            # Command-line & platform tools
-            cmdLineToolsVersion = "11.0";
-            platformToolsVersion = "36.0.0";
+            # Command-line & platform tools — pinned to the 37-era toolchain
+            cmdLineToolsVersion = "37.0.0";
+            platformToolsVersion = "37.0.0";
 
             # Build tools
             buildToolsVersions = [buildToolsVersion];

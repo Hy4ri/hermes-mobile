@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import io.mockk.MockKAnnotations
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -92,7 +93,7 @@ class ConnectPermissionGateTest {
         } answers { if (permissionGranted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED }
 
         // Successful status probe → connect() proceeds to persist.
-        every { mockApiService.getStatus() } returns
+        coEvery { mockApiService.getStatus() } returns
             Response.success(
                 com.m57.hermescontrol.data.model.StatusResponse(
                     version = "test",

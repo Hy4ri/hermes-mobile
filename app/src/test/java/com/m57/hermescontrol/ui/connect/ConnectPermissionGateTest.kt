@@ -114,22 +114,22 @@ class ConnectPermissionGateTest {
     // --- pure gate decision matrix (no mocking) ---
 
     @Test
-    fun `requiresLocalNetworkPermission: API 37 + LAN host needs permission`() {
+    fun `requiresLocalNetworkPermission API 37 LAN host needs permission`() {
         assertTrue(requiresLocalNetworkPermission(37, "http://192.168.1.50:9119"))
     }
 
     @Test
-    fun `requiresLocalNetworkPermission: below API 37 LAN host does not need permission`() {
+    fun `requiresLocalNetworkPermission below API 37 LAN host does not need permission`() {
         assertFalse(requiresLocalNetworkPermission(36, "http://192.168.1.50:9119"))
     }
 
     @Test
-    fun `requiresLocalNetworkPermission: API 37 loopback host does not need permission`() {
+    fun `requiresLocalNetworkPermission API 37 loopback host does not need permission`() {
         assertFalse(requiresLocalNetworkPermission(37, "http://127.0.0.1:9119"))
     }
 
     @Test
-    fun `requiresLocalNetworkPermission: API 37 public host does not need permission`() {
+    fun `requiresLocalNetworkPermission API 37 public host does not need permission`() {
         assertFalse(requiresLocalNetworkPermission(37, "https://gateway.example.com"))
     }
 

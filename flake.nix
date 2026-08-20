@@ -31,8 +31,12 @@
             # Build tools
             buildToolsVersions = [buildToolsVersion];
 
-            # Target platforms (37.1 is the latest platform; 37 required by compileSdk 37 / targetSdk 37)
-            platformVersions = ["37.1"];
+            # Target platforms: 37.1 provides the SDK platform for compileSdk 37.
+            # 37.0 is included because Google only publishes the android-37.0
+            # system image (no 37.1 image exists yet); the emulator needs a
+            # concrete system image to boot an AVD. compileSdk/targetSdk in
+            # app/build.gradle.kts stay 37 regardless.
+            platformVersions = ["37.1", "37.0"];
 
             # Emulator + system images for local AVD testing
             includeEmulator = true;

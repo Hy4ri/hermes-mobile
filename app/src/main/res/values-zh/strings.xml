@@ -1042,9 +1042,9 @@
     <string name="tg_onboarding_saving">正在保存配置…</string>
     <string name="tg_onboarding_scan_hint">打开 Telegram 扫描应用内显示的二维码。</string>
     <string name="tg_onboarding_user_id_placeholder">Telegram 用户 ID</string>
-    <string name="todo_task_count">任务 %1$d/%2$d</string>
     <string name="task_progress_count">任务 %1$d/%2$d</string>
     <string name="task_progress_agents">%1$d 个代理</string>
+    <string name="task_progress_agent_running">%1$d 个代理运行中</string>
     <string name="task_progress_open_details">查看任务详情</string>
     <string name="tool_duration">耗时：%1$s</string>
     <string name="tool_redacted">· 已脱敏</string>

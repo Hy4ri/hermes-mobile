@@ -8,13 +8,15 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,10 +36,11 @@ import com.m57.hermescontrol.ui.chat.TodoItem
 
 /**
  * Compact, glanceable progress strip shown above the chat timeline while work is
- * active. Distinct from [TodoTaskCard]: the card is the permanent timeline record,
- * this chip is the temporary "what is happening right now" surface. It is bound to
- * the same hydrated [todos] / [indicators] state the card uses (never the old
- * broken `state.todos` gate from #811) so a resumed session rebuilds it for free.
+ * active. This replaces the old inline [TodoTaskCard] (removed per #942 follow-up):
+ * instead of a duplicate card in the message list, the only persistent record is the
+ * tool message itself, and this chip is the temporary "what is happening right now"
+ * surface. Bound to the same hydrated [todos] / [indicators] state, so a resumed
+ * session rebuilds it for free.
  *
  * Visibility is driven by [visible]; the caller keeps it true only while at least
  * one todo is incomplete or a subagent is running, and hides it automatically when
@@ -62,18 +65,22 @@ internal fun TaskProgressChip(
 
         val label =
             buildString {
-                append(
-                    stringResource(
-                        R.string.task_progress_count,
-                        completed,
-                        todos.size,
-                    ),
-                )
-                inProgress?.content?.let {
-                    append(" · ")
-                    append(it)
+                if (todos.isNotEmpty()) {
+                    append(
+                        stringResource(
+                            R.string.task_progress_count,
+                            completed,
+                            todos.size,
+                        ),
+                    )
+                    inProgress?.content?.let {
+                        append(" · ")
+                        append(it)
+                    }
+                } else if (activeAgents > 0) {
+                    append(stringResource(R.string.task_progress_agent_running, activeAgents))
                 }
-                if (activeAgents > 0) {
+                if (todos.isNotEmpty() && activeAgents > 0) {
                     append(" · ")
                     append(stringResource(R.string.task_progress_agents, activeAgents))
                 }
@@ -95,11 +102,10 @@ internal fun TaskProgressChip(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.ElectricBolt,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
                     text = label,
@@ -110,6 +116,7 @@ internal fun TaskProgressChip(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                Spacer(modifier = Modifier.width(2.dp))
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,
                     contentDescription = stringResource(R.string.task_progress_open_details),

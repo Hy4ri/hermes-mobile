@@ -113,17 +113,6 @@ internal fun ToolBubble(
     message: ChatMessage,
     modifier: Modifier = Modifier,
 ) {
-    val todoItems = extractTodosFromJson(message.content)
-    if (todoItems != null) {
-        TodoTaskCard(
-            items = todoItems,
-            isRunning = message.toolStatus == ToolStatus.RUNNING,
-            riskData = message.toolOutputRiskData,
-            modifier = modifier,
-        )
-        return
-    }
-
     var expanded by remember { mutableStateOf(false) }
     var showRawJson by remember { mutableStateOf(false) }
     val chipColor = MaterialTheme.colorScheme.surfaceContainerHigh

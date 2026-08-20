@@ -82,9 +82,10 @@ class ConnectPermissionGateTest {
         every { AuthManager.setSelectedProfileId(any()) } returns Unit
         every { AuthManager.ensureDefaultSelected() } returns Unit
 
+        every { mockApp.getString(any<Int>()) } returns ""
+
         every { mockApp.getString(R.string.connect_error_token_required) } returns "Token is required"
         every { mockApp.getString(R.string.connect_error_lan_permission_denied) } returns "LAN denied"
-        every { mockApp.getString(any<Int>()) } returns ""
 
         every {
             ContextCompat.checkSelfPermission(

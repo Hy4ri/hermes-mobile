@@ -113,4 +113,3 @@
       }
     );
 }
-renamed '/tmp/hermes-snap-ccd3b744aaa0.sh.tmp.jWlyDUsoHI' -> '/tmp/hermes-snap-ccd3b744aaa0.sh'

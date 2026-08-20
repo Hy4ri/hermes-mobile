@@ -255,6 +255,7 @@
     <string name="connect_server_url_label">Server URL</string>
     <string name="connect_placeholder_server_url">https://host:9119/ or http://127.0.0.1:9119/</string>
     <string name="connect_error_url_invalid">Enter a valid server URL (https:// or http://)</string>
+    <string name="connect_error_lan_permission_denied">Local network access denied. Grant the Local network permission in Settings, or connect to a remote gateway URL instead.</string>
     <string name="action_connect">Connect</string>
 
     <!-- Kanban Screen -->

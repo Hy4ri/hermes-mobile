@@ -31,8 +31,8 @@
             # Build tools
             buildToolsVersions = [buildToolsVersion];
 
-            # Target platforms (36 required by AGP 9.0.1 / compileSdk 36)
-            platformVersions = ["36"];
+            # Target platforms (37 required by compileSdk 37 / targetSdk 37)
+            platformVersions = ["37"];
 
             # Emulator + system images for local AVD testing
             includeEmulator = true;

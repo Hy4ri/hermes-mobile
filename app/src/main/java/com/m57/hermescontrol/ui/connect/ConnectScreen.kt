@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.ui.connect
 
 import android.app.Application
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -74,6 +76,18 @@ fun ConnectScreen(
         ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    val lanPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+            onResult = { granted -> viewModel.onLanPermissionResult(granted) },
+        )
+
+    LaunchedEffect(state.lanPermissionNeeded) {
+        if (state.lanPermissionNeeded) {
+            lanPermissionLauncher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
+    }
 
     LaunchedEffect(state.connectionSuccess) {
         if (state.connectionSuccess) {
@@ -219,7 +233,7 @@ fun ConnectScreen(
                 }
 
                 Button(
-                    onClick = viewModel::connect,
+                    onClick = { viewModel.requestConnect(LocalContext.current) },
                     enabled = !state.isConnecting,
                     modifier =
                         Modifier

@@ -11,9 +11,9 @@ import java.net.InetAddress
  *
  * Connections to loopback (the default `127.0.0.1:9119` gateway on-device) and
  * to public/remote hosts do NOT require the permission — only true LAN hosts do.
+ *
+ * @return true when [host] resolves to an address Android 17 gates behind local-network permission.
  */
-
-/** True when [host] resolves to an address Android 17 gates behind local-network permission. */
 fun isLocalNetworkHost(host: String): Boolean {
     val addr =
         runCatching { InetAddress.getByName(host) }.getOrNull() ?: return false

@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class LocalNetworkTest {
-
     @Test
     fun `loopback host is exempt`() {
         assertFalse(isLocalNetworkHost("127.0.0.1"))

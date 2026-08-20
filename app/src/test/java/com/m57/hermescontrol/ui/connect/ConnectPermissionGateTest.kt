@@ -10,7 +10,6 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
-import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
 import io.mockk.MockKAnnotations
 import io.mockk.every
@@ -93,14 +92,15 @@ class ConnectPermissionGateTest {
         } answers { if (permissionGranted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED }
 
         // Successful status probe → connect() proceeds to persist.
-        every { mockApiService.getStatus() } returns Response.success(
-            com.m57.hermescontrol.data.model.StatusResponse(
-                version = "test",
-                gateway_running = true,
-                active_sessions = 0,
-                auth_required = false,
-            ),
-        )
+        every { mockApiService.getStatus() } returns
+            Response.success(
+                com.m57.hermescontrol.data.model.StatusResponse(
+                    version = "test",
+                    gateway_running = true,
+                    active_sessions = 0,
+                    auth_required = false,
+                ),
+            )
     }
 
     @After
@@ -110,80 +110,86 @@ class ConnectPermissionGateTest {
     }
 
     @Test
-    fun `API 37 + LAN host + no permission surfaces lanPermissionNeeded`() = runTest {
-        sdkInt = 37
-        permissionGranted = false
-        val vm = ConnectViewModel(mockApp)
-        vm.requestConnect(mockContext)
-        advanceUntilIdle()
-        assertTrue(vm.uiState.value.lanPermissionNeeded)
-    }
-
-    @Test
-    fun `API 37 + LAN host + granted permission connects directly`() = runTest {
-        sdkInt = 37
-        permissionGranted = true
-        val vm = ConnectViewModel(mockApp)
-        vm.requestConnect(mockContext)
-        advanceUntilIdle()
-        assertFalse(vm.uiState.value.lanPermissionNeeded)
-        assertTrue(vm.uiState.value.connectionSuccess)
-    }
-
-    @Test
-    fun `API 37 + loopback host connects without permission prompt`() = runTest {
-        sdkInt = 37
-        permissionGranted = false
-        every { AuthManager.getBaseUrl() } returns "http://127.0.0.1:9119/"
-        every { AuthManager.endpoint() } answers {
-            ServerEndpoint.parse("http://127.0.0.1:9119/", CleartextPolicy.ALLOW_WITH_WARNING)
+    fun `API 37 + LAN host + no permission surfaces lanPermissionNeeded`() =
+        runTest {
+            sdkInt = 37
+            permissionGranted = false
+            val vm = ConnectViewModel(mockApp)
+            vm.requestConnect(mockContext)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.lanPermissionNeeded)
         }
-        val vm = ConnectViewModel(mockApp)
-        vm.requestConnect(mockContext)
-        advanceUntilIdle()
-        assertFalse(vm.uiState.value.lanPermissionNeeded)
-        assertTrue(vm.uiState.value.connectionSuccess)
-    }
 
     @Test
-    fun `below API 37 LAN host connects without permission prompt`() = runTest {
-        sdkInt = 36
-        permissionGranted = false
-        val vm = ConnectViewModel(mockApp)
-        vm.requestConnect(mockContext)
-        advanceUntilIdle()
-        assertFalse(vm.uiState.value.lanPermissionNeeded)
-        assertTrue(vm.uiState.value.connectionSuccess)
-    }
+    fun `API 37 + LAN host + granted permission connects directly`() =
+        runTest {
+            sdkInt = 37
+            permissionGranted = true
+            val vm = ConnectViewModel(mockApp)
+            vm.requestConnect(mockContext)
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.lanPermissionNeeded)
+            assertTrue(vm.uiState.value.connectionSuccess)
+        }
 
     @Test
-    fun `denied permission sets lanPermissionNeeded false and error message`() = runTest {
-        sdkInt = 37
-        permissionGranted = false
-        val vm = ConnectViewModel(mockApp)
-        vm.requestConnect(mockContext)
-        advanceUntilIdle()
-        assertTrue(vm.uiState.value.lanPermissionNeeded)
-        // User denies → launcher reports false
-        vm.onLanPermissionResult(false)
-        advanceUntilIdle()
-        assertFalse(vm.uiState.value.lanPermissionNeeded)
-        assertEquals("LAN denied", vm.uiState.value.errorMessage)
-        assertFalse(vm.uiState.value.connectionSuccess)
-    }
+    fun `API 37 + loopback host connects without permission prompt`() =
+        runTest {
+            sdkInt = 37
+            permissionGranted = false
+            every { AuthManager.getBaseUrl() } returns "http://127.0.0.1:9119/"
+            every { AuthManager.endpoint() } answers {
+                ServerEndpoint.parse("http://127.0.0.1:9119/", CleartextPolicy.ALLOW_WITH_WARNING)
+            }
+            val vm = ConnectViewModel(mockApp)
+            vm.requestConnect(mockContext)
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.lanPermissionNeeded)
+            assertTrue(vm.uiState.value.connectionSuccess)
+        }
 
     @Test
-    fun `granted after prompt connects`() = runTest {
-        sdkInt = 37
-        permissionGranted = false
-        val vm = ConnectViewModel(mockApp)
-        vm.requestConnect(mockContext)
-        advanceUntilIdle()
-        assertTrue(vm.uiState.value.lanPermissionNeeded)
-        // User grants → launcher reports true → connect proceeds
-        permissionGranted = true
-        vm.onLanPermissionResult(true)
-        advanceUntilIdle()
-        assertTrue(vm.uiState.value.connectionSuccess)
-    }
+    fun `below API 37 LAN host connects without permission prompt`() =
+        runTest {
+            sdkInt = 36
+            permissionGranted = false
+            val vm = ConnectViewModel(mockApp)
+            vm.requestConnect(mockContext)
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.lanPermissionNeeded)
+            assertTrue(vm.uiState.value.connectionSuccess)
+        }
+
+    @Test
+    fun `denied permission sets lanPermissionNeeded false and error message`() =
+        runTest {
+            sdkInt = 37
+            permissionGranted = false
+            val vm = ConnectViewModel(mockApp)
+            vm.requestConnect(mockContext)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.lanPermissionNeeded)
+            // User denies → launcher reports false
+            vm.onLanPermissionResult(false)
+            advanceUntilIdle()
+            assertFalse(vm.uiState.value.lanPermissionNeeded)
+            assertEquals("LAN denied", vm.uiState.value.errorMessage)
+            assertFalse(vm.uiState.value.connectionSuccess)
+        }
+
+    @Test
+    fun `granted after prompt connects`() =
+        runTest {
+            sdkInt = 37
+            permissionGranted = false
+            val vm = ConnectViewModel(mockApp)
+            vm.requestConnect(mockContext)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.lanPermissionNeeded)
+            // User grants → launcher reports true → connect proceeds
+            permissionGranted = true
+            vm.onLanPermissionResult(true)
+            advanceUntilIdle()
+            assertTrue(vm.uiState.value.connectionSuccess)
+        }
 }

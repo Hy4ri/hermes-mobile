@@ -77,6 +77,7 @@ fun ConnectScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     val lanPermissionLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
@@ -233,7 +234,7 @@ fun ConnectScreen(
                 }
 
                 Button(
-                    onClick = { viewModel.requestConnect(LocalContext.current) },
+                    onClick = { viewModel.requestConnect(context) },
                     enabled = !state.isConnecting,
                     modifier =
                         Modifier

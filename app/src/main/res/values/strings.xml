@@ -643,7 +643,7 @@
     <string name="profiles_action_auto_describe">Auto-Describe</string>
     <string name="profiles_action_setup_command">Setup Command</string>
     <string name="profiles_action_copy">Copy</string>
-    <string name="profiles_action_copied">Copied ✓</string>
+    <string name="profiles_action_copied">Copied</string>
     <string name="profiles_title_rename">Rename Profile: %1$s</string>
     <string name="profiles_title_delete">Delete Profile: %1$s</string>
     <string name="profiles_title_setup_command">Setup Command: %1$s</string>

@@ -143,7 +143,7 @@ sealed class WsEvent {
     /**
      * Self-improvement background review summary event.
      * Emitted when background review patches a skill or saves a memory.
-     * Payload: `{ text: "💾 Self-improvement review: ..." }`
+     * Payload: `{ text: "Self-improvement review: ..." }`
      */
     data class ReviewSummary(
         val text: String,

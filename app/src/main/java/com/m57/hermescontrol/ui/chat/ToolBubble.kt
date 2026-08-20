@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -79,7 +81,6 @@ import kotlinx.coroutines.launch
 internal fun composeToolSummaryLines(
     view: ToolView,
     toolName: String?,
-    emoji: String,
 ): Pair<String, String?>? {
     val titleIsGeneric = view.title.equals(ToolViewBuilder.genericTitleFor(toolName), ignoreCase = true)
     val subtitle = view.subtitle.takeIf { it.isNotBlank() && it != view.title }
@@ -89,9 +90,8 @@ internal fun composeToolSummaryLines(
     if (titleIsGeneric) {
         firstLine =
             buildString {
-                append(emoji)
                 if (subtitle != null) {
-                    append(" $subtitle")
+                    append(subtitle)
                 }
                 view.countLabel?.let { append(" ($it)") }
             }
@@ -99,13 +99,13 @@ internal fun composeToolSummaryLines(
     } else {
         firstLine =
             buildString {
-                append("$emoji ${view.title}")
+                append(view.title)
                 view.countLabel?.let { append(" ($it)") }
             }
         secondLine = subtitle
     }
 
-    return firstLine.takeIf { it.trim() != emoji }?.let { it to secondLine }
+    return firstLine.takeIf { it.isNotBlank() }?.let { it to secondLine }
 }
 
 @Composable
@@ -191,21 +191,32 @@ internal fun ToolBubble(
                     SecurityRiskChip(riskData, contentColor)
                 }
 
-                // ── Collapsed summary: emoji + title, then subtitle ──
+                // ── Collapsed summary: icon + title, then subtitle ──
                 if (!expanded && view != null) {
-                    composeToolSummaryLines(view, message.toolName, config.iconEmoji)?.let { (firstLine, secondLine) ->
-                        Text(
-                            text = firstLine,
-                            style =
-                                MaterialTheme.typography.bodySmall.copy(
-                                    color = contentColor.copy(alpha = 0.7f),
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                    composeToolSummaryLines(view, message.toolName)?.let { (firstLine, secondLine) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 4.dp, start = 22.dp),
-                        )
+                        ) {
+                            Icon(
+                                imageVector = config.icon,
+                                contentDescription = null,
+                                tint = contentColor.copy(alpha = 0.7f),
+                                modifier = Modifier.size(13.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = firstLine,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        color = contentColor.copy(alpha = 0.7f),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                    ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                         if (secondLine != null) {
                             Text(
                                 text = secondLine,
@@ -461,7 +472,7 @@ private fun ExpandedToolContent(
                         }
                         if (hit.url.isNotEmpty()) {
                             Text(
-                                text = "🔗 ${hit.url}",
+                                text = hit.url,
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         color = contentColor.copy(alpha = 0.7f),
@@ -578,10 +589,11 @@ internal fun SecurityRiskChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = "⚠",
-            style = MaterialTheme.typography.labelSmall,
-            color = chipColor,
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = chipColor,
+            modifier = Modifier.size(14.dp),
         )
         Text(
             text = label,

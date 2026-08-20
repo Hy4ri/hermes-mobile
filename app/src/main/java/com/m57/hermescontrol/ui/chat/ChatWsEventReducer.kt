@@ -682,7 +682,7 @@ object ChatWsEventReducer {
             state =
                 state.copy(
                     isLoading = false,
-                    errorMessage = "⚠️ Backend error: ${event.message ?: "Unknown gateway error"}",
+                    errorMessage = "Backend error: ${event.message ?: "Unknown gateway error"}",
                 ),
             streamingState = streamingState,
         )
@@ -700,8 +700,8 @@ object ChatWsEventReducer {
             when (val label = event.data?.get("label")) {
                 is String -> label
                 else -> event.data?.get("name") as? String
-            }?.let { "✅ Background job finished: $it" }
-                ?: "✅ Background job finished"
+            }?.let { "Background job finished: $it" }
+                ?: "Background job finished"
         return ReducerResult(
             state = state.copy(backgroundCompleteMessage = message),
             streamingState = streamingState,

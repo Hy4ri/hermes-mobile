@@ -15,8 +15,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +41,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.TodoItem
 
@@ -73,7 +78,7 @@ fun SubagentInspectionSheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.ElectricBolt,
+                        imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp),
@@ -145,7 +150,7 @@ fun SubagentInspectionSheet(
                                     modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.ElectricBolt,
+                                        imageVector = Icons.Filled.Groups,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(16.dp),
@@ -186,14 +191,25 @@ private fun TodoInspectionCard(todo: TodoItem) {
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val statusSymbol =
+            val statusColors = LocalHermesStatusColors.current
+            val (statusIcon, statusTint) =
                 when {
-                    todo.isCompleted -> "✅"
-                    todo.isInProgress -> "🔄"
-                    todo.isCancelled -> "❌"
-                    else -> "⭕"
+                    todo.isCompleted ->
+                        Icons.Filled.CheckCircle to statusColors.success
+                    todo.isInProgress ->
+                        Icons.Filled.Autorenew to MaterialTheme.colorScheme.primary
+                    todo.isCancelled ->
+                        Icons.Filled.Cancel to statusColors.warning
+                    else ->
+                        Icons.Filled.RadioButtonUnchecked to
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 }
-            Text(text = statusSymbol, fontSize = 16.sp)
+            Icon(
+                imageVector = statusIcon,
+                contentDescription = null,
+                tint = statusTint,
+                modifier = Modifier.size(18.dp),
+            )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = todo.content,
@@ -223,13 +239,22 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val statusSymbol =
+                val statusColors = LocalHermesStatusColors.current
+                val (statusIcon, statusTint) =
                     when {
-                        indicator.isComplete -> "✅"
-                        indicator.isFailed -> "❌"
-                        else -> "🔄"
+                        indicator.isComplete ->
+                            Icons.Filled.CheckCircle to statusColors.success
+                        indicator.isFailed ->
+                            Icons.Filled.Cancel to statusColors.error
+                        else ->
+                            Icons.Filled.Autorenew to MaterialTheme.colorScheme.primary
                     }
-                Text(text = statusSymbol, fontSize = 16.sp)
+                Icon(
+                    imageVector = statusIcon,
+                    contentDescription = null,
+                    tint = statusTint,
+                    modifier = Modifier.size(18.dp),
+                )
                 Spacer(modifier = Modifier.width(8.dp))
 
                 val taskIndexStr = indicator.taskIndex?.let { "#$it " } ?: ""

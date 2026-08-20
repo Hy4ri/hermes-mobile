@@ -557,7 +557,7 @@
     <string name="profiles_action_auto_describe">自动描述</string>
     <string name="profiles_action_setup_command">安装命令</string>
     <string name="profiles_action_copy">复制</string>
-    <string name="profiles_action_copied">已复制 ✓</string>
+    <string name="profiles_action_copied">已复制</string>
     <string name="profiles_title_rename">重命名配置：%1$s</string>
     <string name="profiles_title_delete">删除配置：%1$s</string>
     <string name="profiles_title_setup_command">安装命令：%1$s</string>

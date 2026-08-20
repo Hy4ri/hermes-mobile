@@ -414,7 +414,7 @@
     <string name="profiles_action_auto_describe">자동 설명</string>
     <string name="profiles_action_setup_command">설정 명령</string>
     <string name="profiles_action_copy">복사</string>
-    <string name="profiles_action_copied">복사됨 ✓</string>
+    <string name="profiles_action_copied">복사됨</string>
     <string name="profiles_title_rename">프로필 이름 변경: %1$s</string>
     <string name="profiles_title_delete">프로필 삭제: %1$s</string>
     <string name="profiles_title_setup_command">설정 명령: %1$s</string>

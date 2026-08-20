@@ -1112,7 +1112,7 @@ class ChatViewModel(
                 val map = result as? Map<*, *>
                 val resolved = (map?.get("resolved") as? Number)?.toInt() ?: 0
                 if (resolved > 0) {
-                    addSystemMessage("✅ Approval submitted")
+                    addSystemMessage("Approval submitted")
                 }
             }
         }
@@ -1308,7 +1308,7 @@ class ChatViewModel(
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to upload attachment ${attachment.name}", e)
                     _uiState.update {
-                        it.copy(errorMessage = "⚠️ Upload failed: ${attachment.name}")
+                        it.copy(errorMessage = "Upload failed: ${attachment.name}")
                     }
                 }
             }
@@ -1424,7 +1424,7 @@ class ChatViewModel(
         // (before any RPC fires) with a clear message instead of a doomed call.
         if (CommandBlocklist.contains(command)) {
             addAssistantMessage(
-                "⚠️ ${command.split(" ", limit = 2)[0]} is not supported on mobile",
+                "${command.split(" ", limit = 2)[0]} is not supported on mobile",
             )
             return
         }
@@ -1608,11 +1608,11 @@ class ChatViewModel(
                         val output = (result as? Map<*, *>)?.get("output") as? String
                         if (!output.isNullOrBlank()) addAssistantMessage(output)
                     } catch (e2: HermesWsClient.HermesRpcException) {
-                        addAssistantMessage("⚠️ /$name: ${e2.message}")
+                        addAssistantMessage("/$name: ${e2.message}")
                     }
                 } else {
                     // Legit error from command.dispatch (busy, no history, etc.)
-                    addAssistantMessage("⚠️ /$name: ${e.message}")
+                    addAssistantMessage("/$name: ${e.message}")
                 }
             }
         }
@@ -3310,7 +3310,7 @@ class ChatViewModel(
 
     private fun handleApprovalRequest(event: WsEvent.ApprovalRequest) {
         val description = event.description ?: event.command ?: "Unknown command"
-        val content = "⚠️ **Approval Required**\n$description"
+        val content = "**Approval Required**\n$description"
         val msg =
             ChatMessage(
                 role = MessageRole.SYSTEM,

@@ -15,6 +15,7 @@ android {
         disable += "MissingTranslation"
     }
     compileSdk = 37
+    buildToolsVersion = "37.0.0"
     defaultConfig {
         applicationId = "com.m57.hermescontrol"
         minSdk = 26

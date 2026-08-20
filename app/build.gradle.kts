@@ -14,7 +14,7 @@ android {
     lint {
         disable += "MissingTranslation"
     }
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.m57.hermescontrol"
         minSdk = 26

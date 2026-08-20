@@ -100,6 +100,7 @@ import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
+import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
 import com.m57.hermescontrol.ui.common.ActionProgressDialog
@@ -517,12 +518,9 @@ fun ChatScreen(
             )
 
             // Issue #942: compact glanceable progress strip while work is active.
-            // Bound to the same hydrated state the inline TodoTaskCard uses (never
-            // the old broken `state.todos` gate from #811). Auto-hides when all
-            // todos complete/cancel and no subagent is running.
-            val workActive =
-                state.todos.any { !it.isCompleted && !it.isCancelled } ||
-                    state.subagentIndicators.any { it.isRunning }
+            // Bound to the same hydrated todos / subagentIndicators state.
+            // Auto-hides when all todos complete/cancel and no subagent is running.
+            val workActive = shouldShowProgressChip(state.todos, state.subagentIndicators)
             TaskProgressChip(
                 visible = workActive,
                 todos = state.todos,

@@ -1166,8 +1166,14 @@
     <string name="tg_onboarding_scan_hint">Open Telegram and scan the QR code displayed in the app.</string>
     <string name="tg_onboarding_user_id_placeholder">Telegram user ID</string>
     <string name="task_progress_count">Tasks %1$d/%2$d</string>
-    <string name="task_progress_agents">%1$d agent</string>
-    <string name="task_progress_agent_running">%1$d agent running</string>
+    <plurals name="task_progress_agents">
+        <item quantity="one">%1$d agent</item>
+        <item quantity="other">%1$d agents</item>
+    </plurals>
+    <plurals name="task_progress_agent_running">
+        <item quantity="one">%1$d agent running</item>
+        <item quantity="other">%1$d agents running</item>
+    </plurals>
     <string name="task_progress_open_details">Open task details</string>
     <string name="tool_duration">Duration: %1$s</string>
     <string name="tool_redacted">· redacted</string>

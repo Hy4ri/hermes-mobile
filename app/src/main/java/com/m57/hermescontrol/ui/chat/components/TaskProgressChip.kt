@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,30 +60,33 @@ internal fun TaskProgressChip(
         enter = expandVertically() + fadeIn(),
         exit = shrinkVertically() + fadeOut(),
     ) {
-        val completed = todos.count { it.isCompleted }
-        val inProgress = todos.firstOrNull { it.isInProgress }
-        val activeAgents = indicators.count { it.isRunning }
-
+        val display = computeChipDisplay(todos, indicators)
         val label =
             buildString {
-                if (todos.isNotEmpty()) {
-                    append(
-                        stringResource(
-                            R.string.task_progress_count,
-                            completed,
-                            todos.size,
-                        ),
-                    )
-                    inProgress?.content?.let {
+                if (display.hasTodos) {
+                    append(stringResource(R.string.task_progress_count, display.currentTaskNumber, display.total))
+                    display.currentTaskContent?.let {
                         append(" · ")
                         append(it)
                     }
-                } else if (activeAgents > 0) {
-                    append(stringResource(R.string.task_progress_agent_running, activeAgents))
+                } else if (display.activeAgents > 0) {
+                    append(
+                        pluralStringResource(
+                            R.plurals.task_progress_agent_running,
+                            display.activeAgents,
+                            display.activeAgents,
+                        ),
+                    )
                 }
-                if (todos.isNotEmpty() && activeAgents > 0) {
+                if (display.hasTodos && display.activeAgents > 0) {
                     append(" · ")
-                    append(stringResource(R.string.task_progress_agents, activeAgents))
+                    append(
+                        pluralStringResource(
+                            R.plurals.task_progress_agents,
+                            display.activeAgents,
+                            display.activeAgents,
+                        ),
+                    )
                 }
             }
 
@@ -127,3 +131,51 @@ internal fun TaskProgressChip(
         }
     }
 }
+
+/**
+ * Pure, testable projection of the progress chip's data. The composable turns
+ * this into a localized label; keeping the math here lets unit tests cover the
+ * progress/resume/visibility rules without a Compose host.
+ */
+internal data class ChipDisplay(
+    val hasTodos: Boolean,
+    val currentTaskNumber: Int,
+    val total: Int,
+    val currentTaskContent: String?,
+    val activeAgents: Int,
+)
+
+internal fun computeChipDisplay(
+    todos: List<TodoItem>,
+    indicators: List<SubagentIndicator>,
+): ChipDisplay {
+    // The "current" task is the first not-yet-finished, not-cancelled todo.
+    // Its 1-based position is what the glanceable "Task N/total" means (so a
+    // completed task 1 + in-progress task 2 reads as 2/5, not 1/5).
+    val activeIndex = todos.indexOfFirst { !it.isCompleted && !it.isCancelled }
+    val currentTaskNumber =
+        if (activeIndex >= 0) {
+            activeIndex + 1
+        } else {
+            todos.count { it.isCompleted }
+        }
+    val inProgress = todos.firstOrNull { it.isInProgress }
+    val activeAgents = indicators.count { it.isRunning }
+    return ChipDisplay(
+        hasTodos = todos.isNotEmpty(),
+        currentTaskNumber = currentTaskNumber,
+        total = todos.size,
+        currentTaskContent = inProgress?.content,
+        activeAgents = activeAgents,
+    )
+}
+
+/**
+ * Whether the chip should be visible: there is at least one unfinished,
+ * non-cancelled todo, or a subagent is still running. Cancelled/completed-only
+ * state hides it.
+ */
+internal fun shouldShowProgressChip(
+    todos: List<TodoItem>,
+    indicators: List<SubagentIndicator>,
+): Boolean = todos.any { !it.isCompleted && !it.isCancelled } || indicators.any { it.isRunning }

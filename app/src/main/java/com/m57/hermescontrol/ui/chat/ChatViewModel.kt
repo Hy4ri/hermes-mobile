@@ -2002,7 +2002,11 @@ class ChatViewModel(
                     state.messages.isEmpty() &&
                     cachedMessages.isNotEmpty()
                 ) {
-                    state.copy(messages = cachedMessages, isLoading = false)
+                    state.copy(
+                        messages = cachedMessages,
+                        isLoading = false,
+                        todos = hydrateTodosFromMessages(cachedMessages),
+                    )
                 } else {
                     state
                 }
@@ -2070,6 +2074,7 @@ class ChatViewModel(
                             }
                         state.copy(
                             messages = merged,
+                            todos = hydrateTodosFromMessages(merged),
                             isLoading = false,
                             hasOlderMessages = hasOlder,
                             isLoadingOlder = false,

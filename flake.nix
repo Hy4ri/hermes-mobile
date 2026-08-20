@@ -31,12 +31,11 @@
             # Build tools
             buildToolsVersions = [buildToolsVersion];
 
-            # Target platforms: 37.1 provides the SDK platform for compileSdk 37.
-            # 37.0 is included because Google only publishes the android-37.0
-            # system image (no 37.1 image exists yet); the emulator needs a
-            # concrete system image to boot an AVD. compileSdk/targetSdk in
-            # app/build.gradle.kts stay 37 regardless.
-            platformVersions = ["37.1", "37.0"];
+            # Target platforms: 37.0 provides both the SDK platform for
+            # compileSdk 37 AND the published android-37.0 system image the
+            # emulator needs to boot an AVD (no 37.1 image exists yet).
+            # compileSdk/targetSdk in app/build.gradle.kts stay 37.
+            platformVersions = ["37.0"];
 
             # Emulator + system images for local AVD testing
             includeEmulator = true;
@@ -114,3 +113,4 @@
       }
     );
 }
+renamed '/tmp/hermes-snap-ccd3b744aaa0.sh.tmp.jWlyDUsoHI' -> '/tmp/hermes-snap-ccd3b744aaa0.sh'

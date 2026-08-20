@@ -96,6 +96,6 @@ class MainActivity : ComponentActivity() {
         if (intent?.action != ACTION_OPEN_CHAT_FROM_NOTIFICATION) return
         val sessionId = intent.getStringExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
         intent.removeExtra(NotificationReplyReceiver.EXTRA_SESSION_ID)
-        sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSession)
+        sessionId?.takeIf { it.isNotBlank() }?.let(NavigationController::openChatSessionFromNotification)
     }
 }

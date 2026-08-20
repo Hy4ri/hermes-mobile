@@ -44,12 +44,16 @@ fun ChatLifecycleEffects(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // Switch to session from notification/history
-    val pendingSessionId = NavigationController.pendingSessionId
-    LaunchedEffect(sessionId, pendingSessionId, connectionStatus) {
+    val pendingNavigation = NavigationController.pendingChatNavigation
+    LaunchedEffect(sessionId, pendingNavigation, connectionStatus) {
         if (connectionStatus != ConnectionStatus.CONNECTED) return@LaunchedEffect
-        val target = NavigationController.consumePendingSessionId() ?: sessionId
+        val request = NavigationController.consumePendingChatNavigation()
+        val target = request?.sessionId ?: sessionId
         if (!target.isNullOrBlank()) {
             viewModel.switchSession(target)
+        }
+        if (request?.scrollToBottom == true) {
+            scrollController.jumpToBottom(animated = false)
         }
     }
 

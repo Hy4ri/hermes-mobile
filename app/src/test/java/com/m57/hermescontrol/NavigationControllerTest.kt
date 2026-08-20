@@ -146,6 +146,32 @@ class NavigationControllerTest {
         assertNull(NavigationController.consumePendingSessionId())
     }
 
+    @Test
+    fun `notification chat request asks for bottom even when chat is already active`() {
+        val backStack = NavBackStack<NavKey>(ChatScreen)
+        NavigationController.backStack = backStack
+
+        NavigationController.openChatSessionFromNotification("stored-session")
+        val first = NavigationController.consumePendingChatNavigation()
+        NavigationController.openChatSessionFromNotification("stored-session")
+        val second = NavigationController.consumePendingChatNavigation()
+
+        assertEquals(1, backStack.size)
+        assertEquals("stored-session", first?.sessionId)
+        assertTrue(first?.scrollToBottom == true)
+        assertTrue(second?.scrollToBottom == true)
+        assertTrue("repeated taps must be distinct events", first?.requestId != second?.requestId)
+    }
+
+    @Test
+    fun `history chat request does not force bottom`() {
+        NavigationController.backStack = NavBackStack<NavKey>(HistoryScreen)
+
+        NavigationController.openChatSession("stored-session")
+
+        assertFalse(NavigationController.consumePendingChatNavigation()?.scrollToBottom == true)
+    }
+
     // ── resetTo: atomic clear + navigate ──────────────────────────────────
 
     @Test

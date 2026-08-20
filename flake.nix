@@ -24,8 +24,8 @@
         buildToolsVersion = "37.0.0";
         androidSdk =
           (pkgs.androidenv.composeAndroidPackages {
-            # Command-line & platform tools — pinned to the 37-era toolchain
-            cmdLineToolsVersion = "37.0.0";
+            # Command-line tools — own versioning (NOT API-aligned); 11.0 is current/proven
+            cmdLineToolsVersion = "11.0";
             platformToolsVersion = "37.0.0";
 
             # Build tools

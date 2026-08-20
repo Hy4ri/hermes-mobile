@@ -24,15 +24,15 @@
         buildToolsVersion = "37.0.0";
         androidSdk =
           (pkgs.androidenv.composeAndroidPackages {
-            # Command-line tools — own versioning (NOT API-aligned); 11.0 is current/proven
-            cmdLineToolsVersion = "11.0";
-            platformToolsVersion = "37.0.0";
+            # Toolchain pinned to the latest available on nixos-unstable (rev ffb3c9b7)
+            cmdLineToolsVersion = "22.0";
+            platformToolsVersion = "37.0.1";
 
             # Build tools
             buildToolsVersions = [buildToolsVersion];
 
-            # Target platforms (37 required by compileSdk 37 / targetSdk 37)
-            platformVersions = ["37"];
+            # Target platforms (37.1 is the latest platform; 37 required by compileSdk 37 / targetSdk 37)
+            platformVersions = ["37.1"];
 
             # Emulator + system images for local AVD testing
             includeEmulator = true;

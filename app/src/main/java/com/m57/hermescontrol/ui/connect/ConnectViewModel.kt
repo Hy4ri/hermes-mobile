@@ -19,7 +19,7 @@ import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.NetworkError
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.ServerEndpoint
-import com.m57.hermescontrol.data.remote.needsLocalNetworkPermission
+import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import com.m57.hermescontrol.data.remote.safeApiCall
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +46,15 @@ data class ConnectUiState(
 class ConnectViewModel(
     private val app: Application,
 ) : ViewModel() {
+    /**
+     * Source of the device's API level. Defaults to the real [Build.VERSION.SDK_INT]
+     * but is package-visible so unit tests can exercise the Android 17 (API 37)
+     * local-network gate without mocking the final static [Build.VERSION.SDK_INT]
+     * field (which MockK cannot intercept in plain JVM tests).
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    internal var sdkVersion: Int = Build.VERSION.SDK_INT
+
     private val _uiState = MutableStateFlow(ConnectUiState())
     val uiState: StateFlow<ConnectUiState> = _uiState.asStateFlow()
 
@@ -159,8 +168,7 @@ class ConnectViewModel(
     fun requestConnect(context: Context) {
         val baseUrl = _uiState.value.baseUrl
         val needsPermission =
-            Build.VERSION.SDK_INT >= 37 &&
-                needsLocalNetworkPermission(baseUrl) &&
+            requiresLocalNetworkPermission(sdkVersion, baseUrl) &&
                 ContextCompat.checkSelfPermission(
                     context,
                     android.Manifest.permission.ACCESS_LOCAL_NETWORK,

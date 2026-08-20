@@ -1,7 +1,7 @@
 package com.m57.hermescontrol.data.remote
 
-import android.net.Uri
 import java.net.InetAddress
+import java.net.URI
 
 /**
  * Android 17 (API 37) gates local-network access behind the
@@ -36,8 +36,22 @@ fun isLocalNetworkHost(host: String): Boolean {
  * Whether connecting to [baseUrl] requires the `ACCESS_LOCAL_NETWORK` permission
  * on Android 17+. Extracted as a pure function so the connect flow can be gated
  * (and unit-tested) without a real permission check.
+ *
+ * Uses [java.net.URI] rather than [android.net.Uri] because the latter is a
+ * non-functional stub under plain JVM unit tests (its `host` returns null).
  */
 fun needsLocalNetworkPermission(baseUrl: String): Boolean {
-    val host = runCatching { Uri.parse(baseUrl).host }.getOrNull() ?: return false
+    val host = runCatching { URI(baseUrl).host }.getOrNull() ?: return false
     return isLocalNetworkHost(host)
 }
+
+/**
+ * Gate decision for the connect flow: on Android 17+ (API 37) a LAN gateway host
+ * requires the `ACCESS_LOCAL_NETWORK` runtime permission; earlier APIs and
+ * loopback/public hosts do not. Pure so it can be unit-tested without mocking
+ * [android.os.Build.VERSION.SDK_INT].
+ */
+fun requiresLocalNetworkPermission(
+    sdkInt: Int,
+    baseUrl: String,
+): Boolean = sdkInt >= 37 && needsLocalNetworkPermission(baseUrl)

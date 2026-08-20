@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.connect
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.content.ContextCompat
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.local.AuthManager
@@ -11,6 +10,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.CleartextPolicy
 import com.m57.hermescontrol.data.remote.HermesApiService
 import com.m57.hermescontrol.data.remote.ServerEndpoint
+import com.m57.hermescontrol.data.remote.requiresLocalNetworkPermission
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.every
@@ -34,12 +34,16 @@ import org.junit.Test
 import retrofit2.Response
 
 /**
- * Tests the Android 17 (API 37) ACCESS_LOCAL_NETWORK gate in
- * [ConnectViewModel.requestConnect] / [ConnectViewModel.onLanPermissionResult].
+ * Tests the Android 17 (API 37) ACCESS_LOCAL_NETWORK gate.
  *
- * SDK_INT is controlled via a static mock on Build.VERSION, and the runtime
- * permission check via a static mock on ContextCompat, so the branching is
- * exercised without a device/emulator.
+ * The gate decision itself is a pure function [requiresLocalNetworkPermission]
+ * (covered across the SDK/host matrix below, no mocking needed). The ViewModel
+ * integration tests inject the device API level via [ConnectViewModel.sdkVersion]
+ * instead of mocking the final static [android.os.Build.VERSION.SDK_INT] field,
+ * which MockK cannot intercept in plain JVM unit tests.
+ *
+ * The runtime permission check ([ContextCompat.checkSelfPermission]) is mocked
+ * statically, which is safe for a static *method* (unlike the SDK_INT field).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConnectPermissionGateTest {
@@ -48,7 +52,6 @@ class ConnectPermissionGateTest {
     private val mockContext = mockk<Context>(relaxed = true)
     private lateinit var mockApiService: HermesApiService
 
-    private var sdkInt = 37
     private var permissionGranted = false
 
     @Before
@@ -57,7 +60,6 @@ class ConnectPermissionGateTest {
         MockKAnnotations.init(this)
         mockkObject(AuthManager)
         mockkObject(ApiClient)
-        mockkStatic(Build.VERSION::class)
         mockkStatic(ContextCompat::class)
 
         mockApiService = mockk()
@@ -84,7 +86,6 @@ class ConnectPermissionGateTest {
         every { mockApp.getString(R.string.connect_error_lan_permission_denied) } returns "LAN denied"
         every { mockApp.getString(any<Int>()) } returns ""
 
-        every { Build.VERSION.SDK_INT } answers { sdkInt }
         every {
             ContextCompat.checkSelfPermission(
                 mockContext,
@@ -110,12 +111,36 @@ class ConnectPermissionGateTest {
         unmockkAll()
     }
 
+    // --- pure gate decision matrix (no mocking) ---
+
+    @Test
+    fun `requiresLocalNetworkPermission: API 37 + LAN host needs permission`() {
+        assertTrue(requiresLocalNetworkPermission(37, "http://192.168.1.50:9119"))
+    }
+
+    @Test
+    fun `requiresLocalNetworkPermission: below API 37 LAN host does not need permission`() {
+        assertFalse(requiresLocalNetworkPermission(36, "http://192.168.1.50:9119"))
+    }
+
+    @Test
+    fun `requiresLocalNetworkPermission: API 37 loopback host does not need permission`() {
+        assertFalse(requiresLocalNetworkPermission(37, "http://127.0.0.1:9119"))
+    }
+
+    @Test
+    fun `requiresLocalNetworkPermission: API 37 public host does not need permission`() {
+        assertFalse(requiresLocalNetworkPermission(37, "https://gateway.example.com"))
+    }
+
+    // --- ViewModel integration (API level injected via sdkVersion) ---
+
     @Test
     fun `API 37 + LAN host + no permission surfaces lanPermissionNeeded`() =
         runTest {
-            sdkInt = 37
             permissionGranted = false
             val vm = ConnectViewModel(mockApp)
+            vm.sdkVersion = 37
             vm.requestConnect(mockContext)
             advanceUntilIdle()
             assertTrue(vm.uiState.value.lanPermissionNeeded)
@@ -124,9 +149,9 @@ class ConnectPermissionGateTest {
     @Test
     fun `API 37 + LAN host + granted permission connects directly`() =
         runTest {
-            sdkInt = 37
             permissionGranted = true
             val vm = ConnectViewModel(mockApp)
+            vm.sdkVersion = 37
             vm.requestConnect(mockContext)
             advanceUntilIdle()
             assertFalse(vm.uiState.value.lanPermissionNeeded)
@@ -136,13 +161,13 @@ class ConnectPermissionGateTest {
     @Test
     fun `API 37 + loopback host connects without permission prompt`() =
         runTest {
-            sdkInt = 37
             permissionGranted = false
             every { AuthManager.getBaseUrl() } returns "http://127.0.0.1:9119/"
             every { AuthManager.endpoint() } answers {
                 ServerEndpoint.parse("http://127.0.0.1:9119/", CleartextPolicy.ALLOW_WITH_WARNING)
             }
             val vm = ConnectViewModel(mockApp)
+            vm.sdkVersion = 37
             vm.requestConnect(mockContext)
             advanceUntilIdle()
             assertFalse(vm.uiState.value.lanPermissionNeeded)
@@ -152,9 +177,9 @@ class ConnectPermissionGateTest {
     @Test
     fun `below API 37 LAN host connects without permission prompt`() =
         runTest {
-            sdkInt = 36
             permissionGranted = false
             val vm = ConnectViewModel(mockApp)
+            vm.sdkVersion = 36
             vm.requestConnect(mockContext)
             advanceUntilIdle()
             assertFalse(vm.uiState.value.lanPermissionNeeded)
@@ -164,9 +189,9 @@ class ConnectPermissionGateTest {
     @Test
     fun `denied permission sets lanPermissionNeeded false and error message`() =
         runTest {
-            sdkInt = 37
             permissionGranted = false
             val vm = ConnectViewModel(mockApp)
+            vm.sdkVersion = 37
             vm.requestConnect(mockContext)
             advanceUntilIdle()
             assertTrue(vm.uiState.value.lanPermissionNeeded)
@@ -181,9 +206,9 @@ class ConnectPermissionGateTest {
     @Test
     fun `granted after prompt connects`() =
         runTest {
-            sdkInt = 37
             permissionGranted = false
             val vm = ConnectViewModel(mockApp)
+            vm.sdkVersion = 37
             vm.requestConnect(mockContext)
             advanceUntilIdle()
             assertTrue(vm.uiState.value.lanPermissionNeeded)

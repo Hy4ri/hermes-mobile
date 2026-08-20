@@ -98,6 +98,7 @@ import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
+import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
@@ -513,6 +514,23 @@ fun ChatScreen(
                 connectionStatus = state.connectionStatus,
                 onReconnect = viewModel::reconnect,
                 onReloginClick = { showReloginDialog = true },
+            )
+
+            // Issue #942: compact glanceable progress strip while work is active.
+            // Bound to the same hydrated state the inline TodoTaskCard uses (never
+            // the old broken `state.todos` gate from #811). Auto-hides when all
+            // todos complete/cancel and no subagent is running.
+            val workActive =
+                state.todos.any { !it.isCompleted && !it.isCancelled } ||
+                    state.subagentIndicators.any { it.isRunning }
+            TaskProgressChip(
+                visible = workActive,
+                todos = state.todos,
+                indicators = state.subagentIndicators,
+                onClick = {
+                    showSubagentInspectionSheet = true
+                    scrollController.resumeFollowing()
+                },
             )
 
             credentialWarning?.let { warning ->

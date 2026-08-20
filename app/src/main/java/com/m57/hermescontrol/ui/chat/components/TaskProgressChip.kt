@@ -149,23 +149,23 @@ internal fun computeChipDisplay(
     todos: List<TodoItem>,
     indicators: List<SubagentIndicator>,
 ): ChipDisplay {
-    // The "current" task is the first not-yet-finished, not-cancelled todo.
-    // Its 1-based position is what the glanceable "Task N/total" means (so a
-    // completed task 1 + in-progress task 2 reads as 2/5, not 1/5).
-    val activeIndex = todos.indexOfFirst { !it.isCompleted && !it.isCancelled }
-    val currentTaskNumber =
-        if (activeIndex >= 0) {
-            activeIndex + 1
-        } else {
-            todos.count { it.isCompleted }
+    // Select the task the chip should surface: prefer the in_progress one, then
+    // fall back to the first unfinished/non-cancelled todo. Both the number and
+    // the content are derived from THIS same selected item so they can never
+    // disagree (e.g. a pending task 1 + in_progress task 2 must read "2/N · task2",
+    // not "1/N · task2").
+    val selectedIndex =
+        todos.indexOfFirst { it.isInProgress }.let { idx ->
+            if (idx >= 0) idx else todos.indexOfFirst { !it.isCompleted && !it.isCancelled }
         }
-    val inProgress = todos.firstOrNull { it.isInProgress }
+    val currentTaskNumber = if (selectedIndex >= 0) selectedIndex + 1 else todos.count { it.isCompleted }
+    val selected = if (selectedIndex >= 0) todos[selectedIndex] else null
     val activeAgents = indicators.count { it.isRunning }
     return ChipDisplay(
         hasTodos = todos.isNotEmpty(),
         currentTaskNumber = currentTaskNumber,
         total = todos.size,
-        currentTaskContent = inProgress?.content,
+        currentTaskContent = selected?.content,
         activeAgents = activeAgents,
     )
 }

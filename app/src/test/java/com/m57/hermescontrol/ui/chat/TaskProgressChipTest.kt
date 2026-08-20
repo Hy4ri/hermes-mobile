@@ -48,6 +48,25 @@ class TaskProgressChipTest {
     }
 
     @Test
+    fun `number and content derive from the same selected task`() {
+        // task 1 pending, task 2 in_progress: the in_progress task is surfaced,
+        // so both the number and the content come from task 2 (not 1/N · task2).
+        val todos = listOf(todo("first", "pending"), todo("second", "in_progress"))
+        val display = computeChipDisplay(todos, emptyList())
+        assertEquals(2, display.total)
+        assertEquals(2, display.currentTaskNumber)
+        assertEquals("second", display.currentTaskContent)
+    }
+
+    @Test
+    fun `falls back to first pending task when none in progress`() {
+        val todos = listOf(todo("first", "pending"), todo("second", "pending"))
+        val display = computeChipDisplay(todos, emptyList())
+        assertEquals(1, display.currentTaskNumber)
+        assertEquals("first", display.currentTaskContent)
+    }
+
+    @Test
     fun `cancelled tasks are skipped when finding the active task`() {
         // task 1 completed, task 2 cancelled, task 3 in progress -> active = 3
         val todos =

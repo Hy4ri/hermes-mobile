@@ -14,7 +14,7 @@
   <a href="https://github.com/Hy4ri/hermes-mobile/releases/latest"><img src="https://img.shields.io/github/v/release/Hy4ri/hermes-mobile?color=6750A4&label=Latest%20Release&logo=github" alt="Latest Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/Hy4ri/hermes-mobile/android.yml?branch=main&label=CI&logo=githubactions" alt="CI">
   <img src="https://img.shields.io/badge/minSdk-26-brightgreen" alt="minSdk 26">
-  <img src="https://img.shields.io/badge/targetSdk-36-brightgreen" alt="targetSdk 37">
+  <img src="https://img.shields.io/badge/targetSdk-37-brightgreen" alt="targetSdk 37">
 </p>
 
 <p align="center">

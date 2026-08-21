@@ -1,0 +1,38 @@
+name: Stale Bot
+
+on:
+  schedule:
+    # Daily at 06:17 UTC (odd minute to avoid the :00 cron stampede).
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Close stale waiting-for-response items
+        uses: actions/stale@v9
+        with:
+          # Only issues/PRs already marked `waiting-for-response` are candidates.
+          # Everything else is left completely alone.
+          only-labels: "waiting-for-response"
+          days-before-stale: 7
+          days-before-close: 7
+          stale-issue-label: "stale"
+          stale-pr-label: "stale"
+          stale-issue-message: >-
+            This has been marked `waiting-for-response` for a week with no reply.
+            It will be closed in another week if there's still no response.
+          stale-pr-message: >-
+            This has been marked `waiting-for-response` for a week with no reply.
+            It will be closed in another week if there's still no response.
+          close-issue-message: >-
+            Closing due to no response. Feel free to reopen anytime!
+          close-pr-message: >-
+            Closing due to no response. Feel free to reopen anytime!
+          operations-per-run: 30

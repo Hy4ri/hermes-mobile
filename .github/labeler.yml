@@ -1,0 +1,23 @@
+# Path-based PR auto-labels (used by .github/workflows/pr-labeler.yml).
+# Additive only — labels added by hand or Dependabot are never removed.
+# All labels here already exist in the repo.
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "README.md"
+          - "CONTRIBUTING.md"
+          - "AGENTS.md"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+
+testing:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/test/**"
+          - "app/src/androidTest/**"
+          - "**/*Test.kt"

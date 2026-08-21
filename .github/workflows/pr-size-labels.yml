@@ -1,0 +1,79 @@
+name: PR Size Labels
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: size-label-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Label PR by diff size
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const lines = pr.additions + pr.deletions;
+
+            // Buckets by changed lines. Keep thresholds boring and predictable.
+            let size;
+            if (lines <= 10) size = 'size/XS';
+            else if (lines <= 30) size = 'size/S';
+            else if (lines <= 100) size = 'size/M';
+            else if (lines <= 300) size = 'size/L';
+            else size = 'size/XL';
+
+            const ALL = ['size/XS', 'size/S', 'size/M', 'size/L', 'size/XL'];
+
+            // Ensure all size labels exist (idempotent, 422 = already there).
+            for (const name of ALL) {
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color: name === 'size/XL' ? 'd73a4a' :
+                         name === 'size/L' ? 'fbca04' : '0e8a16',
+                  description: `PR diff size bucket (${name.split('/')[1]})`,
+                });
+              } catch (e) {
+                if (e.status !== 422) throw e;
+              }
+            }
+
+            const current = pr.labels.map(l => l.name);
+            const toRemove = ALL.filter(l => l !== size && current.includes(l));
+            const toAdd = current.includes(size) ? [] : [size];
+
+            for (const name of toRemove) {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                name,
+              });
+            }
+            if (toAdd.length) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: toAdd,
+              });
+            }
+            core.info(`PR #${pr.number}: ${lines} changed lines → ${size}`);

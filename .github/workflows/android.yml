@@ -303,26 +303,47 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Check job results
         env:
+          GH_TOKEN: ${{ github.token }}
           KTLINT_RESULT: ${{ needs.ktlint.result }}
           LINT_RESULT: ${{ needs.android-lint.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           RELEASE_COMPILE_RESULT: ${{ needs.release-compile.result }}
         run: |
+          LABEL="ci-red"
           FAILED=0
+          FAILED_JOBS=""
           for entry in "ktlint:$KTLINT_RESULT" "android-lint:$LINT_RESULT" "unit-tests:$TEST_RESULT" "build:$BUILD_RESULT" "release-compile:$RELEASE_COMPILE_RESULT"; do
             name="${entry%%:*}"
             result="${entry#*:}"
             echo "::notice::$name = $result"
             if [[ "$result" != "success" ]]; then
               FAILED=1
+              FAILED_JOBS+="$name "
             fi
           done
+
+          # Label the PR so red CI is visible at a glance; remove it once green.
+          # Only PR events carry a PR number — pushes to main have nothing to label.
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR=${{ github.event.pull_request.number }}
+            if [[ "$FAILED" -eq 1 ]]; then
+              gh pr edit "$PR" --add-label "$LABEL" \
+                && echo "::notice::Added \"$LABEL\" to PR #$PR (failed: ${FAILED_JOBS% })"
+            else
+              # Fails if the label isn't present — that's fine, ignore it.
+              gh pr edit "$PR" --remove-label "$LABEL" 2>/dev/null || true
+            fi
+          fi
+
           if [[ "$FAILED" -eq 1 ]]; then
-            echo "::error::CI failed — check individual job logs"
+            echo "::error::CI failed (${FAILED_JOBS% }) — check individual job logs"
             exit 1
           fi
           echo "All CI jobs passed ✅"

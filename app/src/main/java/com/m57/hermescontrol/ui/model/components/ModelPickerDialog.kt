@@ -50,6 +50,9 @@ import com.m57.hermescontrol.ui.common.SearchBar
  * [pinnedModels] renders a pinned section at the top (mirrors the global model
  * screen's pin section) so frequently-used models are one tap away.
  * [onPinToggle] allows pinning and unpinning models directly inside the dialog.
+ * Per-model reasoning capabilities (issue #946) are surfaced as a small hint
+ * when `can_disable_reasoning == false` ("reasoning always on") or
+ * `reasoning == false` ("no reasoning").
  */
 @Composable
 fun ModelPickerDialog(
@@ -123,6 +126,11 @@ fun ModelPickerDialog(
                             pinnedModels.map { "${it.providerSlug}:${it.modelName}" }.toSet()
                         }
 
+                    val providerBySlug =
+                        remember(providers) {
+                            providers.associateBy { it.slug }
+                        }
+
                     val filteredProvidersWithModels =
                         remember(pickerQuery, providers) {
                             providers.mapNotNull { provider ->
@@ -178,6 +186,7 @@ fun ModelPickerDialog(
                                 filteredPinned,
                                 key = { "pinned:${it.providerSlug}:${it.modelName}" },
                             ) { pinned ->
+                                val caps = providerBySlug[pinned.providerSlug]?.capabilities?.get(pinned.modelName)
                                 ModelItemCard(
                                     modelName = pinned.modelName,
                                     isPinned = true,
@@ -188,6 +197,8 @@ fun ModelPickerDialog(
                                             null
                                         },
                                     onClick = { onSelect(pinned.providerSlug, pinned.modelName) },
+                                    canDisableReasoning = caps?.can_disable_reasoning,
+                                    supportsReasoning = caps?.reasoning,
                                 )
                             }
                         }
@@ -219,6 +230,7 @@ fun ModelPickerDialog(
                                 key = { model -> "${provider.slug}:$model" },
                             ) { model ->
                                 val isPinned = "${provider.slug}:$model" in pinnedSet
+                                val caps = provider.capabilities?.get(model)
                                 ModelItemCard(
                                     modelName = model,
                                     isPinned = isPinned,
@@ -229,6 +241,8 @@ fun ModelPickerDialog(
                                             null
                                         },
                                     onClick = { onSelect(provider.slug, model) },
+                                    canDisableReasoning = caps?.can_disable_reasoning,
+                                    supportsReasoning = caps?.reasoning,
                                 )
                             }
                         }
@@ -247,6 +261,8 @@ private fun ModelItemCard(
     onPinToggle: (() -> Unit)?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    canDisableReasoning: Boolean? = null,
+    supportsReasoning: Boolean? = null,
 ) {
     Surface(
         modifier =
@@ -267,15 +283,31 @@ private fun ModelItemCard(
             modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = modelName,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                // No maxLines/ellipsis: a long model name wraps so the full
-                // name stays readable while the pin button keeps its spot.
+            Column(
                 modifier = Modifier.weight(1f),
-            )
+            ) {
+                Text(
+                    text = modelName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    // No maxLines/ellipsis: a long model name wraps so the full
+                    // name stays readable while the pin button keeps its spot.
+                )
+                val hint =
+                    when {
+                        supportsReasoning == false -> "no reasoning"
+                        canDisableReasoning == false -> "reasoning always on"
+                        else -> null
+                    }
+                if (hint != null) {
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (onPinToggle != null) {
                 IconButton(
                     onClick = onPinToggle,

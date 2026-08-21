@@ -782,6 +782,7 @@ private fun ProviderCard(
                             val isActive =
                                 activeProfile?.provider == provider.slug &&
                                     activeProfile.model == model
+                            val caps = provider.capabilities?.get(model)
                             Card(
                                 onClick = { onModelClick(provider.slug, model) },
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -810,21 +811,37 @@ private fun ProviderCard(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Text(
-                                        text = model,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                        color =
-                                            if (isActive) {
-                                                MaterialTheme.colorScheme.onPrimaryContainer
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurface
-                                            },
-                                        // Weight + wrap: a long model name grows
-                                        // the row vertically instead of pushing
-                                        // the check/pin buttons off-screen.
+                                    Column(
                                         modifier = Modifier.weight(1f),
-                                    )
+                                    ) {
+                                        Text(
+                                            text = model,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                            color =
+                                                if (isActive) {
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                },
+                                            // Weight + wrap: a long model name grows
+                                            // the row vertically instead of pushing
+                                            // the check/pin buttons off-screen.
+                                        )
+                                        val hint =
+                                            when {
+                                                caps?.reasoning == false -> "no reasoning"
+                                                caps?.can_disable_reasoning == false -> "reasoning always on"
+                                                else -> null
+                                            }
+                                        if (hint != null) {
+                                            Text(
+                                                text = hint,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),

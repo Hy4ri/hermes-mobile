@@ -41,6 +41,11 @@ import com.m57.hermescontrol.R
  * Layout: [📎 attach] [model chip] [←spacer→] [🧠 reasoning] [🎙 mic]
  *
  * The reasoning chip opens a dropdown menu to pick a level (instead of cycling).
+ * When [canDisableReasoning] is false the "None" level is disabled with a
+ * "reasoning always on" hint (issue #946). Absent key (null) means no
+ * restriction is known — full scale offered.
+ * When [supportsReasoning] is false the model takes no reasoning parameter
+ * and the chip is disabled.
  */
 @Composable
 fun ComposerToolbar(
@@ -53,8 +58,12 @@ fun ComposerToolbar(
     onReasoningSelected: (String?) -> Unit,
     onMicTap: () -> Unit,
     modifier: Modifier = Modifier,
+    canDisableReasoning: Boolean? = null,
+    supportsReasoning: Boolean? = null,
 ) {
     var showReasoningMenu by remember { mutableStateOf(false) }
+    val reasoningDisabledForModel = supportsReasoning == false
+    val canDisable = canDisableReasoning
 
     Row(
         modifier =
@@ -105,9 +114,15 @@ fun ComposerToolbar(
             FilterChip(
                 selected = reasoningLevel != null,
                 onClick = { showReasoningMenu = true },
+                enabled = !reasoningDisabledForModel,
                 label = {
                     Text(
-                        text = buildReasoningLabel(reasoningLevel),
+                        text =
+                            if (reasoningDisabledForModel) {
+                                "No reasoning"
+                            } else {
+                                buildReasoningLabel(reasoningLevel)
+                            },
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -129,6 +144,22 @@ fun ComposerToolbar(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 )
+                if (canDisable == false) {
+                    Text(
+                        text = "reasoning always on",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                    )
+                }
+                if (reasoningDisabledForModel) {
+                    Text(
+                        text = "no reasoning parameter for this model",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                    )
+                }
                 HorizontalDivider()
                 val allLevels =
                     listOf(
@@ -142,6 +173,8 @@ fun ComposerToolbar(
                         "ultra" to "Ultra",
                     )
                 allLevels.forEach { (level, label) ->
+                    val isNone = level == "none"
+                    val noneDisabled = isNone && (canDisable == false || reasoningDisabledForModel)
                     DropdownMenuItem(
                         text = {
                             Text(
@@ -153,10 +186,10 @@ fun ComposerToolbar(
                                         null
                                     },
                                 color =
-                                    if (reasoningLevel == level) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
+                                    when {
+                                        noneDisabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                        reasoningLevel == level -> MaterialTheme.colorScheme.primary
+                                        else -> MaterialTheme.colorScheme.onSurface
                                     },
                             )
                         },
@@ -164,6 +197,7 @@ fun ComposerToolbar(
                             showReasoningMenu = false
                             onReasoningSelected(level)
                         },
+                        enabled = !noneDisabled && !reasoningDisabledForModel,
                     )
                 }
             }

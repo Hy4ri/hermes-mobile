@@ -760,6 +760,8 @@ fun ChatScreen(
                 reasoningLevel = state.reasoningLevel,
                 onModelTap = { viewModel.openModelPicker() },
                 onReasoningTap = { level -> viewModel.setReasoningLevel(level) },
+                canDisableReasoning = state.currentModelCapabilities?.can_disable_reasoning,
+                supportsReasoning = state.currentModelCapabilities?.reasoning,
             )
         }
 

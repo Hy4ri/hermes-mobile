@@ -18,6 +18,14 @@ data class ModelProvider(
     val authenticated: Boolean? = null,
     val auth_type: String? = null,
     val warning: String? = null,
+    val capabilities: Map<String, ModelCapabilities>? = null,
+)
+
+@Serializable
+data class ModelCapabilities(
+    val fast: Boolean? = null,
+    val reasoning: Boolean? = null,
+    val can_disable_reasoning: Boolean? = null,
 )
 
 @Serializable

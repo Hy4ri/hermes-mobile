@@ -89,6 +89,8 @@ fun ChatInputBar(
     reasoningLevel: String? = null,
     onModelTap: () -> Unit = {},
     onReasoningTap: (String?) -> Unit = {},
+    canDisableReasoning: Boolean? = null,
+    supportsReasoning: Boolean? = null,
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
@@ -319,6 +321,8 @@ fun ChatInputBar(
                     onReasoningSelected = onReasoningTap,
                     onMicTap = onMicTap,
                     modifier = Modifier.testTag("chat_composer_toolbar"),
+                    canDisableReasoning = canDisableReasoning,
+                    supportsReasoning = supportsReasoning,
                 )
 
                 // Attachment dropdown (anchored to the attach button in ComposerToolbar)

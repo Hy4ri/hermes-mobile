@@ -12,6 +12,7 @@ import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.local.SlashUsageStore
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
+import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
 import com.m57.hermescontrol.data.model.SessionMessage
@@ -291,6 +292,9 @@ data class ChatUiState(
     val modelPickerLoading: Boolean = false,
     // Current session's active model label (provider/model), shown in the chip
     val currentSessionModel: String? = null,
+    // Per-model reasoning capabilities for the current session's model
+    // (issue #946). Null when unknown — UI offers full scale.
+    val currentModelCapabilities: ModelCapabilities? = null,
     // Reasoning effort level for the current session
     val reasoningLevel: String? = null,
     val terminalBackend: String? = null,
@@ -810,6 +814,7 @@ class ChatViewModel(
                             fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
                         )
                     }
+                    syncCurrentModelCapabilities()
                     if (modelSwapped) {
                         // Issue #817: after a swap the REST model/info window is
                         // PROFILE-scoped and may describe the old model (e.g. a
@@ -1070,6 +1075,7 @@ class ChatViewModel(
                         terminalBackend = terminalBackend ?: it.terminalBackend,
                     )
                 }
+                syncCurrentModelCapabilities()
                 // Mirror the active runtime session id app-wide (issue #532).
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
                 addSystemMessage("Session resumed")
@@ -1836,6 +1842,7 @@ class ChatViewModel(
             if (result is NetworkResult.Success) {
                 cachedModelOptions = result.data.providers.orEmpty()
                 _uiState.update { it.copy(modelPickerPinned = AuthManager.getPinnedModels()) }
+                syncCurrentModelCapabilities()
             }
         }
     }
@@ -1878,6 +1885,7 @@ class ChatViewModel(
                             modelPickerLoading = false,
                         )
                     }
+                    syncCurrentModelCapabilities()
                 }
 
                 is NetworkResult.Failure -> {
@@ -1932,6 +1940,7 @@ class ChatViewModel(
                 currentSessionModel = "$provider/$model",
             )
         }
+        syncCurrentModelCapabilities()
         // Model switch changes the context-window denominator — refetch it.
         fetchContextUsage()
         handleSlashCommand("/model $model --provider $provider --session")
@@ -1960,6 +1969,40 @@ class ChatViewModel(
                 ),
                 onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
             )
+        }
+    }
+
+    fun getModelCapabilities(
+        providerSlug: String,
+        modelName: String,
+    ): ModelCapabilities? = cachedModelOptions.find { it.slug == providerSlug }?.capabilities?.get(modelName)
+
+    fun getCurrentModelCapabilities(): ModelCapabilities? {
+        val label = _uiState.value.currentSessionModel ?: return null
+        val idx = label.indexOf('/')
+        if (idx <= 0) return null
+        val provider = label.substring(0, idx)
+        val model = label.substring(idx + 1)
+        return getModelCapabilities(provider, model)
+    }
+
+    private fun syncCurrentModelCapabilities() {
+        val label = _uiState.value.currentSessionModel
+        val caps =
+            if (label == null) {
+                null
+            } else {
+                val idx = label.indexOf('/')
+                if (idx <= 0) {
+                    null
+                } else {
+                    val provider = label.substring(0, idx)
+                    val model = label.substring(idx + 1)
+                    cachedModelOptions.find { it.slug == provider }?.capabilities?.get(model)
+                }
+            }
+        _uiState.update { state ->
+            if (state.currentModelCapabilities != caps) state.copy(currentModelCapabilities = caps) else state
         }
     }
 
@@ -2167,6 +2210,7 @@ class ChatViewModel(
                 showModelPicker = false,
                 modelPickerLoading = false,
                 currentSessionModel = null,
+                currentModelCapabilities = null,
                 reasoningLevel = null,
                 terminalBackend = null,
                 usedContextTokens = null,

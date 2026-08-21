@@ -22,6 +22,7 @@ ktlint
 # Local workspace artifacts and logs
 *.py
 .kotlin/
+*.db
 
 
 # direnv

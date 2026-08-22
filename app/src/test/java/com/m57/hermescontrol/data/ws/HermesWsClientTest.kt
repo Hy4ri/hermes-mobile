@@ -1419,4 +1419,53 @@ class HermesWsClientTest {
 
         assertEquals(ConnectionStatus.RECONNECTING, HermesWsClient.connectionStatus.value)
     }
+
+    @Test
+    fun testStaleSocketIsCancelledByWatchdog() {
+        var serverWebSocket: WebSocket? = null
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverWebSocket = webSocket
+                        serverLatch.countDown()
+                    }
+
+                    override fun onMessage(webSocket: WebSocket, text: String) {
+                        // Any inbound frame refreshes liveness — send nothing,
+                        // simulating a dead NAT'd link where only client pings flow.
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.connect()
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
+        assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
+        assertTrue(HermesWsClient.isConnected)
+
+        // Backdate liveness past the staleness threshold, then force one
+        // synchronous watchdog pass. Deterministic — no real-time waiting.
+        HermesWsClient.forceHealthCheckForTest(staleMillis = 200_000L)
+
+        // Cancel fires onFailure on an OkHttp thread; with auto-reconnect off
+        // (setUp default) the terminal state settles at DISCONNECTED.
+        val deadline = System.currentTimeMillis() + 5000
+        while (HermesWsClient.isConnected && System.currentTimeMillis() < deadline) {
+            Thread.sleep(25)
+        }
+        assertFalse("Stale socket was not cancelled", HermesWsClient.isConnected)
+        assertTrue(
+            "Status stuck at CONNECTED after stale cancel",
+            HermesWsClient.connectionStatus.value != ConnectionStatus.CONNECTED,
+        )
+    }
 }

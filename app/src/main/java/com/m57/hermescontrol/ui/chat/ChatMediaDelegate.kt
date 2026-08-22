@@ -1,7 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
-import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
@@ -273,4 +272,3 @@ internal fun sameMessages(
                 a.content == b.content &&
                 a.reasoningText == b.reasoningText
         }
-

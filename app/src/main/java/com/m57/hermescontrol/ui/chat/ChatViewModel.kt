@@ -11,17 +11,12 @@ import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.HermesDatabase
 import com.m57.hermescontrol.data.local.SlashUsageStore
 import com.m57.hermescontrol.data.model.Attachment
-import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
-import com.m57.hermescontrol.data.model.SessionMessage
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.data.remote.GatewayFile
-import com.m57.hermescontrol.data.remote.GatewayFileClient
-import com.m57.hermescontrol.data.remote.GatewayFileResult
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
@@ -2888,27 +2883,6 @@ class ChatViewModel(
         }
     }
 
-
-    // ── Issue #724: attach host-path MEDIA: files as real attachments ────
-    //
-    // The gateway's WebSocket stream delivers the raw `MEDIA:<path>` directive
-    // the desktop app turns into an authenticated `/api/files/download?...`
-    // URL. We parse every directive, build the download URL via
-    // [GatewayFileClient], classify it (image / audio / video / file) using
-    // [mediaKindForPath], and attach it to the message. Images render inline
-    // (Coil loads the URL); every other type becomes a tappable, fetchable
-    // attachment. The directive text is stripped from the message body. Works
-    // on a remote phone (real HTTP). Mobile-only; backend untouched. Pure
-    // parsing lives in [HostMediaExtractor].
-
-    /**
-     * ViewModel-side handler for [ReducerEffect.AttachHostMedia]: find the local
-     * message by id, convert any `MEDIA:<path>` directives into [Attachment]s
-     * (via the gateway download URL) and strip them from the text. Role,
-     * reasoning, timestamp and existing attachments are preserved; new gateway
-     * attachments are appended. Idempotent — skips if gateway attachments for
-     * the same paths already exist.
-     */
     // ── UI actions ───────────────────────────────────────────────────────
 
     /**

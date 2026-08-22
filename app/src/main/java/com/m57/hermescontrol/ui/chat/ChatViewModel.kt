@@ -2929,11 +2929,18 @@ class ChatViewModel(
                     existingReasoningMap[rawContent]?.reasoningText.orEmpty()
                 }
 
-            // Reasoning-only assistant row (the gateway's split storage of a
-            // reasoning turn): stash the trace, skip the empty bubble, and
-            // attach it to the next assistant message that has content.
-            if (role == MessageRole.ASSISTANT && rawContent.isBlank() && rowReasoning.isNotBlank()) {
-                pendingReasoning = rowReasoning
+            // Empty assistant row — two cases stored by the gateway:
+            //  1. Reasoning-only: thinking-model split storage (content = "",
+            //     reasoning = trace). Stash the trace and fold it into the
+            //     next assistant message that has content (issue #771).
+            //  2. Tool-call placeholder: non-reasoning models emit content = ""
+            //     with tool_calls metadata and no reasoning. These carry no
+            //     user-visible text and must not render as empty bubbles
+            //     (issue #956).
+            if (role == MessageRole.ASSISTANT && rawContent.isBlank()) {
+                if (rowReasoning.isNotBlank()) {
+                    pendingReasoning = rowReasoning
+                }
                 return@forEachIndexed
             }
 

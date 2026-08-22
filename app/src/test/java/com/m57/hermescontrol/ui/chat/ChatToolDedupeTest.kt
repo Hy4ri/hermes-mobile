@@ -133,6 +133,50 @@ class ChatToolDedupeTest {
         assertFalse(sameLogicalMessage(ws, rest))
     }
 
+    @Test
+    fun sameLogicalMessage_userAttachmentEnrichment_stillSame() {
+        // User attaches an image: the optimistic bubble carries the RAW caption,
+        // the backend persists caption + `@image:` ref + `[screenshot]` marker.
+        // They are the same logical message — the sync must not duplicate it.
+        val optimistic = ChatMessage(role = MessageRole.USER, content = "what is this image")
+        val rest =
+            ChatMessage(
+                role = MessageRole.USER,
+                content =
+                    "what is this image\n" +
+                        "@image:/.hermes/images/upload_20260822_111444_1.jpg\n" +
+                        "[screenshot]",
+            )
+        assertTrue(sameLogicalMessage(optimistic, rest))
+        assertTrue(sameLogicalMessage(rest, optimistic))
+    }
+
+    @Test
+    fun sameLogicalMessage_userFileRefEnrichment_stillSame() {
+        // Same drift for file attachments: REST gains a `@file:` ref line.
+        val optimistic = ChatMessage(role = MessageRole.USER, content = "summarize this doc")
+        val rest = ChatMessage(role = MessageRole.USER, content = "summarize this doc\n@file:report.pdf")
+        assertTrue(sameLogicalMessage(optimistic, rest))
+    }
+
+    @Test
+    fun sameLogicalMessage_userDifferentCaptionsWithAttachments_notSame() {
+        // Stripping must not over-collapse: two DIFFERENT user captions that
+        // both carried images stay distinct.
+        val a = ChatMessage(role = MessageRole.USER, content = "look at this\n@image:/a.jpg")
+        val b = ChatMessage(role = MessageRole.USER, content = "now this one\n@image:/b.jpg")
+        assertFalse(sameLogicalMessage(a, b))
+    }
+
+    @Test
+    fun sameLogicalMessage_assistantMentioningRefLines_notStripped() {
+        // The strip is USER-only: an assistant reply that literally contains
+        // an @image: line must never merge with a different assistant message.
+        val a = ChatMessage(role = MessageRole.ASSISTANT, content = "here you go\n@image:/x.jpg")
+        val b = ChatMessage(role = MessageRole.ASSISTANT, content = "here you go")
+        assertFalse(sameLogicalMessage(a, b))
+    }
+
     // ── dedupeCachedMessages ───────────────────────────────────────────────
 
     @Test

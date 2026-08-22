@@ -141,6 +141,20 @@ internal fun sameLogicalMessage(
     val ta = a.content.trim()
     val tb = b.content.trim()
     if (ta == tb) return true
+    // Attachment dedupe: when the user sends an image/file, the backend
+    // persists an ENRICHED copy of the prompt — the real caption plus
+    // `@image:`/`@file:` reference lines and a `[screenshot]` marker
+    // (tui_gateway _build_image_ref_message / run_agent flattening). The
+    // optimistic bubble carries the raw caption only, so the exact compare
+    // above fails and the REST sync renders the same message twice. Compare
+    // USER rows on the caption with injection lines stripped (both sides —
+    // stripping a clean string is a no-op). USER-only so assistant text that
+    // legitimately mentions these tokens is never collapsed.
+    if (a.role == MessageRole.USER) {
+        val ca = stripAttachmentRefLines(ta)
+        val cb = stripAttachmentRefLines(tb)
+        if (ca == cb) return true
+    }
     // Issue #842: a seal race can leave the live orphan a few trailing tokens
     // short of the streamed narration (the last delta was still in the
     // throttled buffer when tool.start sealed the message). The backend
@@ -152,6 +166,25 @@ internal fun sameLogicalMessage(
         tb.length >= 40 &&
         (tb.startsWith(ta) || ta.startsWith(tb))
 }
+
+/**
+ * Remove backend attachment-injection lines from a user message so the
+ * optimistic bubble and the server-enriched REST copy compare equal.
+ * Lines the gateway adds on top of the user's caption: `@image:<path>`,
+ * `@file:<ref>`, and `[screenshot]` (multipart image placeholder written by
+ * run_agent). Blank lines left behind are dropped too.
+ */
+internal fun stripAttachmentRefLines(content: String): String =
+    content
+        .lines()
+        .map { it.trim() }
+        .filterNot { line ->
+            line.startsWith("@image:") ||
+                line.startsWith("@file:") ||
+                line == "[screenshot]"
+        }
+        .joinToString("\n")
+        .trim()
 
 /**
  * Room accumulates BOTH the WS-persisted copy (UUID id, rich tool payload,

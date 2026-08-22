@@ -353,24 +353,42 @@ fun ChatScreen(
             }
         }
 
-    // File picker launcher for attachments (issue #195)
+    // Multi-file picker for attachments (issue #195).
     val filePickerLauncher =
         rememberLauncherForActivityResult(
-            ActivityResultContracts.GetContent(),
-        ) { uri: Uri? ->
-            if (uri != null) {
-                val cursor = context.contentResolver.query(uri, null, null, null, null)
-                cursor?.use { c ->
-                    if (c.moveToFirst()) {
-                        val nameIdx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        val sizeIdx = c.getColumnIndex(OpenableColumns.SIZE)
-                        val name = if (nameIdx >= 0) c.getString(nameIdx) else uri.lastPathSegment ?: "file"
-                        val size = if (sizeIdx >= 0) c.getLong(sizeIdx) else 0L
-                        val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                        viewModel.addAttachment(uri.toString(), name, mimeType, size)
-                    }
+            ActivityResultContracts.GetMultipleContents(),
+        ) { uris: List<Uri> ->
+            val attachments =
+                uris.mapNotNull { uri ->
+                    runCatching {
+                        var name = uri.lastPathSegment ?: "file"
+                        var size = 0L
+                        context.contentResolver
+                            .query(
+                                uri,
+                                arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                                null,
+                                null,
+                                null,
+                            )?.use { cursor ->
+                                if (cursor.moveToFirst()) {
+                                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                                    if (nameIdx >= 0 && !cursor.isNull(nameIdx)) name = cursor.getString(nameIdx)
+                                    if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) size = cursor.getLong(sizeIdx)
+                                }
+                            }
+                        Attachment(
+                            uri = uri.toString(),
+                            name = name,
+                            mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream",
+                            size = size,
+                        )
+                    }.onFailure { error ->
+                        Log.w("ChatScreen", "Skipping unreadable picked attachment", error)
+                    }.getOrNull()
                 }
-            }
+            viewModel.addAttachments(attachments)
         }
 
     // Camera photo launcher (issue #195)
@@ -791,6 +809,16 @@ fun ChatScreen(
                 onImageTap = { filePickerLauncher.launch("image/*") },
                 onFileTap = { filePickerLauncher.launch("*/*") },
                 onRemoveAttachment = viewModel::removeAttachment,
+                onPreviewAttachment = { attachment ->
+                    if (attachment.isImage) {
+                        viewingImage =
+                            ImageViewerModel(
+                                model = attachment.uri,
+                                name = attachment.name,
+                                mimeType = attachment.mimeType,
+                            )
+                    }
+                },
                 // Composer toolbar wiring (PR 1)
                 currentSessionModel = state.currentSessionModel,
                 reasoningLevel = state.reasoningLevel,

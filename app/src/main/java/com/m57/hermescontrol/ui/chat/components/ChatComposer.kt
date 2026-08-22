@@ -25,7 +25,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -88,6 +90,7 @@ fun ChatInputBar(
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
     onRemoveAttachment: (Int) -> Unit = {},
+    onPreviewAttachment: (Attachment) -> Unit = {},
     // NEW: composer toolbar wiring
     currentSessionModel: String? = null,
     reasoningLevel: String? = null,
@@ -272,16 +275,17 @@ fun ChatInputBar(
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically(),
                 ) {
-                    Row(
+                    LazyRow(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        pendingAttachments.forEachIndexed { index, attachment ->
+                        itemsIndexed(pendingAttachments) { index, attachment ->
                             AttachmentChip(
                                 attachment = attachment,
+                                onPreview = { onPreviewAttachment(attachment) },
                                 onRemove = { onRemoveAttachment(index) },
                             )
                         }
@@ -475,6 +479,7 @@ fun ChatInputBar(
 @Composable
 fun AttachmentChip(
     attachment: Attachment,
+    onPreview: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -494,8 +499,10 @@ fun AttachmentChip(
                     contentDescription = attachment.name,
                     modifier =
                         Modifier
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(4.dp)),
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onPreview)
+                            .testTag("attachment_preview"),
                     contentScale = ContentScale.Crop,
                 )
                 Spacer(modifier = Modifier.width(4.dp))

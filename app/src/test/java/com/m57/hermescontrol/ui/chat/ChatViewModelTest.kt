@@ -1306,6 +1306,24 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun addAttachments_keepsEverySelectedImageInOrder() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            val selected =
+                listOf(
+                    Attachment("content://image/1", "one.jpg", "image/jpeg", 100L),
+                    Attachment("content://image/2", "two.png", "image/png", 200L),
+                    Attachment("content://image/3", "three.webp", "image/webp", 300L),
+                )
+
+            viewModel.addAttachments(selected)
+            advanceUntilIdle()
+
+            assertEquals(selected, viewModel.uiState.value.pendingAttachments)
+        }
+
+    @Test
     fun testRemoveAttachment_validIndex() =
         runTest {
             val viewModel = createViewModel()

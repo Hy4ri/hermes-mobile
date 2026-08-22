@@ -1441,6 +1441,7 @@ class HermesWsClientTest {
         val bs = 92.toChar() // backslash
         val dq = 34.toChar() // dquote
         val wireTicket = "a" + bs + dq + "y"
+
         fun jsonEscape(s: String): String = s.replace("$bs", "$bs$bs").replace("$dq", "$bs$dq")
         val wireBody = """{"ticket":"${jsonEscape(wireTicket)}","ttl_seconds":30}"""
         ticketServer.enqueue(MockResponse().setResponseCode(200).setBody(wireBody))
@@ -1471,7 +1472,10 @@ class HermesWsClientTest {
                         serverLatch.countDown()
                     }
 
-                    override fun onMessage(webSocket: WebSocket, text: String) {
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
                         // Any inbound frame refreshes liveness — send nothing,
                         // simulating a dead NAT'd link where only client pings flow.
                     }

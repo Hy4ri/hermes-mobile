@@ -103,15 +103,21 @@ internal fun FullBleedAgentMessage(
             Spacer(modifier = Modifier.height(6.dp))
         }
 
-        SelectionContainer {
-            MarkdownText(
-                text = message.content,
-                textColor = textColor,
-                isStreaming = message.isStreaming,
-                searchQuery = searchQuery,
-                isCurrentMatch = isCurrentMatch,
-                onImageClick = onImageClick,
-            )
+        // Defense-in-depth: never render an empty prose block (blank bubble +
+        // lone Copy button). Blank settled rows are tool-call placeholders that
+        // slipped through upstream mapping; streaming keeps rendering so the
+        // live cursor survives until the first delta lands.
+        if (message.content.isNotBlank() || message.isStreaming) {
+            SelectionContainer {
+                MarkdownText(
+                    text = message.content,
+                    textColor = textColor,
+                    isStreaming = message.isStreaming,
+                    searchQuery = searchQuery,
+                    isCurrentMatch = isCurrentMatch,
+                    onImageClick = onImageClick,
+                )
+            }
         }
 
         // Render inline attachments (mirrors ChatBubble so agent-delivered

@@ -278,9 +278,12 @@ fun ChatInputBar(
                                         innerTextField()
                                     }
 
-                                    // Send button INSIDE the field
+                                    // Send button INSIDE the field. Shown whenever a send is
+                                    // possible — text typed OR an attachment pending (issue
+                                    // #956): the old text-only gate hid the button entirely
+                                    // for attachment-only sends.
                                     AnimatedContent(
-                                        targetState = canSend && inputFieldValue.text.isNotBlank(),
+                                        targetState = canSend,
                                         transitionSpec = {
                                             (scaleIn(initialScale = 0.8f) + fadeIn())
                                                 .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())

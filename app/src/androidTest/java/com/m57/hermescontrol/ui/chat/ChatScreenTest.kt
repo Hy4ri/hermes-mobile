@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.ui.common.ActionProgressController
 import io.mockk.every
@@ -81,5 +82,41 @@ class ChatScreenTest {
         composeTestRule.onNodeWithTag("chat_input").performTextInput("Hello Hermes")
         composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
         composeTestRule.onNodeWithTag("mic_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun chatScreen_sendButtonShownForAttachmentWithEmptyInput() {
+        // Issue #956: an attachment queued with an EMPTY input must still show
+        // the send button — the old AnimatedContent gate required non-blank
+        // text even though ChatInputPolicy.canSend already allowed
+        // attachment-only sends.
+        val uiState =
+            ChatUiState(
+                connectionStatus = ConnectionStatus.CONNECTED,
+                pendingAttachments =
+                    listOf(
+                        Attachment(
+                            uri = "content://test/photo.jpg",
+                            name = "photo.jpg",
+                            mimeType = "image/jpeg",
+                        ),
+                    ),
+            )
+        val mockViewModel = mockk<ChatViewModel>(relaxed = true)
+        every { mockViewModel.uiState } returns MutableStateFlow(uiState).asStateFlow()
+        every { mockViewModel.streamingState } returns MutableStateFlow(StreamingState()).asStateFlow()
+        every { mockViewModel.actionProgress } returns
+            ActionProgressController(scope = CoroutineScope(Dispatchers.Main))
+
+        composeTestRule.setContent {
+            ChatScreen(
+                onOpenDrawer = {},
+                sessionId = null,
+                viewModel = mockViewModel,
+            )
+        }
+
+        composeTestRule.onNodeWithTag("chat_input").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("send_button").assertIsDisplayed()
     }
 }

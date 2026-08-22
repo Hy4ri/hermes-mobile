@@ -969,10 +969,10 @@ object HermesWsClient {
 
                 else -> Unit
             }
-            val emitted = parsedEvents.tryEmit(event)
-            if (!emitted && BuildConfig.DEBUG) {
-                Log.w(TAG, "WebSocket message dropped due to buffer overflow")
-            }
+            // tryEmit on a DROP_OLDEST flow only returns false when the
+            // buffer is full AND no subscriber is draining; with extraBuffer=512
+            // and always-on init collectors this is unreachable in practice.
+            parsedEvents.tryEmit(event)
         }
 
         override fun onClosing(

@@ -499,12 +499,18 @@ object HermesWsClient {
                 }
 
             if (code in 200..299) {
-                val ticketMatch = Regex("""\"ticket\":\"([^\"]+)\"""").find(body)
-                val ticket = ticketMatch?.groupValues?.getOrNull(1)
+                // Real JSON decode — the ticket is base64url and may contain
+                // characters a naive [^"]+ regex cannot extract (see
+                // testGatedMode_parsesEscapedTicketFromRealJsonShape).
+                val parsed =
+                    runCatching {
+                        OkHttpProvider.json.decodeFromString<WsTicketResponse>(body)
+                    }.getOrNull()
+                val ticket = parsed?.ticket
                 if (!ticket.isNullOrBlank()) {
                     return TicketRequestResult(ticket, null)
                 }
-                Log.w(TAG, "WS ticket mint failed: response body did not contain ticket")
+                Log.w(TAG, "WS ticket mint failed: unparseable ticket response")
             } else {
                 Log.w(TAG, "WS ticket mint failed: HTTP $code")
                 return TicketRequestResult(null, code)

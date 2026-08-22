@@ -75,3 +75,14 @@ fun JsonElement.toAny(): Any? =
             map { it.toAny() }
         }
     }
+
+/**
+ * Response body of POST /api/auth/ws-ticket (gated mode). Verified against
+ * hermes-agent dashboard_auth/routes.py — the ticket is base64url and can
+ * therefore contain characters that only a real JSON decoder survives.
+ */
+@Serializable
+data class WsTicketResponse(
+    val ticket: String,
+    val ttl_seconds: Int? = null,
+)

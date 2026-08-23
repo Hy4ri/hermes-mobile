@@ -247,8 +247,16 @@ class PersistentCookieJarTest {
     @Test
     fun loadForRequest_awaitsAsyncScopeHydration() =
         runTest {
-            val store = FakeEncryptedCookieStore()
-            store.save("cold-server", listOf(sessionCookie("dash.local", "cold-cookie-xyz")))
+            val fakeStore = FakeEncryptedCookieStore()
+            fakeStore.save("cold-server", listOf(sessionCookie("dash.local", "cold-cookie-xyz")))
+
+            val store =
+                object : CookieStore by fakeStore {
+                    override suspend fun load(serverId: String): List<Cookie> {
+                        delay(50)
+                        return fakeStore.load(serverId)
+                    }
+                }
 
             val testScope = CoroutineScope(Dispatchers.IO)
             val jar =
@@ -258,13 +266,16 @@ class PersistentCookieJarTest {
                     initialServerId = "cold-server",
                 )
 
-            testScope.launch {
-                delay(50)
-                jar.useStore("cold-server")
-            }
+            val job =
+                testScope.launch {
+                    jar.useStore("cold-server")
+                }
+
+            delay(10)
 
             val loaded = jar.loadForRequest("http://dash.local/api/status".toHttpUrl())
             assertEquals(1, loaded.size)
             assertEquals("cold-cookie-xyz", loaded[0].value)
+            job.join()
         }
 }

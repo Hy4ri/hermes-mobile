@@ -40,6 +40,11 @@ data class ActionProgressState(
     val lines: List<String> = emptyList(),
     val exitCode: Int? = null,
     val error: String? = null,
+    /**
+     * Host-appended lines shown after the log tail once the action finishes
+     * (e.g. a structured update receipt). Empty unless the host pushes them.
+     */
+    val trailingLines: List<String> = emptyList(),
 )
 
 /**
@@ -148,6 +153,16 @@ class ActionProgressController(
     fun fail(error: String) {
         pollJob?.cancel()
         _state.update { it.copy(phase = ActionProgressPhase.FAILED, error = error) }
+    }
+
+    /**
+     * Append host-supplied lines after the log tail (e.g. an update receipt
+     * summary). Safe to call after the action has finished; only affects
+     * [ActionProgressState.trailingLines], never the poll loop.
+     */
+    fun pushTrailingLines(lines: List<String>) {
+        if (lines.isEmpty()) return
+        _state.update { it.copy(trailingLines = it.trailingLines + lines) }
     }
 
     /** Stop tracking and hide the dialog. Safe mid-run (action keeps going). */

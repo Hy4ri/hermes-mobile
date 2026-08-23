@@ -110,7 +110,7 @@ class SystemViewModel(application: Application) :
     val actionProgress =
         ActionProgressController(
             scope = viewModelScope,
-            onFinished = { loadAll() },
+            onFinished = { status -> onActionFinished(status) },
         )
 
     private var actionPollingJob: Job? = null
@@ -221,6 +221,38 @@ class SystemViewModel(application: Application) :
                 _uiState.update { it.copy(status = result.data) }
             }
         }
+    }
+
+    /**
+     * Fired when [actionProgress] finishes tracking a backend action. For the
+     * `hermes-update` action we additionally fetch the durable update receipt
+     * (issue #958) and append its summary to the end of the progress popup,
+     * then refresh the screen so the version row reflects the new build. Other
+     * actions just refresh. A 404 / missing receipt is silently skipped — the
+     * popup already shows success from the action status.
+     */
+    private fun onActionFinished(status: ActionStatusResponse?) {
+        if (status?.name == "hermes-update") {
+            viewModelScope.launch {
+                val receipt = fetchUpdateReceiptLines()
+                if (receipt.isNotEmpty()) actionProgress.pushTrailingLines(receipt)
+            }
+        }
+        loadAll()
+    }
+
+    /**
+     * Pull `GET /api/hermes/update/receipt` and render a compact summary block
+     * for the popup. Returns an empty list when the endpoint is unavailable
+     * (old backend, no receipt yet, or any error) so the caller appends nothing.
+     */
+    private suspend fun fetchUpdateReceiptLines(): List<String> {
+        val result =
+            withContext(Dispatchers.IO) {
+                safeApiCall { ApiClient.hermesApi.getUpdateReceipt() }
+            }
+        val data = (result as? NetworkResult.Success)?.data ?: return emptyList()
+        return formatUpdateReceiptLines(data)
     }
 
     // ── Gateway actions ────────────────────────────────────────────────

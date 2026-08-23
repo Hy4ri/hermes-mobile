@@ -128,6 +128,7 @@ import com.m57.hermescontrol.data.model.UpdateProfileDescriptionRequest
 import com.m57.hermescontrol.data.model.UpdateProfileModelRequest
 import com.m57.hermescontrol.data.model.UpdateProfileSoulRequest
 import com.m57.hermescontrol.data.model.UpdateRawConfigRequest
+import com.m57.hermescontrol.data.model.UpdateReceiptResponse
 import com.m57.hermescontrol.data.model.WebhookSubscription
 import com.m57.hermescontrol.data.model.WebhookToggleSubscriptionRequest
 import com.m57.hermescontrol.data.model.WebhooksResponse
@@ -799,6 +800,12 @@ interface HermesApiService {
 
     @POST("api/hermes/update")
     suspend fun updateHermes(): Response<ActionResponse>
+
+    // ── Admin: Hermes update receipt (issue #958) ──
+    // Returns the durable record of the last `hermes update` run. 404 when no
+    // receipt exists yet (handled as "no info to show", not an error).
+    @GET("api/hermes/update/receipt")
+    suspend fun getUpdateReceipt(): Response<UpdateReceiptResponse>
 
     // ── Admin: Portal ─────────────────────────────────────────────────
     @GET("api/portal")

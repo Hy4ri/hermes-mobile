@@ -190,6 +190,36 @@ class ActionProgressControllerTest {
     }
 
     @Test
+    fun `pushTrailingLines appends after the log without touching the phase`() {
+        val controller = controller()
+        coEvery { mockApi.getActionStatus("hermes-update") } returns
+            Response.success(
+                ActionStatusResponse(name = "hermes-update", running = false, exit_code = 0),
+            )
+
+        controller.open()
+        controller.markStarted("hermes-update")
+        tick()
+
+        assertEquals(ActionProgressPhase.SUCCEEDED, controller.state.value.phase)
+        assertTrue(controller.state.value.trailingLines.isEmpty())
+
+        controller.pushTrailingLines(listOf("Outcome: success", "Version: 0.20.4 → 0.20.5"))
+
+        val state = controller.state.value
+        assertEquals(ActionProgressPhase.SUCCEEDED, state.phase)
+        assertEquals(listOf("Outcome: success", "Version: 0.20.4 → 0.20.5"), state.trailingLines)
+    }
+
+    @Test
+    fun `pushTrailingLines ignores empty input`() {
+        val controller = controller()
+        controller.open()
+        controller.pushTrailingLines(emptyList())
+        assertTrue(controller.state.value.trailingLines.isEmpty())
+    }
+
+    @Test
     fun `onFinished is not called when dismissed mid-run`() {
         val controller = controller()
         coEvery { mockApi.getActionStatus("hermes-update") } returns

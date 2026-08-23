@@ -16,6 +16,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -168,6 +169,26 @@ fun ActionProgressDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = statusColors.error,
                     )
+                }
+
+                // Host-appended trailing block (e.g. update receipt summary),
+                // shown after the log tail once the action has finished.
+                if (state.trailingLines.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = spacing.sm),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        state.trailingLines.forEach { line ->
+                            Text(
+                                text = line,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         },

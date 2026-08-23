@@ -288,4 +288,51 @@ class MarkdownTextFeatureTest {
         assertTrue(videoAttachment.isVideo)
         assertFalse(videoAttachment.isImage)
     }
+
+    // 16. ORDERED LIST — loose lists must preserve numbering (issue #959)
+    @Test
+    fun testOrderedList_looseListPreservesNumbers() {
+        val md =
+            """
+            1. First
+
+            2. Second
+
+            3. Third
+            """.trimIndent()
+        val blocks = parseBlocks(md).filterIsInstance<MdBlock.Ordered>()
+        assertEquals(3, blocks.size)
+        assertEquals(1, blocks[0].index)
+        assertEquals(2, blocks[1].index)
+        assertEquals(3, blocks[2].index)
+        assertEquals("First", blocks[0].text)
+        assertEquals("Third", blocks[2].text)
+    }
+
+    // 16b. ORDERED LIST — custom starting number is preserved (issue #959)
+    @Test
+    fun testOrderedList_customStartNumberPreserved() {
+        val md =
+            """
+            2. Two
+            3. Three
+            """.trimIndent()
+        val blocks = parseBlocks(md).filterIsInstance<MdBlock.Ordered>()
+        assertEquals(2, blocks.size)
+        assertEquals(2, blocks[0].index)
+        assertEquals(3, blocks[1].index)
+    }
+
+    // 16c. ORDERED LIST — tight list still numbers sequentially
+    @Test
+    fun testOrderedList_tightList() {
+        val md =
+            """
+            1. one
+            2. two
+            3. three
+            """.trimIndent()
+        val blocks = parseBlocks(md).filterIsInstance<MdBlock.Ordered>()
+        assertEquals(listOf(1, 2, 3), blocks.map { it.index })
+    }
 }

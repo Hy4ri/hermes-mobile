@@ -63,7 +63,7 @@ private val TABLE_COL_WIDTH = 160.dp
 private val FN_DEF_RE = Regex("""^\[\^([^\]]+)\]:\s*(.*)$""")
 private val BULLET_RE = Regex("""^\s*[-*+]\s+(.*)""")
 private val TASK_RE = Regex("""^\s*[-*+]\s+\[([ xX])\]\s+(.*)""")
-private val ORDERED_RE = Regex("""^\s*\d+\.\s+(.*)""")
+private val ORDERED_RE = Regex("""^\s*(\d+)\.\s+(.*)""")
 
 /**
  * Renders chat assistant text as Markdown — but ONLY once the message has finished streaming.
@@ -754,12 +754,25 @@ internal fun parseBlocks(src: String): List<MdBlock> {
             }
 
             ORDERED_RE.matches(line) -> {
-                val items = mutableListOf<String>()
-                while (i < lines.size && ORDERED_RE.matches(lines[i])) {
-                    items.add(ORDERED_RE.find(lines[i])!!.groupValues[1])
-                    i++
+                // Capture the source number so custom/loose lists keep their order.
+                // A blank line only breaks the list when the next non-blank line is NOT an
+                // ordered item — loose lists (blank lines between items) stay one list.
+                val items = mutableListOf<Pair<Int, String>>()
+                var j = i
+                while (j < lines.size) {
+                    val m = ORDERED_RE.find(lines[j])
+                    if (m != null) {
+                        val n = m.groupValues[1].toIntOrNull() ?: (items.size + 1)
+                        items.add(n to m.groupValues[2])
+                        j++
+                    } else if (lines[j].isBlank() && j + 1 < lines.size && ORDERED_RE.matches(lines[j + 1])) {
+                        j++
+                    } else {
+                        break
+                    }
                 }
-                items.forEachIndexed { idx, t -> blocks.add(MdBlock.Ordered(idx + 1, t)) }
+                items.forEach { (n, t) -> blocks.add(MdBlock.Ordered(n, t)) }
+                i = j
             }
 
             // Standalone Markdown image: ![alt](uri) on its own line.

@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.m57.hermescontrol.BuildConfig
 import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.remote.CookieManager
 import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
@@ -493,6 +494,9 @@ object HermesWsClient {
             // read throws NetworkOnMainThreadException and the mint fails.
             val (code, body) =
                 kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                    if (CookieManager.isInitialized()) {
+                        CookieManager.useStore(CookieManager.cookieJar.currentServer())
+                    }
                     client.newCall(request).execute().use { resp ->
                         resp.code to resp.body.string()
                     }

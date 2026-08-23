@@ -1,5 +1,9 @@
 package com.m57.hermescontrol.data.remote
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import okhttp3.Cookie
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -238,5 +242,29 @@ class PersistentCookieJarTest {
             jar.saveFromResponse(url, listOf(bare, secure))
 
             assertEquals("secure-value", jar.getSessionCookieValue())
+        }
+
+    @Test
+    fun loadForRequest_awaitsAsyncScopeHydration() =
+        runTest {
+            val store = FakeEncryptedCookieStore()
+            store.save("cold-server", listOf(sessionCookie("dash.local", "cold-cookie-xyz")))
+
+            val testScope = CoroutineScope(Dispatchers.IO)
+            val jar =
+                PersistentCookieJar(
+                    store = store,
+                    storeScope = testScope,
+                    initialServerId = "cold-server",
+                )
+
+            testScope.launch {
+                delay(50)
+                jar.useStore("cold-server")
+            }
+
+            val loaded = jar.loadForRequest("http://dash.local/api/status".toHttpUrl())
+            assertEquals(1, loaded.size)
+            assertEquals("cold-cookie-xyz", loaded[0].value)
         }
 }

@@ -11,6 +11,7 @@ import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -43,6 +44,10 @@ class PersistentCookieJar(
 
     @Volatile private var currentServerId = AtomicReference(initialServerId)
 
+    init {
+        loadLatches[initialServerId] = CountDownLatch(1)
+    }
+
     private val scopeMutex = Mutex()
 
     /** Atomically switch the active server scope and ensure its cookies are loaded. */
@@ -63,6 +68,9 @@ class PersistentCookieJar(
      */
     fun getCookie(name: String): Cookie? {
         val serverId = currentServerId.get()
+        if (!loadedScopes.contains(serverId)) {
+            loadLatches[serverId]?.await(5, TimeUnit.SECONDS)
+        }
         val hosts = cache[serverId] ?: return null
         for (bucket in hosts.values) {
             synchronized(bucket) {
@@ -126,6 +134,9 @@ class PersistentCookieJar(
 
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         val serverId = currentServerId.get()
+        if (!loadedScopes.contains(serverId)) {
+            loadLatches[serverId]?.await(5, TimeUnit.SECONDS)
+        }
         val hostKey = url.host
         val hosts = cache[serverId] ?: return emptyList()
         val now = System.currentTimeMillis()
@@ -152,16 +163,21 @@ class PersistentCookieJar(
 
     private suspend fun ensureLoaded(serverId: String) {
         if (loadedScopes.contains(serverId)) return
-        val persisted = store.load(serverId)
-        val byHost = ConcurrentHashMap<String, MutableList<Cookie>>()
-        for (cookie in persisted) {
-            // Blank domain => host-only (e.g. legacy migrated session cookie).
-            // Bucket it under a wildcard "*" so it is returned for every host.
-            val host = cookie.domain.removePrefix(".").ifBlank { WILDCARD_HOST }
-            byHost.getOrPut(host) { mutableListOf() }.add(cookie)
+        val latch = loadLatches.computeIfAbsent(serverId) { CountDownLatch(1) }
+        try {
+            val persisted = store.load(serverId)
+            val byHost = ConcurrentHashMap<String, MutableList<Cookie>>()
+            for (cookie in persisted) {
+                // Blank domain => host-only (e.g. legacy migrated session cookie).
+                // Bucket it under a wildcard "*" so it is returned for every host.
+                val host = cookie.domain.removePrefix(".").ifBlank { WILDCARD_HOST }
+                byHost.getOrPut(host) { mutableListOf() }.add(cookie)
+            }
+            cache[serverId] = byHost
+            loadedScopes.add(serverId)
+        } finally {
+            latch.countDown()
         }
-        cache[serverId] = byHost
-        loadedScopes.add(serverId)
     }
 
     private fun persist(serverId: String) {
@@ -195,6 +211,7 @@ class PersistentCookieJar(
         val scope = currentServerId.get()
         cache.remove(scope)
         loadedScopes.remove(scope)
+        loadLatches.remove(scope)
         storeScope.launch { store.clear(scope) }
     }
 
@@ -202,6 +219,7 @@ class PersistentCookieJar(
     fun clearAll() {
         cache.clear()
         loadedScopes.clear()
+        loadLatches.clear()
         storeScope.launch { store.clearAll() }
     }
 

@@ -272,6 +272,47 @@ class ModelSerializationTest {
     }
 
     @Test
+    fun testSessionInfoDeserialization_pinnedToleratesIntAndBooleanAndString() {
+        // Backend returns integer 0 (SQLite style)
+        val jsonIntZero = """{"id": "s1", "pinned": 0}"""
+        val s1 = json.decodeFromString<SessionInfo>(jsonIntZero)
+        assertEquals(false, s1.pinned)
+
+        // Backend returns integer 1
+        val jsonIntOne = """{"id": "s2", "pinned": 1}"""
+        val s2 = json.decodeFromString<SessionInfo>(jsonIntOne)
+        assertEquals(true, s2.pinned)
+
+        // Backend returns boolean false
+        val jsonBoolFalse = """{"id": "s3", "pinned": false}"""
+        val s3 = json.decodeFromString<SessionInfo>(jsonBoolFalse)
+        assertEquals(false, s3.pinned)
+
+        // Backend returns boolean true
+        val jsonBoolTrue = """{"id": "s4", "pinned": true}"""
+        val s4 = json.decodeFromString<SessionInfo>(jsonBoolTrue)
+        assertEquals(true, s4.pinned)
+
+        // Backend returns null or omitted
+        val jsonNull = """{"id": "s5", "pinned": null}"""
+        val s5 = json.decodeFromString<SessionInfo>(jsonNull)
+        assertNull(s5.pinned)
+
+        val jsonOmitted = """{"id": "s6"}"""
+        val s6 = json.decodeFromString<SessionInfo>(jsonOmitted)
+        assertNull(s6.pinned)
+
+        // Backend returns string "1" / "0" / "true" / "false"
+        val jsonStrOne = """{"id": "s7", "pinned": "1"}"""
+        val s7 = json.decodeFromString<SessionInfo>(jsonStrOne)
+        assertEquals(true, s7.pinned)
+
+        val jsonStrFalse = """{"id": "s8", "pinned": "false"}"""
+        val s8 = json.decodeFromString<SessionInfo>(jsonStrFalse)
+        assertEquals(false, s8.pinned)
+    }
+
+    @Test
     fun testSessionMessagesResponseDeserialization_missingMessages_causesNullOnNonNullableField() {
         val jsonStr = "{}"
         org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {

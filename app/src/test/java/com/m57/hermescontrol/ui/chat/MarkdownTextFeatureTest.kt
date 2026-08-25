@@ -335,4 +335,121 @@ class MarkdownTextFeatureTest {
         val blocks = parseBlocks(md).filterIsInstance<MdBlock.Ordered>()
         assertEquals(listOf(1, 2, 3), blocks.map { it.index })
     }
+
+    // 17. NESTED LISTS (issue #965)
+    @Test
+    fun testNestedLists_mixedBulletsAndOrdered() {
+        val md =
+            """
+            - top bullet A
+              - sub bullet A1
+                1. deep number 1
+                2. deep number 2
+                   - deeper bullet x
+                3. deep number 3
+              - sub bullet A2
+            - top bullet B
+              1. number under B
+                 - bullet under that number
+                   1. numbered deep
+              2. second number under B
+
+            1. one
+               - a bullet
+                 - nested bullet
+               - b bullet
+            2. two
+            """.trimIndent()
+
+        val blocks = parseBlocks(md)
+        assertTrue("Blocks should not be empty", blocks.isNotEmpty())
+
+        // Top bullet A
+        val b0 = blocks[0] as MdBlock.Bullet
+        assertEquals("top bullet A", b0.text)
+        assertEquals(0, b0.level)
+
+        // Sub bullet A1
+        val b1 = blocks[1] as MdBlock.Bullet
+        assertEquals("sub bullet A1", b1.text)
+        assertEquals(1, b1.level)
+
+        // Deep number 1 & 2
+        val o2 = blocks[2] as MdBlock.Ordered
+        assertEquals("deep number 1", o2.text)
+        assertEquals(1, o2.index)
+        assertEquals(2, o2.level)
+
+        val o3 = blocks[3] as MdBlock.Ordered
+        assertEquals("deep number 2", o3.text)
+        assertEquals(2, o3.index)
+        assertEquals(2, o3.level)
+
+        // Deeper bullet x
+        val b4 = blocks[4] as MdBlock.Bullet
+        assertEquals("deeper bullet x", b4.text)
+        assertEquals(3, b4.level)
+
+        // Deep number 3
+        val o5 = blocks[5] as MdBlock.Ordered
+        assertEquals("deep number 3", o5.text)
+        assertEquals(3, o5.index)
+        assertEquals(2, o5.level)
+
+        // Sub bullet A2
+        val b6 = blocks[6] as MdBlock.Bullet
+        assertEquals("sub bullet A2", b6.text)
+        assertEquals(1, b6.level)
+
+        // Top bullet B
+        val b7 = blocks[7] as MdBlock.Bullet
+        assertEquals("top bullet B", b7.text)
+        assertEquals(0, b7.level)
+
+        // Number under B
+        val o8 = blocks[8] as MdBlock.Ordered
+        assertEquals("number under B", o8.text)
+        assertEquals(1, o8.index)
+        assertEquals(1, o8.level)
+
+        // Bullet under that number
+        val b9 = blocks[9] as MdBlock.Bullet
+        assertEquals("bullet under that number", b9.text)
+        assertEquals(2, b9.level)
+
+        // Numbered deep
+        val o10 = blocks[10] as MdBlock.Ordered
+        assertEquals("numbered deep", o10.text)
+        assertEquals(1, o10.index)
+        assertEquals(3, o10.level)
+
+        // Second number under B
+        val o11 = blocks[11] as MdBlock.Ordered
+        assertEquals("second number under B", o11.text)
+        assertEquals(2, o11.index)
+        assertEquals(1, o11.level)
+
+        // List 2: starting with 1. one
+        val o12 = blocks[12] as MdBlock.Ordered
+        assertEquals("one", o12.text)
+        assertEquals(1, o12.index)
+        assertEquals(0, o12.level)
+
+        val b13 = blocks[13] as MdBlock.Bullet
+        assertEquals("a bullet", b13.text)
+        assertEquals(1, b13.level)
+
+        val b14 = blocks[14] as MdBlock.Bullet
+        assertEquals("nested bullet", b14.text)
+        assertEquals(2, b14.level)
+
+        val b15 = blocks[15] as MdBlock.Bullet
+        assertEquals("b bullet", b15.text)
+        assertEquals(1, b15.level)
+
+        val o16 = blocks[16] as MdBlock.Ordered
+        assertEquals("two", o16.text)
+        assertEquals(2, o16.index)
+        assertEquals(0, o16.level)
+    }
 }

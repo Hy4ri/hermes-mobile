@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
@@ -69,7 +70,19 @@ fun BotsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var isSearchActive by remember { mutableStateOf(false) }
+    var showCreateDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    if (showCreateDialog) {
+        CreateBotDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { name, title, description, shape, color ->
+                viewModel.createBot(name, title, description, shape, color) {
+                    showCreateDialog = false
+                }
+            },
+        )
+    }
 
     ToastEffect(
         toastMessage = state.toastMessage,
@@ -117,6 +130,15 @@ fun BotsScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         actions = {
             if (!isSearchActive) {
+                IconButton(
+                    onClick = { showCreateDialog = true },
+                    modifier = Modifier.testTag("bots_action_create"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.bots_action_create),
+                    )
+                }
                 IconButton(
                     onClick = { isSearchActive = true },
                     modifier = Modifier.testTag("bots_action_search"),

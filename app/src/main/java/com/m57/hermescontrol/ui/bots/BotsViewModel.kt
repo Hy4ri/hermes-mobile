@@ -2,11 +2,16 @@ package com.m57.hermescontrol.ui.bots
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.model.BotAvatarMeta
+import com.m57.hermescontrol.data.model.BotRosterMeta
+import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
+import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -134,5 +139,74 @@ class BotsViewModel(
 
     override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
+    }
+
+    fun createBot(
+        name: String,
+        title: String,
+        description: String,
+        shape: String,
+        color: String,
+        onSuccess: () -> Unit,
+    ) {
+        viewModelScope.launch(ioDispatcher) {
+            val req =
+                CreateProfileRequest(
+                    name = name,
+                    description = description.ifBlank { null },
+                    clone_from_default = true,
+                )
+            val result = safeApiCall { ApiClient.hermesApi.createProfile(req) }
+            if (result is NetworkResult.Success) {
+                // Configure UI metadata (avatar, custom title) via RPC
+                val botMeta =
+                    BotRosterMeta(
+                        title = title.ifBlank { null },
+                        description = description.ifBlank { null },
+                        avatar =
+                            BotAvatarMeta(
+                                shape = shape,
+                                color = color,
+                            ),
+                    )
+                wsClientConfigureBot(name, botMeta)
+                loadBots()
+                onSuccess()
+            } else {
+                val err =
+                    (result as? NetworkResult.Failure)?.error?.message
+                        ?: "Failed to create bot"
+                _uiState.update { it.copy(errorMessage = err) }
+            }
+        }
+    }
+
+    private fun wsClientConfigureBot(
+        name: String,
+        meta: BotRosterMeta,
+    ) {
+        val metaMap =
+            buildMap<String, Any?> {
+                put("title", meta.title)
+                put("description", meta.description)
+                meta.avatar?.let { av ->
+                    put(
+                        "avatar",
+                        buildMap<String, Any?> {
+                            av.shape?.let { put("shape", it) }
+                            av.color?.let { put("color", it) }
+                            av.icon?.let { put("icon", it) }
+                        },
+                    )
+                }
+            }
+
+        HermesWsClient.send(
+            WsMethods.PROFILES_CONFIGURE,
+            mapOf(
+                "name" to name,
+                "ui_meta" to mapOf("hermes-bots" to metaMap),
+            ),
+        )
     }
 }

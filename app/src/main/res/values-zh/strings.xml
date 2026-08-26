@@ -75,6 +75,17 @@
     <string name="bots_hidden_badge">已隐藏</string>
     <string name="bots_show_hidden">显示隐藏的智能体</string>
     <string name="bots_hide_hidden">隐藏不显示的智能体</string>
+    <string name="bots_action_create">创建 Bot</string>
+    <string name="bots_create_title">新建 Bot</string>
+    <string name="bots_create_name_label">标识 / 别名</string>
+    <string name="bots_create_name_placeholder">例如 scout, reviewer</string>
+    <string name="bots_create_title_label">显示名称</string>
+    <string name="bots_create_title_placeholder">例如 Scout 助手</string>
+    <string name="bots_create_desc_label">描述</string>
+    <string name="bots_create_desc_placeholder">此智能体负责什么？</string>
+    <string name="bots_create_avatar_shape">头像形状</string>
+    <string name="bots_create_avatar_color">主题色</string>
+    <string name="bots_create_button">创建</string>
     <string name="screen_webhooks">Webhook</string>
     <string name="screen_gateway">网关</string>
     <string name="screen_toolsets">工具集</string>

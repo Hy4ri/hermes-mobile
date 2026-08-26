@@ -241,6 +241,22 @@ internal fun SettingsAboutPage(
 ) {
     val updateState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer =
+            androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    if (updateState is com.m57.hermescontrol.data.update.AppUpdateState.NeedsUnknownSourcesPermission) {
+                        viewModel.resumeInstallAfterPermission()
+                    }
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     HermesScaffold(
         title = { Text(stringResource(R.string.settings_sec_about)) },
         navigationIcon = NavIcon.Back(onBack),

@@ -44,6 +44,10 @@ class PersistentCookieJar(
 
     @Volatile private var currentServerId = AtomicReference(initialServerId)
 
+    init {
+        loadLatches.computeIfAbsent(initialServerId) { CountDownLatch(1) }
+    }
+
     private val scopeMutex = Mutex()
 
     /** Atomically switch the active server scope and ensure its cookies are loaded. */

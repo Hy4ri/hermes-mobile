@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.chat
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -142,5 +144,23 @@ class ChatInputPolicyTest {
             listOf("/model", "/new"),
             ChatInputPolicy.sortSlashSuggestions(commands, mapOf("/MODEL" to 3)),
         )
+    }
+
+    @Test
+    fun extractMentionQuery_variousPositions() {
+        assertEquals("res", ChatInputPolicy.extractMentionQuery("@res", 4))
+        assertEquals("scout", ChatInputPolicy.extractMentionQuery("hey @scout", 10))
+        assertEquals("", ChatInputPolicy.extractMentionQuery("ask @", 5))
+        org.junit.Assert.assertNull(ChatInputPolicy.extractMentionQuery("test@example.com", 16))
+        org.junit.Assert.assertNull(ChatInputPolicy.extractMentionQuery("hello world", 5))
+        org.junit.Assert.assertNull(ChatInputPolicy.extractMentionQuery("@bot with spaces", 15))
+    }
+
+    @Test
+    fun applyMention_insertsHandleAndAdvancesCursor() {
+        val initial = TextFieldValue("ask @sc", selection = androidx.compose.ui.text.TextRange(7))
+        val updated = ChatInputPolicy.applyMention(initial, "scout")
+        assertEquals("ask @scout ", updated.text)
+        assertEquals(11, updated.selection.end)
     }
 }

@@ -56,4 +56,48 @@ object ChatInputPolicy {
         commands: List<String>,
         usageCounts: Map<String, Int>,
     ): List<String> = commands.sortedByDescending { usageCounts[it.lowercase()] ?: 0 }
+
+    /**
+     * Extracts the active mention query (without the '@') if the cursor is currently
+     * positioned within an '@' mention token (e.g. "hello @res" -> "res").
+     * Returns null if not in a mention context.
+     */
+    fun extractMentionQuery(
+        text: String,
+        cursorPosition: Int,
+    ): String? {
+        if (text.isEmpty() || cursorPosition < 0 || cursorPosition > text.length) return null
+        val prefix = text.substring(0, cursorPosition)
+        val lastAt = prefix.lastIndexOf('@')
+        if (lastAt == -1) return null
+
+        // Ensure '@' is at start of string or preceded by whitespace
+        if (lastAt > 0 && !prefix[lastAt - 1].isWhitespace()) return null
+
+        val query = prefix.substring(lastAt + 1)
+        // Mention handle cannot contain whitespace
+        if (query.any { it.isWhitespace() }) return null
+        return query
+    }
+
+    /**
+     * Inserts a selected bot handle into the TextFieldValue at the active '@' mention position.
+     */
+    fun applyMention(
+        current: TextFieldValue,
+        botName: String,
+    ): TextFieldValue {
+        val text = current.text
+        val cursor = current.selection.end.coerceIn(0, text.length)
+        val prefix = text.substring(0, cursor)
+        val lastAt = prefix.lastIndexOf('@')
+        if (lastAt == -1) return current
+
+        val beforeAt = text.substring(0, lastAt)
+        val afterCursor = text.substring(cursor)
+        val inserted = "@$botName "
+        val newText = "$beforeAt$inserted$afterCursor"
+        val newCursor = beforeAt.length + inserted.length
+        return TextFieldValue(newText, TextRange(newCursor))
+    }
 }

@@ -1,7 +1,7 @@
 name: PR Auto-Labeler
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
     branches: [main]
 
@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: labeler-${{ github.ref }}
+  group: labeler-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Label by changed files
         uses: actions/labeler@v6
-        # Reads .github/labeler.yml. Additive only (sync-labels defaults to
-        # false), so manually-added labels and Dependabot's `dependencies`
-        # label are never touched.
+        with:
+          dot: true
+          sync-labels: false
+        # Reads .github/labeler.yml. Additive only (sync-labels: false),
+        # so manually-added labels and Dependabot's `dependencies` label
+        # are never touched.

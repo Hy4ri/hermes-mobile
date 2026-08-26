@@ -63,6 +63,14 @@
     <string name="screen_system">시스템</string>
     <string name="screen_settings">설정</string>
     <string name="screen_profiles">프로필</string>
+    <string name="screen_bots">Bots</string>
+    <string name="bots_active_now">현재 활동 중</string>
+    <string name="bots_empty_title">봇을 찾을 수 없음</string>
+    <string name="bots_empty_description">봇 모드를 사용하려면 에이전트 프로필을 생성하세요.</string>
+    <string name="bots_search_placeholder">봇 검색…</string>
+    <string name="bots_hidden_badge">숨김</string>
+    <string name="bots_show_hidden">숨겨진 봇 표시</string>
+    <string name="bots_hide_hidden">숨겨진 봇 숨기기</string>
     <string name="screen_webhooks">웹훅</string>
     <string name="screen_gateway">게이트웨이</string>
     <string name="screen_toolsets">툴셋</string>

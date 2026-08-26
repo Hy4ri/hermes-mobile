@@ -192,6 +192,37 @@ class BotsViewModelTest {
         }
 
     @Test
+    fun testDisbandGroupChat_removesGroupFromMembers() =
+        runTest {
+            val botMeta =
+                BotRosterMeta(
+                    groups = listOf("Dream Team", "Other Group"),
+                )
+            val uiMeta = mapOf("hermes-bots" to json.encodeToJsonElement(botMeta))
+            val profiles =
+                listOf(
+                    ProfileInfo(name = "botA", ui_meta = uiMeta),
+                    ProfileInfo(name = "botB", ui_meta = uiMeta),
+                )
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(profiles))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "botA"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            viewModel.loadBots()
+            advanceUntilIdle()
+
+            assertEquals(2, viewModel.uiState.value.allGroups.size)
+            assertEquals("Dream Team", viewModel.uiState.value.allGroups[0].name)
+            assertEquals(2, viewModel.uiState.value.allGroups[0].members.size)
+
+            var success = false
+            viewModel.disbandGroupChat("Dream Team") { success = true }
+            advanceUntilIdle()
+
+            assertTrue(success)
+        }
+
+    @Test
     fun testUpdateBotMeta_sendsRpcAndReloads() =
         runTest {
             val profiles = listOf(ProfileInfo(name = "scout"))

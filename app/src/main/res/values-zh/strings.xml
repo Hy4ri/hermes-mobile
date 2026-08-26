@@ -96,6 +96,10 @@
     <string name="bots_tab_groups">群聊</string>
     <string name="bots_groups_empty_title">暂无群聊</string>
     <string name="bots_groups_empty_desc">创建多智能体群聊以实现多 Bot 协同。</string>
+    <string name="bots_group_members_count">%1$d 个智能体</string>
+    <string name="bots_group_disband">解散群聊</string>
+    <string name="bots_group_disband_confirm_title">解散 %1$s？</string>
+    <string name="bots_group_disband_confirm_msg">这将从所有成员智能体中移除该群聊。单个智能体不会被删除。</string>
     <string name="bots_edit_title">编辑 Bot</string>
     <string name="bots_edit_save">保存更改</string>
     <string name="bots_edit_delete">删除 Bot</string>

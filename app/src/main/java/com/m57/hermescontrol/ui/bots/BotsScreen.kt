@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.bots
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,11 +22,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,8 +40,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,7 +85,44 @@ fun BotsScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var editingBot by remember { mutableStateOf<ProfileInfo?>(null) }
+    var disbandingGroup by remember { mutableStateOf<GroupInfo?>(null) }
     val scope = rememberCoroutineScope()
+
+    disbandingGroup?.let { group ->
+        AlertDialog(
+            onDismissRequest = { disbandingGroup = null },
+            title = {
+                Text(
+                    text = stringResource(R.string.bots_group_disband_confirm_title, group.name),
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(stringResource(R.string.bots_group_disband_confirm_msg))
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.disbandGroupChat(group.name) {
+                            disbandingGroup = null
+                        }
+                    },
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                ) {
+                    Text(stringResource(R.string.bots_group_disband))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { disbandingGroup = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 
     editingBot?.let { bot ->
         EditBotBottomSheet(
@@ -216,77 +263,161 @@ fun BotsScreen(
         isRefreshing = state.isRefreshing,
         onRefresh = { viewModel.loadBots(isRefresh = true) },
     ) {
-        when {
-            state.isLoading && state.profiles.isEmpty() -> {
-                SkeletonListState()
-            }
-
-            state.errorMessage != null && state.profiles.isEmpty() -> {
-                ErrorState(
-                    message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadBots() },
+        Column(modifier = Modifier.fillMaxSize()) {
+            PrimaryTabRow(
+                selectedTabIndex = state.selectedTab.ordinal,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Tab(
+                    selected = state.selectedTab == BotsTab.BOTS,
+                    onClick = { viewModel.setSelectedTab(BotsTab.BOTS) },
+                    text = { Text(stringResource(R.string.bots_tab_all)) },
+                    icon = { Icon(Icons.Filled.SmartToy, contentDescription = null) },
                 )
-            }
-
-            state.displayProfiles.isEmpty() -> {
-                EmptyState(
-                    title = stringResource(R.string.bots_empty_title),
-                    subtitle = stringResource(R.string.bots_empty_description),
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    if (state.activeNowBots.isNotEmpty() && !isSearchActive) {
-                        item(key = "active_now_strip") {
-                            ActiveNowStrip(
-                                activeBots = state.activeNowBots,
-                                onSelectBot = { bot ->
-                                    scope.launch {
-                                        viewModel.selectBot(bot)
-                                        val canonicalId =
-                                            bot.canonical_session?.resolved_id
-                                                ?: bot.canonical_session?.id
-                                        if (!canonicalId.isNullOrBlank()) {
-                                            NavigationController.openChatSession(canonicalId)
-                                        } else {
-                                            NavigationController.navigateTo(com.m57.hermescontrol.ChatScreen)
-                                        }
-                                    }
-                                },
-                            )
-                        }
-                    }
-
-                    items(
-                        items = state.displayProfiles,
-                        key = { it.name },
-                    ) { profile ->
-                        BotCard(
-                            profile = profile,
-                            isActiveProfile = profile.name == state.activeProfileName,
-                            onClick = {
-                                scope.launch {
-                                    viewModel.selectBot(profile)
-                                    val canonicalId =
-                                        profile.canonical_session?.resolved_id
-                                            ?: profile.canonical_session?.id
-                                    if (!canonicalId.isNullOrBlank()) {
-                                        NavigationController.openChatSession(canonicalId)
-                                    } else {
-                                        NavigationController.navigateTo(com.m57.hermescontrol.ChatScreen)
-                                    }
-                                }
-                            },
-                            onEditClick = {
-                                editingBot = profile
+                Tab(
+                    selected = state.selectedTab == BotsTab.GROUPS,
+                    onClick = { viewModel.setSelectedTab(BotsTab.GROUPS) },
+                    text = {
+                        Text(
+                            if (state.allGroups.isNotEmpty()) {
+                                "${stringResource(R.string.bots_tab_groups)} (${state.allGroups.size})"
+                            } else {
+                                stringResource(R.string.bots_tab_groups)
                             },
                         )
+                    },
+                    icon = { Icon(Icons.Filled.Group, contentDescription = null) },
+                )
+            }
+
+            when (state.selectedTab) {
+                BotsTab.BOTS -> {
+                    when {
+                        state.isLoading && state.profiles.isEmpty() -> {
+                            SkeletonListState()
+                        }
+
+                        state.errorMessage != null && state.profiles.isEmpty() -> {
+                            ErrorState(
+                                message = state.errorMessage ?: "",
+                                onRetry = { viewModel.loadBots() },
+                            )
+                        }
+
+                        state.displayProfiles.isEmpty() -> {
+                            EmptyState(
+                                title = stringResource(R.string.bots_empty_title),
+                                subtitle = stringResource(R.string.bots_empty_description),
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                if (state.activeNowBots.isNotEmpty() && !isSearchActive) {
+                                    item(key = "active_now_strip") {
+                                        ActiveNowStrip(
+                                            activeBots = state.activeNowBots,
+                                            onSelectBot = { bot ->
+                                                scope.launch {
+                                                    viewModel.selectBot(bot)
+                                                    val canonicalId =
+                                                        bot.canonical_session?.resolved_id
+                                                            ?: bot.canonical_session?.id
+                                                    if (!canonicalId.isNullOrBlank()) {
+                                                        NavigationController.openChatSession(canonicalId)
+                                                    } else {
+                                                        NavigationController.navigateTo(
+                                                            com.m57.hermescontrol.ChatScreen,
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+
+                                items(
+                                    items = state.displayProfiles,
+                                    key = { it.name },
+                                ) { profile ->
+                                    BotCard(
+                                        profile = profile,
+                                        isActiveProfile = profile.name == state.activeProfileName,
+                                        onClick = {
+                                            scope.launch {
+                                                viewModel.selectBot(profile)
+                                                val canonicalId =
+                                                    profile.canonical_session?.resolved_id
+                                                        ?: profile.canonical_session?.id
+                                                if (!canonicalId.isNullOrBlank()) {
+                                                    NavigationController.openChatSession(canonicalId)
+                                                } else {
+                                                    NavigationController.navigateTo(com.m57.hermescontrol.ChatScreen)
+                                                }
+                                            }
+                                        },
+                                        onEditClick = {
+                                            editingBot = profile
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                BotsTab.GROUPS -> {
+                    when {
+                        state.displayGroups.isEmpty() -> {
+                            EmptyState(
+                                title = stringResource(R.string.bots_groups_empty_title),
+                                subtitle = stringResource(R.string.bots_groups_empty_desc),
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                items(
+                                    items = state.displayGroups,
+                                    key = { it.name },
+                                ) { group ->
+                                    GroupCard(
+                                        group = group,
+                                        onClick = {
+                                            if (group.members.isNotEmpty()) {
+                                                scope.launch {
+                                                    val primary = group.members.first()
+                                                    viewModel.selectBot(primary)
+                                                    val canonicalId =
+                                                        primary.canonical_session?.resolved_id
+                                                            ?: primary.canonical_session?.id
+                                                    if (!canonicalId.isNullOrBlank()) {
+                                                        NavigationController.openChatSession(canonicalId)
+                                                    } else {
+                                                        NavigationController.navigateTo(
+                                                            com.m57.hermescontrol.ChatScreen,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        onDisbandClick = {
+                                            disbandingGroup = group
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -459,6 +590,98 @@ private fun BotCard(
                     imageVector = Icons.Filled.Edit,
                     contentDescription = stringResource(R.string.bots_edit_title),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupCard(
+    group: GroupInfo,
+    onClick: () -> Unit,
+    onDisbandClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onClick)
+                .testTag("group_card_${group.name}"),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(44.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.Group,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = group.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(R.string.bots_group_members_count, group.members.size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (group.members.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        group.members.take(4).forEach { member ->
+                            BotAvatar(
+                                name = member.name,
+                                avatar = member.botMeta()?.avatar,
+                                size = 20.dp,
+                                showPresence = false,
+                            )
+                        }
+                        if (group.members.size > 4) {
+                            Text(
+                                text = "+${group.members.size - 4}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+            IconButton(
+                onClick = onDisbandClick,
+                modifier = Modifier.testTag("group_disband_button_${group.name}"),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.DeleteOutline,
+                    contentDescription = stringResource(R.string.bots_group_disband),
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
         }

@@ -21,6 +21,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class BotsTab {
+    BOTS,
+    GROUPS,
+}
+
+data class GroupInfo(
+    val name: String,
+    val members: List<ProfileInfo>,
+)
+
 data class BotsUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -28,18 +38,40 @@ data class BotsUiState(
     val activeProfileName: String? = null,
     val searchQuery: String = "",
     val showHidden: Boolean = false,
+    val selectedTab: BotsTab = BotsTab.BOTS,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
 ) {
     val hasHiddenBots: Boolean
         get() = profiles.any { it.isHidden }
 
-    val allGroups: List<String>
-        get() =
-            profiles
-                .flatMap { it.botMeta()?.groups.orEmpty() }
-                .distinct()
-                .sorted()
+    val allGroups: List<GroupInfo>
+        get() {
+            val groupNames =
+                profiles
+                    .flatMap { it.botMeta()?.groups.orEmpty() }
+                    .distinct()
+                    .sorted()
+            return groupNames.map { gName ->
+                GroupInfo(
+                    name = gName,
+                    members = profiles.filter { it.botMeta()?.groups.orEmpty().contains(gName) },
+                )
+            }
+        }
+
+    val displayGroups: List<GroupInfo>
+        get() {
+            val query = searchQuery.trim().lowercase()
+            return allGroups.filter { group ->
+                if (query.isBlank()) return@filter true
+                group.name.lowercase().contains(query) ||
+                    group.members.any {
+                        it.name.lowercase().contains(query) ||
+                            it.effectiveTitle.lowercase().contains(query)
+                    }
+            }
+        }
 
     val activeNowBots: List<ProfileInfo>
         get() {
@@ -129,6 +161,10 @@ class BotsViewModel(
 
     fun setSearchQuery(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
+    }
+
+    fun setSelectedTab(tab: BotsTab) {
+        _uiState.update { it.copy(selectedTab = tab) }
     }
 
     fun toggleShowHidden() {
@@ -249,6 +285,27 @@ class BotsViewModel(
                             groups = existingGroups + groupName,
                         )
                     wsClientConfigureBot(name, updatedMeta)
+                }
+            }
+            loadBots()
+            onSuccess()
+        }
+    }
+
+    fun disbandGroupChat(
+        groupName: String,
+        onSuccess: () -> Unit,
+    ) {
+        viewModelScope.launch(ioDispatcher) {
+            val currentProfiles = _uiState.value.profiles
+            for (bot in currentProfiles) {
+                val existingGroups = bot.botMeta()?.groups.orEmpty()
+                if (existingGroups.contains(groupName)) {
+                    val updatedMeta =
+                        (bot.botMeta() ?: BotRosterMeta()).copy(
+                            groups = existingGroups - groupName,
+                        )
+                    wsClientConfigureBot(bot.name, updatedMeta)
                 }
             }
             loadBots()

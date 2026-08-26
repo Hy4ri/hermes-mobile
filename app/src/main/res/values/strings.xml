@@ -109,6 +109,10 @@
     <string name="bots_tab_groups">Groups</string>
     <string name="bots_groups_empty_title">No Group Chats</string>
     <string name="bots_groups_empty_desc">Create a multi-agent group chat to let bots collaborate.</string>
+    <string name="bots_group_members_count">%1$d bots</string>
+    <string name="bots_group_disband">Disband Group</string>
+    <string name="bots_group_disband_confirm_title">Disband %1$s?</string>
+    <string name="bots_group_disband_confirm_msg">This removes the group chat from all member bots. The individual bots will not be deleted.</string>
     <string name="bots_edit_title">Edit Bot</string>
     <string name="bots_edit_save">Save Changes</string>
     <string name="bots_edit_delete">Delete Bot</string>

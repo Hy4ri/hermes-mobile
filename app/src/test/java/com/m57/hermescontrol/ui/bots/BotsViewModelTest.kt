@@ -190,4 +190,45 @@ class BotsViewModelTest {
 
             assertTrue(success)
         }
+
+    @Test
+    fun testUpdateBotMeta_sendsRpcAndReloads() =
+        runTest {
+            val profiles = listOf(ProfileInfo(name = "scout"))
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(profiles))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "scout"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            viewModel.loadBots()
+            advanceUntilIdle()
+
+            var success = false
+            viewModel.updateBotMeta(
+                name = "scout",
+                title = "Scout Lead",
+                description = "Updated desc",
+                shape = "square",
+                color = "#2563EB",
+                onSuccess = { success = true },
+            )
+            advanceUntilIdle()
+
+            assertTrue(success)
+        }
+
+    @Test
+    fun testDeleteBot_callsDeleteApiAndReloads() =
+        runTest {
+            coEvery { mockApi.deleteProfile("scout") } returns Response.success(Unit)
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(emptyList()))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "default"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            var success = false
+            viewModel.deleteBot("scout") { success = true }
+            advanceUntilIdle()
+
+            assertTrue(success)
+            coVerify(exactly = 1) { mockApi.deleteProfile("scout") }
+        }
 }

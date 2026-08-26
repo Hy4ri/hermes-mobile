@@ -188,6 +188,51 @@ class BotsViewModel(
         }
     }
 
+    fun updateBotMeta(
+        name: String,
+        title: String,
+        description: String,
+        shape: String,
+        color: String,
+        onSuccess: () -> Unit,
+    ) {
+        viewModelScope.launch(ioDispatcher) {
+            val bot = _uiState.value.profiles.find { it.name == name }
+            val existingMeta = bot?.botMeta() ?: BotRosterMeta()
+            val updatedMeta =
+                existingMeta.copy(
+                    title = title.ifBlank { null },
+                    description = description.ifBlank { null },
+                    avatar =
+                        BotAvatarMeta(
+                            shape = shape,
+                            color = color,
+                        ),
+                )
+            wsClientConfigureBot(name, updatedMeta)
+            loadBots()
+            onSuccess()
+        }
+    }
+
+    fun deleteBot(
+        name: String,
+        onSuccess: () -> Unit,
+    ) {
+        viewModelScope.launch(ioDispatcher) {
+            val result = safeApiCall { ApiClient.hermesApi.deleteProfile(name) }
+            if (result is NetworkResult.Success) {
+                loadBots()
+                onSuccess()
+            } else {
+                val err =
+                    (result as? NetworkResult.Failure)?.error?.message
+                        ?: "Failed to delete bot"
+                _uiState.update { it.copy(errorMessage = err) }
+            }
+        }
+    }
+
     fun createGroupChat(
         groupName: String,
         botNames: List<String>,

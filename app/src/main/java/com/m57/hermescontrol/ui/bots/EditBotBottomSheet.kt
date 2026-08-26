@@ -201,7 +201,7 @@ fun EditBotBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 PALETTE_COLORS.take(5).forEach { hex ->
-                    val color = parseHexColor(hex, Color.Gray)
+                    val color = parseHexColor(hex, Color.Unspecified)
                     Box(
                         modifier =
                             Modifier
@@ -227,7 +227,7 @@ fun EditBotBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 PALETTE_COLORS.drop(5).forEach { hex ->
-                    val color = parseHexColor(hex, Color.Gray)
+                    val color = parseHexColor(hex, Color.Unspecified)
                     Box(
                         modifier =
                             Modifier

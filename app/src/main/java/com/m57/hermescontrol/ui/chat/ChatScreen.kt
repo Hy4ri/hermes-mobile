@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -77,7 +78,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.HistoryScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
-import com.m57.hermescontrol.SettingsAbout
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
 import com.m57.hermescontrol.data.update.AppUpdateCache
@@ -104,12 +104,13 @@ import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
 import com.m57.hermescontrol.ui.common.ActionProgressDialog
+import com.m57.hermescontrol.ui.common.AppUpdateDialog
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
-import com.m57.hermescontrol.ui.common.UpdateNoticeBanner
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
+import com.m57.hermescontrol.ui.settings.AppUpdateViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -540,22 +541,56 @@ fun ChatScreen(
             }
 
             // Issue #890: launch update check — non-blocking banner when a
-            // newer release exists. "Update" jumps to the About-tab install
-            // flow; "Later" dismisses for the session (it returns next launch
-            // via the persisted latest tag). Release-only builds
-            // (UpdateNoticeManager.enabled = !BuildConfig.DEBUG).
+            // newer release exists. Tapping "Update" opens the in-place dialog.
             val updateNotice by AppUpdateCache.state.collectAsStateWithLifecycle()
+            val appUpdateViewModel: AppUpdateViewModel =
+                viewModel {
+                    val app =
+                        this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+                            ?: error("Application not available")
+                    AppUpdateViewModel(app)
+                }
+
             if (UpdateNoticeManager.enabled && !AppUpdateCache.dismissed) {
                 val noticeTag =
                     (updateNotice as? AppUpdateState.UpdateAvailable)?.latestTag
                         ?: UpdateNoticeManager.noticeTag()
                 if (noticeTag != null) {
-                    UpdateNoticeBanner(
+                    com.m57.hermescontrol.ui.common.UpdateNoticeBanner(
                         latestTag = noticeTag,
-                        onUpdate = { NavigationController.navigateTo(SettingsAbout) },
+                        onUpdate = { AppUpdateCache.showDialog() },
                         onDismiss = { AppUpdateCache.dismiss() },
                     )
                 }
+            }
+
+            if (AppUpdateCache.isDialogVisible) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                AppUpdateDialog(
+                    state = updateNotice,
+                    onDismiss = { AppUpdateCache.hideDialog() },
+                    onStartUpdate = { appUpdateViewModel.startUpdate() },
+                    onCancelDownload = { appUpdateViewModel.cancelDownload() },
+                    onNeverAskAgain = { appUpdateViewModel.dismissCurrentUpdate() },
+                    onOpenSettings = {
+                        val intent =
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                android.net.Uri.parse("package:${context.packageName}"),
+                            ).apply {
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            context.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                },
+                            )
+                        }
+                    },
+                )
             }
 
             AnimatedVisibility(

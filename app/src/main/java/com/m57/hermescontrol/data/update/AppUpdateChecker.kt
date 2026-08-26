@@ -17,6 +17,7 @@ import java.io.IOException
 @Serializable
 data class UpdateInfo(
     val tagName: String = "",
+    val body: String = "",
     val assets: List<Asset> = emptyList(),
 ) {
     @Serializable

@@ -58,6 +58,10 @@ class UpdateNoticeManagerTest {
         every { AuthManager.setUpdateCheckDoneForVersion(any()) } returns Unit
         every { AuthManager.getLastKnownLatestTag() } returns null
         every { AuthManager.setLastKnownLatestTag(any()) } returns Unit
+        every { AuthManager.getLastUpdateCheckTimestamp() } returns 0L
+        every { AuthManager.setLastUpdateCheckTimestamp(any()) } returns Unit
+        every { AuthManager.getDismissedUpdateTag() } returns null
+        every { AuthManager.setDismissedUpdateTag(any()) } returns Unit
     }
 
     @After
@@ -86,19 +90,46 @@ class UpdateNoticeManagerTest {
         }
 
     @Test
-    fun checkOnLaunch_skipsWhenAlreadyCheckedForThisVersion() =
+    fun checkOnLaunch_skipsWhenAlreadyCheckedWithin24Hours() =
         runTest {
+            val now = 1000000000000L
             every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
+            every { AuthManager.getLastUpdateCheckTimestamp() } returns now - 1000L // 1 sec ago
             val checker = mockk<AppUpdateChecker>()
             coEvery { checker.fetchLatestRelease() } returns updateInfo()
 
-            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher)
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher, now = now)
             advanceUntilIdle()
 
             coVerify(exactly = 0) { checker.fetchLatestRelease() }
             assertEquals(AppUpdateState.Idle, AppUpdateCache.state.value)
             verify(exactly = 0) { AuthManager.setUpdateCheckDoneForVersion(currentVersion) }
         }
+
+    @Test
+    fun checkOnLaunch_runsWhenCheckedMoreThan24HoursAgo() =
+        runTest {
+            val now = 1000000000000L
+            every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
+            val older = now - (UpdateNoticeManager.CHECK_INTERVAL_MS + 1000L)
+            every { AuthManager.getLastUpdateCheckTimestamp() } returns older
+            val checker = mockk<AppUpdateChecker>()
+            coEvery { checker.fetchLatestRelease() } returns updateInfo()
+
+            UpdateNoticeManager.checkOnLaunch(checker, currentVersion, testDispatcher, now = now)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { checker.fetchLatestRelease() }
+            assertTrue(AppUpdateCache.state.value is AppUpdateState.UpdateAvailable)
+        }
+
+    @Test
+    fun noticeTag_returnsNullWhenTagDismissedByUser() {
+        every { AuthManager.getDismissedUpdateTag() } returns "v1.22.0"
+        every { AuthManager.getLastKnownLatestTag() } returns "v1.22.0"
+
+        assertNull(UpdateNoticeManager.noticeTag(currentVersion))
+    }
 
     @Test
     fun checkOnLaunch_upToDateWhenSameVersion() =

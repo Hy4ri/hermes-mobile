@@ -31,16 +31,24 @@ object UpdateNoticeManager {
     var enabled: Boolean = !BuildConfig.DEBUG
         internal set
 
-    /** Run from Application.onCreate, after AuthManager.init. No-op once per version. */
+    /** Release check interval (24 hours). */
+    const val CHECK_INTERVAL_MS: Long = 24 * 60 * 60 * 1000L
+
+    /** Run from Application.onCreate, after AuthManager.init. Checks at most once every 24h. */
     fun checkOnLaunch(
         checker: AppUpdateChecker = AppUpdateChecker(),
         currentVersion: String = BuildConfig.VERSION_NAME,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        now: Long = System.currentTimeMillis(),
     ) {
         if (!enabled) return
-        if (AuthManager.getUpdateCheckDoneForVersion() == currentVersion) return
+        val lastCheck = AuthManager.getLastUpdateCheckTimestamp()
+        val versionChanged = AuthManager.getUpdateCheckDoneForVersion() != currentVersion
+        if (!versionChanged && (now - lastCheck < CHECK_INTERVAL_MS)) return
+
         scope.launch(ioDispatcher) {
             AuthManager.setUpdateCheckDoneForVersion(currentVersion)
+            AuthManager.setLastUpdateCheckTimestamp(now)
             val result =
                 try {
                     checker.fetchLatestRelease()
@@ -57,6 +65,7 @@ object UpdateNoticeManager {
                         latestTag = info.tagName,
                         apkUrl = apk.browserDownloadUrl,
                         sizeBytes = apk.size,
+                        releaseNotes = info.body,
                     )
                 } else {
                     AppUpdateState.UpToDate(latestTag = info.tagName)
@@ -68,15 +77,17 @@ object UpdateNoticeManager {
 
     /**
      * The tag the chat banner should advertise, or null when nothing newer is
-     * known. Prefers the in-process check result; falls back to the persisted
-     * latest tag (issue #890) so a banner dismissed on a previous launch — or
-     * a launch whose check was skipped by the once-per-version guard — still
-     * comes back.
+     * known or if the user explicitly dismissed this tag.
      */
     fun noticeTag(currentVersion: String = BuildConfig.VERSION_NAME): String? {
         if (!enabled) return null
-        (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)?.let { return it.latestTag }
-        val persisted = AuthManager.getLastKnownLatestTag() ?: return null
-        return persisted.takeIf { isNewerVersion(it, currentVersion) }
+        val dismissed = AuthManager.getDismissedUpdateTag()
+        val candidateTag =
+            (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)?.latestTag
+                ?: AuthManager.getLastKnownLatestTag()
+                ?: return null
+
+        if (candidateTag == dismissed) return null
+        return candidateTag.takeIf { isNewerVersion(it, currentVersion) }
     }
 }

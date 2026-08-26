@@ -27,6 +27,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -70,6 +71,10 @@ class AppUpdateViewModelTest {
         every { AuthManager.getUpdateCheckDoneForVersion() } returns null
         every { AuthManager.setUpdateCheckDoneForVersion(any()) } returns Unit
         every { AuthManager.setLastKnownLatestTag(any()) } returns Unit
+        every { AuthManager.getLastUpdateCheckTimestamp() } returns 0L
+        every { AuthManager.setLastUpdateCheckTimestamp(any()) } returns Unit
+        every { AuthManager.getDismissedUpdateTag() } returns null
+        every { AuthManager.setDismissedUpdateTag(any()) } returns Unit
 
         app = mockk(relaxed = true)
         every { app.cacheDir } returns File(System.getProperty("java.io.tmpdir"))
@@ -108,15 +113,20 @@ class AppUpdateViewModelTest {
         }
 
     @Test
-    fun init_skipsCheckWhenAlreadyCheckedForThisVersion() =
+    fun init_adoptsCachedResultWhenPresent() =
         runTest {
-            every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
+            AppUpdateCache.update(
+                AppUpdateState.UpdateAvailable("v1.22.0", "https://example.com/apk", 123L),
+            )
 
             val vm = createViewModel()
             advanceUntilIdle()
 
             coVerify(exactly = 0) { checker.fetchLatestRelease() }
-            assertEquals(AppUpdateState.Idle, vm.state.value)
+            assertEquals(
+                AppUpdateState.UpdateAvailable("v1.22.0", "https://example.com/apk", 123L),
+                vm.state.value,
+            )
         }
 
     @Test
@@ -285,17 +295,42 @@ class AppUpdateViewModelTest {
         }
 
     @Test
-    fun startUpdate_ignoredWhenStateIsNotUpdateAvailable() =
+    fun cancelDownload_cancelsJobAndRestoresAvailableState() =
         runTest {
-            every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
-
             val vm = createViewModel()
             advanceUntilIdle()
-            assertEquals(AppUpdateState.Idle, vm.state.value)
+
+            // In-flight download
+            coEvery { checker.downloadApk(any(), any(), any()) } coAnswers {
+                kotlinx.coroutines.delay(10000)
+                true
+            }
 
             vm.startUpdate()
+            testDispatcher.scheduler.advanceTimeBy(100)
+
+            assertTrue(vm.state.value is AppUpdateState.Downloading)
+
+            vm.cancelDownload()
             advanceUntilIdle()
 
-            coVerify(exactly = 0) { checker.downloadApk(any(), any(), any()) }
+            assertTrue(vm.state.value is AppUpdateState.UpdateAvailable)
+        }
+
+    @Test
+    fun dismissCurrentUpdate_persistsDismissedTagAndHidesDialog() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            AppUpdateCache.showDialog()
+            assertTrue(AppUpdateCache.isDialogVisible)
+
+            vm.dismissCurrentUpdate()
+            advanceUntilIdle()
+
+            verify(exactly = 1) { AuthManager.setDismissedUpdateTag("v1.22.0") }
+            assertTrue(AppUpdateCache.dismissed)
+            assertFalse(AppUpdateCache.isDialogVisible)
         }
 }

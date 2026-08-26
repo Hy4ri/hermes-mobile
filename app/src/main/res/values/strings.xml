@@ -1003,6 +1003,11 @@
     <!-- Update notice banner (issue #890) -->
     <string name="update_notice_banner_text">Hermes Mobile %1$s is available</string>
     <string name="update_notice_banner_action">Update</string>
+    <string name="update_dialog_title">Update to %1$s</string>
+    <string name="update_dialog_changelog_header">What\'s New</string>
+    <string name="update_dialog_action_install">Download &amp; Install</string>
+    <string name="update_dialog_action_later">Remind Me Later</string>
+    <string name="update_dialog_action_skip">Skip this version</string>
 
     <!-- Processes Screen (issue #532) -->
     <string name="processes_empty_title">No running processes</string>

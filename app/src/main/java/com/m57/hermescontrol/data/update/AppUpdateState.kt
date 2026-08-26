@@ -20,6 +20,7 @@ sealed interface AppUpdateState {
         val latestTag: String,
         val apkUrl: String,
         val sizeBytes: Long,
+        val releaseNotes: String = "",
     ) : AppUpdateState
 
     /** APK download in progress; [progress] is 0..1. */

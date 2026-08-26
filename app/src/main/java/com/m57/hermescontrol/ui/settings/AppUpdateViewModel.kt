@@ -42,30 +42,25 @@ class AppUpdateViewModel(
     private val _state = MutableStateFlow<AppUpdateState>(AppUpdateState.Idle)
     val state: StateFlow<AppUpdateState> = _state.asStateFlow()
 
+    private var downloadJob: kotlinx.coroutines.Job? = null
+
     init {
-        // Silent first-launch check: once per installed version. Marked done
-        // after the attempt completes (success or failure) so a failed check
-        // can retry on the next open, but a dead network can't spam the API
-        // on every visit.
-        if (AuthManager.getUpdateCheckDoneForVersion() != currentVersion) {
-            checkForUpdate()
+        val cached = AppUpdateCache.state.value
+        if (cached is AppUpdateState.UpdateAvailable || cached is AppUpdateState.UpToDate) {
+            _state.value = cached
         } else {
-            // Issue #890: the launch check (UpdateNoticeManager) already ran
-            // for this version — adopt its result instead of pinging GitHub
-            // again, so the About tab agrees with the chat banner.
-            val cached = AppUpdateCache.state.value
-            if (cached is AppUpdateState.UpdateAvailable || cached is AppUpdateState.UpToDate) {
-                _state.value = cached
-            }
+            checkForUpdate()
         }
     }
 
-    /** Manual check from the About row. */
+    /** Manual check from the About row or dialog. */
     fun checkForUpdate() {
         if (_state.value is AppUpdateState.Checking) return
         _state.value = AppUpdateState.Checking
         viewModelScope.launch(ioDispatcher) {
+            val now = System.currentTimeMillis()
             AuthManager.setUpdateCheckDoneForVersion(currentVersion)
+            AuthManager.setLastUpdateCheckTimestamp(now)
             val result =
                 try {
                     checker.fetchLatestRelease()
@@ -92,6 +87,7 @@ class AppUpdateViewModel(
                         latestTag = info.tagName,
                         apkUrl = apk.browserDownloadUrl,
                         sizeBytes = apk.size,
+                        releaseNotes = info.body,
                     )
                 } else {
                     AppUpdateState.UpToDate(latestTag = info.tagName)
@@ -111,17 +107,59 @@ class AppUpdateViewModel(
         }
         val dest = File(getApplication<Application>().cacheDir, APK_FILE_NAME)
         _state.value = AppUpdateState.Downloading(0f)
-        viewModelScope.launch(ioDispatcher) {
-            val downloaded =
-                checker.downloadApk(available.apkUrl, dest) { progress ->
-                    _state.value = AppUpdateState.Downloading(progress)
+        downloadJob?.cancel()
+        downloadJob =
+            viewModelScope.launch(ioDispatcher) {
+                val downloaded =
+                    checker.downloadApk(available.apkUrl, dest) { progress ->
+                        _state.value = AppUpdateState.Downloading(progress)
+                    }
+                if (!downloaded) {
+                    if (downloadJob?.isCancelled != true) {
+                        _state.value = AppUpdateState.Error(DOWNLOAD_ERROR)
+                    }
+                    return@launch
                 }
-            if (!downloaded) {
-                _state.value = AppUpdateState.Error(DOWNLOAD_ERROR)
-                return@launch
+                _state.value = AppUpdateState.Installing(available.latestTag)
+                launchInstaller(dest)
             }
-            _state.value = AppUpdateState.Installing(available.latestTag)
-            launchInstaller(dest)
+    }
+
+    /** Cancel in-flight download and return to UpdateAvailable. */
+    fun cancelDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        val available = AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable
+        if (available != null) {
+            _state.value = available
+        } else {
+            _state.value = AppUpdateState.Idle
+        }
+    }
+
+    /** Dismiss the current update tag so it stops nagging. */
+    fun dismissCurrentUpdate() {
+        val tag = _state.value.releaseTag()
+        if (tag != null) {
+            AuthManager.setDismissedUpdateTag(tag)
+        }
+        AppUpdateCache.dismiss()
+        AppUpdateCache.hideDialog()
+    }
+
+    /** Resume install when returning from Unknown Sources permission screen. */
+    fun resumeInstallAfterPermission() {
+        if (canRequestInstalls()) {
+            val dest = File(getApplication<Application>().cacheDir, APK_FILE_NAME)
+            val available =
+                _state.value as? AppUpdateState.UpdateAvailable
+                    ?: AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable
+            if (dest.exists() && dest.length() > 0 && available != null) {
+                _state.value = AppUpdateState.Installing(available.latestTag)
+                launchInstaller(dest)
+            } else {
+                startUpdate()
+            }
         }
     }
 

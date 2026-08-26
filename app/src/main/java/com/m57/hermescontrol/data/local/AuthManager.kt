@@ -655,4 +655,18 @@ object AuthManager {
     fun setLastKnownLatestTag(tag: String) {
         serverStore.update { it.copy(lastKnownLatestTag = tag) }
     }
+
+    /** Timestamp of the last background update check. */
+    fun getLastUpdateCheckTimestamp(): Long = serverStore.getLatestState().lastUpdateCheckTimestamp
+
+    fun setLastUpdateCheckTimestamp(timestamp: Long) {
+        serverStore.update { it.copy(lastUpdateCheckTimestamp = timestamp) }
+    }
+
+    /** Release tag dismissed by the user. */
+    fun getDismissedUpdateTag(): String? = serverStore.getLatestState().dismissedUpdateTag
+
+    fun setDismissedUpdateTag(tag: String?) {
+        serverStore.update { it.copy(dismissedUpdateTag = tag) }
+    }
 }

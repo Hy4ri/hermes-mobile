@@ -32,4 +32,8 @@ data class ServerStoreState(
     // a dismissed chat banner can return on a later launch without re-pinging
     // GitHub (the once-per-version guard skips the check by then).
     val lastKnownLatestTag: String? = null,
+    // Timestamp (epoch millis) of the last successful background release check.
+    val lastUpdateCheckTimestamp: Long = 0L,
+    // Tag the user explicitly dismissed from the update banner / dialog (e.g. "v1.24.2").
+    val dismissedUpdateTag: String? = null,
 )

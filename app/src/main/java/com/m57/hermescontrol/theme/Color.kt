@@ -50,3 +50,24 @@ val CodeDiffHunkText = Color(0xFF4DA8FF)
 // opaque black and Icon()'s tint (LocalContentColor) replaces the RGB at
 // draw time — only the alpha channel survives, so this must stay opaque.
 val IconDefaultFill = Color.Black
+
+/**
+ * Safely parse a hex color string (#RGB, #RRGGBB, or #AARRGGBB), returning [fallback] if invalid.
+ */
+fun parseHexColor(
+    hex: String?,
+    fallback: Color,
+): Color {
+    if (hex.isNullOrBlank()) return fallback
+    val clean = hex.removePrefix("#").trim()
+    return try {
+        val parsed = clean.toLong(16)
+        when (clean.length) {
+            6 -> Color((0xFF000000 or parsed).toInt())
+            8 -> Color(parsed.toInt())
+            else -> fallback
+        }
+    } catch (_: Exception) {
+        fallback
+    }
+}

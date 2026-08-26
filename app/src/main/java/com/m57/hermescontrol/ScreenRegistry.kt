@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material.icons.filled.Webhook
 import androidx.compose.runtime.Composable
@@ -34,6 +35,7 @@ import com.m57.hermescontrol.ui.common.NeurologyIcon
 import com.m57.hermescontrol.ui.achievements.AchievementsScreen as AchievementsScreenContent
 import com.m57.hermescontrol.ui.analytics.AnalyticsScreen as AnalyticsScreenContent
 import com.m57.hermescontrol.ui.billing.BillingScreen as BillingScreenContent
+import com.m57.hermescontrol.ui.bots.BotsScreen as BotsScreenContent
 import com.m57.hermescontrol.ui.channels.ChannelsScreen as ChannelsScreenContent
 import com.m57.hermescontrol.ui.chat.ChatScreen as ChatScreenContent
 import com.m57.hermescontrol.ui.config.ConfigScreen as ConfigScreenContent
@@ -96,6 +98,12 @@ object ScreenRegistry {
                 Icons.Filled.AccountCircle,
                 DrawerSection.CONVERSE,
             ) { sessionId, openDrawer -> ProfilesScreenContent(onOpenDrawer = openDrawer) },
+            ScreenDefinition(
+                BotsScreen,
+                R.string.screen_bots,
+                Icons.Filled.SmartToy,
+                DrawerSection.CONVERSE,
+            ) { sessionId, openDrawer -> BotsScreenContent(onOpenDrawer = openDrawer) },
             ScreenDefinition(
                 CronJobsScreen,
                 R.string.screen_cron,

@@ -14,6 +14,7 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
+import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -304,6 +305,7 @@ data class ChatUiState(
     val typingEffectDelayMs: Int = 30,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
+    val availableBots: List<ProfileInfo> = emptyList(),
     // Per-command usage counts for the slash-autocomplete ranking (issue
     // #865). Empty until the local store loads; commands without recorded
     // usage keep their catalog order.
@@ -1573,7 +1575,22 @@ class ChatViewModel(
             }
 
             is SlashResult.NewSession -> {
-                createNewSession()
+                val currentTitle = _uiState.value.chatTitle
+                if (currentTitle.equals("Bot Chat", ignoreCase = true)) {
+                    // Bot Chat is a canonical forever-conversation — compact instead of creating an orphan
+                    val sessionId = _uiState.value.currentSessionId
+                    if (!sessionId.isNullOrBlank()) {
+                        addAssistantMessage(
+                            "Bot chats are one continuous conversation — compacting instead. " +
+                                "For a throwaway session, create a standard chat.",
+                        )
+                        dispatchViaRpc("/compact")
+                    } else {
+                        createNewSession()
+                    }
+                } else {
+                    createNewSession()
+                }
             }
 
             is SlashResult.SessionBranch -> {
@@ -1879,6 +1896,12 @@ class ChatViewModel(
                 WsMethods.COMMANDS_CATALOG,
                 onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
             )
+            // Fetch available bot profiles for @ autocomplete
+            val profilesResult = safeApiCall { ApiClient.hermesApi.getProfiles() }
+            if (profilesResult is NetworkResult.Success) {
+                val profiles = profilesResult.data.profiles.orEmpty()
+                _uiState.update { it.copy(availableBots = profiles) }
+            }
         }
     }
 

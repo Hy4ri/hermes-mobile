@@ -21,6 +21,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object ProfilesScreen : NavKey
 
+@Serializable data object BotsScreen : NavKey
+
 @Serializable data object ToolsetsScreen : NavKey
 
 @Serializable data class ToolsetDetailKey(

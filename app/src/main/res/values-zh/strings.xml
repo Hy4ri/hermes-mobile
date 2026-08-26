@@ -67,6 +67,14 @@
     <string name="screen_system">系统</string>
     <string name="screen_settings">设置</string>
     <string name="screen_profiles">配置</string>
+    <string name="screen_bots">Bots</string>
+    <string name="bots_active_now">当前活跃</string>
+    <string name="bots_empty_title">未找到智能体</string>
+    <string name="bots_empty_description">创建智能体配置文件以开始使用 Bot 模式。</string>
+    <string name="bots_search_placeholder">搜索智能体…</string>
+    <string name="bots_hidden_badge">已隐藏</string>
+    <string name="bots_show_hidden">显示隐藏的智能体</string>
+    <string name="bots_hide_hidden">隐藏不显示的智能体</string>
     <string name="screen_webhooks">Webhook</string>
     <string name="screen_gateway">网关</string>
     <string name="screen_toolsets">工具集</string>

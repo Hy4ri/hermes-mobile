@@ -271,11 +271,11 @@ class PersistentCookieJarTest {
                     jar.useStore("cold-server")
                 }
 
-            delay(10)
+            // Wait for useStore to complete hydration
+            job.join()
 
             val loaded = jar.loadForRequest("http://dash.local/api/status".toHttpUrl())
             assertEquals(1, loaded.size)
             assertEquals("cold-cookie-xyz", loaded[0].value)
-            job.join()
         }
 }

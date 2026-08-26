@@ -6,12 +6,15 @@ import com.m57.hermescontrol.data.model.BotAvatarMeta
 import com.m57.hermescontrol.data.model.BotRosterMeta
 import com.m57.hermescontrol.data.model.CreateProfileRequest
 import com.m57.hermescontrol.data.model.ProfileInfo
+import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
+import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
+import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +23,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
 
 enum class BotsTab {
     BOTS,
@@ -75,12 +80,12 @@ data class BotsUiState(
 
     val activeNowBots: List<ProfileInfo>
         get() {
-            val nowSeconds = System.currentTimeMillis() / 1000
+            val nowSeconds = System.currentTimeMillis() / 1000.0
             return profiles.filter { profile ->
                 profile.worker_session != null ||
                     profile.name == activeProfileName ||
-                    ((profile.canonical_session?.last_active ?: 0L) > nowSeconds - 90) ||
-                    ((profile.last_session?.last_active ?: 0L) > nowSeconds - 90)
+                    ((profile.canonical_session?.last_active ?: 0.0) > nowSeconds - 90) ||
+                    ((profile.last_session?.last_active ?: 0.0) > nowSeconds - 90)
             }
         }
 
@@ -100,7 +105,7 @@ data class BotsUiState(
                         .thenByDescending {
                             it.canonical_session?.last_active
                                 ?: it.last_session?.last_active
-                                ?: 0L
+                                ?: 0.0
                         }
                         .thenBy { it.name },
                 )
@@ -130,10 +135,46 @@ class BotsViewModel(
             }
         }
         viewModelScope.launch(ioDispatcher) {
-            val profilesResult = safeApiCall { ApiClient.hermesApi.getProfiles() }
+            // First try fetching profiles via WebSocket RPC (profiles.list) which includes ui_meta (groups, custom avatars).
+            var profilesWithMeta: List<ProfileInfo>? = null
+            try {
+                val rpcResult = HermesWsClient.request(WsMethods.PROFILES_LIST).await()
+                val jsonElement =
+                    when (rpcResult) {
+                        is JsonElement -> rpcResult
+                        null -> null
+                        else -> rpcResult.toJsonElement()
+                    }
+                if (jsonElement != null) {
+                    val resp = OkHttpProvider.json.decodeFromJsonElement<ProfilesResponse>(jsonElement)
+                    if (!resp.profiles.isNullOrEmpty()) {
+                        profilesWithMeta = resp.profiles
+                    }
+                }
+            } catch (_: Exception) {
+                // Fallback to REST API below
+            }
+
+            val profilesResult =
+                if (profilesWithMeta != null) {
+                    null
+                } else {
+                    safeApiCall { ApiClient.hermesApi.getProfiles() }
+                }
             val activeResult = safeApiCall { ApiClient.hermesApi.getActiveProfile() }
 
-            if (profilesResult is NetworkResult.Success) {
+            if (profilesWithMeta != null) {
+                val activeName = (activeResult as? NetworkResult.Success)?.data?.active
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        profiles = profilesWithMeta,
+                        activeProfileName = activeName ?: it.activeProfileName,
+                        errorMessage = null,
+                    )
+                }
+            } else if (profilesResult is NetworkResult.Success) {
                 val activeName = (activeResult as? NetworkResult.Success)?.data?.active
                 _uiState.update {
                     it.copy(
@@ -245,7 +286,10 @@ class BotsViewModel(
                             color = color,
                         ),
                 )
-            wsClientConfigureBot(name, updatedMeta)
+            try {
+                wsClientConfigureBot(name, updatedMeta).await()
+            } catch (_: Exception) {
+            }
             loadBots()
             onSuccess()
         }
@@ -284,7 +328,10 @@ class BotsViewModel(
                         (bot.botMeta() ?: BotRosterMeta()).copy(
                             groups = existingGroups + groupName,
                         )
-                    wsClientConfigureBot(name, updatedMeta)
+                    try {
+                        wsClientConfigureBot(name, updatedMeta).await()
+                    } catch (_: Exception) {
+                    }
                 }
             }
             loadBots()
@@ -305,7 +352,10 @@ class BotsViewModel(
                         (bot.botMeta() ?: BotRosterMeta()).copy(
                             groups = existingGroups - groupName,
                         )
-                    wsClientConfigureBot(bot.name, updatedMeta)
+                    try {
+                        wsClientConfigureBot(bot.name, updatedMeta).await()
+                    } catch (_: Exception) {
+                    }
                 }
             }
             loadBots()
@@ -316,7 +366,7 @@ class BotsViewModel(
     private fun wsClientConfigureBot(
         name: String,
         meta: BotRosterMeta,
-    ) {
+    ): kotlinx.coroutines.CompletableDeferred<Any?> {
         val metaMap =
             buildMap<String, Any?> {
                 put("title", meta.title)
@@ -336,7 +386,7 @@ class BotsViewModel(
                 }
             }
 
-        HermesWsClient.send(
+        return HermesWsClient.request(
             WsMethods.PROFILES_CONFIGURE,
             mapOf(
                 "name" to name,

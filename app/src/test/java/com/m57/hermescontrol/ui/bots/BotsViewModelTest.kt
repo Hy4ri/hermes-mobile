@@ -47,6 +47,9 @@ class BotsViewModelTest {
         every { ApiClient.hermesApi } returns mockApi
         mockkObject(HermesWsClient)
         every { HermesWsClient.send(any(), any(), any()) } returns "req-1"
+        val deferred = kotlinx.coroutines.CompletableDeferred<Any?>()
+        deferred.complete(null)
+        every { HermesWsClient.request(any(), any(), any()) } returns deferred
     }
 
     @After
@@ -59,7 +62,7 @@ class BotsViewModelTest {
     @Test
     fun testLoadBotsAndFilterActiveNow() =
         runTest(testDispatcher) {
-            val nowSeconds = System.currentTimeMillis() / 1000
+            val nowSeconds = (System.currentTimeMillis() / 1000).toDouble()
 
             val bot1Meta =
                 BotRosterMeta(

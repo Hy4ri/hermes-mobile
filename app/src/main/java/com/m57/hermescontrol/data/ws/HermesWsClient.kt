@@ -939,6 +939,16 @@ object HermesWsClient {
             val event =
                 try {
                     val rpc = OkHttpProvider.json.decodeFromString<JsonRpcResponse>(text)
+                    // Resolve pending request() calls with the RAW JsonElement from
+                    // rpc.result, BEFORE EventParser.parse() converts it via toAny().
+                    // This preserves integer/float type fidelity needed by callers
+                    // that re-deserialize the result into typed data classes.
+                    val rpcId = rpc.id
+                    if (rpcId != null && rpc.error == null && rpc.result != null) {
+                        synchronized(outboundLock) { pendingPromptSubmits.remove(rpcId) }
+                        removeQueuedMessage(rpcId)
+                        resolvePending(rpcId, rpc.result, null)
+                    }
                     val parsed = EventParser.parse(rpc, text)
                     if (parsed is WsEvent.MessageComplete) {
                         parsed.copy(

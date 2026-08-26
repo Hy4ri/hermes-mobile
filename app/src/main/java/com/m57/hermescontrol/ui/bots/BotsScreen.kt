@@ -46,6 +46,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,6 +88,10 @@ fun BotsScreen(
     var editingBot by remember { mutableStateOf<ProfileInfo?>(null) }
     var disbandingGroup by remember { mutableStateOf<GroupInfo?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadBots()
+    }
 
     disbandingGroup?.let { group ->
         AlertDialog(

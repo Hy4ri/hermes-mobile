@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
 /**
@@ -46,6 +47,19 @@ fun Any?.toJsonElement(): JsonElement =
         null -> JsonNull
         is JsonElement -> this
         is Boolean -> JsonPrimitive(this)
+        is Int -> JsonPrimitive(this)
+        is Long -> JsonPrimitive(this)
+        is Float -> JsonPrimitive(this)
+        is Double -> {
+            // Preserve integer semantics: 177.0 → JsonPrimitive(177) not "177.0"
+            if (this % 1.0 == 0.0 && this >= Int.MIN_VALUE.toDouble() && this <= Int.MAX_VALUE.toDouble()) {
+                JsonPrimitive(this.toInt())
+            } else if (this % 1.0 == 0.0 && this >= Long.MIN_VALUE.toDouble() && this <= Long.MAX_VALUE.toDouble()) {
+                JsonPrimitive(this.toLong())
+            } else {
+                JsonPrimitive(this)
+            }
+        }
         is Number -> JsonPrimitive(this)
         is String -> JsonPrimitive(this)
         is Map<*, *> -> JsonObject(this.map { it.key.toString() to it.value.toJsonElement() }.toMap())
@@ -63,7 +77,7 @@ fun JsonElement.toAny(): Any? =
             if (isString) {
                 content
             } else {
-                booleanOrNull ?: doubleOrNull ?: longOrNull ?: content
+                booleanOrNull ?: intOrNull ?: longOrNull ?: doubleOrNull ?: content
             }
         }
 

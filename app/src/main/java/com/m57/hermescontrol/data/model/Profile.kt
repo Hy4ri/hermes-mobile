@@ -69,8 +69,8 @@ data class CanonicalSessionInfo(
     val root_title: String? = null,
     val title: String? = null,
     val preview: String? = null,
-    val started_at: Long? = null,
-    val last_active: Long? = null,
+    val started_at: Double? = null,
+    val last_active: Double? = null,
     val message_count: Int? = null,
 )
 
@@ -79,8 +79,8 @@ data class ProfileSessionSummary(
     val id: String,
     val title: String? = null,
     val preview: String? = null,
-    val started_at: Long? = null,
-    val last_active: Long? = null,
+    val started_at: Double? = null,
+    val last_active: Double? = null,
     val message_count: Int? = null,
 )
 
@@ -89,7 +89,7 @@ data class ProfileWorkerSummary(
     val id: String,
     val source: String? = null,
     val title: String? = null,
-    val last_active: Long? = null,
+    val last_active: Double? = null,
 )
 
 @Serializable
@@ -100,7 +100,7 @@ data class BotRosterMeta(
     val hidden: Boolean? = null,
     val groups: List<String>? = null,
     val group: String? = null,
-    val created: Long? = null,
+    val created: Double? = null,
 )
 
 @Serializable

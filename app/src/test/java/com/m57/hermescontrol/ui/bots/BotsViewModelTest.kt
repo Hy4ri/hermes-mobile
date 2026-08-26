@@ -47,6 +47,9 @@ class BotsViewModelTest {
         every { ApiClient.hermesApi } returns mockApi
         mockkObject(HermesWsClient)
         every { HermesWsClient.send(any(), any(), any()) } returns "req-1"
+        val deferred = kotlinx.coroutines.CompletableDeferred<Any?>()
+        deferred.complete(null)
+        every { HermesWsClient.request(any(), any(), any()) } returns deferred
     }
 
     @After
@@ -59,7 +62,7 @@ class BotsViewModelTest {
     @Test
     fun testLoadBotsAndFilterActiveNow() =
         runTest(testDispatcher) {
-            val nowSeconds = System.currentTimeMillis() / 1000
+            val nowSeconds = (System.currentTimeMillis() / 1000).toDouble()
 
             val bot1Meta =
                 BotRosterMeta(
@@ -186,6 +189,37 @@ class BotsViewModelTest {
                 botNames = listOf("botA", "botB"),
                 onSuccess = { success = true },
             )
+            advanceUntilIdle()
+
+            assertTrue(success)
+        }
+
+    @Test
+    fun testDisbandGroupChat_removesGroupFromMembers() =
+        runTest {
+            val botMeta =
+                BotRosterMeta(
+                    groups = listOf("Dream Team", "Other Group"),
+                )
+            val uiMeta = mapOf("hermes-bots" to json.encodeToJsonElement(botMeta))
+            val profiles =
+                listOf(
+                    ProfileInfo(name = "botA", ui_meta = uiMeta),
+                    ProfileInfo(name = "botB", ui_meta = uiMeta),
+                )
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(profiles))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "botA"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            viewModel.loadBots()
+            advanceUntilIdle()
+
+            assertEquals(2, viewModel.uiState.value.allGroups.size)
+            assertEquals("Dream Team", viewModel.uiState.value.allGroups[0].name)
+            assertEquals(2, viewModel.uiState.value.allGroups[0].members.size)
+
+            var success = false
+            viewModel.disbandGroupChat("Dream Team") { success = true }
             advanceUntilIdle()
 
             assertTrue(success)

@@ -92,6 +92,10 @@
     <string name="bots_tab_groups">그룹</string>
     <string name="bots_groups_empty_title">그룹 채팅 없음</string>
     <string name="bots_groups_empty_desc">봇 간 협업을 위한 다중 에이전트 그룹 채팅을 만드세요.</string>
+    <string name="bots_group_members_count">봇 %1$d개</string>
+    <string name="bots_group_disband">그룹 해산</string>
+    <string name="bots_group_disband_confirm_title">%1$s 해산하시겠습니까?</string>
+    <string name="bots_group_disband_confirm_msg">모든 멤버 봇에서 해당 그룹 채팅이 제거됩니다. 개별 봇은 삭제되지 않습니다.</string>
     <string name="bots_edit_title">봇 편집</string>
     <string name="bots_edit_save">변경 사항 저장</string>
     <string name="bots_edit_delete">봇 삭제</string>

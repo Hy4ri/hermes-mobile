@@ -34,6 +34,13 @@ data class BotsUiState(
     val hasHiddenBots: Boolean
         get() = profiles.any { it.isHidden }
 
+    val allGroups: List<String>
+        get() =
+            profiles
+                .flatMap { it.botMeta()?.groups.orEmpty() }
+                .distinct()
+                .sorted()
+
     val activeNowBots: List<ProfileInfo>
         get() {
             val nowSeconds = System.currentTimeMillis() / 1000
@@ -181,6 +188,29 @@ class BotsViewModel(
         }
     }
 
+    fun createGroupChat(
+        groupName: String,
+        botNames: List<String>,
+        onSuccess: () -> Unit,
+    ) {
+        viewModelScope.launch(ioDispatcher) {
+            val currentProfiles = _uiState.value.profiles
+            for (name in botNames) {
+                val bot = currentProfiles.find { it.name == name } ?: continue
+                val existingGroups = bot.botMeta()?.groups.orEmpty()
+                if (!existingGroups.contains(groupName)) {
+                    val updatedMeta =
+                        (bot.botMeta() ?: BotRosterMeta()).copy(
+                            groups = existingGroups + groupName,
+                        )
+                    wsClientConfigureBot(name, updatedMeta)
+                }
+            }
+            loadBots()
+            onSuccess()
+        }
+    }
+
     private fun wsClientConfigureBot(
         name: String,
         meta: BotRosterMeta,
@@ -198,6 +228,9 @@ class BotsViewModel(
                             av.icon?.let { put("icon", it) }
                         },
                     )
+                }
+                if (!meta.groups.isNullOrEmpty()) {
+                    put("groups", meta.groups)
                 }
             }
 

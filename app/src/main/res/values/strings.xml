@@ -99,6 +99,16 @@
     <string name="bots_create_avatar_shape">Avatar Shape</string>
     <string name="bots_create_avatar_color">Accent Color</string>
     <string name="bots_create_button">Create</string>
+    <string name="bots_action_create_group">Create Group Chat</string>
+    <string name="bots_create_group_title">New Group Chat</string>
+    <string name="bots_create_group_name_label">Group Name</string>
+    <string name="bots_create_group_name_placeholder">e.g. Research Team</string>
+    <string name="bots_create_group_select_bots">Select Bots (at least 2)</string>
+    <string name="bots_create_group_button">Create Group</string>
+    <string name="bots_tab_all">Bots</string>
+    <string name="bots_tab_groups">Groups</string>
+    <string name="bots_groups_empty_title">No Group Chats</string>
+    <string name="bots_groups_empty_desc">Create a multi-agent group chat to let bots collaborate.</string>
     <string name="screen_webhooks">Webhooks</string>
     <string name="screen_gateway">Gateway</string>
     <string name="screen_toolsets">Toolsets</string>

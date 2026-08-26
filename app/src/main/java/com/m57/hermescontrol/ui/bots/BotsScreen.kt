@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -71,6 +72,7 @@ fun BotsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var isSearchActive by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showCreateGroupDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     if (showCreateDialog) {
@@ -79,6 +81,18 @@ fun BotsScreen(
             onCreate = { name, title, description, shape, color ->
                 viewModel.createBot(name, title, description, shape, color) {
                     showCreateDialog = false
+                }
+            },
+        )
+    }
+
+    if (showCreateGroupDialog) {
+        CreateGroupChatDialog(
+            availableBots = state.profiles,
+            onDismiss = { showCreateGroupDialog = false },
+            onCreateGroup = { groupName, botNames ->
+                viewModel.createGroupChat(groupName, botNames) {
+                    showCreateGroupDialog = false
                 }
             },
         )
@@ -130,6 +144,15 @@ fun BotsScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         actions = {
             if (!isSearchActive) {
+                IconButton(
+                    onClick = { showCreateGroupDialog = true },
+                    modifier = Modifier.testTag("bots_action_create_group"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.GroupAdd,
+                        contentDescription = stringResource(R.string.bots_action_create_group),
+                    )
+                }
                 IconButton(
                     onClick = { showCreateDialog = true },
                     modifier = Modifier.testTag("bots_action_create"),

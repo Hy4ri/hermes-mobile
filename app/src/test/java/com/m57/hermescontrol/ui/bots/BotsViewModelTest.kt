@@ -164,4 +164,30 @@ class BotsViewModelTest {
             assertTrue(successCalled)
             coVerify(exactly = 1) { mockApi.createProfile(match { it.name == "researcher" }) }
         }
+
+    @Test
+    fun testCreateGroupChat_updatesMemberMeta() =
+        runTest {
+            val profiles =
+                listOf(
+                    ProfileInfo(name = "botA"),
+                    ProfileInfo(name = "botB"),
+                )
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(profiles))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "botA"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            viewModel.loadBots()
+            advanceUntilIdle()
+
+            var success = false
+            viewModel.createGroupChat(
+                groupName = "Dream Team",
+                botNames = listOf("botA", "botB"),
+                onSuccess = { success = true },
+            )
+            advanceUntilIdle()
+
+            assertTrue(success)
+        }
 }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
@@ -73,7 +74,25 @@ fun BotsScreen(
     var isSearchActive by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showCreateGroupDialog by remember { mutableStateOf(false) }
+    var editingBot by remember { mutableStateOf<ProfileInfo?>(null) }
     val scope = rememberCoroutineScope()
+
+    editingBot?.let { bot ->
+        EditBotBottomSheet(
+            bot = bot,
+            onDismiss = { editingBot = null },
+            onSave = { title, description, shape, color ->
+                viewModel.updateBotMeta(bot.name, title, description, shape, color) {
+                    editingBot = null
+                }
+            },
+            onDelete = {
+                viewModel.deleteBot(bot.name) {
+                    editingBot = null
+                }
+            },
+        )
+    }
 
     if (showCreateDialog) {
         CreateBotDialog(
@@ -264,6 +283,9 @@ fun BotsScreen(
                                     }
                                 }
                             },
+                            onEditClick = {
+                                editingBot = profile
+                            },
                         )
                     }
                 }
@@ -333,6 +355,7 @@ private fun BotCard(
     profile: ProfileInfo,
     isActiveProfile: Boolean,
     onClick: () -> Unit,
+    onEditClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val botMeta = profile.botMeta()
@@ -427,6 +450,16 @@ private fun BotCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+            IconButton(
+                onClick = onEditClick,
+                modifier = Modifier.testTag("bot_edit_button_${profile.name}"),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = stringResource(R.string.bots_edit_title),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

@@ -105,6 +105,7 @@
     <string name="notif_channel_chat_name">Hermes 对话回复</string>
     <string name="notif_channel_chat_desc">Hermes 新回复提醒</string>
     <string name="action_reply">回复</string>
+    <string name="bot_chat_never_resets_notice">Bot 聊天是连续对话 — 正在压缩替代。如需临时会话，请使用普通聊天。</string>
     <string name="chat_action_search">搜索</string>
     <string name="chat_action_close_search">关闭搜索</string>
     <string name="chat_action_reconnect">重新连接</string>

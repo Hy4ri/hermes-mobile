@@ -1573,7 +1573,22 @@ class ChatViewModel(
             }
 
             is SlashResult.NewSession -> {
-                createNewSession()
+                val currentTitle = _uiState.value.chatTitle
+                if (currentTitle.equals("Bot Chat", ignoreCase = true)) {
+                    // Bot Chat is a canonical forever-conversation — compact instead of creating an orphan
+                    val sessionId = _uiState.value.currentSessionId
+                    if (!sessionId.isNullOrBlank()) {
+                        addAssistantMessage(
+                            "Bot chats are one continuous conversation — compacting instead. " +
+                                "For a throwaway session, create a standard chat.",
+                        )
+                        dispatchViaRpc("/compact")
+                    } else {
+                        createNewSession()
+                    }
+                } else {
+                    createNewSession()
+                }
             }
 
             is SlashResult.SessionBranch -> {

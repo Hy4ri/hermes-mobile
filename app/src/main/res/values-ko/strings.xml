@@ -104,6 +104,7 @@
     <string name="action_reply">답장</string>
 
     <!-- Chat Screen & Bubble -->
+    <string name="bot_chat_never_resets_notice">봇 대화는 지속적인 대화입니다 — 대신 압축합니다. 임시 세션을 사용하려면 일반 채팅을 생성하세요.</string>
     <string name="chat_action_search">검색</string>
     <string name="chat_action_close_search">검색 닫기</string>
     <string name="chat_action_reconnect">재접속</string>

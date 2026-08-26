@@ -289,6 +289,50 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSlashCommand_new_inBotChat_compactsInsteadOfCreatingSession() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            // Set session title to "Bot Chat" via SESSION_LIST result
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    id = "req-id-1",
+                    result =
+                        mapOf(
+                            "sessions" to
+                                listOf(
+                                    mapOf(
+                                        "id" to sessionId,
+                                        "title" to "Bot Chat",
+                                        "message_count" to 5.0,
+                                    ),
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Reset recording on HermesWsClient to only inspect calls after /new
+            clearMocks(HermesWsClient, answers = false, recordedCalls = true)
+
+            viewModel.sendMessage("/new")
+            advanceUntilIdle()
+
+            // In Bot Chat, /new should NOT create a fresh session, but instead dispatch /compact
+            verify(exactly = 0) {
+                HermesWsClient.send(
+                    WsMethods.SESSION_CREATE,
+                    any(),
+                    any(),
+                )
+            }
+            assertTrue(
+                viewModel.uiState.value.messages.any {
+                    it.content.contains("compacting instead")
+                },
+            )
+        }
+
+    @Test
     fun profileSwitch_wipesOpenSessionForFreshStart() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

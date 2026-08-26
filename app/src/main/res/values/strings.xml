@@ -122,6 +122,7 @@
     <string name="action_reply">Reply</string>
 
     <!-- Chat Screen & Bubble -->
+    <string name="bot_chat_never_resets_notice">Bot chats are one continuous conversation — compacting instead. For a throwaway session, create a standard chat.</string>
     <string name="chat_action_search">Search</string>
     <string name="chat_action_close_search">Close search</string>
     <string name="chat_action_reconnect">Reconnect</string>

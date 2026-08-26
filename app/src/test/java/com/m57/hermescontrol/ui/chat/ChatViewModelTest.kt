@@ -3683,4 +3683,103 @@ class ChatViewModelTest {
             assertNull(vm.uiState.value.openingAttachmentPath)
             assertTrue(vm.uiState.value.openError.orEmpty().contains("big.pdf"))
         }
+
+    @Test
+    fun `sendMessage while session create is in flight queues prompt and dispatches on SESSION_CREATE`() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            val sentPrompts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), capture(sentPrompts), any(), any()) } returns "req-send-1"
+
+            vm.sendMessage("My super important long prompt")
+            advanceUntilIdle()
+
+            // Optimistic UI state has the user message immediately
+            assertTrue(vm.uiState.value.messages.any { it.content == "My super important long prompt" })
+            assertTrue(vm.uiState.value.isAgentTyping)
+            // But wsClient.sendMessage not dispatched yet because session_id was null
+            assertTrue(sentPrompts.isEmpty())
+
+            // Now emit SESSION_CREATE result for the active session request
+            val createReqId = "req-id-$reqCount"
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createReqId,
+                    mapOf("session_id" to "session-969", "stored_session_id" to "session-storage-969"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Prompt should be dispatched automatically!
+            assertEquals(listOf("My super important long prompt"), sentPrompts)
+            assertEquals("session-storage-969", vm.uiState.value.currentSessionId)
+            assertTrue(vm.uiState.value.messages.any { it.content == "My super important long prompt" })
+        }
+
+    @Test
+    fun `reconnect with unpersisted session re-creates session on new socket and dispatches queued prompt`() =
+        runTest {
+            val (vm, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            // Session has no server presence yet (fresh session, no prompt sent).
+            // Simulate reconnect:
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            // On reconnect, an unpersisted session triggers createNewSession to mint a valid session on the new socket
+            verify(atLeast = 2) { HermesWsClient.send(WsMethods.SESSION_CREATE, any(), any()) }
+
+            val sentPrompts = mutableListOf<String>()
+            every { HermesWsClient.sendMessage(any(), capture(sentPrompts), any(), any()) } returns "req-send-2"
+
+            val createReqId = "req-id-$reqCount"
+            vm.sendMessage("Prompt typed during reconnect")
+            advanceUntilIdle()
+
+            // Optimistic message in UI
+            assertTrue(vm.uiState.value.messages.any { it.content == "Prompt typed during reconnect" })
+
+            // Complete the new SESSION_CREATE RPC
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    createReqId,
+                    mapOf("session_id" to "session-reconnected", "stored_session_id" to "storage-reconnected"),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertTrue(sentPrompts.contains("Prompt typed during reconnect"))
+        }
+
+    @Test
+    fun `session creation failure clears agent typing and surfaces error for queued prompt`() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            vm.sendMessage("Prompt before failure")
+            advanceUntilIdle()
+
+            assertTrue(vm.uiState.value.isAgentTyping)
+
+            val createReqId = "req-id-$reqCount"
+            // Emit RPC error for SESSION_CREATE
+            mockEventsFlow.emit(WsEvent.RpcError(createReqId, JsonRpcError(code = 500, message = "Backend exploded")))
+            advanceUntilIdle()
+
+            assertFalse(vm.uiState.value.isAgentTyping)
+            assertNotNull(vm.uiState.value.errorMessage)
+            assertTrue(vm.uiState.value.errorMessage!!.contains("Backend exploded"))
+        }
 }

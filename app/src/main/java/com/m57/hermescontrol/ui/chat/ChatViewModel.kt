@@ -450,6 +450,15 @@ class ChatViewModel(
     /** Runtime TUI session returned by session.resume; Desktop storage keeps the original ID. */
     private var runtimeSessionId: String? = null
 
+    /** Issue #969: Prompt staged before session.create resolves. */
+    private data class PendingPrompt(
+        val text: String,
+        val attachments: List<Attachment>,
+        val wasStreaming: Boolean,
+    )
+
+    private var pendingInitialPrompt: PendingPrompt? = null
+
     /**
      * Whether the gateway has confirmed a persisted DB row for the current
      * session. `session.create` does NOT persist a row until the first prompt
@@ -709,11 +718,13 @@ class ChatViewModel(
         if (currentId != null) {
             if (sessionHasServerPresence) {
                 resumeSession(currentId, sessionGeneration)
+            } else {
+                // Issue #969: No server-side row yet — the gateway dropped the
+                // ephemeral unpersisted session when the old socket closed.
+                // Re-create the session on the new socket so runtimeSessionId is
+                // refreshed and ready for prompts.
+                createNewSession(setLoading = false)
             }
-            // No server-side row yet (session created but never prompted):
-            // resuming would 4007 and the REST transcript would 404. Keep the
-            // in-memory chat as-is — the first prompt persists the row, and a
-            // later reconnect resumes it normally.
         } else {
             val initial = initialSessionId
             if (!initial.isNullOrBlank()) {
@@ -1000,7 +1011,7 @@ class ChatViewModel(
                     it.copy(
                         currentSessionId = storageId,
                         isLoading = false,
-                        messages = emptyList(),
+                        messages = if (pendingInitialPrompt != null) it.messages else emptyList(),
                         chatTitle = "Hermes",
                         usedContextTokens = null,
                         fullContextTokens = null,
@@ -1022,6 +1033,19 @@ class ChatViewModel(
                 addSystemMessage("Session created", persist = true)
                 loadSessions()
                 fetchContextUsage()
+
+                // Issue #969: Drain prompt queued while session creation was in-flight.
+                val pending = pendingInitialPrompt
+                pendingInitialPrompt = null
+                if (pending != null) {
+                    dispatchPrompt(
+                        text = pending.text,
+                        attachments = pending.attachments,
+                        wasStreaming = pending.wasStreaming,
+                        storageSessionId = storageId,
+                        agentSessionId = runtimeId,
+                    )
+                }
             }
 
             WsMethods.SESSION_BRANCH -> {
@@ -1225,6 +1249,19 @@ class ChatViewModel(
             return
         }
 
+        if (method == WsMethods.SESSION_CREATE) {
+            val pending = pendingInitialPrompt
+            pendingInitialPrompt = null
+            if (pending != null) {
+                _uiState.update {
+                    it.copy(
+                        isAgentTyping = false,
+                        errorMessage = "Failed to create session: $errorMsg",
+                    )
+                }
+            }
+        }
+
         // Surface error in UI (these are server-pushed RpcError for
         // fire-and-forget RPCs — awaited RPCs handle their own failure
         // via the HermesWsClient.request() deferred).
@@ -1244,15 +1281,17 @@ class ChatViewModel(
      *
      * Flow:
      * 1. Snapshot pending attachments (then clear them from UI)
-     * 2. Add user message to UI + DB immediately (optimistic UX)
-     * 3. For each image → await `image.attach_bytes` (requires session_id)
-     * 4. For each file → await `file.attach` (requires session_id), collect @file: refs
-     * 5. Send `prompt.submit` with text + @file: refs — images auto-picked up by backend
+     * 2. Add user message to UI immediately (optimistic UX)
+     * 3. If session creation is still in flight (currentSessionId/runtimeSessionId null),
+     *    queue the prompt into [pendingInitialPrompt] to be dispatched as soon as
+     *    SESSION_CREATE resolves (issue #969).
+     * 4. Persist user message to DB
+     * 5. For each image → await `image.attach_bytes` (requires session_id)
+     * 6. For each file → await `file.attach` (requires session_id), collect @file: refs
+     * 7. Send `prompt.submit` with text + @file: refs — images auto-picked up by backend
      */
     fun sendMessage(text: String) {
         if (text.isBlank() && _uiState.value.pendingAttachments.isEmpty()) return
-        val storageSessionId = _uiState.value.currentSessionId ?: return
-        val agentSessionId = runtimeSessionId ?: return
 
         val trimmed = text.trim()
         if (trimmed.startsWith("/", ignoreCase = true)) {
@@ -1287,9 +1326,44 @@ class ChatViewModel(
             )
         }
 
+        val storageSessionId = _uiState.value.currentSessionId
+        val agentSessionId = runtimeSessionId
+
+        if (storageSessionId == null || agentSessionId == null) {
+            // Issue #969: Session creation is still in-flight. Hold the prompt
+            // so it is dispatched automatically the moment SESSION_CREATE lands.
+            pendingInitialPrompt = PendingPrompt(text, attachments, wasStreaming)
+            return
+        }
+
+        dispatchPrompt(
+            text = text,
+            attachments = attachments,
+            wasStreaming = wasStreaming,
+            storageSessionId = storageSessionId,
+            agentSessionId = agentSessionId,
+            userMessage = userMessage,
+        )
+    }
+
+    private fun dispatchPrompt(
+        text: String,
+        attachments: List<Attachment>,
+        wasStreaming: Boolean,
+        storageSessionId: String,
+        agentSessionId: String,
+        userMessage: ChatMessage? = null,
+    ) {
+        val msgToPersist =
+            userMessage ?: ChatMessage(
+                role = MessageRole.USER,
+                content = text,
+                attachments = if (attachments.isNotEmpty()) attachments else null,
+            )
+
         // Persist under the original Desktop session ID.
         viewModelScope.launch(ioDispatcher) {
-            repo.persistMessage(userMessage, storageSessionId)
+            repo.persistMessage(msgToPersist, storageSessionId)
         }
 
         // Upload attachments then submit prompt
@@ -2239,6 +2313,7 @@ class ChatViewModel(
         resumedGeneration = -1L
         hydratedGeneration = -1L
         runtimeSessionId = null
+        pendingInitialPrompt = null
         ActiveSessionHolder.clear()
         loadedMessageOffset = 0
         latestPaging = false

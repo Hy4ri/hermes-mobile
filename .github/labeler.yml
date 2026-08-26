@@ -1,7 +1,8 @@
 # Path-based PR auto-labels (used by .github/workflows/pr-labeler.yml).
 # Additive only — labels added by hand or Dependabot are never removed.
-# All labels here already exist in the repo.
+# All labels referenced here must already exist in the repo.
 
+# ── docs ──────────────────────────────────────────────────────────
 documentation:
   - changed-files:
       - any-glob-to-any-file:
@@ -10,14 +11,62 @@ documentation:
           - "CONTRIBUTING.md"
           - "AGENTS.md"
 
+# ── CI / workflows ───────────────────────────────────────────────
 ci:
   - changed-files:
       - any-glob-to-any-file:
           - ".github/**"
 
+# ── tests ─────────────────────────────────────────────────────────
 testing:
   - changed-files:
       - any-glob-to-any-file:
           - "app/src/test/**"
           - "app/src/androidTest/**"
           - "**/*Test.kt"
+
+# ── UI / UX ───────────────────────────────────────────────────────
+ux:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/**/ui/**"
+          - "app/src/main/**/theme/**"
+          - "app/src/main/res/**"
+
+# ── networking (WS, REST, remote) ─────────────────────────────────
+networking:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/**/data/ws/**"
+          - "app/src/main/**/data/remote/**"
+
+# ── data layer (Room, models, local) ──────────────────────────────
+data-layer:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/**/data/local/**"
+          - "app/src/main/**/data/model/**"
+          - "app/src/main/**/data/session/**"
+          - "app/src/main/**/data/config/**"
+          - "app/schemas/**"
+
+# ── security (auth, tokens, encryption) ───────────────────────────
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/**/authlogin/**"
+          - "app/src/main/**/data/remote/Auth*"
+          - "app/src/main/**/data/remote/*Token*"
+
+# ── build system (Gradle, Nix, wrapper) ──────────────────────────
+build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.gradle.kts"
+          - "gradle/**"
+          - "gradle.properties"
+          - "gradlew"
+          - "gradlew.bat"
+          - "flake.nix"
+          - "flake.lock"
+          - ".editorconfig"

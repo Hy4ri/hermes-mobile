@@ -75,6 +75,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.ExternalActivityLifecycleGuard
 import com.m57.hermescontrol.HistoryScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
@@ -85,6 +86,7 @@ import com.m57.hermescontrol.data.update.AppUpdateState
 import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
+import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.components.ChatConnectionBanner
 import com.m57.hermescontrol.ui.chat.components.ChatInputBar
@@ -169,6 +171,7 @@ fun ChatScreen(
     val saveAttachmentLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             try {
+                ExternalActivityLifecycleGuard.externalActivityReturned()
                 val path = pendingSavePath
                 val destination = acceptedSaveDestination(result.resultCode, result.data?.data)
                 if (destination != null && path != null) {
@@ -292,6 +295,15 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
+    val launchExternalActivity: (() -> Unit) -> Unit = { launch ->
+        ExternalActivityLifecycleGuard.launchExternalActivity(
+            acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
+            releaseConnectionLease = HermesWsClient::releaseExternalActivityConnectionLease,
+            prepareForBackground = { NotificationHelper.start(context) },
+            cleanupAfterLaunchFailure = { NotificationHelper.stop(context) },
+            launch = launch,
+        )
+    }
 
     val micListeningPrompt = stringResource(R.string.chat_mic_listening)
     val sttNotAvailableMsg = stringResource(R.string.stt_not_available)
@@ -302,6 +314,7 @@ fun ChatScreen(
         rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) { result ->
+            ExternalActivityLifecycleGuard.externalActivityReturned()
             isListening = false
             if (result.resultCode == Activity.RESULT_OK) {
                 val spokenText =
@@ -326,6 +339,7 @@ fun ChatScreen(
         rememberLauncherForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) { granted ->
+            ExternalActivityLifecycleGuard.externalActivityReturned()
             if (granted) {
                 if (SpeechRecognizer.isRecognitionAvailable(context)) {
                     val intent =
@@ -340,7 +354,9 @@ fun ChatScreen(
                             )
                         }
                     isListening = true
-                    speechLauncher.launch(intent)
+                    launchExternalActivity {
+                        speechLauncher.launch(intent)
+                    }
                 } else {
                     scrollScope.launch {
                         snackbarHostState.showSnackbar(sttNotAvailableMsg)
@@ -358,6 +374,7 @@ fun ChatScreen(
         rememberLauncherForActivityResult(
             ActivityResultContracts.GetMultipleContents(),
         ) { uris: List<Uri> ->
+            ExternalActivityLifecycleGuard.externalActivityReturned()
             val attachments =
                 uris.mapNotNull { uri ->
                     runCatching {
@@ -398,6 +415,7 @@ fun ChatScreen(
         rememberLauncherForActivityResult(
             ActivityResultContracts.TakePicture(),
         ) { success ->
+            ExternalActivityLifecycleGuard.externalActivityReturned()
             val uri = pendingCameraUri
             pendingCameraUri = null
             if (success && uri != null) {
@@ -652,23 +670,25 @@ fun ChatScreen(
                         pendingSavePath = viewModel.gatewayPathFor(attachment)
                         pendingSaveName = attachment.name
                         pendingSaveMimeType = attachment.mimeType
-                        saveAttachmentLauncher.launch(
-                            Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                                addCategory(Intent.CATEGORY_OPENABLE)
-                                type =
-                                    attachment.mimeType
-                                        .substringBefore(';')
-                                        .trim()
-                                        .takeIf { it.isNotBlank() } ?: "application/octet-stream"
-                                putExtra(
-                                    Intent.EXTRA_TITLE,
-                                    attachment.name
-                                        .substringAfterLast('/')
-                                        .substringAfterLast('\\')
-                                        .ifBlank { "download" },
-                                )
-                            },
-                        )
+                        launchExternalActivity {
+                            saveAttachmentLauncher.launch(
+                                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type =
+                                        attachment.mimeType
+                                            .substringBefore(';')
+                                            .trim()
+                                            .takeIf { it.isNotBlank() } ?: "application/octet-stream"
+                                    putExtra(
+                                        Intent.EXTRA_TITLE,
+                                        attachment.name
+                                            .substringAfterLast('/')
+                                            .substringAfterLast('\\')
+                                            .ifBlank { "download" },
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
 
@@ -771,14 +791,18 @@ fun ChatScreen(
                                     )
                                 }
                             isListening = true
-                            speechLauncher.launch(intent)
+                            launchExternalActivity {
+                                speechLauncher.launch(intent)
+                            }
                         } else {
                             scrollScope.launch {
                                 snackbarHostState.showSnackbar(sttNotAvailableMsg)
                             }
                         }
                     } else {
-                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        launchExternalActivity {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
                     }
                 },
                 isListening = isListening,
@@ -801,13 +825,23 @@ fun ChatScreen(
                                 photoFile,
                             )
                         pendingCameraUri = uri
-                        cameraLauncher.launch(uri)
+                        launchExternalActivity {
+                            cameraLauncher.launch(uri)
+                        }
                     } catch (e: Exception) {
                         Log.e("ChatScreen", "Camera launch failed", e)
                     }
                 },
-                onImageTap = { filePickerLauncher.launch("image/*") },
-                onFileTap = { filePickerLauncher.launch("*/*") },
+                onImageTap = {
+                    launchExternalActivity {
+                        filePickerLauncher.launch("image/*")
+                    }
+                },
+                onFileTap = {
+                    launchExternalActivity {
+                        filePickerLauncher.launch("*/*")
+                    }
+                },
                 onRemoveAttachment = viewModel::removeAttachment,
                 onPreviewAttachment = { attachment ->
                     if (attachment.isImage) {

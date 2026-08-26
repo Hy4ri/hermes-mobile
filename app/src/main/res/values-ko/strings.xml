@@ -71,6 +71,17 @@
     <string name="bots_hidden_badge">숨김</string>
     <string name="bots_show_hidden">숨겨진 봇 표시</string>
     <string name="bots_hide_hidden">숨겨진 봇 숨기기</string>
+    <string name="bots_action_create">봇 생성</string>
+    <string name="bots_create_title">새 봇 생성</string>
+    <string name="bots_create_name_label">식별자 / 슬러그</string>
+    <string name="bots_create_name_placeholder">예: scout, reviewer</string>
+    <string name="bots_create_title_label">표시 이름</string>
+    <string name="bots_create_title_placeholder">예: 스카우트 에이전트</string>
+    <string name="bots_create_desc_label">설명</string>
+    <string name="bots_create_desc_placeholder">이 에이전트는 어떤 작업을 수행하나요?</string>
+    <string name="bots_create_avatar_shape">아바타 모양</string>
+    <string name="bots_create_avatar_color">강조 색상</string>
+    <string name="bots_create_button">생성</string>
     <string name="screen_webhooks">웹훅</string>
     <string name="screen_gateway">게이트웨이</string>
     <string name="screen_toolsets">툴셋</string>

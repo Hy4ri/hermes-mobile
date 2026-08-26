@@ -88,6 +88,17 @@
     <string name="bots_hidden_badge">Hidden</string>
     <string name="bots_show_hidden">Show hidden bots</string>
     <string name="bots_hide_hidden">Hide hidden bots</string>
+    <string name="bots_action_create">Create Bot</string>
+    <string name="bots_create_title">New Bot</string>
+    <string name="bots_create_name_label">Handle / Slug</string>
+    <string name="bots_create_name_placeholder">e.g. scout, reviewer</string>
+    <string name="bots_create_title_label">Display Name</string>
+    <string name="bots_create_title_placeholder">e.g. Scout Agent</string>
+    <string name="bots_create_desc_label">Description</string>
+    <string name="bots_create_desc_placeholder">What does this agent do?</string>
+    <string name="bots_create_avatar_shape">Avatar Shape</string>
+    <string name="bots_create_avatar_color">Accent Color</string>
+    <string name="bots_create_button">Create</string>
     <string name="screen_webhooks">Webhooks</string>
     <string name="screen_gateway">Gateway</string>
     <string name="screen_toolsets">Toolsets</string>

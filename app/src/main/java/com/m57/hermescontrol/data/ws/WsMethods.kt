@@ -20,6 +20,8 @@ object WsMethods {
 
     /** Lifetime usage snapshot (calls, token totals, compression count). */
     const val SESSION_USAGE = "session.usage"
+    const val PROFILES_CONFIGURE = "profiles.configure"
+    const val PROFILES_LIST = "profiles.list"
 
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"

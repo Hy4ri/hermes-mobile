@@ -9,7 +9,9 @@ import com.m57.hermescontrol.data.model.ProfileWorkerSummary
 import com.m57.hermescontrol.data.model.ProfilesResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.ws.HermesWsClient
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -43,11 +45,14 @@ class BotsViewModelTest {
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
         every { ApiClient.hermesApi } returns mockApi
+        mockkObject(HermesWsClient)
+        every { HermesWsClient.send(any(), any(), any()) } returns "req-1"
     }
 
     @After
     fun tearDown() {
         unmockkObject(ApiClient)
+        unmockkObject(HermesWsClient)
         Dispatchers.resetMain()
     }
 
@@ -135,5 +140,28 @@ class BotsViewModelTest {
             viewModel.setSearchQuery("arxiv")
             val searchResults = viewModel.uiState.value.displayProfiles.map { it.name }
             assertEquals(listOf("scout"), searchResults)
+        }
+
+    @Test
+    fun testCreateBot_callsApiAndConfiguresMeta() =
+        runTest {
+            coEvery { mockApi.createProfile(any()) } returns Response.success(Unit)
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(emptyList()))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "default"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            var successCalled = false
+            viewModel.createBot(
+                name = "researcher",
+                title = "Research Bot",
+                description = "Deep research agent",
+                shape = "hexagon",
+                color = "#4F46E5",
+                onSuccess = { successCalled = true },
+            )
+            advanceUntilIdle()
+
+            assertTrue(successCalled)
+            coVerify(exactly = 1) { mockApi.createProfile(match { it.name == "researcher" }) }
         }
 }

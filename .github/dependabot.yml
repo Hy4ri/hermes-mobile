@@ -3,18 +3,46 @@ updates:
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      interval: "daily"
+    open-pull-requests-limit: 25
     labels:
       - "dependencies"
     commit-message:
       prefix: "chore"
+    groups:
+      androidx-core:
+        patterns:
+          - "androidx.compose*"
+          - "androidx.core:*"
+          - "androidx.lifecycle:*"
+          - "androidx.activity:*"
+          - "androidx.browser:*"
+          - "androidx.navigation3:*"
+          - "androidx.datastore:*"
+          - "androidx.test*"
+      networking:
+        patterns:
+          - "com.squareup.okhttp3:*"
+          - "com.squareup.retrofit2:*"
+          - "org.jetbrains.kotlinx:kotlinx-serialization*"
+          - "org.jetbrains.kotlinx:kotlinx-coroutines*"
+      testing:
+        patterns:
+          - "junit:*"
+          - "org.junit*:*"
+          - "io.mockk:*"
+          - "app.cash.turbine:*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     labels:
       - "dependencies"
     commit-message:
       prefix: "chore"
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+          - "gradle/actions"

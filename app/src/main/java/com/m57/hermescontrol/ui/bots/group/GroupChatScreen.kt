@@ -1,6 +1,6 @@
 package com.m57.hermescontrol.ui.bots.group
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,14 +10,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,21 +27,27 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
@@ -58,6 +66,18 @@ fun GroupChatScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+    var inputFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
+    var isFocused by remember { mutableStateOf(false) }
+
+    val handleSend = {
+        val text = inputFieldValue.text
+        if (text.isNotBlank()) {
+            viewModel.sendMessage(text)
+            inputFieldValue = TextFieldValue("")
+        }
+    }
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) {
@@ -89,7 +109,8 @@ fun GroupChatScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(bottom = 8.dp),
+                    .padding(bottom = 8.dp)
+                    .imePadding(),
         ) {
             when {
                 state.isLoading -> {
@@ -155,64 +176,82 @@ fun GroupChatScreen(
                 }
             }
 
-            // Bottom Composer
-            Row(
+            // ── COMPOSER (uses TextFieldValue + embedded Send button matching ChatComposer) ──
+            Surface(
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                shape = RoundedCornerShape(20.dp),
+                border =
+                    BorderStroke(
+                        width = if (isFocused) 2.dp else 1.dp,
+                        color =
+                            if (isFocused) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                            },
+                    ),
+                color = MaterialTheme.colorScheme.surface,
             ) {
-                OutlinedTextField(
-                    value = state.inputText,
-                    onValueChange = viewModel::onInputTextChanged,
-                    modifier = Modifier.weight(1f),
-                    placeholder = {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string.group_chat_composer_hint,
-                                    state.groupName.ifBlank { groupName },
-                                ),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
-                    shape = RoundedCornerShape(24.dp),
-                    colors =
-                        OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                    maxLines = 4,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { viewModel.sendMessage() }),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(
-                    onClick = viewModel::sendMessage,
-                    enabled = state.inputText.isNotBlank(),
+                Row(
                     modifier =
                         Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (state.inputText.isNotBlank()) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                },
-                            ),
+                            .fillMaxWidth()
+                            .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint =
-                            if (state.inputText.isNotBlank()) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            },
-                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (inputFieldValue.text.isEmpty()) {
+                            Text(
+                                text =
+                                    stringResource(
+                                        R.string.group_chat_composer_hint,
+                                        state.groupName.ifBlank { groupName },
+                                    ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            )
+                        }
+                        BasicTextField(
+                            value = inputFieldValue,
+                            onValueChange = { inputFieldValue = it },
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 24.dp, max = 120.dp)
+                                    .onFocusChanged { isFocused = it.isFocused }
+                                    .testTag("group_chat_input"),
+                            textStyle =
+                                MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                ),
+                            singleLine = false,
+                            maxLines = 4,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { handleSend() }),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    IconButton(
+                        onClick = handleSend,
+                        enabled = inputFieldValue.text.isNotBlank(),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(),
+                        modifier =
+                            Modifier
+                                .size(36.dp)
+                                .testTag("group_chat_send_button"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send",
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
         }

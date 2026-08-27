@@ -1,12 +1,11 @@
 package com.m57.hermescontrol.data.local
 
 import android.content.Context
-import androidx.room.Database
-import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.room.migration.Migration
+import androidx.room3.Database
+import androidx.room3.Room
+import androidx.room3.RoomDatabase
+import androidx.room3.migration.Migration
 import androidx.sqlite.SQLiteConnection
-import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.execSQL
 import net.zetetic.database.sqlcipher.driver.SQLCipherDriver
 import java.io.File
@@ -25,14 +24,7 @@ abstract class HermesDatabase : RoomDatabase() {
 
         val MIGRATION_2_3: Migration =
             object : Migration(2, 3) {
-                override fun migrate(db: SupportSQLiteDatabase) {
-                    db.execSQL(
-                        "CREATE INDEX IF NOT EXISTS `index_chat_messages_session_id_timestamp` " +
-                            "ON `chat_messages` (`session_id`, `timestamp`)",
-                    )
-                }
-
-                override fun migrate(connection: SQLiteConnection) {
+                override suspend fun migrate(connection: SQLiteConnection) {
                     connection.execSQL(
                         "CREATE INDEX IF NOT EXISTS `index_chat_messages_session_id_timestamp` " +
                             "ON `chat_messages` (`session_id`, `timestamp`)",
@@ -42,13 +34,7 @@ abstract class HermesDatabase : RoomDatabase() {
 
         val MIGRATION_3_4: Migration =
             object : Migration(3, 4) {
-                override fun migrate(db: SupportSQLiteDatabase) {
-                    db.execSQL(
-                        "ALTER TABLE `chat_messages` ADD COLUMN `reasoning_text` TEXT NOT NULL DEFAULT ''",
-                    )
-                }
-
-                override fun migrate(connection: SQLiteConnection) {
+                override suspend fun migrate(connection: SQLiteConnection) {
                     connection.execSQL(
                         "ALTER TABLE `chat_messages` ADD COLUMN `reasoning_text` TEXT NOT NULL DEFAULT ''",
                     )
@@ -57,18 +43,12 @@ abstract class HermesDatabase : RoomDatabase() {
 
         val MIGRATION_4_5: Migration =
             object : Migration(4, 5) {
-                override fun migrate(db: SupportSQLiteDatabase) {
+                override suspend fun migrate(connection: SQLiteConnection) {
                     // Issue #842: tool rows now carry the gateway's
                     // tool call id (`call_00_...`) so REST transcript
                     // rows can be matched 1:1 against their live WS
                     // bubbles instead of fragile result-content
                     // canonicalization.
-                    db.execSQL(
-                        "ALTER TABLE `chat_messages` ADD COLUMN `tool_call_id` TEXT NOT NULL DEFAULT ''",
-                    )
-                }
-
-                override fun migrate(connection: SQLiteConnection) {
                     connection.execSQL(
                         "ALTER TABLE `chat_messages` ADD COLUMN `tool_call_id` TEXT NOT NULL DEFAULT ''",
                     )
@@ -77,16 +57,10 @@ abstract class HermesDatabase : RoomDatabase() {
 
         val MIGRATION_5_6: Migration =
             object : Migration(5, 6) {
-                override fun migrate(db: SupportSQLiteDatabase) {
+                override suspend fun migrate(connection: SQLiteConnection) {
                     // Issue #904: timeline markers (display_kind) keep
                     // their tag through the Room cache so a cached
                     // marker never degrades back into a user bubble.
-                    db.execSQL(
-                        "ALTER TABLE `chat_messages` ADD COLUMN `display_kind` TEXT",
-                    )
-                }
-
-                override fun migrate(connection: SQLiteConnection) {
                     connection.execSQL(
                         "ALTER TABLE `chat_messages` ADD COLUMN `display_kind` TEXT",
                     )

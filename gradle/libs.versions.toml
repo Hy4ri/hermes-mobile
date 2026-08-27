@@ -26,7 +26,7 @@ securityCrypto = "1.0.0"
 mockk = "1.14.11"
 turbine = "1.2.1"
 coil = "2.7.0"
-room = "2.7.1"
+room = "3.0.2"
 sqlcipher = "4.18.0"
 datastore = "1.1.2"
 latex = "1.5.3"
@@ -76,10 +76,9 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 androidx-datastore = { module = "androidx.datastore:datastore", version.ref = "datastore" }
 
-# Database (Room)
-androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
-androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
-androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+# Database (Room 3)
+androidx-room-runtime = { module = "androidx.room3:room3-runtime", version.ref = "room" }
+androidx-room-compiler = { module = "androidx.room3:room3-compiler", version.ref = "room" }
 sqlcipher = { module = "net.zetetic:sqlcipher-android", version.ref = "sqlcipher" }
 
 # Native Compose LaTeX rendering
@@ -95,5 +94,5 @@ coil-gif = { module = "io.coil-kt:coil-gif", version.ref = "coil" }
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
-room = { id = "androidx.room", version.ref = "room" }
+room = { id = "androidx.room3", version.ref = "room" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

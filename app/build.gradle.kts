@@ -128,7 +128,7 @@ kotlin {
     jvmToolchain(21)
 }
 
-room {
+room3 {
     schemaDirectory("$projectDir/schemas")
 }
 
@@ -180,9 +180,8 @@ dependencies {
     implementation(libs.androidx.datastore)
     implementation("androidx.startup:startup-runtime:1.1.1")
 
-    // Local database (Room) — message persistence
+    // Local database (Room 3) — message persistence
     implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
     implementation(libs.sqlcipher)
     ksp(libs.androidx.room.compiler)
 

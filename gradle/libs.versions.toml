@@ -27,7 +27,7 @@ mockk = "1.14.11"
 turbine = "1.2.1"
 coil = "2.7.0"
 room = "2.7.1"
-sqlcipher = "4.17.0"
+sqlcipher = "4.18.0"
 datastore = "1.1.2"
 latex = "1.5.3"
 

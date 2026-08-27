@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Close stale waiting-for-response items
-        uses: actions/stale@v9
+        uses: actions/stale@v11
         with:
           # Only issues/PRs already marked `waiting-for-response` are candidates.
           # Everything else is left completely alone.

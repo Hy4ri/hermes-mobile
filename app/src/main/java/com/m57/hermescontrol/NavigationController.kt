@@ -6,6 +6,12 @@ import androidx.compose.runtime.setValue
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 
+data class PendingChatNavigation(
+    val sessionId: String,
+    val scrollToBottom: Boolean,
+    val requestId: Long,
+)
+
 /**
  * Central navigation controller with deduplication guard.
  *
@@ -19,8 +25,11 @@ import androidx.navigation3.runtime.NavKey
  */
 object NavigationController {
     var backStack: NavBackStack<NavKey>? = null
-    var pendingSessionId: String? by mutableStateOf(null)
+    var pendingChatNavigation: PendingChatNavigation? by mutableStateOf(null)
         private set
+    val pendingSessionId: String? get() = pendingChatNavigation?.sessionId
+
+    private var nextChatNavigationRequestId = 0L
 
     // Top-level primary screens (Chat, Skills, Cron, System, Settings)
     private val primaryScreens: MutableSet<NavKey> =
@@ -50,12 +59,31 @@ object NavigationController {
     }
 
     fun openChatSession(sessionId: String) {
+        queueChatNavigation(sessionId, scrollToBottom = false)
+    }
+
+    fun openChatSessionFromNotification(sessionId: String) {
+        queueChatNavigation(sessionId, scrollToBottom = true)
+    }
+
+    private fun queueChatNavigation(
+        sessionId: String,
+        scrollToBottom: Boolean,
+    ) {
         if (sessionId.isBlank()) return
-        pendingSessionId = sessionId
+        pendingChatNavigation =
+            PendingChatNavigation(
+                sessionId = sessionId,
+                scrollToBottom = scrollToBottom,
+                requestId = ++nextChatNavigationRequestId,
+            )
         navigateTo(ChatScreen)
     }
 
-    fun consumePendingSessionId(): String? = pendingSessionId.also { pendingSessionId = null }
+    fun consumePendingChatNavigation(): PendingChatNavigation? =
+        pendingChatNavigation.also { pendingChatNavigation = null }
+
+    fun consumePendingSessionId(): String? = consumePendingChatNavigation()?.sessionId
 
     /** Clear the stack and navigate to the given screen atomically. */
     fun resetTo(screen: NavKey) {

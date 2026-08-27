@@ -165,7 +165,15 @@ class BotsViewModelTest {
             advanceUntilIdle()
 
             assertTrue(successCalled)
-            coVerify(exactly = 1) { mockApi.createProfile(match { it.name == "researcher" }) }
+            coVerify(exactly = 1) {
+                mockApi.createProfile(
+                    match {
+                        it.name == "researcher" &&
+                            it.clone_from_default == false &&
+                            it.description == "Deep research agent"
+                    },
+                )
+            }
         }
 
     @Test

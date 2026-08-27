@@ -238,11 +238,11 @@ class BotsViewModel(
                 CreateProfileRequest(
                     name = name,
                     description = description.ifBlank { null },
-                    clone_from_default = true,
+                    clone_from_default = false,
                 )
             val result = safeApiCall { ApiClient.hermesApi.createProfile(req) }
             if (result is NetworkResult.Success) {
-                // Configure UI metadata (avatar, custom title) via RPC
+                // Configure UI metadata (avatar, custom title) and bot SOUL via RPC
                 val botMeta =
                     BotRosterMeta(
                         title = title.ifBlank { null },
@@ -253,7 +253,8 @@ class BotsViewModel(
                                 color = color,
                             ),
                     )
-                wsClientConfigureBot(name, botMeta)
+                val botSoul = composeBotSoul(name, title, description)
+                wsClientConfigureBot(name, botMeta, soul = botSoul)
                 loadBots()
                 onSuccess()
             } else {
@@ -363,18 +364,36 @@ class BotsViewModel(
         }
     }
 
+    private fun composeBotSoul(
+        name: String,
+        title: String,
+        description: String,
+    ): String {
+        val displayName = title.ifBlank { name }
+        val lines = mutableListOf<String>()
+        lines.add("# $displayName")
+        lines.add("")
+        if (title.isNotBlank()) lines.add("**Role:** $title")
+        if (description.isNotBlank()) lines.add("**Mission:** $description")
+        lines.add("")
+        lines.add("You are $displayName, a persistent named agent (profile `$name`) on this machine.")
+        lines.add("You keep your own memory, skills, and conversation history across sessions.")
+        return lines.joinToString("\n")
+    }
+
     private fun wsClientConfigureBot(
         name: String,
         meta: BotRosterMeta,
+        soul: String? = null,
     ): kotlinx.coroutines.CompletableDeferred<Any?> {
         val metaMap =
-            buildMap<String, Any?> {
-                put("title", meta.title)
-                put("description", meta.description)
+            buildMap<String, Any> {
+                meta.title?.let { put("title", it) }
+                meta.description?.let { put("description", it) }
                 meta.avatar?.let { av ->
                     put(
                         "avatar",
-                        buildMap<String, Any?> {
+                        buildMap<String, Any> {
                             av.shape?.let { put("shape", it) }
                             av.color?.let { put("color", it) }
                             av.icon?.let { put("icon", it) }
@@ -386,12 +405,16 @@ class BotsViewModel(
                 }
             }
 
+        val params =
+            buildMap<String, Any> {
+                put("name", name)
+                put("ui_meta", mapOf("hermes-bots" to metaMap))
+                soul?.let { put("soul", it) }
+            }
+
         return HermesWsClient.request(
             WsMethods.PROFILES_CONFIGURE,
-            mapOf(
-                "name" to name,
-                "ui_meta" to mapOf("hermes-bots" to metaMap),
-            ),
+            params,
         )
     }
 }

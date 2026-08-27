@@ -25,7 +25,7 @@ retrofit = "3.0.0"
 securityCrypto = "1.0.0"
 mockk = "1.14.11"
 turbine = "1.2.1"
-coil = "2.7.0"
+coil = "3.6.0"
 room = "3.0.2"
 sqlcipher = "4.18.0"
 datastore = "1.1.2"
@@ -86,9 +86,10 @@ latex-base = { module = "io.github.huarangmeng:latex-base", version.ref = "latex
 latex-parser = { module = "io.github.huarangmeng:latex-parser", version.ref = "latex" }
 latex-renderer = { module = "io.github.huarangmeng:latex-renderer", version.ref = "latex" }
 
-# Image loading
-coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
-coil-gif = { module = "io.coil-kt:coil-gif", version.ref = "coil" }
+# Image loading (Coil 3)
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

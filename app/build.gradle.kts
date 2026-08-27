@@ -171,9 +171,10 @@ dependencies {
     implementation(libs.latex.parser)
     implementation(libs.latex.renderer)
 
-    // Image loading
+    // Image loading (Coil 3)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.coil.network.okhttp)
 
     // Encrypted storage
     implementation(libs.androidx.security.crypto)

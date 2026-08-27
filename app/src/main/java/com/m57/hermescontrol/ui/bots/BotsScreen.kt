@@ -400,20 +400,9 @@ fun BotsScreen(
                                         group = group,
                                         onClick = {
                                             if (group.members.isNotEmpty()) {
-                                                scope.launch {
-                                                    val primary = group.members.first()
-                                                    viewModel.selectBot(primary)
-                                                    val canonicalId =
-                                                        primary.canonical_session?.resolved_id
-                                                            ?: primary.canonical_session?.id
-                                                    if (!canonicalId.isNullOrBlank()) {
-                                                        NavigationController.openChatSession(canonicalId)
-                                                    } else {
-                                                        NavigationController.navigateTo(
-                                                            com.m57.hermescontrol.ChatScreen,
-                                                        )
-                                                    }
-                                                }
+                                                NavigationController.navigateTo(
+                                                    com.m57.hermescontrol.GroupChatKey(group.name),
+                                                )
                                             }
                                         },
                                         onDisbandClick = {

@@ -1101,4 +1101,11 @@
     <!-- system action toast templates -->
     <string name="system_action_started">%1$s 已开始</string>
     <string name="system_action_failed">%1$s 失败：%2$s</string>
+    <!-- Group Chat Room -->
+    <string name="group_chat_composer_hint">发消息给 %1$s…（使用 @bot 提及）</string>
+    <string name="group_chat_empty_title">暂无消息</string>
+    <string name="group_chat_empty_subtitle">提及某个 Bot 或使用 @all 开始协同。</string>
+    <string name="group_chat_thinking">%1$s 正在思考…</string>
+    <string name="group_chat_members_count">%1$d 个成员</string>
+    <string name="group_chat_mention_all">@all</string>
 </resources>

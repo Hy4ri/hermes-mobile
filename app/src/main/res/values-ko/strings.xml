@@ -802,4 +802,11 @@
         <item quantity="other">에이전트 %1$d개 실행 중</item>
     </plurals>
     <string name="task_progress_open_details">작업 세부 정보 열기</string>
+    <!-- Group Chat Room -->
+    <string name="group_chat_composer_hint">%1$s에게 메시지 보내기… (@bot으로 멘션)</string>
+    <string name="group_chat_empty_title">메시지 없음</string>
+    <string name="group_chat_empty_subtitle">봇을 멘션하거나 @all을 사용하여 협업을 시작하세요.</string>
+    <string name="group_chat_thinking">%1$s 생각 중…</string>
+    <string name="group_chat_members_count">멤버 %1$d명</string>
+    <string name="group_chat_mention_all">@all</string>
 </resources>

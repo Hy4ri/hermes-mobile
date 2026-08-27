@@ -92,6 +92,7 @@ import com.m57.hermescontrol.ui.chat.components.ChatLifecycleEffects
 import com.m57.hermescontrol.ui.chat.components.ChatLoadingOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatResumeErrorOverlay
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
+import com.m57.hermescontrol.ui.chat.components.ChatTimelineNoPrefetchStrategy
 import com.m57.hermescontrol.ui.chat.components.ContextDetailSheet
 import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
@@ -158,7 +159,7 @@ fun ChatScreen(
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
     val lifecycleOwner = LocalLifecycleOwner.current
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
     val scrollScope = rememberCoroutineScope()
     val scrollController = rememberChatScrollController(listState, scrollScope)
     var isOlderPagingArmed by remember(state.currentSessionId) { mutableStateOf(false) }

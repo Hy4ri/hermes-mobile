@@ -89,6 +89,7 @@ class HermesWsClientTest {
         (queueField.get(HermesWsClient) as java.util.concurrent.ConcurrentLinkedQueue<String>).clear()
 
         HermesWsClient.disconnect(clearPendingMessages = true) // Ensure it starts clean
+        HermesWsClient.releaseExternalActivityConnectionLease()
         HermesWsClient.setAppForeground(true)
         val acceptQueuedMessagesField = HermesWsClient::class.java.getDeclaredField("acceptQueuedMessages")
         acceptQueuedMessagesField.isAccessible = true
@@ -97,6 +98,7 @@ class HermesWsClientTest {
 
     @After
     fun tearDown() {
+        HermesWsClient.releaseExternalActivityConnectionLease()
         HermesWsClient.disconnect(clearPendingMessages = true)
         // Wait a bit to allow internal OkHttp coroutines to clean up before shutting down MockWebServer
         // Increased from 100ms for OkHttp 5.x — needs more time for the WS close handshake
@@ -832,6 +834,23 @@ class HermesWsClientTest {
         runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
 
         HermesWsClient.setAppForeground(false)
+
+        assertFalse(HermesWsClient.isConnected)
+        assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)
+    }
+
+    @Test
+    fun testExternalActivityLeaseKeepsIdleBackgroundSocketUntilReleased() {
+        mockWebServer.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {}))
+        HermesWsClient.connect()
+        runBlocking { withTimeout(5000) { HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED } } }
+
+        HermesWsClient.acquireExternalActivityConnectionLease()
+        HermesWsClient.setAppForeground(false)
+
+        assertTrue(HermesWsClient.isConnected)
+
+        HermesWsClient.releaseExternalActivityConnectionLease()
 
         assertFalse(HermesWsClient.isConnected)
         assertEquals(ConnectionStatus.DISCONNECTED, HermesWsClient.connectionStatus.value)

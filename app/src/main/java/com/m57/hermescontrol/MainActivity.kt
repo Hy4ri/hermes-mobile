@@ -75,19 +75,21 @@ class MainActivity : ComponentActivity() {
         consumeNotificationIntent(intent)
     }
 
-    override fun onStart() {
-        super.onStart()
+    override fun onResume() {
+        super.onResume()
         NotificationHelper.setAppForeground(this, true)
+        ExternalActivityLifecycleGuard.onHostResumed()
         NotificationHelper.stop(this)
         if (AuthManager.isGatedMode() || !AuthManager.getToken().isNullOrBlank()) {
             HermesWsClient.connect()
         }
     }
 
-    override fun onStop() {
+    override fun onPause() {
+        ExternalActivityLifecycleGuard.onHostPaused()
         NotificationHelper.setAppForeground(this, false)
         NotificationHelper.start(this)
-        super.onStop()
+        super.onPause()
     }
 
     private fun consumeNotificationIntent(intent: Intent?) {

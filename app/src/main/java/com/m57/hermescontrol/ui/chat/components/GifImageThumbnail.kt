@@ -25,10 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.asDrawable
+import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 
 @Composable
@@ -54,6 +56,7 @@ fun GifImageThumbnail(
         }
     }
 
+    val context = LocalContext.current
     Box(
         modifier =
             modifier
@@ -65,7 +68,7 @@ fun GifImageThumbnail(
             model = model,
             contentDescription = contentDescription,
             onSuccess = { result ->
-                val drawable = result.result.drawable
+                val drawable = result.result.image.asDrawable(context.resources)
                 if (drawable is Animatable) {
                     animatableDrawable = drawable
                     if (isPlaying) {

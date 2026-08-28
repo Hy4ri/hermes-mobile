@@ -63,7 +63,7 @@ always creating a blank new one.
 If you use AI coding tools (including agents) to contribute:
 
 - **Never** add the AI tool as author, co-author, or `Co-Authored-By` in commit metadata.
-- Direct AI agents to [`AGENTS.md`](AGENTS.md) in the repo root — it contains agent-specific guidance on project conventions, build quirks, and security considerations that complement this guide.
+- Direct AI agents to [`AGENTS.md`](AGENTS.md) and [`DESIGN.md`](DESIGN.md) in the repo root — `AGENTS.md` contains operational conventions, build quirks, and testing rules, while `DESIGN.md` defines the normative design tokens, layout rules, and component styling contracts.
 
 ---
 
@@ -121,5 +121,6 @@ Before submitting your PR, please verify:
 - [ ] No unused imports, unused parameters, or dead code.
 - [ ] Every `Image` and `Icon` element has a descriptive `contentDescription` for accessibility.
 - [ ] New screens use `HermesScaffold` and implement Loading/Error/Empty states.
+- [ ] UI changes follow [`DESIGN.md`](DESIGN.md) (no emoji status glyphs, no FABs, verified >=3:1 contrast).
 - [ ] New components match the UI/UX style of similar existing screens (28+ screens for reference).
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are atomic (subject + ≤2 lines body).

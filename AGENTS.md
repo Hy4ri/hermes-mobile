@@ -220,15 +220,15 @@ Access status colors via `LocalHermesStatusColors.current.success`, not
 
 ### PR-Always (ENFORCED)
 
-**Every change goes through a PR. Never push directly to `main`.**
+**Every change goes through a PR, targeting `dev`. Never push directly to `dev` (or `main`).**
 
 ```bash
-git checkout main && git pull origin main
+git checkout dev && git pull origin dev
 git checkout -b fix/issue-N-description    # or feat/...
 # make changes, run ./ktlint --format
 git commit -m "fix(#N): description"
 git push -u origin HEAD
-gh pr create --title "fix(#N): description" --body "Closes #N"
+gh pr create --base dev --title "fix(#N): description" --body "Closes #N"
 ```
 
 ### Commit Conventions — STRICT

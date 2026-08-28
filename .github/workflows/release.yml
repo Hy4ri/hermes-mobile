@@ -54,11 +54,18 @@ jobs:
           # Strip leading 'v' for versionName
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          # versionCode: strip dots from version, pad to keep sortable
-          CODE=$(echo "$VERSION" | tr -d '.' | sed 's/^0*//')
+          # versionCode: strip pre-release suffixes (e.g. 1.25.0-rc1 -> 1.25.0) and dots
+          BASE_VERSION="${VERSION%%-*}"
+          CODE=$(echo "$BASE_VERSION" | tr -d '.' | sed 's/^0*//')
           [ -z "$CODE" ] && CODE=0
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
-          echo "Release: tag=$TAG version=$VERSION code=$CODE"
+          if [[ "$VERSION" == *"-"* ]]; then
+            PRERELEASE="true"
+          else
+            PRERELEASE="false"
+          fi
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Release: tag=$TAG version=$VERSION code=$CODE prerelease=$PRERELEASE"
 
       - name: Decode release keystore
         env:
@@ -108,6 +115,6 @@ jobs:
           files: |
             release/hermes-mobile-${{ steps.version.outputs.tag }}.apk
             release/version.txt
-          prerelease: false
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

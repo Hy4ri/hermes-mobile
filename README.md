@@ -124,10 +124,6 @@ Tap **Sign in** on the landing screen and enter the dashboard host and port. The
 
 Have multiple gateways? Switch between them in **Settings → Connection profiles**. Each profile stores its own host, port, and token — just tap to swap.
 
-### Pairing (admin)
-
-The **Pairing** screen lets you approve or revoke agents and services that are trying to connect to your gateway, such as Telegram or Discord sessions.
-
 ---
 
 ## Project Structure

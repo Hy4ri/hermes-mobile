@@ -768,6 +768,7 @@ fun SessionsScreen(
                                     val info = listState.layoutInfo
                                     val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
                                     lastVisible >= 0 &&
+                                        info.totalItemsCount >= AUTO_LOAD_THRESHOLD &&
                                         lastVisible >= info.totalItemsCount - AUTO_LOAD_THRESHOLD
                                 }
                             }

@@ -13,6 +13,7 @@ import com.m57.hermescontrol.theme.StatusYellowContainer
 import com.m57.hermescontrol.theme.searchHighlightColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -451,5 +452,90 @@ class MarkdownTextFeatureTest {
         assertEquals("two", o16.text)
         assertEquals(2, o16.index)
         assertEquals(0, o16.level)
+    }
+
+    // 19. NESTED CODEBLOCKS & EXTENDED CODE FENCES
+    @Test
+    fun testNestedCodeBlock_fourBackticksWrappingThreeBackticks() {
+        val md =
+            """
+            ````markdown
+            Here is a nested block:
+            ```python
+            def foo():
+                print("hello")
+            ```
+            End of inner block.
+            ````
+            """.trimIndent()
+
+        val blocks = parseBlocks(md)
+        assertEquals("Should parse as single code block", 1, blocks.size)
+        val codeBlock = blocks.single() as MdBlock.Code
+        assertEquals("markdown", codeBlock.language)
+        val expectedInner =
+            """
+            Here is a nested block:
+            ```python
+            def foo():
+                print("hello")
+            ```
+            End of inner block.
+            """.trimIndent()
+        assertEquals(expectedInner, codeBlock.code)
+    }
+
+    @Test
+    fun testNestedCodeBlock_fiveBackticksWrappingFourAndThree() {
+        val md =
+            """
+            `````
+            ````markdown
+            ```python
+            print("deep")
+            ```
+            ````
+            `````
+            """.trimIndent()
+
+        val blocks = parseBlocks(md)
+        assertEquals(1, blocks.size)
+        val codeBlock = blocks.single() as MdBlock.Code
+        assertNull("Language should be null when omitted", codeBlock.language)
+        assertTrue(codeBlock.code.contains("````markdown"))
+        assertTrue(codeBlock.code.contains("```python"))
+    }
+
+    @Test
+    fun testTildeCodeBlock_parses() {
+        val md =
+            """
+            ~~~json
+            {"key": "value"}
+            ~~~
+            """.trimIndent()
+
+        val blocks = parseBlocks(md)
+        assertEquals(1, blocks.size)
+        val codeBlock = blocks.single() as MdBlock.Code
+        assertEquals("json", codeBlock.language)
+        assertEquals("{\"key\": \"value\"}", codeBlock.code)
+    }
+
+    @Test
+    fun testTildeCodeBlock_wrappingBackticks() {
+        val md =
+            """
+            ~~~~
+            ```python
+            def foo(): pass
+            ```
+            ~~~~
+            """.trimIndent()
+
+        val blocks = parseBlocks(md)
+        assertEquals(1, blocks.size)
+        val codeBlock = blocks.single() as MdBlock.Code
+        assertTrue(codeBlock.code.contains("```python"))
     }
 }

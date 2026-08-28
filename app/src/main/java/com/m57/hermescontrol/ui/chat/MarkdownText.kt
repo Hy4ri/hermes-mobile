@@ -694,15 +694,15 @@ internal fun parseBlocks(src: String): List<MdBlock> {
             continue
         }
 
+        val codeFence = parseCodeFenceStart(line)
         when {
-            line.startsWith("```") -> {
-                val lang = line.removePrefix("```").trim().ifBlank { null }
-                val end = (i + 1 until lines.size).firstOrNull { lines[it].startsWith("```") }
+            codeFence != null -> {
+                val end = (i + 1 until lines.size).firstOrNull { isCodeFenceEnd(lines[it], codeFence) }
                 if (end != null) {
                     blocks.add(
                         MdBlock.Code(
                             code = lines.subList(i + 1, end).joinToString("\n"),
-                            language = lang,
+                            language = codeFence.language,
                         ),
                     )
                     i = end + 1
@@ -710,7 +710,7 @@ internal fun parseBlocks(src: String): List<MdBlock> {
                     blocks.add(
                         MdBlock.Code(
                             code = lines.subList(i + 1, lines.size).joinToString("\n"),
-                            language = lang,
+                            language = codeFence.language,
                         ),
                     )
                     i = lines.size
@@ -1023,12 +1023,45 @@ private fun splitRow(line: String): List<String> {
     return trimmed.split('|').map { it.trim() }
 }
 
+private data class CodeFenceInfo(
+    val fenceChar: Char,
+    val fenceLength: Int,
+    val language: String?,
+)
+
+private fun parseCodeFenceStart(line: String): CodeFenceInfo? {
+    val trimmed = line.trimStart()
+    if (trimmed.length < 3) return null
+    val firstChar = trimmed[0]
+    if (firstChar != '`' && firstChar != '~') return null
+    val count = trimmed.takeWhile { it == firstChar }.length
+    if (count < 3) return null
+    val rest = trimmed.substring(count).trim()
+    if (firstChar == '`' && rest.contains('`')) return null
+    return CodeFenceInfo(
+        fenceChar = firstChar,
+        fenceLength = count,
+        language = rest.ifBlank { null },
+    )
+}
+
+private fun isCodeFenceEnd(
+    line: String,
+    fence: CodeFenceInfo,
+): Boolean {
+    val trimmed = line.trimStart()
+    val count = trimmed.takeWhile { it == fence.fenceChar }.length
+    if (count < fence.fenceLength) return false
+    val rest = trimmed.substring(count).trim()
+    return rest.isEmpty()
+}
+
 private fun isDefListStart(
     lines: List<String>,
     i: Int,
 ): Boolean {
     val l = lines[i].trim()
-    if (l.isBlank() || l.startsWith("#") || l.startsWith(">") || l.startsWith("```")) return false
+    if (l.isBlank() || l.startsWith("#") || l.startsWith(">") || parseCodeFenceStart(l) != null) return false
     if (LIST_ITEM_LINE_RE.matches(lines[i])) return false
     if (i + 1 >= lines.size) return false
     return lines[i + 1].trim().startsWith(":")
@@ -1050,7 +1083,7 @@ private fun fallthroughToParagraph(
     while (
         i < lines.size &&
         lines[i].isNotBlank() &&
-        !lines[i].startsWith("```") &&
+        parseCodeFenceStart(lines[i]) == null &&
         !isValidHeading(lines[i]) &&
         !lines[i].startsWith(">") &&
         !LIST_ITEM_LINE_RE.matches(lines[i]) &&

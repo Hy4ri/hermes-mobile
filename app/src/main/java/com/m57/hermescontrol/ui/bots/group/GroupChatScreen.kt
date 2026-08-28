@@ -62,7 +62,7 @@ fun GroupChatScreen(
     groupName: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: GroupChatViewModel = viewModel { GroupChatViewModel(groupName) },
+    viewModel: GroupChatViewModel = viewModel { GroupChatViewModel() },
 ) {
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
@@ -77,6 +77,10 @@ fun GroupChatScreen(
             viewModel.sendMessage(text)
             inputFieldValue = TextFieldValue("")
         }
+    }
+
+    LaunchedEffect(groupName) {
+        viewModel.setGroup(groupName)
     }
 
     LaunchedEffect(state.messages.size) {
@@ -307,10 +311,29 @@ private fun GroupMessageCard(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    MarkdownText(
-                        text = message.text,
-                        textColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (message.isStreaming && message.text.isBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.group_chat_typing),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            )
+                        }
+                    } else if (message.text.isNotBlank()) {
+                        MarkdownText(
+                            text = message.text,
+                            textColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

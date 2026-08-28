@@ -14,6 +14,8 @@ data class GroupChatMessage(
     val avatarMeta: BotAvatarMeta? = null,
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
+    val isStreaming: Boolean = false,
+    val thread: String? = null,
 )
 
 /**
@@ -78,8 +80,19 @@ object GroupChatMentions {
         val peerNames = peers.joinToString(", ") { "@${it.name}" }
         val lines =
             recentLog.takeLast(10).joinToString("\n") { msg ->
-                val speaker = if (msg.isUser) "You" else "@${msg.senderName}"
+                val speaker = if (msg.isUser) "User" else "@${msg.senderName}"
                 "  $speaker: ${msg.text}"
+            }
+
+        val lastUserMsg = recentLog.lastOrNull { it.isUser }?.text.orEmpty()
+        val parsed = parseMentions(lastUserMsg, peers + viewer)
+        val isDirectOrAll = parsed.isEveryone || parsed.mentionedBots.contains(viewer.name)
+
+        val actionGuidance =
+            if (isDirectOrAll) {
+                "- You were explicitly addressed (via @$viewerHandle or @all). Do NOT pass — reply conversationally with your greeting, insight, answer, or status."
+            } else {
+                "- If you have nothing new to add, reply with exactly \"(pass)\". Passing is good and lets the conversation settle."
             }
 
         return """
@@ -89,10 +102,9 @@ Recent messages in the room:
 $lines
 
 Rules for this room:
-- Reply with ONE conversational message ONLY if you have something new worth adding: build on what was just said, answer a question aimed at you, or report a real result.
-- Keep chatter short (1-3 sentences), but deliver full quality for real questions/results.
-- If you have nothing new to add, reply with exactly "(pass)". Passing is good and lets the conversation settle.
-- Mention a teammate as @name to pull them in.
+- Reply with ONE conversational message (1-3 sentences).
+$actionGuidance
+- Mention a teammate as @name if you want to pull them in.
 - Your reply goes to the room verbatim — no preamble.
             """.trimIndent()
     }

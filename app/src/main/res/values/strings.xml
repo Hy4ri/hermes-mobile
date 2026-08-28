@@ -66,6 +66,7 @@
     <string name="billing_topup">Top-up</string>
 
     <!-- Navigation & Drawer -->
+    <string name="press_back_again_to_exit">Press back again to exit</string>
     <string name="nav_drawer_title">Hermes</string>
     <string name="nav_drawer_subtitle">AI Agent Control</string>
     <string name="nav_drawer_section_converse">Converse</string>

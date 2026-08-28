@@ -49,6 +49,7 @@
     <string name="billing_topup">충전</string>
 
     <!-- Navigation & Drawer -->
+    <string name="press_back_again_to_exit">종료하려면 뒤로가기를 한 번 더 누르세요</string>
     <string name="nav_drawer_title">헤르메스</string>
     <string name="nav_drawer_subtitle">AI 에이전트 제어</string>
     <string name="nav_drawer_section_converse">대화</string>

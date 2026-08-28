@@ -718,17 +718,19 @@ class E2eIntegrationTest {
 
         NavigationController.navigateTo(SkillsScreen)
         assertEquals(SkillsScreen, backStack.lastOrNull())
-        assertEquals(1, backStack.size)
+        assertEquals(2, backStack.size)
+        assertEquals(ChatScreen, backStack[0])
 
         NavigationController.navigateTo(CronJobsScreen)
         assertEquals(CronJobsScreen, backStack.lastOrNull())
-        assertEquals(1, backStack.size)
+        assertEquals(2, backStack.size)
+        assertEquals(ChatScreen, backStack[0])
 
-        // Non-clearing drawer screen adds to stack
+        // Drawer screen navigation always roots on ChatScreen
         NavigationController.navigateTo(ProfilesScreen)
         assertEquals(ProfilesScreen, backStack.lastOrNull())
         assertEquals(2, backStack.size)
-        assertEquals(CronJobsScreen, backStack[0])
+        assertEquals(ChatScreen, backStack[0])
     }
 
     // ── Tier 2: Boundary & Corner Cases (>=5 per feature) ────────────────

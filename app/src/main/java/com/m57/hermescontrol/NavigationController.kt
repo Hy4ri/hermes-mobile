@@ -31,30 +31,37 @@ object NavigationController {
 
     private var nextChatNavigationRequestId = 0L
 
-    // Top-level primary screens (Chat, Skills, Cron, System, Settings)
-    private val primaryScreens: MutableSet<NavKey> =
-        mutableSetOf(
-            ChatScreen,
-            SkillsScreen,
-            CronJobsScreen,
-            SystemScreen,
-            SettingsScreen,
-        )
-
-    /** Returns whether the given key is a primary top-level screen. */
-    fun isPrimaryScreen(key: NavKey): Boolean = key in primaryScreens
+    /**
+     * Top-level primary screens (all drawer-accessible screens).
+     * Navigating to any of these clears the stack to `[ChatScreen, key]` (or `[ChatScreen]` for Chat),
+     * ensuring swiping back returns to ChatScreen.
+     */
+    fun isPrimaryScreen(key: NavKey): Boolean = key == ChatScreen || ScreenRegistry.ALL_SCREENS.any { it.key == key }
 
     fun navigateTo(key: NavKey) {
         val stack = backStack ?: return
         if (stack.lastOrNull() == key) return
 
+        if (key == ChatScreen) {
+            stack.clear()
+            stack.add(ChatScreen)
+            return
+        }
+
+        if (key == LandingScreen) {
+            stack.clear()
+            stack.add(LandingScreen)
+            return
+        }
+
         if (isPrimaryScreen(key)) {
             stack.clear()
+            stack.add(ChatScreen)
+            stack.add(key)
+            return
         }
-        // Drawer dismissal is handled by DrawerGestureController (issue #619):
-        // when a non-gesture sub-page composes, its HermesScaffold reconciles
-        // drawerGesturesEnabled=false and the controller closes the drawer
-        // itself via SideEffect. No synchronous closeDrawer callback here.
+
+        // Subscreen / drill-down navigation: append to current stack
         stack.add(key)
     }
 
@@ -98,15 +105,13 @@ object NavigationController {
      */
     fun goBack(fallback: NavKey = ChatScreen) {
         val stack = backStack ?: return
-        if (stack.lastOrNull() == ChatScreen) {
-            resetTo(HistoryScreen)
-            return
-        }
         if (stack.size > 1) {
             stack.removeLastOrNull()
         } else if (stack.size == 1) {
-            stack.clear()
-            stack.add(fallback)
+            if (stack.lastOrNull() != fallback && stack.lastOrNull() != LandingScreen) {
+                stack.clear()
+                stack.add(fallback)
+            }
         }
     }
 }

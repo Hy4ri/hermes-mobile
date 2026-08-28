@@ -3,7 +3,10 @@ package com.m57.hermescontrol.data.model
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class ProfilesResponse(
@@ -121,12 +124,42 @@ data class GroupChatSyncSnapshot(
 
 @Serializable
 data class GroupChatRoomMeta(
-    val id: String,
+    val id: String? = null,
+    val roomId: String? = null,
     val name: String? = null,
-    val members: List<String>? = null,
+    val members: List<JsonElement>? = null,
     val picture: String? = null,
+    val image: String? = null,
+    val log: List<GroupChatSyncLogEntry>? = null,
+    val revision: Long? = null,
     val updatedAt: Long? = null,
     val createdAt: Long? = null,
+) {
+    val memberNames: List<String>
+        get() =
+            members?.mapNotNull { el ->
+                when (el) {
+                    is JsonPrimitive -> el.content
+                    is JsonObject -> el["name"]?.jsonPrimitive?.content
+                    else -> null
+                }
+            }.orEmpty()
+}
+
+@Serializable
+data class GroupChatSyncLogEntry(
+    val id: String? = null,
+    val from: GroupChatSyncFrom? = null,
+    val text: String? = null,
+    val at: Long? = null,
+    val thread: String? = null,
+)
+
+@Serializable
+data class GroupChatSyncFrom(
+    val kind: String? = null, // "user" | "member"
+    val name: String? = null,
+    val source: String? = null,
 )
 
 @Serializable

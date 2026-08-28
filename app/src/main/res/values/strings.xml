@@ -1232,4 +1232,12 @@
     <!-- system action toast templates -->
     <string name="system_action_started">%1$s started</string>
     <string name="system_action_failed">%1$s failed: %2$s</string>
+    <!-- Group Chat Room -->
+    <string name="group_chat_composer_hint">Message %1$s… (use @bot to mention)</string>
+    <string name="group_chat_empty_title">No Messages Yet</string>
+    <string name="group_chat_empty_subtitle">Mention a bot or use @all to kick off collaboration.</string>
+    <string name="group_chat_thinking">%1$s is thinking…</string>
+    <string name="group_chat_typing">Typing…</string>
+    <string name="group_chat_members_count">%1$d members</string>
+    <string name="group_chat_mention_all">@all</string>
 </resources>

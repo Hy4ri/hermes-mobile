@@ -155,6 +155,14 @@ private fun appEntryProvider(
             onBack = { NavigationController.goBack() },
         )
     }
+
+    // ── Multi-Agent Group Chat Room ─────────────────────────────────────
+    entry<GroupChatKey> { key ->
+        com.m57.hermescontrol.ui.bots.group.GroupChatScreen(
+            groupName = key.groupName,
+            onBack = { NavigationController.goBack() },
+        )
+    }
 }
 
 @Composable

@@ -3,9 +3,9 @@ name: Merge Conflict Detector
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [main]
+    branches: [main, dev]
   push:
-    branches: [main]
+    branches: [main, dev]
 
 # Cancel in-progress runs when a new event lands — protects the expensive
 # bulk-check path. github.ref is stable per PR (refs/pull/N/merge) AND stable
@@ -125,19 +125,20 @@ jobs:
               return;
             }
 
-            // ── Bulk check all open PRs (push to main event) ───────────
+            // ── Bulk check all open PRs (push to main/dev event) ───────────
             // GitHub usually recomputes mergeable for every open PR at once after a
             // push, so most hit the retry loop simultaneously. Batch a few at a time
             // with Promise.all to bound wall-clock without hammering the API.
             if (context.eventName === 'push') {
+              const targetBranch = context.ref.replace('refs/heads/', '');
               const { data: prs } = await github.rest.pulls.list({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 state: 'open',
-                base: 'main',
+                base: targetBranch,
                 per_page: 100,
               });
-              core.info(`Checking ${prs.length} open PR(s) base on main...`);
+              core.info(`Checking ${prs.length} open PR(s) based on ${targetBranch}...`);
               const CHUNK = 5;
               for (let i = 0; i < prs.length; i += CHUNK) {
                 const batch = prs.slice(i, i + CHUNK);

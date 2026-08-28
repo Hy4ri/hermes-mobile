@@ -20,17 +20,17 @@ If an open PR already covers it, review or improve that one instead of opening a
 
 ## PR Workflow
 
-All code changes must go through a pull request (PR). Directly pushing to `main` is not allowed **except for trivial changes the maintainer explicitly okays** — when in doubt, open a PR.
+All code changes must go through a pull request (PR) targeting the `dev` staging branch. Directly pushing to `main` or `dev` is not allowed **except for trivial changes the maintainer explicitly okays** — when in doubt, open a PR.
 
 1. **Pick or open an issue** to discuss the changes you want to make.
-2. **Create a branch** off `main` using the following naming convention:
+2. **Create a branch** off `dev` using the following naming convention:
    - Features: `feat/short-description` (optionally `feat/issue-N-description`)
    - Bug fixes: `fix/short-description` (optionally `fix/issue-N-description`)
    - CI/chore: `ci/...`, `chore/...`
 3. **Implement your changes** and format them locally (see Code Style).
-4. **Submit a PR** targeting the `main` branch, filling the PR template.
+4. **Submit a PR** targeting the `dev` branch, filling the PR template.
 5. **Ensure all CI checks pass** (ktlint, Android Lint, unit tests, build).
-6. **Rebase onto `main` before merge.** Maintainers squash-merge; a stale branch's version of an unrelated file can silently overwrite recent fixes on `main` when squashed. `git fetch origin main && git rebase origin/main` first.
+6. **Rebase onto `dev` before merge.** Maintainers squash-merge; a stale branch's version of an unrelated file can silently overwrite recent fixes on `dev` when squashed. `git fetch origin dev && git rebase origin/dev` first.
 
 ---
 
@@ -63,7 +63,7 @@ always creating a blank new one.
 If you use AI coding tools (including agents) to contribute:
 
 - **Never** add the AI tool as author, co-author, or `Co-Authored-By` in commit metadata.
-- Direct AI agents to [`AGENTS.md`](AGENTS.md) in the repo root — it contains agent-specific guidance on project conventions, build quirks, and security considerations that complement this guide.
+- Direct AI agents to [`AGENTS.md`](AGENTS.md) and [`DESIGN.md`](DESIGN.md) in the repo root — `AGENTS.md` contains operational conventions, build quirks, and testing rules, while `DESIGN.md` defines the normative design tokens, layout rules, and component styling contracts.
 
 ---
 
@@ -114,12 +114,13 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 Before submitting your PR, please verify:
 
 - [ ] I searched open/closed PRs + issues for duplicates (see *Before You Start*).
-- [ ] Branch is rebased onto current `main` (`git rebase origin/main`).
+- [ ] Branch is rebased onto current `dev` (`git rebase origin/dev`).
 - [ ] `./gradlew ktlintCheck` passes (ran `ktlintFormat` first — no hand edits).
 - [ ] `checkColorLiterals` passes (no hardcoded Color literals outside theme/).
 - [ ] `./gradlew testDebugUnitTest` passes locally (or CI unit-tests job is green).
 - [ ] No unused imports, unused parameters, or dead code.
 - [ ] Every `Image` and `Icon` element has a descriptive `contentDescription` for accessibility.
 - [ ] New screens use `HermesScaffold` and implement Loading/Error/Empty states.
+- [ ] UI changes follow [`DESIGN.md`](DESIGN.md) (no emoji status glyphs, no FABs, verified >=3:1 contrast).
 - [ ] New components match the UI/UX style of similar existing screens (28+ screens for reference).
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are atomic (subject + ≤2 lines body).

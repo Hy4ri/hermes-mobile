@@ -12,15 +12,8 @@ import org.junit.Test
 
 /**
  * Unit tests for [NavigationController] — the central navigation guard that
- * prevents duplicate screen entries on the back stack.
- *
- * Issue #291 (Critical Test Coverage): Verifies the deduplication logic at
- * line 45 (`if (stack.lastOrNull() == key) return`) and the primary-screen
- * stack-clearing behavior at line 47-49.
- *
- * All tests are pure Kotlin with no Android dependencies — they only exercise
- * [NavigationController]'s companion object methods against a real
- * [NavBackStack] instance.
+ * prevents duplicate screen entries on the back stack and enforces
+ * swipe-back-to-chat hierarchy.
  */
 class NavigationControllerTest {
     @Before
@@ -47,7 +40,7 @@ class NavigationControllerTest {
 
     @Test
     fun `navigateTo on same primary screen is a no-op`() {
-        val backStack = NavBackStack<NavKey>(SkillsScreen)
+        val backStack = NavBackStack<NavKey>(ChatScreen, SkillsScreen)
         NavigationController.backStack = backStack
         val sizeBefore = backStack.size
 
@@ -58,69 +51,60 @@ class NavigationControllerTest {
     }
 
     @Test
-    fun `navigateTo on same non-primary screen is a no-op`() {
-        val backStack = NavBackStack<NavKey>(ProfilesScreen)
+    fun `navigateTo on same subscreen is a no-op`() {
+        val backStack = NavBackStack<NavKey>(ChatScreen, SettingsScreen, SettingsAppearance)
         NavigationController.backStack = backStack
 
-        // ProfilesScreen is NOT in the default primaryScreens so it stays on the stack
-        NavigationController.navigateTo(ProfilesScreen)
+        NavigationController.navigateTo(SettingsAppearance)
 
-        assertEquals(1, backStack.size)
+        assertEquals(3, backStack.size)
+        assertEquals(SettingsAppearance, backStack.lastOrNull())
+    }
+
+    // ── Primary-screen behaviour: resets stack to [ChatScreen, Target] ───────
+
+    @Test
+    fun `navigateTo on a different primary screen resets stack with ChatScreen as root`() {
+        val backStack = NavBackStack<NavKey>(ChatScreen)
+        NavigationController.backStack = backStack
+
+        NavigationController.navigateTo(SkillsScreen)
+        assertEquals(2, backStack.size)
+        assertEquals(ChatScreen, backStack.firstOrNull())
+        assertEquals(SkillsScreen, backStack.lastOrNull())
+
+        // Now navigate to another primary screen (e.g. ProfilesScreen)
+        NavigationController.navigateTo(ProfilesScreen)
+        assertEquals("primary screen navigation should reset stack to [ChatScreen, target]", 2, backStack.size)
+        assertEquals(ChatScreen, backStack.firstOrNull())
         assertEquals(ProfilesScreen, backStack.lastOrNull())
     }
 
-    // ── Primary-screen behaviour: stack clearing ──────────────────────────
-
     @Test
-    fun `navigateTo on a different primary screen clears the stack`() {
-        val backStack = NavBackStack<NavKey>(ChatScreen)
+    fun `navigateTo ChatScreen clears stack to single ChatScreen root`() {
+        val backStack = NavBackStack<NavKey>(ChatScreen, ProfilesScreen)
         NavigationController.backStack = backStack
 
-        // Navigate to a non-primary screen first (should add to stack)
-        NavigationController.navigateTo(LogsScreen)
-        assertEquals(2, backStack.size)
-
-        // Now navigate to a different primary screen — must clear
-        NavigationController.navigateTo(SkillsScreen)
-
-        assertEquals("primary screen navigation should clear the stack", 1, backStack.size)
-        assertEquals(SkillsScreen, backStack.lastOrNull())
-    }
-
-    @Test
-    fun `navigateTo on the current primary screen clears the stack`() {
-        val backStack = NavBackStack<NavKey>(ChatScreen)
-        NavigationController.backStack = backStack
-
-        // Add a non-primary screen
-        NavigationController.navigateTo(ProfilesScreen)
-        assertEquals(2, backStack.size)
-
-        // Navigate to ChatScreen — it's a primary screen, so the stack gets
-        // cleared before adding it. The dedup guard only fires when the key
-        // is already the LAST item (ChatScreen is at index 0, ProfilesScreen
-        // is last), not when it's merely present somewhere in the stack.
         NavigationController.navigateTo(ChatScreen)
 
-        // Primary screen navigation clears the stack
-        assertEquals("primary navigation clears stack", 1, backStack.size)
+        assertEquals("chat navigation should result in single root entry", 1, backStack.size)
         assertEquals(ChatScreen, backStack.lastOrNull())
     }
 
-    // ── Non-primary screen behaviour: stack appending ─────────────────────
+    // ── Subscreen behaviour: appends to stack ───────────────────────────────
 
     @Test
-    fun `navigateTo on a non-primary screen appends to the stack`() {
-        val backStack = NavBackStack<NavKey>(ChatScreen)
+    fun `navigateTo on a subscreen appends to the current stack`() {
+        val backStack = NavBackStack<NavKey>(ChatScreen, SettingsScreen)
         NavigationController.backStack = backStack
 
-        NavigationController.navigateTo(ProfilesScreen)
-        assertEquals(2, backStack.size)
-        assertEquals(ProfilesScreen, backStack.lastOrNull())
-
-        NavigationController.navigateTo(KeysScreen)
+        NavigationController.navigateTo(SettingsAppearance)
         assertEquals(3, backStack.size)
-        assertEquals(KeysScreen, backStack.lastOrNull())
+        assertEquals(SettingsAppearance, backStack.lastOrNull())
+
+        NavigationController.navigateTo(SettingsAbout)
+        assertEquals(4, backStack.size)
+        assertEquals(SettingsAbout, backStack.lastOrNull())
     }
 
     @Test
@@ -176,12 +160,8 @@ class NavigationControllerTest {
 
     @Test
     fun `resetTo clears the stack and sets the target screen`() {
-        val backStack = NavBackStack<NavKey>(ChatScreen)
+        val backStack = NavBackStack<NavKey>(ChatScreen, ProfilesScreen, KeysScreen)
         NavigationController.backStack = backStack
-
-        NavigationController.navigateTo(ProfilesScreen)
-        NavigationController.navigateTo(KeysScreen)
-        assertEquals(3, backStack.size)
 
         NavigationController.resetTo(SettingsScreen)
 
@@ -197,14 +177,17 @@ class NavigationControllerTest {
         assertNull(NavigationController.backStack)
     }
 
-    // ── goBack: never leave the stack empty ───────────────────────────────
+    // ── goBack: pops stack, preserves chat root ───────────────────────────
 
     @Test
     fun `goBack removes the top screen when stack has more than one`() {
-        val backStack = NavBackStack<NavKey>(ChatScreen)
+        val backStack = NavBackStack<NavKey>(ChatScreen, SettingsScreen, SettingsAppearance)
         NavigationController.backStack = backStack
-        NavigationController.navigateTo(ProfilesScreen)
+
+        NavigationController.goBack()
+
         assertEquals(2, backStack.size)
+        assertEquals(SettingsScreen, backStack.lastOrNull())
 
         NavigationController.goBack()
 
@@ -213,18 +196,18 @@ class NavigationControllerTest {
     }
 
     @Test
-    fun `goBack from chat opens history`() {
+    fun `goBack on root ChatScreen keeps ChatScreen`() {
         val backStack = NavBackStack<NavKey>(ChatScreen)
         NavigationController.backStack = backStack
 
         NavigationController.goBack()
 
         assertEquals(1, backStack.size)
-        assertEquals(HistoryScreen, backStack.lastOrNull())
+        assertEquals(ChatScreen, backStack.lastOrNull())
     }
 
     @Test
-    fun `goBack falls back to default screen when stack has one item`() {
+    fun `goBack falls back to default screen when non-root stack has one item`() {
         val backStack = NavBackStack<NavKey>(ProfilesScreen)
         NavigationController.backStack = backStack
 
@@ -256,18 +239,42 @@ class NavigationControllerTest {
     // ── primaryScreens ────────────────────────────────────────────────────
 
     @Test
-    fun `isPrimaryScreen returns true for default screens`() {
-        assertTrue("ChatScreen should be primary by default", NavigationController.isPrimaryScreen(ChatScreen))
-        assertTrue("SkillsScreen should be primary by default", NavigationController.isPrimaryScreen(SkillsScreen))
-        assertTrue("CronJobsScreen should be primary by default", NavigationController.isPrimaryScreen(CronJobsScreen))
-        assertTrue("SystemScreen should be primary by default", NavigationController.isPrimaryScreen(SystemScreen))
-        assertTrue("SettingsScreen should be primary by default", NavigationController.isPrimaryScreen(SettingsScreen))
+    fun `isPrimaryScreen returns true for all drawer screens`() {
+        assertTrue("ChatScreen should be primary", NavigationController.isPrimaryScreen(ChatScreen))
+        assertTrue("SkillsScreen should be primary", NavigationController.isPrimaryScreen(SkillsScreen))
+        assertTrue("CronJobsScreen should be primary", NavigationController.isPrimaryScreen(CronJobsScreen))
+        assertTrue("SystemScreen should be primary", NavigationController.isPrimaryScreen(SystemScreen))
+        assertTrue("SettingsScreen should be primary", NavigationController.isPrimaryScreen(SettingsScreen))
+        assertTrue("ProfilesScreen should be primary", NavigationController.isPrimaryScreen(ProfilesScreen))
+        assertTrue("LogsScreen should be primary", NavigationController.isPrimaryScreen(LogsScreen))
+        assertTrue("ConfigScreen should be primary", NavigationController.isPrimaryScreen(ConfigScreen))
+        assertTrue("BotsScreen should be primary", NavigationController.isPrimaryScreen(BotsScreen))
+        assertTrue("HistoryScreen should be primary", NavigationController.isPrimaryScreen(HistoryScreen))
     }
 
     @Test
-    fun `isPrimaryScreen returns false for non-default screens`() {
-        assertFalse("ProfilesScreen should NOT be primary", NavigationController.isPrimaryScreen(ProfilesScreen))
-        assertFalse("LogsScreen should NOT be primary", NavigationController.isPrimaryScreen(LogsScreen))
-        assertFalse("ConfigScreen should NOT be primary", NavigationController.isPrimaryScreen(ConfigScreen))
+    fun `isPrimaryScreen returns false for subscreen detail keys`() {
+        assertFalse(
+            "SettingsAppearance should NOT be primary",
+            NavigationController.isPrimaryScreen(SettingsAppearance),
+        )
+        assertFalse(
+            "SettingsConnection should NOT be primary",
+            NavigationController.isPrimaryScreen(SettingsConnection),
+        )
+        assertFalse("SettingsLanguage should NOT be primary", NavigationController.isPrimaryScreen(SettingsLanguage))
+        assertFalse("SettingsChat should NOT be primary", NavigationController.isPrimaryScreen(SettingsChat))
+        assertFalse("SettingsBehavior should NOT be primary", NavigationController.isPrimaryScreen(SettingsBehavior))
+        assertFalse("SettingsAbout should NOT be primary", NavigationController.isPrimaryScreen(SettingsAbout))
+        assertFalse(
+            "ToolsetDetailKey should NOT be primary",
+            NavigationController.isPrimaryScreen(ToolsetDetailKey("tool")),
+        )
+        assertFalse(
+            "MemoryProviderDetailKey should NOT be primary",
+            NavigationController.isPrimaryScreen(MemoryProviderDetailKey("mem")),
+        )
+        assertFalse("GroupChatKey should NOT be primary", NavigationController.isPrimaryScreen(GroupChatKey("room")))
+        assertFalse("AuthLoginScreen should NOT be primary", NavigationController.isPrimaryScreen(AuthLoginScreen))
     }
 }

@@ -55,6 +55,7 @@
     <string name="billing_credits_remaining">剩余额度：%1$s</string>
     <string name="billing_plan">套餐</string>
     <string name="billing_topup">充值</string>
+    <string name="press_back_again_to_exit">再次返回以退出应用</string>
     <string name="nav_drawer_title">Hermes</string>
     <string name="nav_drawer_subtitle">AI Agent 控制台</string>
     <string name="nav_drawer_section_converse">对话</string>

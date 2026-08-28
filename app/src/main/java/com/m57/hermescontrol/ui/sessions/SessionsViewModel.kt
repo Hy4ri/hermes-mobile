@@ -64,6 +64,7 @@ data class SessionsUiState(
     val isLoadingMore: Boolean = false,
     val sessions: List<SessionInfo> = emptyList(),
     val total: Int = 0,
+    val hasMore: Boolean = false,
     val errorMessage: String? = null,
     val stats: SessionStats = SessionStats(),
     val isLoadingStats: Boolean = false,
@@ -89,7 +90,6 @@ data class SessionsUiState(
     val searchResults: List<SessionSearchResult> = emptyList(),
     val searchError: String? = null,
 ) {
-    val hasMore: Boolean get() = total > sessions.size
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 }
 
@@ -118,9 +118,12 @@ class SessionsViewModel :
             },
             onSuccess = { data ->
                 _uiState.update {
+                    val newSessions = data.sessions.orEmpty().pinnedFirst()
+                    val hasMore = data.sessions.size >= PAGE_SIZE && data.total > newSessions.size
                     it.copy(
-                        sessions = data.sessions.orEmpty().pinnedFirst(),
-                        total = data.total,
+                        sessions = newSessions,
+                        total = if (hasMore) data.total else newSessions.size,
+                        hasMore = hasMore,
                     )
                 }
             },
@@ -153,12 +156,15 @@ class SessionsViewModel :
                 },
                 onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
                 onSuccess = { data ->
+                    val sessionsList = data.sessions.orEmpty().pinnedFirst()
+                    val hasMore = data.sessions.size >= PAGE_SIZE && data.total > sessionsList.size
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isLoadingMore = false,
-                            sessions = data.sessions.orEmpty().pinnedFirst(),
-                            total = data.total,
+                            sessions = sessionsList,
+                            total = if (hasMore) data.total else sessionsList.size,
+                            hasMore = hasMore,
                             selectedIds = emptySet(),
                         )
                     }
@@ -194,6 +200,13 @@ class SessionsViewModel :
                 is NetworkResult.Success -> {
                     val data = result.data
                     _uiState.update {
+                        val newSessions =
+                            (it.sessions + data.sessions)
+                                .distinctBy { s -> s.id }
+                                .pinnedFirst()
+                        val receivedFullPage = data.sessions.size >= PAGE_SIZE
+                        val addedNewItems = newSessions.size > it.sessions.size
+                        val hasMore = receivedFullPage && addedNewItems && data.total > newSessions.size
                         it.copy(
                             isLoadingMore = false,
                             // distinctBy guards offset-pagination churn: if a new
@@ -201,11 +214,9 @@ class SessionsViewModel :
                             // shift and the next page can repeat an id we already
                             // have — LazyColumn would crash on the duplicate key.
                             // pinnedFirst keeps pinned sessions above the rest.
-                            sessions =
-                                (it.sessions + data.sessions)
-                                    .distinctBy { s -> s.id }
-                                    .pinnedFirst(),
-                            total = data.total,
+                            sessions = newSessions,
+                            total = if (hasMore) data.total else newSessions.size,
+                            hasMore = hasMore,
                         )
                     }
                 }
@@ -470,11 +481,14 @@ class SessionsViewModel :
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update {
+                        val updatedSessions = it.sessions.filter { s -> s.id != sessionId }
+                        val newTotal = (it.total - 1).coerceAtLeast(0)
                         it.copy(
                             deletingSessionIds = it.deletingSessionIds - sessionId,
-                            sessions = it.sessions.filter { s -> s.id != sessionId },
+                            sessions = updatedSessions,
                             searchResults = it.searchResults.filter { it.session_id != sessionId },
-                            total = (it.total - 1).coerceAtLeast(0),
+                            total = newTotal,
+                            hasMore = it.hasMore && newTotal > updatedSessions.size,
                             toastMessage = "Session deleted",
                         )
                     }

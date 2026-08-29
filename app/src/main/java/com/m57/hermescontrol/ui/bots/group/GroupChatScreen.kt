@@ -315,8 +315,8 @@ private fun GroupChatSettingsDialog(
     onDismiss: () -> Unit,
     onSave: (Int, Int) -> Unit,
 ) {
-    var maxMessages by remember { mutableStateOf(currentMaxMessages.toFloat()) }
-    var maxPasses by remember { mutableStateOf(currentMaxPasses.toFloat()) }
+    var maxMessages by remember(currentMaxMessages) { mutableStateOf(currentMaxMessages.toFloat()) }
+    var maxPasses by remember(currentMaxPasses) { mutableStateOf(currentMaxPasses.toFloat()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

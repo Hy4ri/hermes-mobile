@@ -298,6 +298,18 @@ class GroupChatViewModel(
         }
     }
 
+    private fun findRoomEntry(rooms: Map<String, GroupChatRoomMeta>?): Pair<String, GroupChatRoomMeta?> {
+        if (rooms == null) return ("name:$groupName" to null)
+        val exact =
+            rooms.entries.find {
+                it.key == groupName || it.key == "name:$groupName" || it.key == "id:$groupName"
+            }
+        if (exact != null) return (exact.key to exact.value)
+        val byName = rooms.entries.find { it.value.name.equals(groupName, ignoreCase = true) }
+        if (byName != null) return (byName.key to byName.value)
+        return ("name:$groupName" to null)
+    }
+
     fun updateGroupLimits(
         maxMessages: Int,
         maxPasses: Int,
@@ -322,11 +334,7 @@ class GroupChatViewModel(
                         ?: GroupChatSyncSnapshot(version = 3, rooms = emptyMap())
 
                 val now = System.currentTimeMillis()
-                val roomKey = "name:$groupName"
-                val existingRoom =
-                    existingSnapshot.rooms?.get(roomKey)
-                        ?: existingSnapshot.rooms?.get(groupName)
-                        ?: existingSnapshot.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
+                val (targetKey, existingRoom) = findRoomEntry(existingSnapshot.rooms)
 
                 val updatedRoom =
                     (existingRoom ?: GroupChatRoomMeta(name = groupName, createdAt = now)).copy(
@@ -337,7 +345,9 @@ class GroupChatViewModel(
                         updatedAt = now,
                     )
 
-                val updatedRooms = (existingSnapshot.rooms.orEmpty() + (roomKey to updatedRoom))
+                val updatedRooms = existingSnapshot.rooms.orEmpty().toMutableMap()
+                updatedRooms[targetKey] = updatedRoom
+
                 val newSnapshot =
                     existingSnapshot.copy(
                         version = 3,
@@ -394,12 +404,7 @@ class GroupChatViewModel(
     ): Boolean {
         try {
             val syncSnapshot = defaultProfile.groupChatSyncSnapshot()
-            val roomKey = "name:$groupName"
-            val existingRoom =
-                syncSnapshot?.rooms?.get(roomKey)
-                    ?: syncSnapshot?.rooms?.get(groupName)
-                    ?: syncSnapshot?.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
-
+            val (targetKey, existingRoom) = findRoomEntry(syncSnapshot?.rooms)
             val currentLease = existingRoom?.lease
             val now = System.currentTimeMillis()
 
@@ -433,7 +438,8 @@ class GroupChatViewModel(
                     updatedAt = now,
                 )
 
-            val updatedRooms = (existingSnapshot.rooms.orEmpty() + (roomKey to updatedRoom))
+            val updatedRooms = existingSnapshot.rooms.orEmpty().toMutableMap()
+            updatedRooms[targetKey] = updatedRoom
             val newSnapshot = existingSnapshot.copy(version = 3, updatedAt = now, rooms = updatedRooms)
             val uiMetaPayload = mapOf("hermes-bots-groups" to newSnapshot.toMap())
 
@@ -795,11 +801,7 @@ class GroupChatViewModel(
                     }
 
                 val now = System.currentTimeMillis()
-                val roomKey = "name:$groupName"
-                val existingRoom =
-                    existingSnapshot.rooms?.get(roomKey)
-                        ?: existingSnapshot.rooms?.get(groupName)
-                        ?: existingSnapshot.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
+                val (targetKey, existingRoom) = findRoomEntry(existingSnapshot.rooms)
 
                 val updatedLease =
                     if (extendLease) {
@@ -823,7 +825,8 @@ class GroupChatViewModel(
                         updatedAt = now,
                     )
 
-                val updatedRooms = (existingSnapshot.rooms.orEmpty() + (roomKey to updatedRoom))
+                val updatedRooms = existingSnapshot.rooms.orEmpty().toMutableMap()
+                updatedRooms[targetKey] = updatedRoom
                 val newSnapshot =
                     existingSnapshot.copy(
                         version = 3,

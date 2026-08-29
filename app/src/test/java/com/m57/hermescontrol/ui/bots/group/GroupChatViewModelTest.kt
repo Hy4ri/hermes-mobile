@@ -486,4 +486,34 @@ class GroupChatViewModelTest {
             assertEquals(1, finalMsg.toolCalls.size)
             assertFalse(finalMsg.toolCalls.first().isRunning)
         }
+
+    @Test
+    fun testStopCommand_stopsGenerationAndAppendsSystemBanner() =
+        runTest(testDispatcher) {
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            testScheduler.runCurrent()
+
+            // Trigger a message
+            viewModel.sendMessage("@scout long task")
+            testScheduler.runCurrent()
+
+            // Emit a streaming fragment
+            eventsFlow.emit(
+                WsEvent.MessageToken(
+                    token = "Thinking about...",
+                    sessionId = "session-scout-1",
+                ),
+            )
+            testScheduler.runCurrent()
+
+            // Execute /stop command
+            viewModel.sendMessage("/stop")
+            testScheduler.runCurrent()
+
+            val state = viewModel.uiState.value
+            assertNull(state.activeSpeaker)
+            val lastMsg = state.messages.last()
+            assertTrue(lastMsg.isSystem)
+            assertEquals("Discussion stopped", lastMsg.text)
+        }
 }

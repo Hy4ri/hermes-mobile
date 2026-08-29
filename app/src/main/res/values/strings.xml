@@ -1264,4 +1264,6 @@
     <string name="group_chat_settings_system_prompt_hint">Custom rules, tone, or context for this group (optional)…</string>
     <string name="group_chat_settings_system_prompt_desc">Custom guidelines for all bots in this room</string>
     <string name="group_chat_action_settings">Settings</string>
+    <string name="group_chat_stopped_by_user">Discussion stopped</string>
+    <string name="group_chat_action_stop">Stop generation</string>
 </resources>

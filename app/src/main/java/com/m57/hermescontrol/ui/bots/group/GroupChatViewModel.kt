@@ -56,6 +56,7 @@ private const val LEASE_STEP_TTL_MS = 45_000L
 private const val TURN_TIMEOUT_MS = 45_000L
 private const val HISTORY_LIMIT = 10
 private const val CAPPED_SYSTEM_TEXT = "Discussion paused (turn limit reached) — reply to continue"
+private const val STOPPED_SYSTEM_TEXT = "Discussion stopped"
 
 class GroupChatViewModel(
     private var groupName: String = "",
@@ -767,10 +768,64 @@ class GroupChatViewModel(
         }
     }
 
+    fun stopGeneration() {
+        Log.i("GroupChatViewModel", "stopGeneration requested by user")
+        val interruptedEpoch = UUID.randomUUID().toString()
+        activeEpoch = interruptedEpoch
+
+        // Send interrupt signal to any actively streaming or in-flight sessions
+        val activeSessions = activeStreamMsgId.keys.toList() + inFlightTurns.keys.toList()
+        for (sid in activeSessions.distinct()) {
+            try {
+                HermesWsClient.send(
+                    WsMethods.SESSION_INTERRUPT,
+                    mapOf("session_id" to sid),
+                )
+            } catch (e: Exception) {
+                Log.w("GroupChatViewModel", "Failed to send interrupt for session $sid: ${e.message}")
+            }
+        }
+
+        // Clean up transient in-flight tracking
+        inFlightTurns.values.forEach { it.complete("") }
+        inFlightTurns.clear()
+        activeStreamMsgId.clear()
+        sessionToBot.clear()
+
+        _uiState.update { state ->
+            // Remove any pending streaming placeholder messages
+            val cleanedMessages = state.messages.filter { !it.isStreaming }
+            val stopMessage =
+                GroupChatMessage(
+                    id = UUID.randomUUID().toString(),
+                    senderName = "system",
+                    senderDisplayName = "System",
+                    isUser = false,
+                    isSystem = true,
+                    text = STOPPED_SYSTEM_TEXT,
+                )
+            state.copy(
+                messages = cleanedMessages + stopMessage,
+                activeSpeaker = null,
+            )
+        }
+        persistSyncSnapshot(_uiState.value.messages, extendLease = false)
+    }
+
+    private fun isStopCommand(text: String): Boolean {
+        val normalized = text.trim().lowercase()
+        return normalized in setOf("/stop", "/interrupt", "/pause", "/cancel", "stop", "/brake")
+    }
+
     fun sendMessage(rawText: String) {
         val text = rawText.trim()
         Log.d("GroupChatViewModel", "sendMessage called with: '$text'")
         if (text.isBlank()) return
+
+        if (isStopCommand(text)) {
+            stopGeneration()
+            return
+        }
 
         val members = _uiState.value.members
         if (members.isEmpty()) {

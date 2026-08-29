@@ -1,7 +1,12 @@
 # AGENTS.md
 
 Guidance for AI coding agents working on this repository.
-This complements [README.md](README.md) (for humans) with agent-focused context.
+This complements [README.md](README.md) (for humans) and [DESIGN.md](DESIGN.md)
+(architecture & design rationale) with agent-focused context. Before making any
+non-trivial architectural change — new screens, navigation changes, theme/state
+patterns, module boundaries — read `DESIGN.md` first and keep changes consistent
+with the decisions recorded there. If a change would contradict `DESIGN.md`,
+flag it explicitly rather than silently diverging.
 
 ## Project Overview
 
@@ -311,6 +316,8 @@ com.m57.hermescontrol/
 ## Further Reading
 
 - [README.md](README.md) — human-facing overview, features, screenshots, tech stack
+- [DESIGN.md](DESIGN.md) — architecture and design decisions, rationale for the
+  patterns in this doc (Navigation3, HermesScaffold, theme presets, etc.)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow, PR checklist, code style
 - [.github/workflows/android.yml](.github/workflows/android.yml) — CI pipeline source of truth
 - [.github/workflows/merge-conflict-detector.yml](.github/workflows/merge-conflict-detector.yml) — auto-labels conflicting PRs

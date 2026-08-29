@@ -101,37 +101,60 @@ class SessionsViewModelTest {
     // ── Pagination (fluid load-more) ──────────────────────────────────────
 
     @Test
-    fun `loadMore appends the next page and dedupes overlapping ids`() {
+    fun `loadSessions with fewer than page size items caps total and sets hasMore false`() {
         val vm = createViewModel()
 
-        // Page 1: 2 sessions of 3 total — hasMore stays true.
+        // Server reports total = 10 (e.g. cross-profile count), but returns only 2 sessions (< PAGE_SIZE 50).
+        // hasMore must be false and total must be capped at 2 to prevent infinite auto-load loops.
         coEvery { mockApi.getSessions(any(), any(), any()) } returns
             Response.success(
                 SessionListResponse(
                     sessions = listOf(SessionInfo("s-1"), SessionInfo("s-2")),
-                    total = 3,
+                    total = 10,
                 ),
             )
         vm.loadSessions()
         testDispatcher.scheduler.advanceUntilIdle()
+
         assertEquals(listOf("s-1", "s-2"), vm.uiState.value.sessions.map { it.id })
+        assertEquals(2, vm.uiState.value.total)
+        assertFalse(vm.uiState.value.hasMore)
+        assertFalse(vm.uiState.value.isLoadingMore)
+    }
+
+    @Test
+    fun `loadMore appends the next page and dedupes overlapping ids`() {
+        val vm = createViewModel()
+
+        val page1Sessions = (1..50).map { SessionInfo("s-$it") }
+        // Page 1: 50 sessions of 51 total — hasMore stays true.
+        coEvery { mockApi.getSessions(limit = 50, offset = 0, order = any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions = page1Sessions,
+                    total = 51,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(50, vm.uiState.value.sessions.size)
         assertTrue(vm.uiState.value.hasMore)
         assertFalse(vm.uiState.value.isLoadingMore)
 
         // Page 2 overlaps page 1 (offset churn: a new session landed on top
         // between loads) — the duplicate id must not double-append.
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(limit = 50, offset = 50, order = any()) } returns
             Response.success(
                 SessionListResponse(
-                    sessions = listOf(SessionInfo("s-3"), SessionInfo("s-2")),
-                    total = 3,
+                    sessions = listOf(SessionInfo("s-51"), SessionInfo("s-50")),
+                    total = 51,
                 ),
             )
         vm.loadMore()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf("s-1", "s-2", "s-3"), vm.uiState.value.sessions.map { it.id })
-        assertEquals(3, vm.uiState.value.total)
+        assertEquals(51, vm.uiState.value.sessions.size)
+        assertEquals(51, vm.uiState.value.total)
         assertFalse(vm.uiState.value.hasMore)
         assertFalse(vm.uiState.value.isLoadingMore)
     }
@@ -140,11 +163,12 @@ class SessionsViewModelTest {
     fun `loadMore is a no-op while a load is already running`() {
         val vm = createViewModel()
 
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        val page1Sessions = (1..50).map { SessionInfo("s-$it") }
+        coEvery { mockApi.getSessions(limit = 50, offset = 0, order = any()) } returns
             Response.success(
                 SessionListResponse(
-                    sessions = listOf(SessionInfo("s-1")),
-                    total = 2,
+                    sessions = page1Sessions,
+                    total = 52,
                 ),
             )
         vm.loadSessions()
@@ -158,7 +182,6 @@ class SessionsViewModelTest {
 
         // loadSessions (1) + exactly one loadMore (1) = 2 API hits total.
         coVerify(exactly = 2) { mockApi.getSessions(any(), any(), any()) }
-        assertEquals(listOf("s-1"), vm.uiState.value.sessions.map { it.id })
         assertFalse(vm.uiState.value.isLoadingMore)
     }
 

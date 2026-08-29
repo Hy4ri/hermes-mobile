@@ -54,10 +54,12 @@ class MainActivity : ComponentActivity() {
             val themePreference by AuthManager.themePreferenceFlow.collectAsState()
             val useDynamicColors by AuthManager.useDynamicColorsFlow.collectAsState()
             val themePreset by AuthManager.themePresetFlow.collectAsState()
+            val chatFontScale by AuthManager.chatFontScaleFlow.collectAsState()
             HermesControlTheme(
                 themePreference = themePreference,
                 useDynamicColors = useDynamicColors,
                 themePreset = themePreset,
+                chatFontScale = chatFontScale,
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

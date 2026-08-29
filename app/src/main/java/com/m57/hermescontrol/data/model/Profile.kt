@@ -3,7 +3,10 @@ package com.m57.hermescontrol.data.model
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class ProfilesResponse(
@@ -41,6 +44,21 @@ data class ProfileInfo(
         val element = ui_meta?.get("hermes-bots") ?: return null
         return try {
             json.decodeFromJsonElement<BotRosterMeta>(element)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun groupChatSyncSnapshot(
+        json: Json =
+            Json {
+                ignoreUnknownKeys = true
+                isLenient = true
+            },
+    ): GroupChatSyncSnapshot? {
+        val element = ui_meta?.get("hermes-bots-groups") ?: return null
+        return try {
+            json.decodeFromJsonElement<GroupChatSyncSnapshot>(element)
         } catch (_: Exception) {
             null
         }
@@ -101,7 +119,15 @@ data class BotRosterMeta(
     val groups: List<String>? = null,
     val group: String? = null,
     val created: Double? = null,
-)
+) {
+    val allGroups: List<String>
+        get() {
+            val list = mutableListOf<String>()
+            groups?.forEach { if (it.isNotBlank()) list.add(it.trim()) }
+            group?.takeIf { it.isNotBlank() }?.let { if (!list.contains(it.trim())) list.add(it.trim()) }
+            return list.distinct()
+        }
+}
 
 @Serializable
 data class BotAvatarMeta(
@@ -117,16 +143,125 @@ data class GroupChatSyncSnapshot(
     val updatedAt: Long? = null,
     val rooms: Map<String, GroupChatRoomMeta>? = null,
     val deleted: Map<String, Long>? = null,
+) {
+    fun toMap(): Map<String, Any?> {
+        val roomsMap = mutableMapOf<String, Any?>()
+        rooms?.forEach { (key, room) ->
+            val roomMap = mutableMapOf<String, Any?>()
+            room.name?.let { roomMap["name"] = it }
+            room.roomId?.let { roomMap["roomId"] = it }
+            room.picture?.let { roomMap["picture"] = it }
+            room.image?.let { roomMap["image"] = it }
+            room.updatedAt?.let { roomMap["updatedAt"] = it }
+            room.createdAt?.let { roomMap["createdAt"] = it }
+            room.revision?.let { roomMap["revision"] = it }
+            room.syncRevision?.let { roomMap["syncRevision"] = it }
+            room.tombstone?.let { roomMap["tombstone"] = it }
+            room.maxBotMessages?.let { roomMap["maxBotMessages"] = it }
+            room.maxContinuationPasses?.let { roomMap["maxContinuationPasses"] = it }
+            room.systemPrompt?.let { roomMap["systemPrompt"] = it }
+            room.lease?.let { lease ->
+                roomMap["lease"] =
+                    buildMap<String, Any?> {
+                        lease.driverId?.let { put("driverId", it) }
+                        lease.epoch?.let { put("epoch", it) }
+                        lease.expiresAt?.let { put("expiresAt", it) }
+                    }
+            }
+            room.members?.let { members ->
+                roomMap["members"] =
+                    members.mapNotNull {
+                        when (it) {
+                            is JsonPrimitive -> it.content
+                            is JsonObject -> it["name"]?.jsonPrimitive?.content ?: it["handle"]?.jsonPrimitive?.content
+                            else -> null
+                        }
+                    }
+            }
+            room.log?.let { log ->
+                roomMap["log"] =
+                    log.map { entry ->
+                        buildMap<String, Any?> {
+                            entry.id?.let { put("id", it) }
+                            entry.text?.let { put("text", it) }
+                            entry.at?.let { put("at", it) }
+                            entry.thread?.let { put("thread", it) }
+                            entry.from?.let { f ->
+                                put(
+                                    "from",
+                                    buildMap<String, Any?> {
+                                        f.kind?.let { put("kind", it) }
+                                        f.name?.let { put("name", it) }
+                                        f.source?.let { put("source", it) }
+                                    },
+                                )
+                            }
+                        }
+                    }
+            }
+            roomsMap[key] = roomMap
+        }
+
+        return buildMap {
+            put("version", version ?: 3)
+            put("updatedAt", updatedAt ?: System.currentTimeMillis())
+            put("rooms", roomsMap)
+            deleted?.let { put("deleted", it) }
+        }
+    }
+}
+
+@Serializable
+data class GroupChatRoomLease(
+    val driverId: String? = null,
+    val epoch: String? = null,
+    val expiresAt: Long? = null,
 )
 
 @Serializable
 data class GroupChatRoomMeta(
-    val id: String,
+    val id: String? = null,
+    val roomId: String? = null,
     val name: String? = null,
-    val members: List<String>? = null,
+    val members: List<JsonElement>? = null,
     val picture: String? = null,
+    val image: String? = null,
+    val log: List<GroupChatSyncLogEntry>? = null,
+    val revision: Long? = null,
+    val syncRevision: Long? = null,
     val updatedAt: Long? = null,
     val createdAt: Long? = null,
+    val tombstone: Boolean? = null,
+    val lease: GroupChatRoomLease? = null,
+    val maxBotMessages: Int? = null,
+    val maxContinuationPasses: Int? = null,
+    val systemPrompt: String? = null,
+) {
+    val memberNames: List<String>
+        get() =
+            members?.mapNotNull { el ->
+                when (el) {
+                    is JsonPrimitive -> el.content
+                    is JsonObject -> el["name"]?.jsonPrimitive?.content ?: el["handle"]?.jsonPrimitive?.content
+                    else -> null
+                }
+            }.orEmpty()
+}
+
+@Serializable
+data class GroupChatSyncLogEntry(
+    val id: String? = null,
+    val from: GroupChatSyncFrom? = null,
+    val text: String? = null,
+    val at: Long? = null,
+    val thread: String? = null,
+)
+
+@Serializable
+data class GroupChatSyncFrom(
+    val kind: String? = null, // "user" | "member"
+    val name: String? = null,
+    val source: String? = null,
 )
 
 @Serializable

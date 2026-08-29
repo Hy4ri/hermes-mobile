@@ -3,6 +3,8 @@ package com.m57.hermescontrol.data.model
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 @Serializable
 data class SessionMessagesResponse(
@@ -51,6 +53,20 @@ data class SessionMessage(
 ) {
     val timestampText: String?
         get() = (timestamp as? JsonPrimitive)?.content
+
+    val timestampEpochMs: Long?
+        get() {
+            val prim = timestamp as? JsonPrimitive ?: return null
+            val asLong = prim.longOrNull
+            if (asLong != null) {
+                return if (asLong < 10_000_000_000L) asLong * 1000L else asLong
+            }
+            val asDouble = prim.doubleOrNull
+            if (asDouble != null) {
+                return (asDouble * 1000L).toLong()
+            }
+            return null
+        }
 
     val contentText: String
         get() =

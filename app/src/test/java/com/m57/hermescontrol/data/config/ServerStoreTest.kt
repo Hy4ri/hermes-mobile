@@ -15,6 +15,7 @@ class ServerStoreTest {
         assertEquals(9119, state.port)
         assertTrue(state.autoReconnect)
         assertEquals("token", state.wsAuthParam)
+        assertEquals(1.0f, state.chatFontScale)
         assertTrue(state.connectionProfiles.isEmpty())
         assertNull(state.selectedProfileId)
     }

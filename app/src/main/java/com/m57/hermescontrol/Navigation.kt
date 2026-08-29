@@ -1,5 +1,7 @@
 package com.m57.hermescontrol
 
+import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -31,10 +33,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -155,6 +160,14 @@ private fun appEntryProvider(
             onBack = { NavigationController.goBack() },
         )
     }
+
+    // ── Multi-Agent Group Chat Room ─────────────────────────────────────
+    entry<GroupChatKey> { key ->
+        com.m57.hermescontrol.ui.bots.group.GroupChatScreen(
+            groupName = key.groupName,
+            onBack = { NavigationController.goBack() },
+        )
+    }
 }
 
 @Composable
@@ -183,7 +196,25 @@ fun MainNavigation(sessionId: String? = null) {
 
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
+    val context = LocalContext.current
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
+    val backToastText = stringResource(R.string.press_back_again_to_exit)
+
+    // Double-back to exit on root ChatScreen
     BackHandler(enabled = currentScreen == ChatScreen && backStack.size == 1) {
+        val now = System.currentTimeMillis()
+        if (now - lastBackPressTime < 2000L) {
+            (context as? Activity)?.finish()
+        } else {
+            lastBackPressTime = now
+            Toast.makeText(context, backToastText, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Safety fallback: if a non-chat screen somehow sits alone on stack, swipe back returns to ChatScreen
+    BackHandler(
+        enabled = currentScreen != ChatScreen && currentScreen != LandingScreen && backStack.size == 1,
+    ) {
         NavigationController.goBack()
     }
 

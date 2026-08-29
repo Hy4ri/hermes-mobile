@@ -49,6 +49,7 @@
     <string name="billing_topup">충전</string>
 
     <!-- Navigation & Drawer -->
+    <string name="press_back_again_to_exit">종료하려면 뒤로가기를 한 번 더 누르세요</string>
     <string name="nav_drawer_title">헤르메스</string>
     <string name="nav_drawer_subtitle">AI 에이전트 제어</string>
     <string name="nav_drawer_section_converse">대화</string>
@@ -186,6 +187,17 @@
     <string name="settings_item_typing_delay">지연: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>
+    <string name="settings_item_chat_font_size">채팅 글꼴 크기</string>
+    <string name="settings_desc_chat_font_size">채팅 메시지의 텍스트 크기를 조절합니다</string>
+    <string name="settings_font_scale_value">글꼴 크기: %1$s</string>
+    <string name="settings_font_scale_small">작게 (0.85×)</string>
+    <string name="settings_font_scale_default">기본 (1.0×)</string>
+    <string name="settings_font_scale_large">크게 (1.15×)</string>
+    <string name="settings_font_scale_xlarge">아주 크게 (1.3×)</string>
+    <string name="settings_font_scale_huge">최대 (1.5×)</string>
+    <string name="settings_chat_preview_title">미리보기</string>
+    <string name="settings_chat_preview_user">채팅 텍스트 크기를 조절할 수 있나요?</string>
+    <string name="settings_chat_preview_agent">완료되었습니다! 여기에서 글꼴 크기를 조정할 수 있습니다.</string>
     <string name="settings_action_test_connection">연결 테스트</string>
     <string name="settings_sec_about">정보</string>
     <string name="settings_about_app_name">헤르메스 모바일</string>
@@ -802,4 +814,24 @@
         <item quantity="other">에이전트 %1$d개 실행 중</item>
     </plurals>
     <string name="task_progress_open_details">작업 세부 정보 열기</string>
+    <!-- Group Chat Room -->
+    <string name="group_chat_composer_hint">%1$s에게 메시지 보내기… (@bot으로 멘션)</string>
+    <string name="group_chat_empty_title">메시지 없음</string>
+    <string name="group_chat_empty_subtitle">봇을 멘션하거나 @all을 사용하여 협업을 시작하세요.</string>
+    <string name="group_chat_thinking">%1$s 생각 중…</string>
+    <string name="group_chat_typing">입력 중…</string>
+    <string name="group_chat_members_count">멤버 %1$d명</string>
+    <string name="group_chat_mention_all">@all</string>
+    <string name="group_chat_capped_limit">대화가 일시중지되었습니다(턴 한도 도달) — 계속하려면 메시지를 보내세요</string>
+    <string name="group_chat_settings_title">그룹 채팅 설정</string>
+    <string name="group_chat_settings_max_messages">최대 봇 메시지 수</string>
+    <string name="group_chat_settings_max_messages_desc">메시지당 최대 봇 응답 한도 (%1$d)</string>
+    <string name="group_chat_settings_max_handoffs">최대 핸드오프 패스</string>
+    <string name="group_chat_settings_max_handoffs_desc">봇이 서로를 트리거할 수 있는 최대 횟수 (%1$d)</string>
+    <string name="group_chat_settings_save">저장</string>
+    <string name="group_chat_settings_reset_default">기본값으로 초기화</string>
+    <string name="group_chat_settings_system_prompt">방 지침 / 프롬프트</string>
+    <string name="group_chat_settings_system_prompt_hint">이 그룹을 위한 사용자 지정 규칙, 어조 또는 컨텍스트 (선택사항)…</string>
+    <string name="group_chat_settings_system_prompt_desc">이 방의 모든 봇에 적용되는 사용자 지정 가이드라인</string>
+    <string name="group_chat_action_settings">설정</string>
 </resources>

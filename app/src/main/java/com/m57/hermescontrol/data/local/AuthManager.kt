@@ -74,6 +74,9 @@ object AuthManager {
     private val _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)
     val themePresetFlow: StateFlow<ThemePreset> = _themePresetFlow.asStateFlow()
 
+    private val _chatFontScaleFlow = MutableStateFlow<Float>(1.0f)
+    val chatFontScaleFlow: StateFlow<Float> = _chatFontScaleFlow.asStateFlow()
+
     private val _tokenFlow = MutableStateFlow<String?>(null)
     val tokenFlow: StateFlow<String?> = _tokenFlow.asStateFlow()
 
@@ -180,6 +183,7 @@ object AuthManager {
                     _themePreferenceFlow.value = state.themePreference
                     _useDynamicColorsFlow.value = state.useDynamicColors
                     _themePresetFlow.value = state.themePreset
+                    _chatFontScaleFlow.value = state.chatFontScale
                     // B7 (Jul 08 2026, kanban t_470): keep cookie scope aligned with active profile.
                     appScope?.launch { syncCookieStoreForProfile(state.selectedProfileId) }
                 }
@@ -638,6 +642,15 @@ object AuthManager {
 
     fun setTypingEffectDelayMs(delayMs: Int) {
         serverStore.update { it.copy(typingEffectDelayMs = delayMs) }
+    }
+
+    // ── Chat Font Scale (issue #1004) ───────────────────────────────────
+
+    fun getChatFontScale(): Float = serverStore.getLatestState().chatFontScale
+
+    fun setChatFontScale(scale: Float) {
+        serverStore.update { it.copy(chatFontScale = scale) }
+        _chatFontScaleFlow.value = scale
     }
 
     // ── In-app update check (issue #867) ─────────────────────────────────

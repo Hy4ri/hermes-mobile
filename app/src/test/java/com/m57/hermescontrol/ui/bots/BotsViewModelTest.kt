@@ -4,6 +4,8 @@ import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.BotAvatarMeta
 import com.m57.hermescontrol.data.model.BotRosterMeta
 import com.m57.hermescontrol.data.model.CanonicalSessionInfo
+import com.m57.hermescontrol.data.model.GroupChatRoomMeta
+import com.m57.hermescontrol.data.model.GroupChatSyncSnapshot
 import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.ProfileWorkerSummary
 import com.m57.hermescontrol.data.model.ProfilesResponse
@@ -24,6 +26,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -272,5 +275,68 @@ class BotsViewModelTest {
 
             assertTrue(success)
             coVerify(exactly = 1) { mockApi.deleteProfile("scout") }
+        }
+
+    @Test
+    fun testAllGroups_includesDesktopSyncRoomsAndRespectsOrdering() =
+        runTest {
+            val syncSnapshot =
+                GroupChatSyncSnapshot(
+                    version = 3,
+                    updatedAt = 1725000000L,
+                    rooms =
+                        mapOf(
+                            "name:Desktop Room" to
+                                GroupChatRoomMeta(
+                                    name = "Desktop Room",
+                                    members = listOf(JsonPrimitive("botA"), JsonPrimitive("remoteBot")),
+                                    updatedAt = 1725000100L,
+                                ),
+                            "id:room-123" to
+                                GroupChatRoomMeta(
+                                    name = "Old Archived Room",
+                                    members = listOf(JsonPrimitive("botA")),
+                                    tombstone = true,
+                                ),
+                        ),
+                    deleted = mapOf("name:deleted room" to 1725000000L),
+                )
+
+            val defaultProfile =
+                ProfileInfo(
+                    name = "default",
+                    is_default = true,
+                    ui_meta = mapOf("hermes-bots-groups" to json.encodeToJsonElement(syncSnapshot)),
+                )
+
+            val botA =
+                ProfileInfo(
+                    name = "botA",
+                    ui_meta =
+                        mapOf(
+                            "hermes-bots" to
+                                json.encodeToJsonElement(
+                                    BotRosterMeta(groups = listOf("Local Only Group")),
+                                ),
+                        ),
+                )
+
+            coEvery { mockApi.getProfiles() } returns Response.success(ProfilesResponse(listOf(defaultProfile, botA)))
+            coEvery { mockApi.getActiveProfile() } returns Response.success(ActiveProfileResponse(active = "default"))
+
+            val viewModel = BotsViewModel(ioDispatcher = testDispatcher, autoLoad = false)
+            viewModel.loadBots()
+            advanceUntilIdle()
+
+            val groups = viewModel.uiState.value.allGroups
+            assertEquals(2, groups.size)
+            // "Desktop Room" has recent activity 1725000100L, so it should rank first
+            assertEquals("Desktop Room", groups[0].name)
+            assertEquals(2, groups[0].members.size)
+            assertEquals("botA", groups[0].members[0].name)
+            assertEquals("remoteBot", groups[0].members[1].name)
+
+            assertEquals("Local Only Group", groups[1].name)
+            assertEquals(1, groups[1].members.size)
         }
 }

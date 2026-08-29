@@ -77,6 +77,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalChatFontScale
 import com.m57.hermescontrol.ui.chat.MarkdownText
+import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
+import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
+import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.formatTimestamp
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -95,6 +98,8 @@ fun GroupChatScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+    val scrollScope = rememberCoroutineScope()
+    val scrollController = rememberChatScrollController(listState, scrollScope)
     var inputFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
@@ -104,6 +109,7 @@ fun GroupChatScreen(
     val handleSend = {
         val text = inputFieldValue.text
         if (text.isNotBlank()) {
+            scrollController.jumpToBottom()
             viewModel.sendMessage(text)
             inputFieldValue = TextFieldValue("")
         }
@@ -113,10 +119,32 @@ fun GroupChatScreen(
         viewModel.setGroup(groupName)
     }
 
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) {
-            listState.animateScrollToItem(state.messages.size - 1)
+    LaunchedEffect(Unit) {
+        scrollController.observeUserScrollPosition()
+    }
+
+    val streamingMessage = state.messages.find { it.isStreaming }
+    val tailKey =
+        remember(
+            state.messages.size,
+            streamingMessage?.id,
+            streamingMessage?.text?.length,
+            state.activeSpeaker,
+        ) {
+            tailContentKey(
+                messages = state.messages,
+                streamingMessage = streamingMessage?.text,
+                isThinking = state.activeSpeaker != null,
+                subagentIndicators = emptyList<Any>(),
+                clarifyRequest = null,
+            )
         }
+
+    LaunchedEffect(tailKey) {
+        scrollController.onTailChanged(
+            tailKey = tailKey,
+            messageCount = state.messages.size,
+        )
     }
 
     HermesScaffold(
@@ -204,43 +232,53 @@ fun GroupChatScreen(
                             )
                         }
 
-                    CompositionLocalProvider(LocalDensity provides chatDensity) {
-                        LazyColumn(
-                            state = listState,
-                            modifier =
-                                Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(
-                                items = state.messages,
-                                key = { it.id },
-                            ) { message ->
-                                GroupMessageCard(message = message)
-                            }
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                    ) {
+                        CompositionLocalProvider(LocalDensity provides chatDensity) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                items(
+                                    items = state.messages,
+                                    key = { it.id },
+                                ) { message ->
+                                    GroupMessageCard(message = message)
+                                }
 
-                            state.activeSpeaker?.let { speaker ->
-                                item(key = "active_speaker") {
-                                    Row(
-                                        modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = stringResource(R.string.group_chat_thinking, speaker),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
+                                state.activeSpeaker?.let { speaker ->
+                                    item(key = "active_speaker") {
+                                        Row(
+                                            modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp,
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = stringResource(R.string.group_chat_thinking, speaker),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
+
+                        ChatScrollToBottomFab(
+                            show = !scrollController.isFollowingBottom && state.messages.isNotEmpty(),
+                            pendingCount = scrollController.pendingCount,
+                            onScrollToBottom = { scrollController.resumeFollowing() },
+                        )
                     }
                 }
             }

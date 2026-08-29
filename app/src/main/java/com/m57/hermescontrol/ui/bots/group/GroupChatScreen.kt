@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -137,6 +138,18 @@ fun GroupChatScreen(
         },
         navigationIcon = NavIcon.Back(onBack),
         actions = {
+            if (state.activeSpeaker != null) {
+                IconButton(
+                    onClick = { viewModel.stopGeneration() },
+                    modifier = Modifier.testTag("group_chat_stop_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Stop,
+                        contentDescription = stringResource(R.string.group_chat_action_stop),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
             IconButton(
                 onClick = { showSettingsDialog = true },
                 modifier = Modifier.testTag("group_chat_settings_button"),
@@ -293,20 +306,41 @@ fun GroupChatScreen(
 
                     Spacer(modifier = Modifier.width(4.dp))
 
-                    IconButton(
-                        onClick = handleSend,
-                        enabled = inputFieldValue.text.isNotBlank(),
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(),
-                        modifier =
-                            Modifier
-                                .size(36.dp)
-                                .testTag("group_chat_send_button"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            modifier = Modifier.size(18.dp),
-                        )
+                    if (state.activeSpeaker != null) {
+                        IconButton(
+                            onClick = { viewModel.stopGeneration() },
+                            colors =
+                                IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                ),
+                            modifier =
+                                Modifier
+                                    .size(36.dp)
+                                    .testTag("group_chat_stop_button"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = stringResource(R.string.group_chat_action_stop),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = handleSend,
+                            enabled = inputFieldValue.text.isNotBlank(),
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(),
+                            modifier =
+                                Modifier
+                                    .size(36.dp)
+                                    .testTag("group_chat_send_button"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                 }
             }

@@ -191,6 +191,8 @@ internal fun SettingsChatPage(
                 onTypingEffectEnabledChange = viewModel::onTypingEffectEnabledChange,
                 typingEffectDelayMs = state.typingEffectDelayMs,
                 onTypingEffectDelayMsChange = viewModel::onTypingEffectDelayMsChange,
+                chatFontScale = state.chatFontScale,
+                onChatFontScaleChange = viewModel::onChatFontScaleChange,
             )
         }
     }

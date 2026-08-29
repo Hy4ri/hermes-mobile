@@ -36,6 +36,7 @@ data class SettingsUiState(
     val isSaved: Boolean = false,
     val typingEffectEnabled: Boolean = false,
     val typingEffectDelayMs: Int = 30,
+    val chatFontScale: Float = 1.0f,
     val profiles: List<ConnectionProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val renameProfileName: String = "",
@@ -76,6 +77,7 @@ class SettingsViewModel(
         val themePreset = AuthManager.getThemePreset()
         val typingEffectEnabled = AuthManager.isTypingEffectEnabled()
         val typingEffectDelayMs = AuthManager.getTypingEffectDelayMs()
+        val chatFontScale = AuthManager.getChatFontScale()
         val profiles = AuthManager.getConnectionProfiles()
         val appLanguage = AuthManager.getAppLanguage()
         val renameProfileName =
@@ -95,6 +97,7 @@ class SettingsViewModel(
                 themePreset = themePreset,
                 typingEffectEnabled = typingEffectEnabled,
                 typingEffectDelayMs = typingEffectDelayMs,
+                chatFontScale = chatFontScale,
                 profiles = profiles,
                 selectedProfileId = selectedId,
                 renameProfileName = renameProfileName,
@@ -308,6 +311,11 @@ class SettingsViewModel(
     fun onTypingEffectDelayMsChange(delayMs: Int) {
         _uiState.update { it.copy(typingEffectDelayMs = delayMs, isSaved = false) }
         AuthManager.setTypingEffectDelayMs(delayMs)
+    }
+
+    fun onChatFontScaleChange(scale: Float) {
+        _uiState.update { it.copy(chatFontScale = scale, isSaved = false) }
+        AuthManager.setChatFontScale(scale)
     }
 
     /** Clear all auth credentials — logs out and returns to landing screen. */

@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,14 +44,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.theme.LocalChatFontScale
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -141,38 +145,50 @@ fun GroupChatScreen(
                 }
 
                 else -> {
-                    LazyColumn(
-                        state = listState,
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(
-                            items = state.messages,
-                            key = { it.id },
-                        ) { message ->
-                            GroupMessageCard(message = message)
+                    val currentDensity = LocalDensity.current
+                    val chatFontScale = LocalChatFontScale.current
+                    val chatDensity =
+                        remember(currentDensity, chatFontScale) {
+                            Density(
+                                density = currentDensity.density,
+                                fontScale = currentDensity.fontScale * chatFontScale,
+                            )
                         }
 
-                        state.activeSpeaker?.let { speaker ->
-                            item(key = "active_speaker") {
-                                Row(
-                                    modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp,
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = stringResource(R.string.group_chat_thinking, speaker),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
+                    CompositionLocalProvider(LocalDensity provides chatDensity) {
+                        LazyColumn(
+                            state = listState,
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(
+                                items = state.messages,
+                                key = { it.id },
+                            ) { message ->
+                                GroupMessageCard(message = message)
+                            }
+
+                            state.activeSpeaker?.let { speaker ->
+                                item(key = "active_speaker") {
+                                    Row(
+                                        modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = stringResource(R.string.group_chat_thinking, speaker),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
                                 }
                             }
                         }

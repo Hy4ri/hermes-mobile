@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.ui.bots
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,6 +59,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -326,48 +330,102 @@ fun BotsScreen(
             ) { page ->
                 when (BotsTab.entries.getOrElse(page) { BotsTab.BOTS }) {
                     BotsTab.BOTS -> {
-                        when {
-                            state.isLoading && state.profiles.isEmpty() -> {
-                                SkeletonListState()
-                            }
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(pagerState.currentPage, onOpenDrawer) {
+                                        if (pagerState.currentPage == 0) {
+                                            awaitEachGesture {
+                                                awaitFirstDown(pass = PointerEventPass.Initial)
+                                                var totalDragX = 0f
+                                                while (true) {
+                                                    val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                                    val change = event.changes.firstOrNull() ?: break
+                                                    if (!change.pressed) break
+                                                    val dx = change.position.x - change.previousPosition.x
+                                                    if (dx > 0) {
+                                                        totalDragX += dx
+                                                        if (totalDragX > 75f) {
+                                                            onOpenDrawer?.invoke()
+                                                            break
+                                                        }
+                                                    } else if (dx < -10f) {
+                                                        break
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                        ) {
+                            when {
+                                state.isLoading && state.profiles.isEmpty() -> {
+                                    SkeletonListState()
+                                }
 
-                            state.errorMessage != null && state.profiles.isEmpty() -> {
-                                ErrorState(
-                                    message = state.errorMessage ?: "",
-                                    onRetry = { viewModel.loadBots() },
-                                )
-                            }
+                                state.errorMessage != null && state.profiles.isEmpty() -> {
+                                    ErrorState(
+                                        message = state.errorMessage ?: "",
+                                        onRetry = { viewModel.loadBots() },
+                                    )
+                                }
 
-                            state.displayProfiles.isEmpty() -> {
-                                EmptyState(
-                                    title = stringResource(R.string.bots_empty_title),
-                                    subtitle = stringResource(R.string.bots_empty_description),
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
+                                state.displayProfiles.isEmpty() -> {
+                                    EmptyState(
+                                        title = stringResource(R.string.bots_empty_title),
+                                        subtitle = stringResource(R.string.bots_empty_description),
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
 
-                            else -> {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentPadding =
-                                        PaddingValues(
-                                            start = 16.dp,
-                                            end = 16.dp,
-                                            top = 8.dp,
-                                            bottom = 24.dp,
-                                        ),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                                ) {
-                                    if (state.activeNowBots.isNotEmpty() && !isSearchActive) {
-                                        item(key = "active_now_strip") {
-                                            ActiveNowStrip(
-                                                activeBots = state.activeNowBots,
-                                                onSelectBot = { bot ->
+                                else -> {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding =
+                                            PaddingValues(
+                                                start = 16.dp,
+                                                end = 16.dp,
+                                                top = 8.dp,
+                                                bottom = 24.dp,
+                                            ),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        if (state.activeNowBots.isNotEmpty() && !isSearchActive) {
+                                            item(key = "active_now_strip") {
+                                                ActiveNowStrip(
+                                                    activeBots = state.activeNowBots,
+                                                    onSelectBot = { bot ->
+                                                        scope.launch {
+                                                            viewModel.selectBot(bot)
+                                                            val canonicalId =
+                                                                bot.canonical_session?.resolved_id
+                                                                    ?: bot.canonical_session?.id
+                                                            if (!canonicalId.isNullOrBlank()) {
+                                                                NavigationController.openChatSession(canonicalId)
+                                                            } else {
+                                                                NavigationController.navigateTo(
+                                                                    com.m57.hermescontrol.ChatScreen,
+                                                                )
+                                                            }
+                                                        }
+                                                    },
+                                                )
+                                            }
+                                        }
+
+                                        items(
+                                            items = state.displayProfiles,
+                                            key = { it.name },
+                                        ) { profile ->
+                                            BotCard(
+                                                profile = profile,
+                                                isActiveProfile = profile.name == state.activeProfileName,
+                                                onClick = {
                                                     scope.launch {
-                                                        viewModel.selectBot(bot)
+                                                        viewModel.selectBot(profile)
                                                         val canonicalId =
-                                                            bot.canonical_session?.resolved_id
-                                                                ?: bot.canonical_session?.id
+                                                            profile.canonical_session?.resolved_id
+                                                                ?: profile.canonical_session?.id
                                                         if (!canonicalId.isNullOrBlank()) {
                                                             NavigationController.openChatSession(canonicalId)
                                                         } else {
@@ -377,36 +435,11 @@ fun BotsScreen(
                                                         }
                                                     }
                                                 },
+                                                onEditClick = {
+                                                    editingBot = profile
+                                                },
                                             )
                                         }
-                                    }
-
-                                    items(
-                                        items = state.displayProfiles,
-                                        key = { it.name },
-                                    ) { profile ->
-                                        BotCard(
-                                            profile = profile,
-                                            isActiveProfile = profile.name == state.activeProfileName,
-                                            onClick = {
-                                                scope.launch {
-                                                    viewModel.selectBot(profile)
-                                                    val canonicalId =
-                                                        profile.canonical_session?.resolved_id
-                                                            ?: profile.canonical_session?.id
-                                                    if (!canonicalId.isNullOrBlank()) {
-                                                        NavigationController.openChatSession(canonicalId)
-                                                    } else {
-                                                        NavigationController.navigateTo(
-                                                            com.m57.hermescontrol.ChatScreen,
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            onEditClick = {
-                                                editingBot = profile
-                                            },
-                                        )
                                     }
                                 }
                             }

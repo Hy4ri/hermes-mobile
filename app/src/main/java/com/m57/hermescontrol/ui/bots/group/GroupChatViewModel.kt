@@ -370,10 +370,17 @@ class GroupChatViewModel(
         }
     }
 
-    private suspend fun ensureMemberSession(bot: ProfileInfo): MemberSession? {
-        val cached = memberSessions[bot.name]
-        if (cached != null) {
-            return cached
+    private suspend fun ensureMemberSession(
+        bot: ProfileInfo,
+        forceRefresh: Boolean = false,
+    ): MemberSession? {
+        if (!forceRefresh) {
+            val cached = memberSessions[bot.name]
+            if (cached != null) {
+                return cached
+            }
+        } else {
+            memberSessions.remove(bot.name)
         }
 
         val title = "Group: $groupName"
@@ -484,17 +491,18 @@ class GroupChatViewModel(
                 historyLimit = HISTORY_LIMIT,
             )
 
+        val turnStartTime = System.currentTimeMillis()
         val streamMsgId = UUID.randomUUID().toString()
         var activeRuntimeId: String? = null
         var activeStoredId: String? = null
         try {
-            val sessionInfo = ensureMemberSession(bot)
+            var sessionInfo = ensureMemberSession(bot)
             if (sessionInfo == null) {
                 Log.w("GroupChatViewModel", "Could not obtain session for ${bot.name}")
                 return null
             }
-            val runtimeId = sessionInfo.runtimeSessionId
-            val storedId = sessionInfo.storedSessionId
+            var runtimeId = sessionInfo.runtimeSessionId
+            var storedId = sessionInfo.storedSessionId
             activeRuntimeId = runtimeId
             activeStoredId = storedId
 
@@ -510,10 +518,49 @@ class GroupChatViewModel(
             inFlightTurns[runtimeId] = turnDeferred
             storedId?.let { inFlightTurns[it] = turnDeferred }
 
-            HermesWsClient.sendMessage(
-                sessionId = runtimeId,
-                text = prompt,
-            )
+            try {
+                HermesWsClient.request(
+                    WsMethods.PROMPT_SUBMIT,
+                    mapOf("session_id" to runtimeId, "text" to prompt),
+                ).await()
+            } catch (submitErr: Exception) {
+                Log.w(
+                    "GroupChatViewModel",
+                    "prompt.submit failed for ${bot.name} on $runtimeId: ${submitErr.message}, recreating session",
+                )
+                activeStreamMsgId.remove(runtimeId)
+                storedId?.let { activeStreamMsgId.remove(it) }
+                sessionToBot.remove(runtimeId)
+                storedId?.let { sessionToBot.remove(it) }
+                inFlightTurns.remove(runtimeId)
+                storedId?.let { inFlightTurns.remove(it) }
+
+                sessionInfo = ensureMemberSession(bot, forceRefresh = true)
+                if (sessionInfo == null) return null
+
+                runtimeId = sessionInfo.runtimeSessionId
+                storedId = sessionInfo.storedSessionId
+                activeRuntimeId = runtimeId
+                activeStoredId = storedId
+
+                activeStreamMsgId[runtimeId] = streamMsgId
+                storedId?.let { activeStreamMsgId[it] = streamMsgId }
+                sessionToBot[runtimeId] = bot
+                storedId?.let { sessionToBot[it] = bot }
+                ActiveSessionHolder.set(runtimeId, runtimeId)
+                inFlightTurns[runtimeId] = turnDeferred
+                storedId?.let { inFlightTurns[it] = turnDeferred }
+
+                try {
+                    HermesWsClient.request(
+                        WsMethods.PROMPT_SUBMIT,
+                        mapOf("session_id" to runtimeId, "text" to prompt),
+                    ).await()
+                } catch (retryErr: Exception) {
+                    Log.e("GroupChatViewModel", "Retry prompt.submit failed for ${bot.name}: ${retryErr.message}")
+                    return null
+                }
+            }
 
             var replyText =
                 withTimeoutOrNull(TURN_TIMEOUT_MS) {
@@ -536,7 +583,11 @@ class GroupChatViewModel(
                             }
                         if (res is NetworkResult.Success) {
                             val lastAssistant =
-                                res.data.messages.reversed().firstOrNull { it.role == "assistant" }
+                                res.data.messages.reversed().firstOrNull { msg ->
+                                    val ts = msg.timestampEpochMs
+                                    msg.role == "assistant" &&
+                                        (ts == null || ts >= (turnStartTime - 5000L))
+                                }
                             val candidate = lastAssistant?.contentText?.trim()
                             if (!candidate.isNullOrBlank()) {
                                 replyText = candidate

@@ -283,7 +283,25 @@ private fun GroupMessageCard(
     message: GroupChatMessage,
     modifier: Modifier = Modifier,
 ) {
-    if (message.isUser) {
+    if (message.isSystem) {
+        Box(
+            modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            ) {
+                Text(
+                    text = message.text,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+    } else if (message.isUser) {
         Row(
             modifier = modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,

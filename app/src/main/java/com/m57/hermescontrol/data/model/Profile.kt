@@ -157,6 +157,14 @@ data class GroupChatSyncSnapshot(
             room.revision?.let { roomMap["revision"] = it }
             room.syncRevision?.let { roomMap["syncRevision"] = it }
             room.tombstone?.let { roomMap["tombstone"] = it }
+            room.lease?.let { lease ->
+                roomMap["lease"] =
+                    buildMap<String, Any?> {
+                        lease.driverId?.let { put("driverId", it) }
+                        lease.epoch?.let { put("epoch", it) }
+                        lease.expiresAt?.let { put("expiresAt", it) }
+                    }
+            }
             room.members?.let { members ->
                 roomMap["members"] =
                     members.mapNotNull {
@@ -201,6 +209,13 @@ data class GroupChatSyncSnapshot(
 }
 
 @Serializable
+data class GroupChatRoomLease(
+    val driverId: String? = null,
+    val epoch: String? = null,
+    val expiresAt: Long? = null,
+)
+
+@Serializable
 data class GroupChatRoomMeta(
     val id: String? = null,
     val roomId: String? = null,
@@ -214,6 +229,7 @@ data class GroupChatRoomMeta(
     val updatedAt: Long? = null,
     val createdAt: Long? = null,
     val tombstone: Boolean? = null,
+    val lease: GroupChatRoomLease? = null,
 ) {
     val memberNames: List<String>
         get() =

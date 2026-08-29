@@ -822,4 +822,5 @@
     <string name="group_chat_typing">입력 중…</string>
     <string name="group_chat_members_count">멤버 %1$d명</string>
     <string name="group_chat_mention_all">@all</string>
+    <string name="group_chat_capped_limit">대화가 일시중지되었습니다(턴 한도 도달) — 계속하려면 메시지를 보내세요</string>
 </resources>

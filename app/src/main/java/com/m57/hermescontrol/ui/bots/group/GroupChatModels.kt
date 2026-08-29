@@ -16,12 +16,15 @@ data class GroupChatMessage(
     val timestamp: Long = System.currentTimeMillis(),
     val isStreaming: Boolean = false,
     val thread: String? = null,
+    val isSystem: Boolean = false,
 )
 
 /**
  * Pure helper for mention extraction and responder resolution matching Desktop parity.
  */
 object GroupChatMentions {
+    private val MENTION_REGEX = Regex("""@([a-zA-Z0-9._-]+)""")
+
     data class MentionResult(
         val isEveryone: Boolean,
         val mentionedBots: Set<String>,
@@ -33,16 +36,42 @@ object GroupChatMentions {
     fun parseMentions(
         text: String,
         members: List<ProfileInfo>,
+        excludedSpeaker: String? = null,
     ): MentionResult {
-        val lowerText = text.lowercase()
-        val isEveryone = lowerText.contains("@all") || lowerText.contains("@everyone")
-
+        var isEveryone = false
         val mentioned = mutableSetOf<String>()
+
+        val handles = mutableMapOf<String, String>()
         for (member in members) {
-            val handle = member.name.lowercase()
-            val titleHandle = member.effectiveTitle.lowercase().replace(" ", "")
-            if (lowerText.contains("@$handle") || lowerText.contains("@$titleHandle")) {
-                mentioned.add(member.name)
+            val name = member.name.lowercase()
+            handles[name] = member.name
+            handles[name.replace(Regex("""[\s_-]+"""), "")] = member.name
+
+            val title = member.effectiveTitle.lowercase().trim()
+            if (title.isNotEmpty()) {
+                handles[title.replace(" ", "")] = member.name
+                val firstWord = title.split(Regex("""\s+""")).firstOrNull().orEmpty()
+                if (firstWord.isNotEmpty()) {
+                    handles[firstWord] = member.name
+                }
+            }
+        }
+
+        for (match in MENTION_REGEX.findAll(text)) {
+            val rawHandle = match.groupValues[1].lowercase()
+            if (rawHandle == "all" || rawHandle == "everyone") {
+                isEveryone = true
+                continue
+            }
+            if (rawHandle == "user" || rawHandle == "you") {
+                continue
+            }
+
+            val resolved = handles[rawHandle] ?: handles[rawHandle.replace(Regex("""[._-]+"""), "")]
+            if (resolved != null) {
+                if (excludedSpeaker == null || !resolved.equals(excludedSpeaker, ignoreCase = true)) {
+                    mentioned.add(resolved)
+                }
             }
         }
 
@@ -58,10 +87,15 @@ object GroupChatMentions {
     fun resolveResponders(
         text: String,
         members: List<ProfileInfo>,
+        excludedSpeaker: String? = null,
     ): List<ProfileInfo> {
-        val parsed = parseMentions(text, members)
+        val parsed = parseMentions(text, members, excludedSpeaker)
         return if (parsed.isEveryone || parsed.mentionedBots.isEmpty()) {
-            members
+            if (excludedSpeaker != null) {
+                members.filter { !it.name.equals(excludedSpeaker, ignoreCase = true) }
+            } else {
+                members
+            }
         } else {
             members.filter { parsed.mentionedBots.contains(it.name) }
         }
@@ -75,11 +109,12 @@ object GroupChatMentions {
         viewer: ProfileInfo,
         peers: List<ProfileInfo>,
         recentLog: List<GroupChatMessage>,
+        historyLimit: Int = 10,
     ): String {
         val viewerHandle = viewer.name
         val peerNames = peers.joinToString(", ") { "@${it.name}" }
         val lines =
-            recentLog.takeLast(10).joinToString("\n") { msg ->
+            recentLog.filter { !it.isSystem }.takeLast(historyLimit).joinToString("\n") { msg ->
                 val speaker = if (msg.isUser) "User" else "@${msg.senderName}"
                 "  $speaker: ${msg.text}"
             }

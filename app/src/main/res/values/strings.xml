@@ -1252,4 +1252,5 @@
     <string name="group_chat_typing">Typing…</string>
     <string name="group_chat_members_count">%1$d members</string>
     <string name="group_chat_mention_all">@all</string>
+    <string name="group_chat_capped_limit">Discussion paused (turn limit reached) — reply to continue</string>
 </resources>

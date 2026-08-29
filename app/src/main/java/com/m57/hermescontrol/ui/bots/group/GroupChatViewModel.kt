@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.bots.group
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.model.GroupChatRoomLease
 import com.m57.hermescontrol.data.model.GroupChatRoomMeta
 import com.m57.hermescontrol.data.model.GroupChatSyncFrom
 import com.m57.hermescontrol.data.model.GroupChatSyncLogEntry
@@ -46,6 +47,13 @@ data class MemberSession(
     val storedSessionId: String? = null,
 )
 
+private const val MAX_BOT_MESSAGES = 6
+private const val MAX_CONTINUATION_PASSES = 2
+private const val LEASE_STEP_TTL_MS = 45_000L
+private const val TURN_TIMEOUT_MS = 45_000L
+private const val HISTORY_LIMIT = 10
+private const val CAPPED_SYSTEM_TEXT = "Discussion paused (turn limit reached) — reply to continue"
+
 class GroupChatViewModel(
     private var groupName: String = "",
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -53,6 +61,12 @@ class GroupChatViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(GroupChatUiState(groupName = groupName))
     val uiState: StateFlow<GroupChatUiState> = _uiState.asStateFlow()
+
+    private val localDriverId = "android_" + UUID.randomUUID().toString().take(8)
+    private var activeEpoch: String = ""
+
+    // Map of bot.name -> seen count of non-system messages
+    private val memberWatermarks = mutableMapOf<String, Int>()
 
     // Map of bot.name -> active session info in this group
     private val memberSessions = mutableMapOf<String, MemberSession>()
@@ -80,6 +94,8 @@ class GroupChatViewModel(
     fun setGroup(name: String) {
         if (name == groupName && _uiState.value.groupName.isNotBlank()) return
         groupName = name
+        activeEpoch = UUID.randomUUID().toString()
+        memberWatermarks.clear()
         memberSessions.clear()
         inFlightTurns.clear()
         activeStreamMsgId.clear()
@@ -252,6 +268,11 @@ class GroupChatViewModel(
                     }
                 }
 
+                val nonSystemCount = initialMessages.filter { !it.isSystem }.size
+                for (member in groupMembers) {
+                    memberWatermarks[member.name] = nonSystemCount
+                }
+
                 _uiState.update {
                     it.copy(
                         members = groupMembers,
@@ -298,6 +319,214 @@ class GroupChatViewModel(
         return null
     }
 
+    private suspend fun acquireOrVerifyLease(
+        defaultProfile: ProfileInfo,
+        epoch: String,
+    ): Boolean {
+        try {
+            val syncSnapshot = defaultProfile.groupChatSyncSnapshot()
+            val roomKey = "name:$groupName"
+            val existingRoom =
+                syncSnapshot?.rooms?.get(roomKey)
+                    ?: syncSnapshot?.rooms?.get(groupName)
+                    ?: syncSnapshot?.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
+
+            val currentLease = existingRoom?.lease
+            val now = System.currentTimeMillis()
+
+            if (currentLease?.driverId != null &&
+                currentLease.driverId != localDriverId &&
+                (currentLease.expiresAt ?: 0L) > now
+            ) {
+                val remainingSec = ((currentLease.expiresAt ?: 0L) - now) / 1000
+                Log.i(
+                    "GroupChatViewModel",
+                    "Active lease held by ${currentLease.driverId} (expires in ${remainingSec}s). Passive mode.",
+                )
+                return false
+            }
+
+            val myLease =
+                GroupChatRoomLease(
+                    driverId = localDriverId,
+                    epoch = epoch,
+                    expiresAt = now + LEASE_STEP_TTL_MS,
+                )
+
+            val existingSnapshot = syncSnapshot ?: GroupChatSyncSnapshot(version = 3, rooms = emptyMap())
+            val updatedRoom =
+                (existingRoom ?: GroupChatRoomMeta(name = groupName, createdAt = now)).copy(
+                    name = groupName,
+                    members = _uiState.value.members.map { JsonPrimitive(it.name) },
+                    lease = myLease,
+                    updatedAt = now,
+                )
+
+            val updatedRooms = (existingSnapshot.rooms.orEmpty() + (roomKey to updatedRoom))
+            val newSnapshot = existingSnapshot.copy(version = 3, updatedAt = now, rooms = updatedRooms)
+            val uiMetaPayload = mapOf("hermes-bots-groups" to newSnapshot.toMap())
+
+            HermesWsClient.request(
+                WsMethods.PROFILES_CONFIGURE,
+                mapOf(
+                    "name" to defaultProfile.name,
+                    "ui_meta" to uiMetaPayload,
+                ),
+            ).await()
+
+            return true
+        } catch (e: Exception) {
+            Log.w("GroupChatViewModel", "acquireOrVerifyLease failed: ${e.message}")
+            return true
+        }
+    }
+
+    private suspend fun executeBotTurn(
+        bot: ProfileInfo,
+        epoch: String,
+        members: List<ProfileInfo>,
+    ): String? {
+        if (activeEpoch != epoch) return null
+
+        val currentNonSystemMessages = _uiState.value.messages.filter { !it.isSystem }
+        val seen = memberWatermarks[bot.name] ?: 0
+        val delta = currentNonSystemMessages.drop(seen)
+
+        if (delta.isEmpty() && currentNonSystemMessages.isNotEmpty()) {
+            return null
+        }
+
+        _uiState.update { it.copy(activeSpeaker = bot.effectiveTitle) }
+
+        val prompt =
+            GroupChatMentions.buildTurnPrompt(
+                groupName = groupName,
+                viewer = bot,
+                peers = members.filter { it.name != bot.name },
+                recentLog = currentNonSystemMessages,
+                historyLimit = HISTORY_LIMIT,
+            )
+
+        val streamMsgId = UUID.randomUUID().toString()
+        var activeRuntimeId: String? = null
+        var activeStoredId: String? = null
+        try {
+            val sessionInfo = ensureMemberSession(bot)
+            if (sessionInfo == null) {
+                Log.w("GroupChatViewModel", "Could not obtain session for ${bot.name}")
+                return null
+            }
+            val runtimeId = sessionInfo.runtimeSessionId
+            val storedId = sessionInfo.storedSessionId
+            activeRuntimeId = runtimeId
+            activeStoredId = storedId
+
+            activeStreamMsgId[runtimeId] = streamMsgId
+            storedId?.let { activeStreamMsgId[it] = streamMsgId }
+
+            sessionToBot[runtimeId] = bot
+            storedId?.let { sessionToBot[it] = bot }
+
+            ActiveSessionHolder.set(runtimeId, runtimeId)
+
+            val turnDeferred = CompletableDeferred<String>()
+            inFlightTurns[runtimeId] = turnDeferred
+            storedId?.let { inFlightTurns[it] = turnDeferred }
+
+            HermesWsClient.sendMessage(
+                sessionId = runtimeId,
+                text = prompt,
+            )
+
+            var replyText =
+                withTimeoutOrNull(TURN_TIMEOUT_MS) {
+                    turnDeferred.await()
+                }
+            inFlightTurns.remove(runtimeId)
+            storedId?.let { inFlightTurns.remove(it) }
+
+            if (replyText == null) {
+                val targetIds = listOfNotNull(storedId, runtimeId).distinct()
+                for (tid in targetIds) {
+                    try {
+                        val res =
+                            safeApiCall {
+                                ApiClient.hermesApi.getSessionMessages(
+                                    sessionId = tid,
+                                    limit = 10,
+                                    order = "latest",
+                                )
+                            }
+                        if (res is NetworkResult.Success) {
+                            val lastAssistant =
+                                res.data.messages.reversed().firstOrNull { it.role == "assistant" }
+                            val candidate = lastAssistant?.contentText?.trim()
+                            if (!candidate.isNullOrBlank()) {
+                                replyText = candidate
+                                break
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("GroupChatViewModel", "REST fallback failed for $tid: ${e.message}")
+                    }
+                }
+            }
+
+            if (activeEpoch != epoch) {
+                _uiState.update { state ->
+                    state.copy(messages = state.messages.filter { it.id != streamMsgId })
+                }
+                return null
+            }
+
+            if (replyText != null && !isPass(replyText) && replyText.isNotBlank()) {
+                val finalMsg =
+                    GroupChatMessage(
+                        id = streamMsgId,
+                        senderName = bot.name,
+                        senderDisplayName = bot.effectiveTitle,
+                        isUser = false,
+                        avatarMeta = bot.botMeta()?.avatar,
+                        text = replyText.trim(),
+                        isStreaming = false,
+                    )
+                _uiState.update { state ->
+                    val existing = state.messages.find { it.id == streamMsgId }
+                    val updatedList =
+                        if (existing != null) {
+                            state.messages.map { if (it.id == streamMsgId) finalMsg else it }
+                        } else {
+                            state.messages + finalMsg
+                        }
+                    state.copy(messages = updatedList)
+                }
+                return replyText.trim()
+            } else {
+                _uiState.update { state ->
+                    state.copy(messages = state.messages.filter { it.id != streamMsgId })
+                }
+                return null
+            }
+        } catch (e: Exception) {
+            Log.w("GroupChatViewModel", "Turn failed for ${bot.name}: ${e.message}")
+            _uiState.update { state ->
+                state.copy(messages = state.messages.filter { it.id != streamMsgId })
+            }
+            return null
+        } finally {
+            activeRuntimeId?.let {
+                activeStreamMsgId.remove(it)
+                sessionToBot.remove(it)
+                inFlightTurns.remove(it)
+            }
+            activeStoredId?.let {
+                activeStreamMsgId.remove(it)
+                sessionToBot.remove(it)
+                inFlightTurns.remove(it)
+            }
+        }
+    }
+
     fun sendMessage(rawText: String) {
         val text = rawText.trim()
         Log.d("GroupChatViewModel", "sendMessage called with: '$text'")
@@ -308,6 +537,9 @@ class GroupChatViewModel(
             Log.w("GroupChatViewModel", "sendMessage: No members in group, ignoring")
             return
         }
+
+        val epoch = UUID.randomUUID().toString()
+        activeEpoch = epoch
 
         val userMessage =
             GroupChatMessage(
@@ -321,142 +553,149 @@ class GroupChatViewModel(
         _uiState.update {
             it.copy(messages = it.messages + userMessage)
         }
-        persistSyncSnapshot(_uiState.value.messages)
+        persistSyncSnapshot(_uiState.value.messages, extendLease = true)
 
         viewModelScope.launch(ioDispatcher) {
-            val responders = GroupChatMentions.resolveResponders(text, members)
-            Log.d("GroupChatViewModel", "Responders: ${responders.map { it.name }}")
+            val allProfiles = fetchProfiles()
+            val defaultProfile =
+                allProfiles.find { it.is_default == true || it.name == "default" }
+                    ?: allProfiles.firstOrNull()
 
-            for (bot in responders) {
-                _uiState.update { it.copy(activeSpeaker = bot.effectiveTitle) }
-                val prompt =
-                    GroupChatMentions.buildTurnPrompt(
-                        groupName = groupName,
-                        viewer = bot,
-                        peers = members.filter { it.name != bot.name },
-                        recentLog = _uiState.value.messages,
-                    )
+            if (defaultProfile != null) {
+                val hasLease = acquireOrVerifyLease(defaultProfile, epoch)
+                if (!hasLease) {
+                    Log.i("GroupChatViewModel", "Passive mode active — skipping local turn drive")
+                    return@launch
+                }
+            }
 
-                val streamMsgId = UUID.randomUUID().toString()
-                var activeRuntimeId: String? = null
-                var activeStoredId: String? = null
-                try {
-                    val sessionInfo = ensureMemberSession(bot)
-                    if (sessionInfo == null) {
-                        Log.w("GroupChatViewModel", "Could not obtain session for ${bot.name}")
-                        continue
-                    }
-                    val runtimeId = sessionInfo.runtimeSessionId
-                    val storedId = sessionInfo.storedSessionId
-                    activeRuntimeId = runtimeId
-                    activeStoredId = storedId
+            var postedBotMessages = 0
+            var continuationsCount = 0
 
-                    activeStreamMsgId[runtimeId] = streamMsgId
-                    storedId?.let { activeStreamMsgId[it] = streamMsgId }
+            val initialResponders = GroupChatMentions.resolveResponders(text, members).toMutableList()
+            val remainingInitial = initialResponders.toMutableList()
 
-                    sessionToBot[runtimeId] = bot
-                    storedId?.let { sessionToBot[it] = bot }
+            // ── Round 1: Initial Turn ──
+            while (remainingInitial.isNotEmpty()) {
+                if (activeEpoch != epoch) return@launch
+                if (postedBotMessages >= MAX_BOT_MESSAGES) break
 
-                    // Set ActiveSessionHolder so the active WebSocket context matches this turn
-                    ActiveSessionHolder.set(runtimeId, runtimeId)
+                val bot = remainingInitial.removeAt(0)
+                val reply = executeBotTurn(bot, epoch, members)
+                val nonSystemSize = _uiState.value.messages.filter { !it.isSystem }.size
+                memberWatermarks[bot.name] = nonSystemSize
 
-                    // Register in-flight listener
-                    val turnDeferred = CompletableDeferred<String>()
-                    inFlightTurns[runtimeId] = turnDeferred
-                    storedId?.let { inFlightTurns[it] = turnDeferred }
+                if (reply != null) {
+                    postedBotMessages++
+                    persistSyncSnapshot(_uiState.value.messages, extendLease = true)
+                }
+            }
 
-                    // Submit prompt via sendMessage
-                    HermesWsClient.sendMessage(
-                        sessionId = runtimeId,
-                        text = prompt,
-                    )
+            // ── Reactive Continuation Passes ──
+            while (continuationsCount < MAX_CONTINUATION_PASSES && postedBotMessages < MAX_BOT_MESSAGES) {
+                if (activeEpoch != epoch) return@launch
 
-                    // Await event or polling fallback
-                    var replyText =
-                        withTimeoutOrNull(45_000L) {
-                            turnDeferred.await()
-                        }
-                    inFlightTurns.remove(runtimeId)
-                    storedId?.let { inFlightTurns.remove(it) }
+                val currentLog = _uiState.value.messages.filter { !it.isSystem }
+                val userIndex = currentLog.indexOfLast { it.isUser }
+                val recentAssistantMsgs =
+                    if (userIndex >= 0) currentLog.drop(userIndex + 1) else currentLog
 
-                    // Polling fallback if event dropped or session was reaped
-                    if (replyText == null) {
-                        val targetIds = listOfNotNull(storedId, runtimeId).distinct()
-                        for (tid in targetIds) {
-                            try {
-                                val res =
-                                    safeApiCall {
-                                        ApiClient.hermesApi.getSessionMessages(
-                                            sessionId = tid,
-                                            limit = 10,
-                                            order = "latest",
-                                        )
-                                    }
-                                if (res is NetworkResult.Success) {
-                                    val lastAssistant =
-                                        res.data.messages.reversed().firstOrNull { it.role == "assistant" }
-                                    val candidate = lastAssistant?.contentText?.trim()
-                                    if (!candidate.isNullOrBlank()) {
-                                        replyText = candidate
-                                        break
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.w("GroupChatViewModel", "REST fallback failed for $tid: ${e.message}")
+                val pendingCitedBots = mutableListOf<ProfileInfo>()
+                for (msg in recentAssistantMsgs) {
+                    val parsed =
+                        GroupChatMentions.parseMentions(
+                            text = msg.text,
+                            members = members,
+                            excludedSpeaker = msg.senderName,
+                        )
+                    for (citedName in parsed.mentionedBots) {
+                        val bot = members.find { it.name.equals(citedName, ignoreCase = true) }
+                        if (bot != null && !pendingCitedBots.any { it.name == bot.name }) {
+                            val seenCount = memberWatermarks[bot.name] ?: 0
+                            if (seenCount < currentLog.size) {
+                                pendingCitedBots.add(bot)
                             }
                         }
                     }
+                }
 
-                    if (replyText != null && !isPass(replyText) && replyText.isNotBlank()) {
-                        _uiState.update { state ->
-                            val existing = state.messages.find { it.id == streamMsgId }
-                            val finalMsg =
-                                GroupChatMessage(
-                                    id = streamMsgId,
-                                    senderName = bot.name,
-                                    senderDisplayName = bot.effectiveTitle,
-                                    isUser = false,
-                                    avatarMeta = bot.botMeta()?.avatar,
-                                    text = replyText.trim(),
-                                    isStreaming = false,
-                                )
-                            val updatedList =
-                                if (existing != null) {
-                                    state.messages.map { if (it.id == streamMsgId) finalMsg else it }
-                                } else {
-                                    state.messages + finalMsg
-                                }
-                            state.copy(messages = updatedList)
-                        }
-                        persistSyncSnapshot(_uiState.value.messages)
-                    } else {
-                        _uiState.update { state ->
-                            state.copy(messages = state.messages.filter { it.id != streamMsgId })
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w("GroupChatViewModel", "Turn failed for ${bot.name}: ${e.message}")
-                    _uiState.update { state ->
-                        state.copy(messages = state.messages.filter { it.id != streamMsgId })
-                    }
-                } finally {
-                    activeRuntimeId?.let {
-                        activeStreamMsgId.remove(it)
-                        sessionToBot.remove(it)
-                        inFlightTurns.remove(it)
-                    }
-                    activeStoredId?.let {
-                        activeStreamMsgId.remove(it)
-                        sessionToBot.remove(it)
-                        inFlightTurns.remove(it)
+                if (pendingCitedBots.isEmpty()) {
+                    // Quiescence / Natural Settle reached
+                    break
+                }
+
+                continuationsCount++
+                val continuationResponders = pendingCitedBots.toMutableList()
+
+                while (continuationResponders.isNotEmpty()) {
+                    if (activeEpoch != epoch) return@launch
+                    if (postedBotMessages >= MAX_BOT_MESSAGES) break
+
+                    val bot = continuationResponders.removeAt(0)
+                    val reply = executeBotTurn(bot, epoch, members)
+                    val nonSystemSize = _uiState.value.messages.filter { !it.isSystem }.size
+                    memberWatermarks[bot.name] = nonSystemSize
+
+                    if (reply != null) {
+                        postedBotMessages++
+                        persistSyncSnapshot(_uiState.value.messages, extendLease = true)
                     }
                 }
             }
+
+            // ── Capped Exit Banner Check ──
+            val isBudgetExceeded =
+                postedBotMessages >= MAX_BOT_MESSAGES || continuationsCount >= MAX_CONTINUATION_PASSES
+            val hasUnfinishedWork = remainingInitial.isNotEmpty() || hasPendingMentions(members)
+
+            if (isBudgetExceeded && hasUnfinishedWork && activeEpoch == epoch) {
+                val cappedMessage =
+                    GroupChatMessage(
+                        id = UUID.randomUUID().toString(),
+                        senderName = "system",
+                        senderDisplayName = "System",
+                        isUser = false,
+                        isSystem = true,
+                        text = CAPPED_SYSTEM_TEXT,
+                    )
+                _uiState.update { it.copy(messages = it.messages + cappedMessage) }
+                persistSyncSnapshot(_uiState.value.messages, extendLease = false)
+            }
+
             _uiState.update { it.copy(activeSpeaker = null) }
         }
     }
 
-    private fun persistSyncSnapshot(currentMessages: List<GroupChatMessage>) {
+    private fun hasPendingMentions(members: List<ProfileInfo>): Boolean {
+        val currentLog = _uiState.value.messages.filter { !it.isSystem }
+        val userIndex = currentLog.indexOfLast { it.isUser }
+        val recentAssistantMsgs =
+            if (userIndex >= 0) currentLog.drop(userIndex + 1) else currentLog
+
+        for (msg in recentAssistantMsgs) {
+            val parsed =
+                GroupChatMentions.parseMentions(
+                    text = msg.text,
+                    members = members,
+                    excludedSpeaker = msg.senderName,
+                )
+            for (citedName in parsed.mentionedBots) {
+                val bot = members.find { it.name.equals(citedName, ignoreCase = true) }
+                if (bot != null) {
+                    val seenCount = memberWatermarks[bot.name] ?: 0
+                    if (seenCount < currentLog.size) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    private fun persistSyncSnapshot(
+        currentMessages: List<GroupChatMessage>,
+        extendLease: Boolean = true,
+    ) {
         viewModelScope.launch(ioDispatcher) {
             try {
                 val allProfiles = fetchProfiles()
@@ -467,7 +706,7 @@ class GroupChatViewModel(
                         ?: GroupChatSyncSnapshot(version = 3, rooms = emptyMap())
 
                 val logEntries =
-                    currentMessages.takeLast(32).map { msg ->
+                    currentMessages.filter { !it.isSystem }.takeLast(32).map { msg ->
                         GroupChatSyncLogEntry(
                             id = msg.id,
                             from =
@@ -481,25 +720,38 @@ class GroupChatViewModel(
                         )
                     }
 
+                val now = System.currentTimeMillis()
                 val roomKey = "name:$groupName"
                 val existingRoom =
                     existingSnapshot.rooms?.get(roomKey)
                         ?: existingSnapshot.rooms?.get(groupName)
                         ?: existingSnapshot.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
 
+                val updatedLease =
+                    if (extendLease) {
+                        GroupChatRoomLease(
+                            driverId = localDriverId,
+                            epoch = activeEpoch,
+                            expiresAt = now + LEASE_STEP_TTL_MS,
+                        )
+                    } else {
+                        existingRoom?.lease
+                    }
+
                 val updatedRoom =
-                    (existingRoom ?: GroupChatRoomMeta(name = groupName, createdAt = System.currentTimeMillis())).copy(
+                    (existingRoom ?: GroupChatRoomMeta(name = groupName, createdAt = now)).copy(
                         name = groupName,
                         members = _uiState.value.members.map { JsonPrimitive(it.name) },
                         log = logEntries,
-                        updatedAt = System.currentTimeMillis(),
+                        lease = updatedLease,
+                        updatedAt = now,
                     )
 
                 val updatedRooms = (existingSnapshot.rooms.orEmpty() + (roomKey to updatedRoom))
                 val newSnapshot =
                     existingSnapshot.copy(
                         version = 3,
-                        updatedAt = System.currentTimeMillis(),
+                        updatedAt = now,
                         rooms = updatedRooms,
                     )
 
@@ -520,7 +772,7 @@ class GroupChatViewModel(
 
     private fun isPass(text: String): Boolean {
         val clean = text.trim().lowercase()
-        return clean == "(pass)" || clean == "pass"
+        return clean == "(pass)" || clean == "pass" || clean == "(pass)." || clean == "pass."
     }
 
     private fun extractSessionInfo(response: Any?): MemberSession? {

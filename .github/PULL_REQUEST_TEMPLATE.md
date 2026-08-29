@@ -4,6 +4,10 @@
 
 Fixes #
 
+## Description
+
+<!-- Explain in your own words what this PR does and how it works at a high level. -->
+
 ## Type of Change
 
 - [ ] 🐛 Bug fix

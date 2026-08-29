@@ -1122,4 +1122,12 @@
     <string name="group_chat_members_count">%1$d 个成员</string>
     <string name="group_chat_mention_all">@all</string>
     <string name="group_chat_capped_limit">讨论已暂停（达到轮次上限）— 发送消息继续</string>
+    <string name="group_chat_settings_title">群聊设置</string>
+    <string name="group_chat_settings_max_messages">最大 Bot 回复数</string>
+    <string name="group_chat_settings_max_messages_desc">单次发送的最大 Bot 回复总数 (%1$d)</string>
+    <string name="group_chat_settings_max_handoffs">最大交接轮次</string>
+    <string name="group_chat_settings_max_handoffs_desc">Bot 间互相触发的最大次数 (%1$d)</string>
+    <string name="group_chat_settings_save">保存</string>
+    <string name="group_chat_settings_reset_default">恢复默认值</string>
+    <string name="group_chat_action_settings">设置</string>
 </resources>

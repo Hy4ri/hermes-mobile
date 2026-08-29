@@ -347,4 +347,57 @@ class GroupChatViewModelTest {
             assertEquals(1, viewModel.uiState.value.messages.size)
             assertTrue(viewModel.uiState.value.messages.first().isUser)
         }
+
+    @Test
+    fun testLoadGroup_loadsCustomPerGroupLimits() =
+        runTest(testDispatcher) {
+            val customLimitsSnapshot =
+                GroupChatSyncSnapshot(
+                    version = 3,
+                    rooms =
+                        mapOf(
+                            "name:Dev Team" to
+                                GroupChatRoomMeta(
+                                    name = "Dev Team",
+                                    members = listOf(JsonPrimitive("scout"), JsonPrimitive("coder")),
+                                    maxBotMessages = 12,
+                                    maxContinuationPasses = 5,
+                                ),
+                        ),
+                )
+
+            val defaultProfileWithCustomLimits =
+                ProfileInfo(
+                    name = "default",
+                    is_default = true,
+                    ui_meta = mapOf("hermes-bots-groups" to json.encodeToJsonElement(customLimitsSnapshot)),
+                )
+
+            coEvery { mockApi.getProfiles() } returns
+                Response.success(
+                    ProfilesResponse(
+                        profiles = listOf(defaultProfileWithCustomLimits, botA, botB),
+                    ),
+                )
+
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(12, state.maxBotMessages)
+            assertEquals(5, state.maxContinuationPasses)
+        }
+
+    @Test
+    fun testUpdateGroupLimits_updatesStateAndClamps() =
+        runTest(testDispatcher) {
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            advanceUntilIdle()
+
+            viewModel.updateGroupLimits(maxMessages = 15, maxPasses = 4)
+            testScheduler.runCurrent()
+
+            assertEquals(15, viewModel.uiState.value.maxBotMessages)
+            assertEquals(4, viewModel.uiState.value.maxContinuationPasses)
+        }
 }

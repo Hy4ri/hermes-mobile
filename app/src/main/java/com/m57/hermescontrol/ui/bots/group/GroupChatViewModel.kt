@@ -40,6 +40,8 @@ data class GroupChatUiState(
     val activeSpeaker: String? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val maxBotMessages: Int = DEFAULT_MAX_BOT_MESSAGES,
+    val maxContinuationPasses: Int = DEFAULT_MAX_CONTINUATION_PASSES,
 )
 
 data class MemberSession(
@@ -47,8 +49,8 @@ data class MemberSession(
     val storedSessionId: String? = null,
 )
 
-private const val MAX_BOT_MESSAGES = 6
-private const val MAX_CONTINUATION_PASSES = 2
+const val DEFAULT_MAX_BOT_MESSAGES = 6
+const val DEFAULT_MAX_CONTINUATION_PASSES = 2
 private const val LEASE_STEP_TTL_MS = 45_000L
 private const val TURN_TIMEOUT_MS = 45_000L
 private const val HISTORY_LIMIT = 10
@@ -273,10 +275,15 @@ class GroupChatViewModel(
                     memberWatermarks[member.name] = nonSystemCount
                 }
 
+                val maxMessages = matchingRoom?.maxBotMessages ?: DEFAULT_MAX_BOT_MESSAGES
+                val maxPasses = matchingRoom?.maxContinuationPasses ?: DEFAULT_MAX_CONTINUATION_PASSES
+
                 _uiState.update {
                     it.copy(
                         members = groupMembers,
                         messages = initialMessages,
+                        maxBotMessages = maxMessages,
+                        maxContinuationPasses = maxPasses,
                         isLoading = false,
                     )
                 }
@@ -287,6 +294,68 @@ class GroupChatViewModel(
                         errorMessage = "Failed to load group members",
                     )
                 }
+            }
+        }
+    }
+
+    fun updateGroupLimits(
+        maxMessages: Int,
+        maxPasses: Int,
+    ) {
+        val clampedMessages = maxMessages.coerceIn(1, 20)
+        val clampedPasses = maxPasses.coerceIn(0, 10)
+
+        _uiState.update {
+            it.copy(
+                maxBotMessages = clampedMessages,
+                maxContinuationPasses = clampedPasses,
+            )
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val allProfiles = fetchProfiles()
+                val defaultProfile =
+                    allProfiles.find { it.is_default == true || it.name == "default" } ?: return@launch
+                val existingSnapshot =
+                    defaultProfile.groupChatSyncSnapshot()
+                        ?: GroupChatSyncSnapshot(version = 3, rooms = emptyMap())
+
+                val now = System.currentTimeMillis()
+                val roomKey = "name:$groupName"
+                val existingRoom =
+                    existingSnapshot.rooms?.get(roomKey)
+                        ?: existingSnapshot.rooms?.get(groupName)
+                        ?: existingSnapshot.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
+
+                val updatedRoom =
+                    (existingRoom ?: GroupChatRoomMeta(name = groupName, createdAt = now)).copy(
+                        name = groupName,
+                        members = _uiState.value.members.map { JsonPrimitive(it.name) },
+                        maxBotMessages = clampedMessages,
+                        maxContinuationPasses = clampedPasses,
+                        updatedAt = now,
+                    )
+
+                val updatedRooms = (existingSnapshot.rooms.orEmpty() + (roomKey to updatedRoom))
+                val newSnapshot =
+                    existingSnapshot.copy(
+                        version = 3,
+                        updatedAt = now,
+                        rooms = updatedRooms,
+                    )
+
+                val uiMetaPayload = mapOf("hermes-bots-groups" to newSnapshot.toMap())
+
+                HermesWsClient.request(
+                    WsMethods.PROFILES_CONFIGURE,
+                    mapOf(
+                        "name" to defaultProfile.name,
+                        "ui_meta" to uiMetaPayload,
+                    ),
+                ).await()
+            } catch (e: Exception) {
+                Log.w("GroupChatViewModel", "updateGroupLimits failed: ${e.message}")
             }
         }
     }
@@ -359,6 +428,8 @@ class GroupChatViewModel(
                     name = groupName,
                     members = _uiState.value.members.map { JsonPrimitive(it.name) },
                     lease = myLease,
+                    maxBotMessages = _uiState.value.maxBotMessages,
+                    maxContinuationPasses = _uiState.value.maxContinuationPasses,
                     updatedAt = now,
                 )
 
@@ -572,13 +643,16 @@ class GroupChatViewModel(
             var postedBotMessages = 0
             var continuationsCount = 0
 
+            val maxBotLimit = _uiState.value.maxBotMessages
+            val maxPassLimit = _uiState.value.maxContinuationPasses
+
             val initialResponders = GroupChatMentions.resolveResponders(text, members).toMutableList()
             val remainingInitial = initialResponders.toMutableList()
 
             // ── Round 1: Initial Turn ──
             while (remainingInitial.isNotEmpty()) {
                 if (activeEpoch != epoch) return@launch
-                if (postedBotMessages >= MAX_BOT_MESSAGES) break
+                if (postedBotMessages >= maxBotLimit) break
 
                 val bot = remainingInitial.removeAt(0)
                 val reply = executeBotTurn(bot, epoch, members)
@@ -592,7 +666,7 @@ class GroupChatViewModel(
             }
 
             // ── Reactive Continuation Passes ──
-            while (continuationsCount < MAX_CONTINUATION_PASSES && postedBotMessages < MAX_BOT_MESSAGES) {
+            while (continuationsCount < maxPassLimit && postedBotMessages < maxBotLimit) {
                 if (activeEpoch != epoch) return@launch
 
                 val currentLog = _uiState.value.messages.filter { !it.isSystem }
@@ -629,7 +703,7 @@ class GroupChatViewModel(
 
                 while (continuationResponders.isNotEmpty()) {
                     if (activeEpoch != epoch) return@launch
-                    if (postedBotMessages >= MAX_BOT_MESSAGES) break
+                    if (postedBotMessages >= maxBotLimit) break
 
                     val bot = continuationResponders.removeAt(0)
                     val reply = executeBotTurn(bot, epoch, members)
@@ -645,7 +719,7 @@ class GroupChatViewModel(
 
             // ── Capped Exit Banner Check ──
             val isBudgetExceeded =
-                postedBotMessages >= MAX_BOT_MESSAGES || continuationsCount >= MAX_CONTINUATION_PASSES
+                postedBotMessages >= maxBotLimit || continuationsCount >= maxPassLimit
             val hasUnfinishedWork = remainingInitial.isNotEmpty() || hasPendingMentions(members)
 
             if (isBudgetExceeded && hasUnfinishedWork && activeEpoch == epoch) {
@@ -744,6 +818,8 @@ class GroupChatViewModel(
                         members = _uiState.value.members.map { JsonPrimitive(it.name) },
                         log = logEntries,
                         lease = updatedLease,
+                        maxBotMessages = _uiState.value.maxBotMessages,
+                        maxContinuationPasses = _uiState.value.maxContinuationPasses,
                         updatedAt = now,
                     )
 

@@ -362,6 +362,7 @@ class GroupChatViewModelTest {
                                     members = listOf(JsonPrimitive("scout"), JsonPrimitive("coder")),
                                     maxBotMessages = 12,
                                     maxContinuationPasses = 5,
+                                    systemPrompt = "You are elite software architects.",
                                 ),
                         ),
                 )
@@ -386,6 +387,7 @@ class GroupChatViewModelTest {
             val state = viewModel.uiState.value
             assertEquals(12, state.maxBotMessages)
             assertEquals(5, state.maxContinuationPasses)
+            assertEquals("You are elite software architects.", state.systemPrompt)
         }
 
     @Test
@@ -394,10 +396,40 @@ class GroupChatViewModelTest {
             val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
             advanceUntilIdle()
 
-            viewModel.updateGroupLimits(maxMessages = 15, maxPasses = 4)
+            viewModel.updateGroupLimits(
+                maxMessages = 15,
+                maxPasses = 4,
+                systemPrompt = "Custom instructions for this group",
+            )
             testScheduler.runCurrent()
 
             assertEquals(15, viewModel.uiState.value.maxBotMessages)
             assertEquals(4, viewModel.uiState.value.maxContinuationPasses)
+            assertEquals("Custom instructions for this group", viewModel.uiState.value.systemPrompt)
         }
+
+    @Test
+    fun testBuildTurnPrompt_includesCustomRoomInstructions() {
+        val prompt =
+            GroupChatMentions.buildTurnPrompt(
+                groupName = "Dev Team",
+                viewer = botA,
+                peers = listOf(botB),
+                recentLog =
+                    listOf(
+                        GroupChatMessage(
+                            id = "1",
+                            senderName = "user",
+                            senderDisplayName = "User",
+                            isUser = true,
+                            text = "hello team",
+                        ),
+                    ),
+                customRoomPrompt = "You are sarcastic AI buddies.",
+            )
+
+        assertTrue(prompt.contains("Room Instructions:\nYou are sarcastic AI buddies."))
+        assertTrue(prompt.contains("@scout (Scout Bot)"))
+        assertTrue(prompt.contains("@coder (Dev Bot)"))
+    }
 }

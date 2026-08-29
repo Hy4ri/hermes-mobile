@@ -42,6 +42,7 @@ data class GroupChatUiState(
     val errorMessage: String? = null,
     val maxBotMessages: Int = DEFAULT_MAX_BOT_MESSAGES,
     val maxContinuationPasses: Int = DEFAULT_MAX_CONTINUATION_PASSES,
+    val systemPrompt: String? = null,
 )
 
 data class MemberSession(
@@ -277,6 +278,7 @@ class GroupChatViewModel(
 
                 val maxMessages = matchingRoom?.maxBotMessages ?: DEFAULT_MAX_BOT_MESSAGES
                 val maxPasses = matchingRoom?.maxContinuationPasses ?: DEFAULT_MAX_CONTINUATION_PASSES
+                val roomSystemPrompt = matchingRoom?.systemPrompt
 
                 _uiState.update {
                     it.copy(
@@ -284,6 +286,7 @@ class GroupChatViewModel(
                         messages = initialMessages,
                         maxBotMessages = maxMessages,
                         maxContinuationPasses = maxPasses,
+                        systemPrompt = roomSystemPrompt,
                         isLoading = false,
                     )
                 }
@@ -313,14 +316,17 @@ class GroupChatViewModel(
     fun updateGroupLimits(
         maxMessages: Int,
         maxPasses: Int,
+        systemPrompt: String? = null,
     ) {
         val clampedMessages = maxMessages.coerceIn(1, 20)
         val clampedPasses = maxPasses.coerceIn(0, 10)
+        val cleanPrompt = systemPrompt?.trim()?.ifBlank { null }
 
         _uiState.update {
             it.copy(
                 maxBotMessages = clampedMessages,
                 maxContinuationPasses = clampedPasses,
+                systemPrompt = cleanPrompt,
             )
         }
 
@@ -342,6 +348,7 @@ class GroupChatViewModel(
                         members = _uiState.value.members.map { JsonPrimitive(it.name) },
                         maxBotMessages = clampedMessages,
                         maxContinuationPasses = clampedPasses,
+                        systemPrompt = cleanPrompt,
                         updatedAt = now,
                     )
 
@@ -442,6 +449,7 @@ class GroupChatViewModel(
                     lease = myLease,
                     maxBotMessages = _uiState.value.maxBotMessages,
                     maxContinuationPasses = _uiState.value.maxContinuationPasses,
+                    systemPrompt = _uiState.value.systemPrompt,
                     updatedAt = now,
                 )
 
@@ -489,6 +497,7 @@ class GroupChatViewModel(
                 peers = members.filter { it.name != bot.name },
                 recentLog = currentNonSystemMessages,
                 historyLimit = HISTORY_LIMIT,
+                customRoomPrompt = _uiState.value.systemPrompt,
             )
 
         val turnStartTime = System.currentTimeMillis()
@@ -873,6 +882,7 @@ class GroupChatViewModel(
                         lease = updatedLease,
                         maxBotMessages = _uiState.value.maxBotMessages,
                         maxContinuationPasses = _uiState.value.maxContinuationPasses,
+                        systemPrompt = _uiState.value.systemPrompt,
                         updatedAt = now,
                     )
 

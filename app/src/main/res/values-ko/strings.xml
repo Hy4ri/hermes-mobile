@@ -830,5 +830,8 @@
     <string name="group_chat_settings_max_handoffs_desc">봇이 서로를 트리거할 수 있는 최대 횟수 (%1$d)</string>
     <string name="group_chat_settings_save">저장</string>
     <string name="group_chat_settings_reset_default">기본값으로 초기화</string>
+    <string name="group_chat_settings_system_prompt">방 지침 / 프롬프트</string>
+    <string name="group_chat_settings_system_prompt_hint">이 그룹을 위한 사용자 지정 규칙, 어조 또는 컨텍스트 (선택사항)…</string>
+    <string name="group_chat_settings_system_prompt_desc">이 방의 모든 봇에 적용되는 사용자 지정 가이드라인</string>
     <string name="group_chat_action_settings">설정</string>
 </resources>

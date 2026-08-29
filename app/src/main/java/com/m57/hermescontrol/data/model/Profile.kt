@@ -159,6 +159,7 @@ data class GroupChatSyncSnapshot(
             room.tombstone?.let { roomMap["tombstone"] = it }
             room.maxBotMessages?.let { roomMap["maxBotMessages"] = it }
             room.maxContinuationPasses?.let { roomMap["maxContinuationPasses"] = it }
+            room.systemPrompt?.let { roomMap["systemPrompt"] = it }
             room.lease?.let { lease ->
                 roomMap["lease"] =
                     buildMap<String, Any?> {
@@ -234,6 +235,7 @@ data class GroupChatRoomMeta(
     val lease: GroupChatRoomLease? = null,
     val maxBotMessages: Int? = null,
     val maxContinuationPasses: Int? = null,
+    val systemPrompt: String? = null,
 ) {
     val memberNames: List<String>
         get() =

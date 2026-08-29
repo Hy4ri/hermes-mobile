@@ -1128,6 +1128,9 @@
     <string name="group_chat_settings_max_handoffs">最大交接轮次</string>
     <string name="group_chat_settings_max_handoffs_desc">Bot 间互相触发的最大次数 (%1$d)</string>
     <string name="group_chat_settings_save">保存</string>
-    <string name="group_chat_settings_reset_default">恢复默认值</string>
+    <string name="group_chat_settings_reset_default">重置为默认</string>
+    <string name="group_chat_settings_system_prompt">房间指令 / 提示词</string>
+    <string name="group_chat_settings_system_prompt_hint">此群聊的自定义规则、语气或上下文（可选）…</string>
+    <string name="group_chat_settings_system_prompt_desc">适用于此房间内所有 Bot 的自定义准则</string>
     <string name="group_chat_action_settings">设置</string>
 </resources>

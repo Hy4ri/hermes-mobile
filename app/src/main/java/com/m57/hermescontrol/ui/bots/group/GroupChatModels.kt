@@ -110,9 +110,22 @@ object GroupChatMentions {
         peers: List<ProfileInfo>,
         recentLog: List<GroupChatMessage>,
         historyLimit: Int = 10,
+        customRoomPrompt: String? = null,
     ): String {
-        val viewerHandle = viewer.name
-        val peerNames = peers.joinToString(", ") { "@${it.name}" }
+        val viewerLabel =
+            if (viewer.effectiveTitle.isNotBlank() && !viewer.effectiveTitle.equals(viewer.name, ignoreCase = true)) {
+                "@${viewer.name} (${viewer.effectiveTitle})"
+            } else {
+                "@${viewer.name}"
+            }
+        val peerNames =
+            peers.joinToString(", ") {
+                if (it.effectiveTitle.isNotBlank() && !it.effectiveTitle.equals(it.name, ignoreCase = true)) {
+                    "@${it.name} (${it.effectiveTitle})"
+                } else {
+                    "@${it.name}"
+                }
+            }
         val lines =
             recentLog.filter { !it.isSystem }.takeLast(historyLimit).joinToString("\n") { msg ->
                 val speaker = if (msg.isUser) "User" else "@${msg.senderName}"
@@ -125,20 +138,33 @@ object GroupChatMentions {
 
         val actionGuidance =
             if (isDirectOrAll) {
-                "- You were explicitly addressed (via @$viewerHandle or @all). Do NOT pass — reply conversationally with your greeting, insight, answer, or status."
+                "- You were explicitly addressed (via @${viewer.name} or @all). Do NOT pass — reply conversationally with your greeting, insight, answer, or status."
             } else {
                 "- If you have nothing new to add, reply with exactly \"(pass)\". Passing is good and lets the conversation settle."
             }
 
-        return """
-[Group chat: "$groupName"] You are @$viewerHandle, one participant in a group chat with $peerNames and the user.
+        val customInstructions =
+            if (!customRoomPrompt.isNullOrBlank()) {
+                "\nRoom Instructions:\n${customRoomPrompt.trim()}\n"
+            } else {
+                ""
+            }
 
+        val defaultSentenceRule =
+            if (customRoomPrompt.isNullOrBlank()) {
+                "- Reply with ONE conversational message (1-3 sentences).\n"
+            } else {
+                ""
+            }
+
+        return """
+[Group chat: "$groupName"] You are $viewerLabel, one participant in a group chat with $peerNames and the user.
+$customInstructions
 Recent messages in the room:
 $lines
 
 Rules for this room:
-- Reply with ONE conversational message (1-3 sentences).
-$actionGuidance
+$defaultSentenceRule$actionGuidance
 - Mention a teammate as @name if you want to pull them in.
 - Your reply goes to the room verbatim — no preamble.
             """.trimIndent()

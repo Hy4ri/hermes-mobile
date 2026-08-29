@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -299,9 +300,10 @@ fun GroupChatScreen(
         GroupChatSettingsDialog(
             currentMaxMessages = state.maxBotMessages,
             currentMaxPasses = state.maxContinuationPasses,
+            currentSystemPrompt = state.systemPrompt,
             onDismiss = { showSettingsDialog = false },
-            onSave = { maxMsgs, maxPasses ->
-                viewModel.updateGroupLimits(maxMsgs, maxPasses)
+            onSave = { maxMsgs, maxPasses, prompt ->
+                viewModel.updateGroupLimits(maxMsgs, maxPasses, prompt)
                 showSettingsDialog = false
             },
         )
@@ -312,11 +314,13 @@ fun GroupChatScreen(
 private fun GroupChatSettingsDialog(
     currentMaxMessages: Int,
     currentMaxPasses: Int,
+    currentSystemPrompt: String?,
     onDismiss: () -> Unit,
-    onSave: (Int, Int) -> Unit,
+    onSave: (Int, Int, String?) -> Unit,
 ) {
     var maxMessages by remember(currentMaxMessages) { mutableStateOf(currentMaxMessages.toFloat()) }
     var maxPasses by remember(currentMaxPasses) { mutableStateOf(currentMaxPasses.toFloat()) }
+    var systemPrompt by remember(currentSystemPrompt) { mutableStateOf(currentSystemPrompt.orEmpty()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -405,11 +409,49 @@ private fun GroupChatSettingsDialog(
                         modifier = Modifier.testTag("max_handoffs_slider"),
                     )
                 }
+
+                // Room Instructions / System Prompt
+                Column {
+                    Text(
+                        text = stringResource(R.string.group_chat_settings_system_prompt),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.group_chat_settings_system_prompt_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = systemPrompt,
+                        onValueChange = { systemPrompt = it },
+                        placeholder = {
+                            Text(
+                                text = stringResource(R.string.group_chat_settings_system_prompt_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 80.dp, max = 160.dp)
+                                .testTag("room_system_prompt_input"),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        maxLines = 4,
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onSave(maxMessages.roundToInt(), maxPasses.roundToInt()) },
+                onClick = {
+                    onSave(
+                        maxMessages.roundToInt(),
+                        maxPasses.roundToInt(),
+                        systemPrompt.trim().ifBlank { null },
+                    )
+                },
                 modifier = Modifier.testTag("save_settings_button"),
             ) {
                 Text(stringResource(R.string.group_chat_settings_save))
@@ -421,6 +463,7 @@ private fun GroupChatSettingsDialog(
                     onClick = {
                         maxMessages = DEFAULT_MAX_BOT_MESSAGES.toFloat()
                         maxPasses = DEFAULT_MAX_CONTINUATION_PASSES.toFloat()
+                        systemPrompt = ""
                     },
                 ) {
                     Text(stringResource(R.string.group_chat_settings_reset_default))

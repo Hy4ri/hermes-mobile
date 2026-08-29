@@ -1260,5 +1260,8 @@
     <string name="group_chat_settings_max_handoffs_desc">How many times bots can trigger each other (%1$d)</string>
     <string name="group_chat_settings_save">Save</string>
     <string name="group_chat_settings_reset_default">Reset to Default</string>
+    <string name="group_chat_settings_system_prompt">Room Instructions / Prompt</string>
+    <string name="group_chat_settings_system_prompt_hint">Custom rules, tone, or context for this group (optional)…</string>
+    <string name="group_chat_settings_system_prompt_desc">Custom guidelines for all bots in this room</string>
     <string name="group_chat_action_settings">Settings</string>
 </resources>

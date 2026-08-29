@@ -24,13 +24,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +66,7 @@ import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import kotlin.math.roundToInt
 
 @Composable
 fun GroupChatScreen(
@@ -74,6 +81,7 @@ fun GroupChatScreen(
         mutableStateOf(TextFieldValue(""))
     }
     var isFocused by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     val handleSend = {
         val text = inputFieldValue.text
@@ -111,6 +119,17 @@ fun GroupChatScreen(
             }
         },
         navigationIcon = NavIcon.Back(onBack),
+        actions = {
+            IconButton(
+                onClick = { showSettingsDialog = true },
+                modifier = Modifier.testTag("group_chat_settings_button"),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = stringResource(R.string.group_chat_action_settings),
+                )
+            }
+        },
         modifier = modifier,
     ) {
         Column(
@@ -276,6 +295,185 @@ fun GroupChatScreen(
             }
         }
     }
+
+    if (showSettingsDialog) {
+        GroupChatSettingsDialog(
+            currentMaxMessages = state.maxBotMessages,
+            currentMaxPasses = state.maxContinuationPasses,
+            currentSystemPrompt = state.systemPrompt,
+            onDismiss = { showSettingsDialog = false },
+            onSave = { maxMsgs, maxPasses, prompt ->
+                viewModel.updateGroupLimits(maxMsgs, maxPasses, prompt)
+                showSettingsDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun GroupChatSettingsDialog(
+    currentMaxMessages: Int,
+    currentMaxPasses: Int,
+    currentSystemPrompt: String?,
+    onDismiss: () -> Unit,
+    onSave: (Int, Int, String?) -> Unit,
+) {
+    var maxMessages by remember(currentMaxMessages) { mutableStateOf(currentMaxMessages.toFloat()) }
+    var maxPasses by remember(currentMaxPasses) { mutableStateOf(currentMaxPasses.toFloat()) }
+    var systemPrompt by remember(currentSystemPrompt) { mutableStateOf(currentSystemPrompt.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.group_chat_settings_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                // Max Bot Messages Slider
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.group_chat_settings_max_messages),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "${maxMessages.roundToInt()}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.group_chat_settings_max_messages_desc,
+                                maxMessages.roundToInt(),
+                            ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = maxMessages,
+                        onValueChange = { maxMessages = it },
+                        valueRange = 1f..20f,
+                        steps = 18,
+                        modifier = Modifier.testTag("max_messages_slider"),
+                    )
+                }
+
+                // Max Continuation Handoffs Slider
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.group_chat_settings_max_handoffs),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "${maxPasses.roundToInt()}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.group_chat_settings_max_handoffs_desc,
+                                maxPasses.roundToInt(),
+                            ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = maxPasses,
+                        onValueChange = { maxPasses = it },
+                        valueRange = 0f..6f,
+                        steps = 5,
+                        modifier = Modifier.testTag("max_handoffs_slider"),
+                    )
+                }
+
+                // Room Instructions / System Prompt
+                Column {
+                    Text(
+                        text = stringResource(R.string.group_chat_settings_system_prompt),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.group_chat_settings_system_prompt_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = systemPrompt,
+                        onValueChange = { systemPrompt = it },
+                        placeholder = {
+                            Text(
+                                text = stringResource(R.string.group_chat_settings_system_prompt_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 80.dp, max = 160.dp)
+                                .testTag("room_system_prompt_input"),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        maxLines = 4,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        maxMessages.roundToInt(),
+                        maxPasses.roundToInt(),
+                        systemPrompt.trim().ifBlank { null },
+                    )
+                },
+                modifier = Modifier.testTag("save_settings_button"),
+            ) {
+                Text(stringResource(R.string.group_chat_settings_save))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(
+                    onClick = {
+                        maxMessages = DEFAULT_MAX_BOT_MESSAGES.toFloat()
+                        maxPasses = DEFAULT_MAX_CONTINUATION_PASSES.toFloat()
+                        systemPrompt = ""
+                    },
+                ) {
+                    Text(stringResource(R.string.group_chat_settings_reset_default))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -283,7 +481,25 @@ private fun GroupMessageCard(
     message: GroupChatMessage,
     modifier: Modifier = Modifier,
 ) {
-    if (message.isUser) {
+    if (message.isSystem) {
+        Box(
+            modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            ) {
+                Text(
+                    text = message.text,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+    } else if (message.isUser) {
         Row(
             modifier = modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,

@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.bots.group
 import android.util.Log
 import com.m57.hermescontrol.data.model.BotAvatarMeta
 import com.m57.hermescontrol.data.model.BotRosterMeta
+import com.m57.hermescontrol.data.model.GroupChatRoomLease
 import com.m57.hermescontrol.data.model.GroupChatRoomMeta
 import com.m57.hermescontrol.data.model.GroupChatSyncFrom
 import com.m57.hermescontrol.data.model.GroupChatSyncLogEntry
@@ -263,4 +264,172 @@ class GroupChatViewModelTest {
             assertEquals(1, finalState.messages.size)
             assertTrue(finalState.messages.first().isUser)
         }
+
+    @Test
+    fun testSendMessage_reactiveContinuationHandoff() =
+        runTest(testDispatcher) {
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            testScheduler.runCurrent()
+
+            // User prompts scout
+            viewModel.sendMessage("@scout please review the specs")
+            testScheduler.runCurrent()
+
+            // Scout finishes turn and tags @coder
+            eventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "Specs look good, @coder please implement this!",
+                    sessionId = "session-scout-1",
+                ),
+            )
+            testScheduler.runCurrent()
+
+            assertEquals(2, viewModel.uiState.value.messages.size)
+            assertEquals("scout", viewModel.uiState.value.messages[1].senderName)
+
+            // Continuation pass triggers coder
+            eventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "On it! Writing unit tests now.",
+                    sessionId = "session-scout-1",
+                ),
+            )
+            testScheduler.runCurrent()
+
+            val messages = viewModel.uiState.value.messages
+            assertEquals(3, messages.size)
+            assertEquals("coder", messages[2].senderName)
+            assertEquals("On it! Writing unit tests now.", messages[2].text)
+        }
+
+    @Test
+    fun testSendMessage_passiveListenerWhenLeaseHeldByOtherDevice() =
+        runTest(testDispatcher) {
+            val activeLeaseSnapshot =
+                GroupChatSyncSnapshot(
+                    version = 3,
+                    rooms =
+                        mapOf(
+                            "name:Dev Team" to
+                                GroupChatRoomMeta(
+                                    name = "Dev Team",
+                                    members = listOf(JsonPrimitive("scout"), JsonPrimitive("coder")),
+                                    lease =
+                                        GroupChatRoomLease(
+                                            driverId = "desktop_client_99",
+                                            expiresAt = System.currentTimeMillis() + 60_000L,
+                                        ),
+                                ),
+                        ),
+                )
+
+            val defaultProfileWithLease =
+                ProfileInfo(
+                    name = "default",
+                    is_default = true,
+                    ui_meta = mapOf("hermes-bots-groups" to json.encodeToJsonElement(activeLeaseSnapshot)),
+                )
+
+            coEvery { mockApi.getProfiles() } returns
+                Response.success(
+                    ProfilesResponse(
+                        profiles = listOf(defaultProfileWithLease, botA, botB),
+                    ),
+                )
+
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            advanceUntilIdle()
+
+            viewModel.sendMessage("@scout check this")
+            testScheduler.runCurrent()
+
+            // Because lease is held by desktop_client_99, mobile only posts the user message and yields
+            assertEquals(1, viewModel.uiState.value.messages.size)
+            assertTrue(viewModel.uiState.value.messages.first().isUser)
+        }
+
+    @Test
+    fun testLoadGroup_loadsCustomPerGroupLimits() =
+        runTest(testDispatcher) {
+            val customLimitsSnapshot =
+                GroupChatSyncSnapshot(
+                    version = 3,
+                    rooms =
+                        mapOf(
+                            "name:Dev Team" to
+                                GroupChatRoomMeta(
+                                    name = "Dev Team",
+                                    members = listOf(JsonPrimitive("scout"), JsonPrimitive("coder")),
+                                    maxBotMessages = 12,
+                                    maxContinuationPasses = 5,
+                                    systemPrompt = "You are elite software architects.",
+                                ),
+                        ),
+                )
+
+            val defaultProfileWithCustomLimits =
+                ProfileInfo(
+                    name = "default",
+                    is_default = true,
+                    ui_meta = mapOf("hermes-bots-groups" to json.encodeToJsonElement(customLimitsSnapshot)),
+                )
+
+            coEvery { mockApi.getProfiles() } returns
+                Response.success(
+                    ProfilesResponse(
+                        profiles = listOf(defaultProfileWithCustomLimits, botA, botB),
+                    ),
+                )
+
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(12, state.maxBotMessages)
+            assertEquals(5, state.maxContinuationPasses)
+            assertEquals("You are elite software architects.", state.systemPrompt)
+        }
+
+    @Test
+    fun testUpdateGroupLimits_updatesStateAndClamps() =
+        runTest(testDispatcher) {
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            advanceUntilIdle()
+
+            viewModel.updateGroupLimits(
+                maxMessages = 15,
+                maxPasses = 4,
+                systemPrompt = "Custom instructions for this group",
+            )
+            testScheduler.runCurrent()
+
+            assertEquals(15, viewModel.uiState.value.maxBotMessages)
+            assertEquals(4, viewModel.uiState.value.maxContinuationPasses)
+            assertEquals("Custom instructions for this group", viewModel.uiState.value.systemPrompt)
+        }
+
+    @Test
+    fun testBuildTurnPrompt_includesCustomRoomInstructions() {
+        val prompt =
+            GroupChatMentions.buildTurnPrompt(
+                groupName = "Dev Team",
+                viewer = botA,
+                peers = listOf(botB),
+                recentLog =
+                    listOf(
+                        GroupChatMessage(
+                            id = "1",
+                            senderName = "user",
+                            senderDisplayName = "User",
+                            isUser = true,
+                            text = "hello team",
+                        ),
+                    ),
+                customRoomPrompt = "You are sarcastic AI buddies.",
+            )
+
+        assertTrue(prompt.contains("Room Instructions:\nYou are sarcastic AI buddies."))
+        assertTrue(prompt.contains("@scout (Scout Bot)"))
+        assertTrue(prompt.contains("@coder (Dev Bot)"))
+    }
 }

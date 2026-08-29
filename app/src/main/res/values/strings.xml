@@ -207,6 +207,17 @@
     <string name="settings_item_typing_delay">Delay: %1$d ms</string>
     <string name="settings_delay_10ms">10 ms</string>
     <string name="settings_delay_100ms">100 ms</string>
+    <string name="settings_item_chat_font_size">Chat Font Size</string>
+    <string name="settings_desc_chat_font_size">Scale text size in chat messages</string>
+    <string name="settings_font_scale_value">Font Size: %1$s</string>
+    <string name="settings_font_scale_small">Small (0.85×)</string>
+    <string name="settings_font_scale_default">Default (1.0×)</string>
+    <string name="settings_font_scale_large">Large (1.15×)</string>
+    <string name="settings_font_scale_xlarge">Extra Large (1.3×)</string>
+    <string name="settings_font_scale_huge">Huge (1.5×)</string>
+    <string name="settings_chat_preview_title">Preview</string>
+    <string name="settings_chat_preview_user">Can you adjust the chat text size?</string>
+    <string name="settings_chat_preview_agent">Done! You can customize the font scale right here.</string>
     <string name="settings_action_test_connection">Test Connection</string>
     <string name="settings_sec_about">About</string>
     <string name="settings_sec_language">Language</string>

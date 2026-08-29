@@ -26,6 +26,7 @@ enum class ThemePreset { DEFAULT, MONOCHROME, GRUVBOX, CATPPUCCIN, AMOLED, NORD 
 
 val LocalThemePreference = compositionLocalOf { ThemePreference.SYSTEM }
 val LocalThemePreset = compositionLocalOf { ThemePreset.DEFAULT }
+val LocalChatFontScale = compositionLocalOf { 1.0f }
 
 /**
  * The 6 preset themes — one file each, all built from the same
@@ -75,6 +76,7 @@ fun HermesControlTheme(
     themePreference: ThemePreference = LocalThemePreference.current,
     useDynamicColors: Boolean = true,
     themePreset: ThemePreset = ThemePreset.DEFAULT,
+    chatFontScale: Float = LocalChatFontScale.current,
     content: @Composable () -> Unit,
 ) {
     val darkTheme =
@@ -103,6 +105,7 @@ fun HermesControlTheme(
     CompositionLocalProvider(
         LocalThemePreference provides themePreference,
         LocalThemePreset provides themePreset,
+        LocalChatFontScale provides chatFontScale,
         LocalHermesStatusColors provides statusColors,
         LocalSpacing provides SpacingDefaults,
         LocalMotion provides MotionDefaults,

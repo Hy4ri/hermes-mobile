@@ -17,10 +17,6 @@ Fixes #
 - [ ] ✅ Tests
 - [ ] 🔧 CI / chore
 
-## What changed
-
-<!-- What was wrong and what this PR does about it. Link the root cause if known. -->
-
 ## How to test
 
 <!-- Steps to verify. For UI: which screen + which emulator/device API level. For WS: which RPC. -->

@@ -49,6 +49,21 @@ data class ProfileInfo(
         }
     }
 
+    fun groupChatSyncSnapshot(
+        json: Json =
+            Json {
+                ignoreUnknownKeys = true
+                isLenient = true
+            },
+    ): GroupChatSyncSnapshot? {
+        val element = ui_meta?.get("hermes-bots-groups") ?: return null
+        return try {
+            json.decodeFromJsonElement<GroupChatSyncSnapshot>(element)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     val effectiveTitle: String
         get() =
             botMeta()?.title?.takeIf { it.isNotBlank() }
@@ -104,7 +119,15 @@ data class BotRosterMeta(
     val groups: List<String>? = null,
     val group: String? = null,
     val created: Double? = null,
-)
+) {
+    val allGroups: List<String>
+        get() {
+            val list = mutableListOf<String>()
+            groups?.forEach { if (it.isNotBlank()) list.add(it.trim()) }
+            group?.takeIf { it.isNotBlank() }?.let { if (!list.contains(it.trim())) list.add(it.trim()) }
+            return list.distinct()
+        }
+}
 
 @Serializable
 data class BotAvatarMeta(
@@ -120,7 +143,62 @@ data class GroupChatSyncSnapshot(
     val updatedAt: Long? = null,
     val rooms: Map<String, GroupChatRoomMeta>? = null,
     val deleted: Map<String, Long>? = null,
-)
+) {
+    fun toMap(): Map<String, Any?> {
+        val roomsMap = mutableMapOf<String, Any?>()
+        rooms?.forEach { (key, room) ->
+            val roomMap = mutableMapOf<String, Any?>()
+            room.name?.let { roomMap["name"] = it }
+            room.roomId?.let { roomMap["roomId"] = it }
+            room.picture?.let { roomMap["picture"] = it }
+            room.image?.let { roomMap["image"] = it }
+            room.updatedAt?.let { roomMap["updatedAt"] = it }
+            room.createdAt?.let { roomMap["createdAt"] = it }
+            room.revision?.let { roomMap["revision"] = it }
+            room.syncRevision?.let { roomMap["syncRevision"] = it }
+            room.tombstone?.let { roomMap["tombstone"] = it }
+            room.members?.let { members ->
+                roomMap["members"] =
+                    members.mapNotNull {
+                        when (it) {
+                            is JsonPrimitive -> it.content
+                            is JsonObject -> it["name"]?.jsonPrimitive?.content ?: it["handle"]?.jsonPrimitive?.content
+                            else -> null
+                        }
+                    }
+            }
+            room.log?.let { log ->
+                roomMap["log"] =
+                    log.map { entry ->
+                        buildMap<String, Any?> {
+                            entry.id?.let { put("id", it) }
+                            entry.text?.let { put("text", it) }
+                            entry.at?.let { put("at", it) }
+                            entry.thread?.let { put("thread", it) }
+                            entry.from?.let { f ->
+                                put(
+                                    "from",
+                                    buildMap<String, Any?> {
+                                        f.kind?.let { put("kind", it) }
+                                        f.name?.let { put("name", it) }
+                                        f.source?.let { put("source", it) }
+                                    },
+                                )
+                            }
+                        }
+                    }
+            }
+            roomsMap[key] = roomMap
+        }
+
+        return buildMap {
+            put("version", version ?: 3)
+            put("updatedAt", updatedAt ?: System.currentTimeMillis())
+            put("rooms", roomsMap)
+            deleted?.let { put("deleted", it) }
+        }
+    }
+}
 
 @Serializable
 data class GroupChatRoomMeta(
@@ -132,15 +210,17 @@ data class GroupChatRoomMeta(
     val image: String? = null,
     val log: List<GroupChatSyncLogEntry>? = null,
     val revision: Long? = null,
+    val syncRevision: Long? = null,
     val updatedAt: Long? = null,
     val createdAt: Long? = null,
+    val tombstone: Boolean? = null,
 ) {
     val memberNames: List<String>
         get() =
             members?.mapNotNull { el ->
                 when (el) {
                     is JsonPrimitive -> el.content
-                    is JsonObject -> el["name"]?.jsonPrimitive?.content
+                    is JsonObject -> el["name"]?.jsonPrimitive?.content ?: el["handle"]?.jsonPrimitive?.content
                     else -> null
                 }
             }.orEmpty()

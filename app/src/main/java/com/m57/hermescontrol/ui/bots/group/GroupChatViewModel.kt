@@ -28,10 +28,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
 data class GroupChatUiState(
@@ -170,11 +168,44 @@ class GroupChatViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val allProfiles = fetchProfiles()
             if (allProfiles.isNotEmpty()) {
-                var groupMembers =
+                // Hydrate previous group chat messages from cross-device sync snapshot
+                val defaultProfile =
+                    allProfiles.find { it.is_default == true || it.name == "default" }
+                        ?: allProfiles.firstOrNull()
+                val syncSnapshot = defaultProfile?.groupChatSyncSnapshot()
+
+                val matchingRoom =
+                    syncSnapshot?.rooms?.get(groupName)
+                        ?: syncSnapshot?.rooms?.get("name:$groupName")
+                        ?: syncSnapshot?.rooms?.get("id:$groupName")
+                        ?: syncSnapshot?.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
+
+                val roomMemberNames = matchingRoom?.memberNames.orEmpty().map { it.lowercase() }
+
+                val matchedProfiles =
                     allProfiles.filter {
-                        val botGroups = it.botMeta()?.groups.orEmpty()
-                        botGroups.contains(groupName) || botGroups.any { g -> g.equals(groupName, ignoreCase = true) }
+                        val botGroups = it.botMeta()?.allGroups.orEmpty()
+                        botGroups.any { g -> g.equals(groupName, ignoreCase = true) } ||
+                            roomMemberNames.contains(it.name.lowercase()) ||
+                            roomMemberNames.contains(it.effectiveTitle.lowercase())
+                    }.toMutableList()
+
+                // If room listed members (e.g. remote bots or bots not in local profiles), ensure they are seated
+                if (matchingRoom != null && roomMemberNames.isNotEmpty()) {
+                    for (mName in matchingRoom.memberNames) {
+                        val exists =
+                            matchedProfiles.any {
+                                it.name.equals(mName, ignoreCase = true) ||
+                                    it.effectiveTitle.equals(mName, ignoreCase = true)
+                            }
+                        if (!exists) {
+                            val local = allProfiles.find { it.name.equals(mName, ignoreCase = true) }
+                            matchedProfiles.add(local ?: ProfileInfo(name = mName))
+                        }
                     }
+                }
+
+                var groupMembers: List<ProfileInfo> = matchedProfiles
 
                 // Fallback: If group name was composed from bot names (e.g. "default, scoutbot")
                 if (groupMembers.isEmpty() && groupName.contains(",")) {
@@ -192,34 +223,19 @@ class GroupChatViewModel(
                     "Resolved ${groupMembers.size} members for group '$groupName': ${groupMembers.map { it.name }}",
                 )
 
-                // Hydrate previous group chat messages from cross-device sync snapshot
-                val defaultProfile = allProfiles.find { it.is_default == true || it.name == "default" }
-                val syncSnapshotElement = defaultProfile?.ui_meta?.get("hermes-bots-groups")
-                val syncSnapshot =
-                    syncSnapshotElement?.let { el ->
-                        try {
-                            json.decodeFromJsonElement<GroupChatSyncSnapshot>(el)
-                        } catch (e: Exception) {
-                            Log.w("GroupChatViewModel", "Failed to decode sync snapshot: ${e.message}")
-                            null
-                        }
-                    }
-
                 var initialMessages = _uiState.value.messages
                 if (initialMessages.isEmpty() && syncSnapshot?.rooms != null) {
-                    val matchingRoom =
-                        syncSnapshot.rooms[groupName]
-                            ?: syncSnapshot.rooms["name:$groupName"]
-                            ?: syncSnapshot.rooms["id:$groupName"]
-                            ?: syncSnapshot.rooms.values.find { it.name.equals(groupName, ignoreCase = true) }
-
                     val syncedLog = matchingRoom?.log.orEmpty()
                     if (syncedLog.isNotEmpty()) {
                         initialMessages =
                             syncedLog.map { entry ->
                                 val isUser = entry.from?.kind != "member"
                                 val senderName = entry.from?.name.orEmpty().ifBlank { if (isUser) "user" else "bot" }
-                                val memberProfile = allProfiles.find { it.name.equals(senderName, ignoreCase = true) }
+                                val memberProfile =
+                                    allProfiles.find {
+                                        it.name.equals(senderName, ignoreCase = true) ||
+                                            it.effectiveTitle.equals(senderName, ignoreCase = true)
+                                    }
                                 GroupChatMessage(
                                     id = entry.id ?: UUID.randomUUID().toString(),
                                     senderName = memberProfile?.name ?: senderName,
@@ -446,15 +462,9 @@ class GroupChatViewModel(
                 val allProfiles = fetchProfiles()
                 val defaultProfile =
                     allProfiles.find { it.is_default == true || it.name == "default" } ?: return@launch
-                val existingElement = defaultProfile.ui_meta?.get("hermes-bots-groups")
                 val existingSnapshot =
-                    existingElement?.let {
-                        try {
-                            json.decodeFromJsonElement<GroupChatSyncSnapshot>(it)
-                        } catch (_: Exception) {
-                            null
-                        }
-                    } ?: GroupChatSyncSnapshot(version = 3, rooms = emptyMap())
+                    defaultProfile.groupChatSyncSnapshot()
+                        ?: GroupChatSyncSnapshot(version = 3, rooms = emptyMap())
 
                 val logEntries =
                     currentMessages.takeLast(32).map { msg ->
@@ -472,8 +482,13 @@ class GroupChatViewModel(
                     }
 
                 val roomKey = "name:$groupName"
+                val existingRoom =
+                    existingSnapshot.rooms?.get(roomKey)
+                        ?: existingSnapshot.rooms?.get(groupName)
+                        ?: existingSnapshot.rooms?.values?.find { it.name.equals(groupName, ignoreCase = true) }
+
                 val updatedRoom =
-                    GroupChatRoomMeta(
+                    (existingRoom ?: GroupChatRoomMeta(name = groupName, createdAt = System.currentTimeMillis())).copy(
                         name = groupName,
                         members = _uiState.value.members.map { JsonPrimitive(it.name) },
                         log = logEntries,
@@ -488,7 +503,7 @@ class GroupChatViewModel(
                         rooms = updatedRooms,
                     )
 
-                val uiMetaPayload = mapOf("hermes-bots-groups" to snapshotToMap(newSnapshot))
+                val uiMetaPayload = mapOf("hermes-bots-groups" to newSnapshot.toMap())
 
                 HermesWsClient.request(
                     WsMethods.PROFILES_CONFIGURE,
@@ -500,59 +515,6 @@ class GroupChatViewModel(
             } catch (e: Exception) {
                 Log.w("GroupChatViewModel", "persistSyncSnapshot failed: ${e.message}")
             }
-        }
-    }
-
-    private fun snapshotToMap(snapshot: GroupChatSyncSnapshot): Map<String, Any?> {
-        val roomsMap = mutableMapOf<String, Any?>()
-        snapshot.rooms?.forEach { (key, room) ->
-            val roomMap = mutableMapOf<String, Any?>()
-            room.name?.let { roomMap["name"] = it }
-            room.roomId?.let { roomMap["roomId"] = it }
-            room.picture?.let { roomMap["picture"] = it }
-            room.image?.let { roomMap["image"] = it }
-            room.updatedAt?.let { roomMap["updatedAt"] = it }
-            room.createdAt?.let { roomMap["createdAt"] = it }
-            room.revision?.let { roomMap["revision"] = it }
-            room.members?.let { members ->
-                roomMap["members"] =
-                    members.mapNotNull {
-                        when (it) {
-                            is JsonPrimitive -> it.content
-                            is JsonObject -> it["name"]?.jsonPrimitive?.content
-                            else -> null
-                        }
-                    }
-            }
-            room.log?.let { log ->
-                roomMap["log"] =
-                    log.map { entry ->
-                        buildMap<String, Any?> {
-                            entry.id?.let { put("id", it) }
-                            entry.text?.let { put("text", it) }
-                            entry.at?.let { put("at", it) }
-                            entry.thread?.let { put("thread", it) }
-                            entry.from?.let { f ->
-                                put(
-                                    "from",
-                                    buildMap<String, Any?> {
-                                        f.kind?.let { put("kind", it) }
-                                        f.name?.let { put("name", it) }
-                                        f.source?.let { put("source", it) }
-                                    },
-                                )
-                            }
-                        }
-                    }
-            }
-            roomsMap[key] = roomMap
-        }
-
-        return buildMap {
-            put("version", snapshot.version ?: 3)
-            put("updatedAt", snapshot.updatedAt ?: System.currentTimeMillis())
-            put("rooms", roomsMap)
-            snapshot.deleted?.let { put("deleted", it) }
         }
     }
 

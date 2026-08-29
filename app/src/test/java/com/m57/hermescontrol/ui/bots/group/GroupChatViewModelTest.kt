@@ -432,4 +432,58 @@ class GroupChatViewModelTest {
         assertTrue(prompt.contains("@scout (Scout Bot)"))
         assertTrue(prompt.contains("@coder (Dev Bot)"))
     }
+
+    @Test
+    fun testToolEvents_rendersAndCompletesToolCall() =
+        runTest(testDispatcher) {
+            val viewModel = GroupChatViewModel("Dev Team", ioDispatcher = testDispatcher)
+            testScheduler.runCurrent()
+
+            viewModel.sendMessage("@scout check time")
+            testScheduler.runCurrent()
+
+            // Emit ToolStart
+            eventsFlow.emit(
+                WsEvent.ToolStart(
+                    name = "terminal",
+                    data = mapOf("command" to "date", "tool_id" to "tool-123"),
+                    sessionId = "session-scout-1",
+                ),
+            )
+            testScheduler.runCurrent()
+
+            val msgWithTool = viewModel.uiState.value.messages.last()
+            assertEquals(1, msgWithTool.toolCalls.size)
+            val toolCall = msgWithTool.toolCalls.first()
+            assertEquals("terminal", toolCall.name)
+            assertEquals("date", toolCall.summary)
+            assertTrue(toolCall.isRunning)
+
+            // Emit ToolComplete
+            eventsFlow.emit(
+                WsEvent.ToolComplete(
+                    name = "terminal",
+                    data = mapOf("tool_id" to "tool-123"),
+                    sessionId = "session-scout-1",
+                ),
+            )
+            testScheduler.runCurrent()
+
+            val msgAfterToolDone = viewModel.uiState.value.messages.last()
+            assertFalse(msgAfterToolDone.toolCalls.first().isRunning)
+
+            // Complete message
+            eventsFlow.emit(
+                WsEvent.MessageComplete(
+                    text = "Current time is Sat Aug 29",
+                    sessionId = "session-scout-1",
+                ),
+            )
+            testScheduler.runCurrent()
+
+            val finalMsg = viewModel.uiState.value.messages.last()
+            assertEquals("Current time is Sat Aug 29", finalMsg.text)
+            assertEquals(1, finalMsg.toolCalls.size)
+            assertFalse(finalMsg.toolCalls.first().isRunning)
+        }
 }

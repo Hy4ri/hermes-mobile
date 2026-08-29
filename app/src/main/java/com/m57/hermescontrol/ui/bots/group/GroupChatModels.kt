@@ -2,6 +2,17 @@ package com.m57.hermescontrol.ui.bots.group
 
 import com.m57.hermescontrol.data.model.BotAvatarMeta
 import com.m57.hermescontrol.data.model.ProfileInfo
+import java.util.UUID
+
+/**
+ * Lightweight tool execution indicator for group chat turns.
+ */
+data class GroupChatToolCall(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val summary: String? = null,
+    val isRunning: Boolean = false,
+)
 
 /**
  * Single message entry in a multi-agent group room.
@@ -17,6 +28,7 @@ data class GroupChatMessage(
     val isStreaming: Boolean = false,
     val thread: String? = null,
     val isSystem: Boolean = false,
+    val toolCalls: List<GroupChatToolCall> = emptyList(),
 )
 
 /**

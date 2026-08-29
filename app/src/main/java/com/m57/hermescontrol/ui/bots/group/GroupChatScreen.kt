@@ -24,7 +24,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,6 +60,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -542,8 +547,19 @@ private fun GroupMessageCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                    if (message.toolCalls.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(bottom = if (message.text.isNotBlank()) 4.dp else 0.dp),
+                        ) {
+                            message.toolCalls.forEach { tool ->
+                                GroupChatToolChip(tool = tool)
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
-                    if (message.isStreaming && message.text.isBlank()) {
+                    if (message.isStreaming && message.text.isBlank() && message.toolCalls.none { it.isRunning }) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(vertical = 4.dp),
@@ -567,6 +583,59 @@ private fun GroupMessageCard(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupChatToolChip(
+    tool: GroupChatToolCall,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val icon =
+                when (tool.name.lowercase()) {
+                    "terminal" -> Icons.Filled.Terminal
+                    "web_search", "search_files" -> Icons.Filled.Search
+                    "read_file", "write_file", "patch" -> Icons.Filled.Description
+                    else -> Icons.Filled.Build
+                }
+            Icon(
+                imageVector = icon,
+                contentDescription = tool.name,
+                modifier = Modifier.size(13.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            val label =
+                if (!tool.summary.isNullOrBlank()) {
+                    "${tool.name}: ${tool.summary}"
+                } else {
+                    tool.name
+                }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (tool.isRunning) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(10.dp),
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }

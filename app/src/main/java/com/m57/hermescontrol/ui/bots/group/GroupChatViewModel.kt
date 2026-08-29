@@ -107,6 +107,19 @@ class GroupChatViewModel(
         loadGroup()
     }
 
+    private fun extractToolSummary(data: Map<String, Any?>?): String? {
+        if (data == null) return null
+        val cmd = (data["command"] as? String)?.trim()
+        if (!cmd.isNullOrBlank()) return cmd.take(35)
+        val query = (data["query"] as? String)?.trim()
+        if (!query.isNullOrBlank()) return query.take(35)
+        val path = (data["path"] as? String)?.trim()
+        if (!path.isNullOrBlank()) return path.take(35)
+        val pattern = (data["pattern"] as? String)?.trim()
+        if (!pattern.isNullOrBlank()) return pattern.take(35)
+        return null
+    }
+
     private fun observeWsEvents() {
         viewModelScope.launch(ioDispatcher) {
             HermesWsClient.events.collect { event ->
@@ -141,6 +154,93 @@ class GroupChatViewModel(
                                                 )
                                         }
                                     state.copy(messages = updatedMessages)
+                                }
+                            }
+                        }
+                    }
+
+                    is WsEvent.ToolStart -> {
+                        val sid = event.sessionId?.trim('\"', ' ')
+                        if (sid != null) {
+                            val streamId = activeStreamMsgId[sid]
+                            val bot = sessionToBot[sid]
+                            val toolName = event.name ?: "tool"
+                            val toolId =
+                                (event.data?.get("tool_id") as? String)?.ifBlank { null }
+                                    ?: UUID.randomUUID().toString()
+                            val summary = extractToolSummary(event.data)
+                            val toolCall =
+                                GroupChatToolCall(
+                                    id = toolId,
+                                    name = toolName,
+                                    summary = summary,
+                                    isRunning = true,
+                                )
+                            if (streamId != null && bot != null) {
+                                _uiState.update { state ->
+                                    val existing = state.messages.find { it.id == streamId }
+                                    val updatedMessages =
+                                        if (existing != null) {
+                                            state.messages.map { msg ->
+                                                if (msg.id == streamId) {
+                                                    msg.copy(toolCalls = msg.toolCalls + toolCall)
+                                                } else {
+                                                    msg
+                                                }
+                                            }
+                                        } else {
+                                            state.messages +
+                                                GroupChatMessage(
+                                                    id = streamId,
+                                                    senderName = bot.name,
+                                                    senderDisplayName = bot.effectiveTitle,
+                                                    isUser = false,
+                                                    avatarMeta = bot.botMeta()?.avatar,
+                                                    text = "",
+                                                    isStreaming = true,
+                                                    toolCalls = listOf(toolCall),
+                                                )
+                                        }
+                                    state.copy(messages = updatedMessages)
+                                }
+                            }
+                        }
+                    }
+
+                    is WsEvent.ToolComplete -> {
+                        val sid = event.sessionId?.trim('\"', ' ')
+                        if (sid != null) {
+                            val streamId = activeStreamMsgId[sid]
+                            val toolId = event.data?.get("tool_id") as? String
+                            val toolName = event.name
+                            if (streamId != null) {
+                                _uiState.update { state ->
+                                    val existing = state.messages.find { it.id == streamId }
+                                    if (existing != null) {
+                                        val updatedTools =
+                                            existing.toolCalls.map { tool ->
+                                                if ((toolId != null && tool.id == toolId) ||
+                                                    (toolId == null && tool.name == toolName && tool.isRunning) ||
+                                                    (toolId == null && toolName == null && tool.isRunning)
+                                                ) {
+                                                    tool.copy(isRunning = false)
+                                                } else {
+                                                    tool
+                                                }
+                                            }
+                                        state.copy(
+                                            messages =
+                                                state.messages.map { msg ->
+                                                    if (msg.id == streamId) {
+                                                        msg.copy(toolCalls = updatedTools)
+                                                    } else {
+                                                        msg
+                                                    }
+                                                },
+                                        )
+                                    } else {
+                                        state
+                                    }
                                 }
                             }
                         }
@@ -617,18 +717,21 @@ class GroupChatViewModel(
             }
 
             if (replyText != null && !isPass(replyText) && replyText.isNotBlank()) {
-                val finalMsg =
-                    GroupChatMessage(
-                        id = streamMsgId,
-                        senderName = bot.name,
-                        senderDisplayName = bot.effectiveTitle,
-                        isUser = false,
-                        avatarMeta = bot.botMeta()?.avatar,
-                        text = replyText.trim(),
-                        isStreaming = false,
-                    )
                 _uiState.update { state ->
                     val existing = state.messages.find { it.id == streamMsgId }
+                    val finalTools =
+                        existing?.toolCalls?.map { it.copy(isRunning = false) } ?: emptyList()
+                    val finalMsg =
+                        GroupChatMessage(
+                            id = streamMsgId,
+                            senderName = bot.name,
+                            senderDisplayName = bot.effectiveTitle,
+                            isUser = false,
+                            avatarMeta = bot.botMeta()?.avatar,
+                            text = replyText.trim(),
+                            isStreaming = false,
+                            toolCalls = finalTools,
+                        )
                     val updatedList =
                         if (existing != null) {
                             state.messages.map { if (it.id == streamMsgId) finalMsg else it }

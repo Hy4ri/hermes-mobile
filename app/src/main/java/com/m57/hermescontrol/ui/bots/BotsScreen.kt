@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,12 +84,26 @@ fun BotsScreen(
     viewModel: BotsViewModel = viewModel { BotsViewModel() },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val pagerState = rememberPagerState(initialPage = state.selectedTab.ordinal) { BotsTab.entries.size }
     var isSearchActive by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var editingBot by remember { mutableStateOf<ProfileInfo?>(null) }
     var disbandingGroup by remember { mutableStateOf<GroupInfo?>(null) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(pagerState.currentPage) {
+        val targetTab = BotsTab.entries.getOrNull(pagerState.currentPage) ?: BotsTab.BOTS
+        if (state.selectedTab != targetTab) {
+            viewModel.setSelectedTab(targetTab)
+        }
+    }
+
+    LaunchedEffect(state.selectedTab) {
+        if (pagerState.currentPage != state.selectedTab.ordinal) {
+            pagerState.animateScrollToPage(state.selectedTab.ordinal)
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadBots()
@@ -176,6 +192,7 @@ fun BotsScreen(
 
     HermesScaffold(
         modifier = modifier,
+        drawerGesturesEnabled = pagerState.currentPage == 0,
         title = {
             if (isSearchActive) {
                 OutlinedTextField(
@@ -270,18 +287,26 @@ fun BotsScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             PrimaryTabRow(
-                selectedTabIndex = state.selectedTab.ordinal,
+                selectedTabIndex = pagerState.currentPage,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Tab(
-                    selected = state.selectedTab == BotsTab.BOTS,
-                    onClick = { viewModel.setSelectedTab(BotsTab.BOTS) },
+                    selected = pagerState.currentPage == BotsTab.BOTS.ordinal,
+                    onClick = {
+                        scope.launch {
+                            pagerState.animateScrollToPage(BotsTab.BOTS.ordinal)
+                        }
+                    },
                     text = { Text(stringResource(R.string.bots_tab_all)) },
                     icon = { Icon(Icons.Filled.SmartToy, contentDescription = null) },
                 )
                 Tab(
-                    selected = state.selectedTab == BotsTab.GROUPS,
-                    onClick = { viewModel.setSelectedTab(BotsTab.GROUPS) },
+                    selected = pagerState.currentPage == BotsTab.GROUPS.ordinal,
+                    onClick = {
+                        scope.launch {
+                            pagerState.animateScrollToPage(BotsTab.GROUPS.ordinal)
+                        }
+                    },
                     text = {
                         Text(
                             if (state.allGroups.isNotEmpty()) {
@@ -295,44 +320,80 @@ fun BotsScreen(
                 )
             }
 
-            when (state.selectedTab) {
-                BotsTab.BOTS -> {
-                    when {
-                        state.isLoading && state.profiles.isEmpty() -> {
-                            SkeletonListState()
-                        }
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                when (BotsTab.entries.getOrElse(page) { BotsTab.BOTS }) {
+                    BotsTab.BOTS -> {
+                        when {
+                            state.isLoading && state.profiles.isEmpty() -> {
+                                SkeletonListState()
+                            }
 
-                        state.errorMessage != null && state.profiles.isEmpty() -> {
-                            ErrorState(
-                                message = state.errorMessage ?: "",
-                                onRetry = { viewModel.loadBots() },
-                            )
-                        }
+                            state.errorMessage != null && state.profiles.isEmpty() -> {
+                                ErrorState(
+                                    message = state.errorMessage ?: "",
+                                    onRetry = { viewModel.loadBots() },
+                                )
+                            }
 
-                        state.displayProfiles.isEmpty() -> {
-                            EmptyState(
-                                title = stringResource(R.string.bots_empty_title),
-                                subtitle = stringResource(R.string.bots_empty_description),
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
+                            state.displayProfiles.isEmpty() -> {
+                                EmptyState(
+                                    title = stringResource(R.string.bots_empty_title),
+                                    subtitle = stringResource(R.string.bots_empty_description),
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
 
-                        else -> {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                if (state.activeNowBots.isNotEmpty() && !isSearchActive) {
-                                    item(key = "active_now_strip") {
-                                        ActiveNowStrip(
-                                            activeBots = state.activeNowBots,
-                                            onSelectBot = { bot ->
+                            else -> {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding =
+                                        PaddingValues(
+                                            start = 16.dp,
+                                            end = 16.dp,
+                                            top = 8.dp,
+                                            bottom = 24.dp,
+                                        ),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    if (state.activeNowBots.isNotEmpty() && !isSearchActive) {
+                                        item(key = "active_now_strip") {
+                                            ActiveNowStrip(
+                                                activeBots = state.activeNowBots,
+                                                onSelectBot = { bot ->
+                                                    scope.launch {
+                                                        viewModel.selectBot(bot)
+                                                        val canonicalId =
+                                                            bot.canonical_session?.resolved_id
+                                                                ?: bot.canonical_session?.id
+                                                        if (!canonicalId.isNullOrBlank()) {
+                                                            NavigationController.openChatSession(canonicalId)
+                                                        } else {
+                                                            NavigationController.navigateTo(
+                                                                com.m57.hermescontrol.ChatScreen,
+                                                            )
+                                                        }
+                                                    }
+                                                },
+                                            )
+                                        }
+                                    }
+
+                                    items(
+                                        items = state.displayProfiles,
+                                        key = { it.name },
+                                    ) { profile ->
+                                        BotCard(
+                                            profile = profile,
+                                            isActiveProfile = profile.name == state.activeProfileName,
+                                            onClick = {
                                                 scope.launch {
-                                                    viewModel.selectBot(bot)
+                                                    viewModel.selectBot(profile)
                                                     val canonicalId =
-                                                        bot.canonical_session?.resolved_id
-                                                            ?: bot.canonical_session?.id
+                                                        profile.canonical_session?.resolved_id
+                                                            ?: profile.canonical_session?.id
                                                     if (!canonicalId.isNullOrBlank()) {
                                                         NavigationController.openChatSession(canonicalId)
                                                     } else {
@@ -342,73 +403,56 @@ fun BotsScreen(
                                                     }
                                                 }
                                             },
+                                            onEditClick = {
+                                                editingBot = profile
+                                            },
                                         )
                                     }
-                                }
-
-                                items(
-                                    items = state.displayProfiles,
-                                    key = { it.name },
-                                ) { profile ->
-                                    BotCard(
-                                        profile = profile,
-                                        isActiveProfile = profile.name == state.activeProfileName,
-                                        onClick = {
-                                            scope.launch {
-                                                viewModel.selectBot(profile)
-                                                val canonicalId =
-                                                    profile.canonical_session?.resolved_id
-                                                        ?: profile.canonical_session?.id
-                                                if (!canonicalId.isNullOrBlank()) {
-                                                    NavigationController.openChatSession(canonicalId)
-                                                } else {
-                                                    NavigationController.navigateTo(com.m57.hermescontrol.ChatScreen)
-                                                }
-                                            }
-                                        },
-                                        onEditClick = {
-                                            editingBot = profile
-                                        },
-                                    )
                                 }
                             }
                         }
                     }
-                }
 
-                BotsTab.GROUPS -> {
-                    when {
-                        state.displayGroups.isEmpty() -> {
-                            EmptyState(
-                                title = stringResource(R.string.bots_groups_empty_title),
-                                subtitle = stringResource(R.string.bots_groups_empty_desc),
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
+                    BotsTab.GROUPS -> {
+                        when {
+                            state.displayGroups.isEmpty() -> {
+                                EmptyState(
+                                    title = stringResource(R.string.bots_groups_empty_title),
+                                    subtitle = stringResource(R.string.bots_groups_empty_desc),
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
 
-                        else -> {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                items(
-                                    items = state.displayGroups,
-                                    key = { it.name },
-                                ) { group ->
-                                    GroupCard(
-                                        group = group,
-                                        onClick = {
-                                            if (group.members.isNotEmpty()) {
-                                                NavigationController.navigateTo(
-                                                    com.m57.hermescontrol.GroupChatKey(group.name),
-                                                )
-                                            }
-                                        },
-                                        onDisbandClick = {
-                                            disbandingGroup = group
-                                        },
-                                    )
+                            else -> {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding =
+                                        PaddingValues(
+                                            start = 16.dp,
+                                            end = 16.dp,
+                                            top = 8.dp,
+                                            bottom = 24.dp,
+                                        ),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    items(
+                                        items = state.displayGroups,
+                                        key = { it.name },
+                                    ) { group ->
+                                        GroupCard(
+                                            group = group,
+                                            onClick = {
+                                                if (group.members.isNotEmpty()) {
+                                                    NavigationController.navigateTo(
+                                                        com.m57.hermescontrol.GroupChatKey(group.name),
+                                                    )
+                                                }
+                                            },
+                                            onDisbandClick = {
+                                                disbandingGroup = group
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }

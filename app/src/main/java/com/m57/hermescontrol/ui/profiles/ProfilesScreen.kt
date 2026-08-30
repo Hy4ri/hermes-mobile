@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -49,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -131,6 +134,29 @@ fun ProfilesScreen(
             },
         actions = {
             if (!isBuildingProfile) {
+                if (state.hasHiddenProfiles) {
+                    IconButton(
+                        onClick = { viewModel.toggleShowHidden() },
+                        modifier = Modifier.testTag("profiles_action_toggle_hidden"),
+                    ) {
+                        Icon(
+                            imageVector =
+                                if (state.showHidden) {
+                                    Icons.Default.VisibilityOff
+                                } else {
+                                    Icons.Default.Visibility
+                                },
+                            contentDescription =
+                                stringResource(
+                                    if (state.showHidden) {
+                                        R.string.profiles_hide_hidden
+                                    } else {
+                                        R.string.profiles_show_hidden
+                                    },
+                                ),
+                        )
+                    }
+                }
                 IconButton(onClick = {
                     isBuildingProfile = true
                     viewModel.loadBuilderData()
@@ -173,6 +199,16 @@ fun ProfilesScreen(
                     )
                 }
 
+                state.displayProfiles.isEmpty() -> {
+                    EmptyState(
+                        title = stringResource(R.string.profiles_empty_title),
+                        subtitle = stringResource(R.string.profiles_all_hidden_desc),
+                        onAction = { viewModel.toggleShowHidden() },
+                        actionLabel = stringResource(R.string.profiles_show_hidden),
+                        modifier = Modifier.padding(paddingValues),
+                    )
+                }
+
                 else -> {
                     Box(Modifier.fillMaxSize()) {
                         if (state.isLoading && state.profiles.isEmpty()) {
@@ -194,7 +230,7 @@ fun ProfilesScreen(
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                items(state.profiles, key = { it.name }) { profile ->
+                                items(state.displayProfiles, key = { it.name }) { profile ->
                                     val isActive = profile.name == state.activeProfileName
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
@@ -225,11 +261,37 @@ fun ProfilesScreen(
                                                 verticalAlignment = Alignment.CenterVertically,
                                             ) {
                                                 Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = profile.name.replaceFirstChar { it.uppercase() },
-                                                        style = MaterialTheme.typography.titleLarge,
-                                                        fontWeight = FontWeight.Bold,
-                                                    )
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            text = profile.name.replaceFirstChar { it.uppercase() },
+                                                            style = MaterialTheme.typography.titleLarge,
+                                                            fontWeight = FontWeight.Bold,
+                                                        )
+                                                        val isProfileHidden =
+                                                            profile.name in state.hiddenProfiles ||
+                                                                profile.botMeta()?.hidden == true
+                                                        if (isProfileHidden) {
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Box(
+                                                                modifier =
+                                                                    Modifier
+                                                                        .clip(RoundedCornerShape(4.dp))
+                                                                        .background(
+                                                                            MaterialTheme.colorScheme.surfaceVariant,
+                                                                        ).padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            ) {
+                                                                Text(
+                                                                    text =
+                                                                        stringResource(
+                                                                            R.string.profiles_hidden_badge,
+                                                                        ),
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                )
+                                                            }
+                                                        }
+                                                    }
                                                     val descriptionText =
                                                         if (!profile.description.isNullOrBlank()) {
                                                             profile.description
@@ -374,6 +436,30 @@ fun ProfilesScreen(
                                                             onClick = {
                                                                 showMenu = false
                                                                 setupCmdProfileName = profile.name
+                                                            },
+                                                        )
+                                                        val isProfileHidden =
+                                                            profile.name in state.hiddenProfiles ||
+                                                                profile.botMeta()?.hidden == true
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    stringResource(
+                                                                        if (isProfileHidden) {
+                                                                            R.string.profiles_action_unhide
+                                                                        } else {
+                                                                            R.string.profiles_action_hide
+                                                                        },
+                                                                    ),
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                showMenu = false
+                                                                if (isProfileHidden) {
+                                                                    viewModel.unhideProfile(profile.name)
+                                                                } else {
+                                                                    viewModel.hideProfile(profile.name)
+                                                                }
                                                             },
                                                         )
                                                         if (profile.is_default != true) {

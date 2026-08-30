@@ -453,6 +453,12 @@
     <string name="profiles_action_set_model">모델 설정</string>
     <string name="profiles_action_clone">복제</string>
     <string name="profiles_action_edit_description">설명 편집</string>
+    <string name="profiles_action_hide">프로필 숨기기</string>
+    <string name="profiles_action_unhide">프로필 숨김 해제</string>
+    <string name="profiles_show_hidden">숨겨진 프로필 표시</string>
+    <string name="profiles_hide_hidden">숨겨진 프로필 숨기기</string>
+    <string name="profiles_hidden_badge">숨김</string>
+    <string name="profiles_all_hidden_desc">모든 프로필이 현재 숨겨져 있습니다. 아래를 탭하여 숨겨진 프로필을 표시하세요.</string>
     <string name="profiles_content_desc_active">활성 프로필</string>
     <string name="profiles_title_edit_soul">소울 프로필 편집: %1$s</string>
     <string name="profiles_title_set_model">모델 설정: %1$s</string>

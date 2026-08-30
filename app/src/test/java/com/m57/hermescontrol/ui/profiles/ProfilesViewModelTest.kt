@@ -56,6 +56,7 @@ class ProfilesViewModelTest {
     private var storedPinnedModels: MutableList<PinnedModel> = mutableListOf()
     private var storedSelectedProfile: String? = null
     private var storedProfileToken: String? = null
+    private var storedHiddenProfiles: MutableList<String> = mutableListOf()
 
     private fun stubProfilesLoad() {
         coEvery { mockApi.getProfiles() } returns
@@ -87,6 +88,15 @@ class ProfilesViewModelTest {
         every { AuthManager.getProfileToken(any()) } answers { storedProfileToken }
         every { AuthManager.setProfileToken(any(), any()) } answers {
             storedProfileToken = secondArg<String?>()
+        }
+        every { AuthManager.getHiddenProfiles() } answers { storedHiddenProfiles.toList() }
+        every { AuthManager.hideProfile(any()) } answers {
+            val name = firstArg<String>()
+            if (!storedHiddenProfiles.contains(name)) storedHiddenProfiles.add(name)
+        }
+        every { AuthManager.unhideProfile(any()) } answers {
+            val name = firstArg<String>()
+            storedHiddenProfiles.remove(name)
         }
 
         mockkObject(HermesWsClient)
@@ -344,5 +354,40 @@ class ProfilesViewModelTest {
 
         assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to clone profile"))
         assertFalse(vm.uiState.value.isLoading)
+    }
+
+    @Test
+    fun `hideProfile and unhideProfile update local hidden state and display filtering`() {
+        coEvery { mockApi.getProfiles() } returns
+            Response.success(
+                ProfilesResponse(
+                    listOf(
+                        ProfileInfo(name = "default", is_default = true),
+                        ProfileInfo(name = "secret-bot"),
+                    ),
+                ),
+            )
+
+        val vm = createViewModel()
+        vm.loadProfiles()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2, vm.uiState.value.displayProfiles.size)
+        assertFalse(vm.uiState.value.hasHiddenProfiles)
+
+        vm.hideProfile("secret-bot")
+        assertEquals(listOf("secret-bot"), storedHiddenProfiles)
+        assertTrue(vm.uiState.value.hasHiddenProfiles)
+        assertEquals(listOf("default"), vm.uiState.value.displayProfiles.map { it.name })
+
+        // Toggle show hidden
+        vm.toggleShowHidden()
+        assertTrue(vm.uiState.value.showHidden)
+        assertEquals(listOf("default", "secret-bot"), vm.uiState.value.displayProfiles.map { it.name })
+
+        // Unhide
+        vm.unhideProfile("secret-bot")
+        assertTrue(storedHiddenProfiles.isEmpty())
+        assertFalse(vm.uiState.value.hasHiddenProfiles)
     }
 }

@@ -38,6 +38,8 @@ data class ProfilesUiState(
     val isLoadingSoul: Boolean = false,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
+    val showHidden: Boolean = false,
+    val hiddenProfiles: Set<String> = emptySet(),
     // Rename / delete / auto-describe / setup-command states
     val isAutoDescribing: Boolean = false,
     val setupCommand: String? = null,
@@ -50,7 +52,20 @@ data class ProfilesUiState(
     val availableSkills: List<Skill> = emptyList(),
     val hubSearchResults: List<HubSkill> = emptyList(),
     val isSearchingHub: Boolean = false,
-)
+) {
+    val hasHiddenProfiles: Boolean
+        get() = profiles.any { it.name in hiddenProfiles || it.botMeta()?.hidden == true }
+
+    val displayProfiles: List<ProfileInfo>
+        get() =
+            profiles.filter { profile ->
+                if (showHidden) {
+                    true
+                } else {
+                    !(profile.name in hiddenProfiles || profile.botMeta()?.hidden == true)
+                }
+            }
+}
 
 class ProfilesViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -58,6 +73,34 @@ class ProfilesViewModel(
     ToastHost {
     private val _uiState = MutableStateFlow(ProfilesUiState())
     val uiState: StateFlow<ProfilesUiState> = _uiState.asStateFlow()
+
+    init {
+        _uiState.update { it.copy(hiddenProfiles = AuthManager.getHiddenProfiles().toSet()) }
+    }
+
+    fun toggleShowHidden() {
+        _uiState.update { it.copy(showHidden = !it.showHidden) }
+    }
+
+    fun hideProfile(name: String) {
+        AuthManager.hideProfile(name)
+        _uiState.update {
+            it.copy(
+                hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
+                toastMessage = "Profile $name hidden",
+            )
+        }
+    }
+
+    fun unhideProfile(name: String) {
+        AuthManager.unhideProfile(name)
+        _uiState.update {
+            it.copy(
+                hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
+                toastMessage = "Profile $name unhidden",
+            )
+        }
+    }
 
     fun loadProfiles() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -77,6 +120,7 @@ class ProfilesViewModel(
                                 isLoading = false,
                                 profiles = profilesResult.data.profiles.orEmpty(),
                                 activeProfileName = activeResult.data.active,
+                                hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
                             )
                         }
                     } else {

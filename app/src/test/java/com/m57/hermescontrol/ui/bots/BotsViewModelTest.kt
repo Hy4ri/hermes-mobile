@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.bots
 
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.BotAvatarMeta
 import com.m57.hermescontrol.data.model.BotRosterMeta
@@ -45,6 +46,8 @@ class BotsViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        mockkObject(AuthManager)
+        every { AuthManager.getHiddenProfiles() } returns emptyList()
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
         every { ApiClient.hermesApi } returns mockApi
@@ -57,6 +60,7 @@ class BotsViewModelTest {
 
     @After
     fun tearDown() {
+        unmockkObject(AuthManager)
         unmockkObject(ApiClient)
         unmockkObject(HermesWsClient)
         Dispatchers.resetMain()

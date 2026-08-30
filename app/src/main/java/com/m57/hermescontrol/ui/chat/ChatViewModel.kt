@@ -1901,7 +1901,10 @@ class ChatViewModel(
             // Fetch available bot profiles for @ autocomplete
             val profilesResult = safeApiCall { ApiClient.hermesApi.getProfiles() }
             if (profilesResult is NetworkResult.Success) {
-                val profiles = profilesResult.data.profiles.orEmpty()
+                val profiles =
+                    profilesResult.data.profiles.orEmpty().filter {
+                        !AuthManager.isProfileHidden(it.name) && it.botMeta()?.hidden != true
+                    }
                 _uiState.update { it.copy(availableBots = profiles) }
             }
         }

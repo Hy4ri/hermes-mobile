@@ -596,6 +596,12 @@
     <string name="profiles_action_set_model">设置模型</string>
     <string name="profiles_action_clone">克隆</string>
     <string name="profiles_action_edit_description">编辑描述</string>
+    <string name="profiles_action_hide">隐藏配置文件</string>
+    <string name="profiles_action_unhide">取消隐藏配置文件</string>
+    <string name="profiles_show_hidden">显示隐藏的配置文件</string>
+    <string name="profiles_hide_hidden">隐藏已隐藏的配置文件</string>
+    <string name="profiles_hidden_badge">已隐藏</string>
+    <string name="profiles_all_hidden_desc">所有配置文件当前均已隐藏。点击下方以显示已隐藏的配置文件。</string>
     <string name="profiles_content_desc_active">当前配置</string>
     <string name="profiles_title_edit_soul">编辑 Soul 配置：%1$s</string>
     <string name="profiles_title_set_model">设置模型：%1$s</string>

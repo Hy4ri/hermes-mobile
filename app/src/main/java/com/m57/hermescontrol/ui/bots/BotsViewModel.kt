@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.bots
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.BotAvatarMeta
 import com.m57.hermescontrol.data.model.BotRosterMeta
 import com.m57.hermescontrol.data.model.CreateProfileRequest
@@ -47,12 +48,13 @@ data class BotsUiState(
     val activeProfileName: String? = null,
     val searchQuery: String = "",
     val showHidden: Boolean = false,
+    val hiddenProfiles: Set<String> = emptySet(),
     val selectedTab: BotsTab = BotsTab.BOTS,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
 ) {
     val hasHiddenBots: Boolean
-        get() = profiles.any { it.isHidden }
+        get() = profiles.any { it.isHidden || it.name in hiddenProfiles }
 
     val allGroups: List<GroupInfo>
         get() {
@@ -185,7 +187,8 @@ data class BotsUiState(
             val query = searchQuery.trim().lowercase()
             return profiles
                 .filter { profile ->
-                    if (!showHidden && profile.isHidden) return@filter false
+                    val isHidden = profile.isHidden || profile.name in hiddenProfiles
+                    if (!showHidden && isHidden) return@filter false
                     if (query.isBlank()) return@filter true
                     profile.name.lowercase().contains(query) ||
                         profile.effectiveTitle.lowercase().contains(query) ||
@@ -212,6 +215,7 @@ class BotsViewModel(
     val uiState: StateFlow<BotsUiState> = _uiState.asStateFlow()
 
     init {
+        _uiState.update { it.copy(hiddenProfiles = AuthManager.getHiddenProfiles().toSet()) }
         if (autoLoad) {
             loadBots()
         }
@@ -262,6 +266,7 @@ class BotsViewModel(
                         isRefreshing = false,
                         profiles = profilesWithMeta,
                         activeProfileName = activeName ?: it.activeProfileName,
+                        hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
                         errorMessage = null,
                     )
                 }
@@ -273,6 +278,7 @@ class BotsViewModel(
                         isRefreshing = false,
                         profiles = profilesResult.data.profiles.orEmpty(),
                         activeProfileName = activeName ?: it.activeProfileName,
+                        hiddenProfiles = AuthManager.getHiddenProfiles().toSet(),
                         errorMessage = null,
                     )
                 }

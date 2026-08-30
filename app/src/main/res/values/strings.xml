@@ -682,6 +682,12 @@
     <string name="profiles_action_set_model">Set Model</string>
     <string name="profiles_action_clone">Clone</string>
     <string name="profiles_action_edit_description">Edit Description</string>
+    <string name="profiles_action_hide">Hide Profile</string>
+    <string name="profiles_action_unhide">Unhide Profile</string>
+    <string name="profiles_show_hidden">Show hidden profiles</string>
+    <string name="profiles_hide_hidden">Hide hidden profiles</string>
+    <string name="profiles_hidden_badge">Hidden</string>
+    <string name="profiles_all_hidden_desc">All profiles are currently hidden. Tap below to show hidden profiles.</string>
     <string name="profiles_content_desc_active">Active Profile</string>
     <string name="profiles_title_edit_soul">Edit Soul Profile: %1$s</string>
     <string name="profiles_title_set_model">Set Model: %1$s</string>

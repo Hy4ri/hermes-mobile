@@ -979,4 +979,88 @@ class ChatWsEventReducerTest {
         assertEquals(1, result.state.compressionCount)
         assertEquals(null, result.state.usedContextTokens)
     }
+
+    @Test
+    fun testTodoUpdated_updatesStateTodos() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val todos =
+            listOf(
+                TodoItem(id = "1", content = "Main task", status = "in_progress"),
+                TodoItem(id = "2", content = "Subtask 1", status = "completed", parent = "1"),
+                TodoItem(id = "3", content = "Subtask 2", status = "pending", parent = "1"),
+            )
+        val event = WsEvent.TodoUpdated(todos = todos, revision = 1, sessionId = "session-1")
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(3, result.state.todos.size)
+        assertEquals("Main task", result.state.todos[0].content)
+        assertEquals(null, result.state.todos[0].parent)
+        assertEquals("1", result.state.todos[1].parent)
+        assertTrue(result.state.todos[1].isCompleted)
+        assertTrue(result.state.todos[1].isSubtask)
+    }
+
+    @Test
+    fun testTodoUpdated_differentSession_isIgnored() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                todos = listOf(TodoItem(id = "orig", content = "Original", status = "pending")),
+            )
+        val event =
+            WsEvent.TodoUpdated(
+                todos = listOf(TodoItem(id = "new", content = "New", status = "in_progress")),
+                revision = 1,
+                sessionId = "session-other",
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(1, result.state.todos.size)
+        assertEquals("Original", result.state.todos[0].content)
+    }
+
+    @Test
+    fun testExtractTodosFromMap_preservesParentHierarchy() {
+        val payload =
+            mapOf(
+                "todos" to
+                    listOf(
+                        mapOf("id" to "t1", "content" to "Root", "status" to "in_progress"),
+                        mapOf("id" to "t2", "content" to "Child", "status" to "pending", "parent" to "t1"),
+                    ),
+            )
+        val extracted = extractTodosFromMap(payload)
+        assertEquals(2, extracted?.size)
+        assertEquals("t1", extracted?.get(0)?.id)
+        assertEquals(null, extracted?.get(0)?.parent)
+        assertEquals("t2", extracted?.get(1)?.id)
+        assertEquals("t1", extracted?.get(1)?.parent)
+    }
+
+    @Test
+    fun testExtractTodosFromJson_preservesParentHierarchy() {
+        val json =
+            """{"todos":[{"id":"a","content":"Task A","status":"done"},""" +
+                """{"id":"b","content":"Task B","status":"pending","parent":"a"}]}"""
+        val extracted = extractTodosFromJson(json)
+        assertEquals(2, extracted?.size)
+        assertEquals("a", extracted?.get(0)?.id)
+        assertEquals(null, extracted?.get(0)?.parent)
+        assertEquals("b", extracted?.get(1)?.id)
+        assertEquals("a", extracted?.get(1)?.parent)
+    }
 }

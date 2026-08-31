@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.data.ws
 
+import com.m57.hermescontrol.ui.chat.TodoItem
+
 /** Parsed WebSocket events emitted by [HermesWsClient]. */
 sealed class WsEvent {
     // ── Gateway lifecycle ────────────────────────────────────────────────
@@ -180,6 +182,17 @@ sealed class WsEvent {
      */
     data class SessionUsage(
         val data: Map<String, Any?>?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    /**
+     * Revisioned todo snapshot event emitted by backend todo tool updates (issue #1018).
+     * Event: `todo.updated`
+     * Payload: `{ "todos": [...], "revision": Int }`
+     */
+    data class TodoUpdated(
+        val todos: List<TodoItem> = emptyList(),
+        val revision: Int? = null,
         val sessionId: String? = null,
     ) : WsEvent()
 

@@ -1769,6 +1769,7 @@ object ToolViewBuilder {
                 val id = firstString(item, listOf("id"))
                 val content = firstString(item, listOf("content"))
                 val status = firstString(item, listOf("status")).ifEmpty { "pending" }
+                val parent = firstString(item, listOf("parent"))
                 val marker =
                     when (status) {
                         "completed" -> "[x]"
@@ -1776,7 +1777,8 @@ object ToolViewBuilder {
                         "cancelled" -> "[~]"
                         else -> "[ ]"
                     }
-                "$marker $id. $content"
+                val indent = if (parent.isNotEmpty()) "  ↳ " else ""
+                "$indent$marker $id. $content"
             }.joinToString("\n")
             .takeIf { it.isNotEmpty() }
     }

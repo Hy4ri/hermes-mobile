@@ -58,6 +58,8 @@ import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateRequest
 import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateResponse
 import com.m57.hermescontrol.data.model.MemoryProviderSetupRequest
 import com.m57.hermescontrol.data.model.MemoryProviderSetupResponse
+import com.m57.hermescontrol.data.model.MemoryResetRequest
+import com.m57.hermescontrol.data.model.MemoryResetResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
@@ -851,8 +853,8 @@ interface HermesApiService {
 
     @POST("api/memory/reset")
     suspend fun resetMemory(
-        @Body body: Map<String, String>,
-    ): Response<Map<String, Any>>
+        @Body body: MemoryResetRequest,
+    ): Response<MemoryResetResponse>
 
     // ── Admin: Credential pool ────────────────────────────────────────
     @GET("api/credentials/pool")

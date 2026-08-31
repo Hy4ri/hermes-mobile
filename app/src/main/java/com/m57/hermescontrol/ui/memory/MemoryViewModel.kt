@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.memory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.LearningGraphResponse
+import com.m57.hermescontrol.data.model.MemoryResetRequest
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -67,7 +68,7 @@ class MemoryViewModel : ViewModel(), ToastHost {
         if (_uiState.value.resetting != null) return
         _uiState.update { it.copy(resetting = target) }
         viewModelScope.launch {
-            val result = safeApiCall { ApiClient.hermesApi.resetMemory(mapOf("target" to target)) }
+            val result = safeApiCall { ApiClient.hermesApi.resetMemory(MemoryResetRequest(target = target)) }
             when (result) {
                 is NetworkResult.Success ->
                     _uiState.update {

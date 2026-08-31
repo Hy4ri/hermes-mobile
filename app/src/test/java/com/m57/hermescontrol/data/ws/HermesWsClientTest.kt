@@ -1527,4 +1527,165 @@ class HermesWsClientTest {
             HermesWsClient.connectionStatus.value != ConnectionStatus.CONNECTED,
         )
     }
+
+    @Test
+    fun testSequenceNumberDeduplication() {
+        var serverWebSocket: WebSocket? = null
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverWebSocket = webSocket
+                        serverLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.connect()
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
+        assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
+        val ws = serverWebSocket
+        assertNotNull(ws)
+
+        val receivedTokens = mutableListOf<String>()
+        val collectorJob =
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                HermesWsClient.events.collect { event ->
+                    if (event is WsEvent.MessageToken) {
+                        receivedTokens.add(event.token)
+                    }
+                }
+            }
+
+        // Send seq 1
+        ws!!.send(
+            """{"method":"event","params":{"type":"message.token","session_id":"s1","seq":1,"payload":{"text":"A"}}}""",
+        )
+        Thread.sleep(100)
+        assertEquals(1, HermesWsClient.getSeqWatermarks()["s1"])
+        assertEquals(listOf("A"), receivedTokens)
+
+        // Send duplicate seq 1 -> should be dropped
+        ws.send(
+            """{"method":"event","params":{"type":"message.token","session_id":"s1","seq":1,"payload":{"text":"A-dup"}}}""",
+        )
+        Thread.sleep(100)
+        assertEquals(1, HermesWsClient.getSeqWatermarks()["s1"])
+        assertEquals(listOf("A"), receivedTokens)
+
+        // Send seq 2 -> should be accepted
+        ws.send(
+            """{"method":"event","params":{"type":"message.token","session_id":"s1","seq":2,"payload":{"text":"B"}}}""",
+        )
+        Thread.sleep(100)
+        assertEquals(2, HermesWsClient.getSeqWatermarks()["s1"])
+        assertEquals(listOf("A", "B"), receivedTokens)
+
+        collectorJob.cancel()
+    }
+
+    @Test
+    fun testEpochChangeClearsWatermarks() {
+        var serverWebSocket: WebSocket? = null
+        val serverLatch = CountDownLatch(1)
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverWebSocket = webSocket
+                        serverLatch.countDown()
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.connect()
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
+        assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
+        val ws = serverWebSocket
+        assertNotNull(ws)
+
+        // Initial gateway.ready with epoch-1
+        ws!!.send(
+            """{"method":"event","params":{"type":"gateway.ready","payload":{"replay_epoch":"epoch-1"}}}""",
+        )
+        Thread.sleep(100)
+        HermesWsClient.setSeqWatermark("s1", 10)
+        assertEquals(10, HermesWsClient.getSeqWatermarks()["s1"])
+
+        // Second gateway.ready with new epoch-2 -> backend restarted, watermarks cleared
+        ws.send(
+            """{"method":"event","params":{"type":"gateway.ready","payload":{"replay_epoch":"epoch-2"}}}""",
+        )
+        Thread.sleep(100)
+        assertTrue(HermesWsClient.getSeqWatermarks().isEmpty())
+    }
+
+    @Test
+    fun testReplayOnReconnectFlow() {
+        var serverWebSocket: WebSocket? = null
+        val serverLatch = CountDownLatch(1)
+        val requestLatch = CountDownLatch(1)
+        var receivedMethod: String? = null
+
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverWebSocket = webSocket
+                        serverLatch.countDown()
+                    }
+
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        if (text.contains(WsMethods.SESSION_EVENTS_SINCE)) {
+                            receivedMethod = WsMethods.SESSION_EVENTS_SINCE
+                            // Extract ID from JSON-RPC request
+                            val id = Regex(""""id":"([^"]+)"""").find(text)?.groupValues?.get(1) ?: "1"
+                            webSocket.send(
+                                """{"jsonrpc":"2.0","id":"$id","result":{"epoch":"ep1","events":[{"type":"message.token","session_id":"s1","seq":6,"payload":{"text":"replayed"}}]}}""",
+                            )
+                            requestLatch.countDown()
+                        }
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.setSeqWatermark("s1", 5)
+        HermesWsClient.connect()
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
+        assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
+        assertTrue(requestLatch.await(5, TimeUnit.SECONDS))
+        assertEquals(WsMethods.SESSION_EVENTS_SINCE, receivedMethod)
+
+        // Wait for replay processing
+        Thread.sleep(200)
+        assertEquals(6, HermesWsClient.getSeqWatermarks()["s1"])
+    }
 }

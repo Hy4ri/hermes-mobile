@@ -61,6 +61,11 @@ class SlashCommandDispatcher {
                 SlashResult.OpenHistory
             }
 
+            "/btw" -> {
+                val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+                SlashResult.SideQuestion(question = arg)
+            }
+
             else -> {
                 SlashResult.RpcDispatch
             }
@@ -128,5 +133,14 @@ sealed class SlashResult {
      */
     data class QueuePrompt(
         val displayContent: String,
+    ) : SlashResult()
+
+    /**
+     * Context-aware side question about the current session (issue #1015).
+     * Dispatched via the `prompt.btw` RPC. Answers without mutating the
+     * session's history or invalidating prompt caching.
+     */
+    data class SideQuestion(
+        val question: String,
     ) : SlashResult()
 }

@@ -25,6 +25,7 @@ object WsMethods {
 
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
+    const val PROMPT_BTW = "prompt.btw"
     const val CLARIFY_RESPOND = "clarify.respond"
     const val APPROVAL_RESPOND = "approval.respond"
     const val SUDO_RESPOND = "sudo.respond"

@@ -535,6 +535,43 @@ class ChatWsEventReducerTest {
         assertEquals("💾 Self-improvement review: Skill 'android-ci' patched", msg.content)
     }
 
+    @Test
+    fun testBtwComplete_updatesBtwState() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                btwState =
+                    BtwUiState(
+                        question = "what model?",
+                        isLoading = true,
+                    ),
+            )
+        val event =
+            WsEvent.BtwComplete(
+                taskId = "btw_123456",
+                question = "what model?",
+                text = "This conversation uses Gemini 3.7.",
+                sessionId = "session-1",
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        val btw = result.state.btwState
+        org.junit.Assert.assertNotNull(btw)
+        assertEquals("btw_123456", btw?.taskId)
+        assertEquals("what model?", btw?.question)
+        assertEquals("This conversation uses Gemini 3.7.", btw?.answer)
+        assertEquals(false, btw?.isLoading)
+        // Zero messages appended to transcript!
+        assertEquals(0, result.state.messages.size)
+    }
+
     // ── Issue #771: reasoning survives a tool call (regression) ────────────
     //
     // Real gateway capture for `run echo hi` (reasoning model):

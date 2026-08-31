@@ -163,6 +163,13 @@ object EventParser {
                 WsEvent.ReviewSummary(text, sessionId)
             }
 
+            "btw.complete" -> {
+                val taskId = payload?.get("task_id") as? String ?: ""
+                val question = payload?.get("question") as? String ?: ""
+                val text = (payload?.get("text") as? String)?.trim() ?: ""
+                WsEvent.BtwComplete(taskId, question, text, sessionId)
+            }
+
             "session.updated" -> {
                 WsEvent.SessionUpdated(payload)
             }

@@ -71,6 +71,7 @@ object ChatWsEventReducer {
                 is WsEvent.ToolGenerating -> event.sessionId
                 is WsEvent.SubagentEvent -> event.sessionId
                 is WsEvent.ReviewSummary -> event.sessionId
+                is WsEvent.BtwComplete -> event.sessionId
                 is WsEvent.SessionUsage -> event.sessionId
                 else -> null
             }
@@ -128,6 +129,8 @@ object ChatWsEventReducer {
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
 
             is WsEvent.ReviewSummary -> onReviewSummary(state, streamingState, event)
+
+            is WsEvent.BtwComplete -> onBtwComplete(state, streamingState, event)
 
             is WsEvent.SessionUsage -> onSessionUsage(state, streamingState, event)
 
@@ -648,6 +651,36 @@ object ChatWsEventReducer {
             )
         return ReducerResult(
             state = state.copy(messages = state.messages + systemMessage),
+            streamingState = streamingState,
+        )
+    }
+
+    // ── BtwComplete (Side question completed) ─────────────────────────────
+
+    private fun onBtwComplete(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.BtwComplete,
+    ): ReducerResult {
+        val currentBtw = state.btwState
+        val updatedBtw =
+            if (currentBtw != null) {
+                currentBtw.copy(
+                    taskId = event.taskId.ifBlank { currentBtw.taskId },
+                    question = event.question.ifBlank { currentBtw.question },
+                    answer = event.text,
+                    isLoading = false,
+                )
+            } else {
+                BtwUiState(
+                    taskId = event.taskId,
+                    question = event.question,
+                    answer = event.text,
+                    isLoading = false,
+                )
+            }
+        return ReducerResult(
+            state = state.copy(btwState = updatedBtw),
             streamingState = streamingState,
         )
     }

@@ -1,5 +1,7 @@
 package com.m57.hermescontrol.ui.memory
 
+import com.m57.hermescontrol.data.model.MemoryResetRequest
+import com.m57.hermescontrol.data.model.MemoryResetResponse
 import com.m57.hermescontrol.data.model.MemoryProviderStatusRow
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -103,15 +105,15 @@ class MemoryViewModelTest {
 
     @Test
     fun `resetMemory posts target and reloads`() {
-        coEvery { mockApi.resetMemory(mapOf("target" to "all")) } returns
-            Response.success(emptyMap<String, String>())
+        coEvery { mockApi.resetMemory(MemoryResetRequest(target = "all")) } returns
+            Response.success(MemoryResetResponse(ok = true))
         val vm = MemoryViewModel()
         vm.load()
         testDispatcher.scheduler.advanceUntilIdle()
         vm.resetMemory("all")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { mockApi.resetMemory(mapOf("target" to "all")) }
+        coVerify { mockApi.resetMemory(MemoryResetRequest(target = "all")) }
         assertEquals("Memory (all) reset successfully", vm.uiState.value.toastMessage)
         // One load + one reload after reset.
         coVerify(exactly = 2) { mockApi.getMemory() }
@@ -119,7 +121,7 @@ class MemoryViewModelTest {
 
     @Test
     fun `resetMemory failure shows error toast`() {
-        coEvery { mockApi.resetMemory(mapOf("target" to "memory")) } returns
+        coEvery { mockApi.resetMemory(MemoryResetRequest(target = "memory")) } returns
             Response.error(500, "boom".toResponseBody())
         val vm = MemoryViewModel()
         vm.resetMemory("memory")
@@ -128,4 +130,3 @@ class MemoryViewModelTest {
         assertTrue(vm.uiState.value.toastMessage.orEmpty().contains("Failed to reset memory"))
         assertNull(vm.uiState.value.resetting)
     }
-}

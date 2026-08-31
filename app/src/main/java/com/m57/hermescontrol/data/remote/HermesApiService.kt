@@ -851,8 +851,8 @@ interface HermesApiService {
 
     @POST("api/memory/reset")
     suspend fun resetMemory(
-        @Body body: Map<String, String>,
-    ): Response<Map<String, Any>>
+        @Body body: MemoryResetRequest,
+    ): Response<MemoryResetResponse>
 
     // ── Admin: Credential pool ────────────────────────────────────────
     @GET("api/credentials/pool")

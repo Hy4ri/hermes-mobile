@@ -13,7 +13,9 @@ sealed interface AppUpdateState {
     data object Checking : AppUpdateState
 
     /** Latest release equals the installed version. */
-    data class UpToDate(val latestTag: String) : AppUpdateState
+    data class UpToDate(
+        val latestTag: String,
+    ) : AppUpdateState
 
     /** A newer release with an APK asset exists. */
     data class UpdateAvailable(
@@ -24,15 +26,21 @@ sealed interface AppUpdateState {
     ) : AppUpdateState
 
     /** APK download in progress; [progress] is 0..1. */
-    data class Downloading(val progress: Float) : AppUpdateState
+    data class Downloading(
+        val progress: Float,
+    ) : AppUpdateState
 
     /** Download finished and the system package installer was launched. */
-    data class Installing(val latestTag: String) : AppUpdateState
+    data class Installing(
+        val latestTag: String,
+    ) : AppUpdateState
 
     /** Install-from-unknown-sources not granted for this app yet. */
     data object NeedsUnknownSourcesPermission : AppUpdateState
 
-    data class Error(val message: String) : AppUpdateState
+    data class Error(
+        val message: String,
+    ) : AppUpdateState
 }
 
 /** The release tag a state carries, when it carries one. */

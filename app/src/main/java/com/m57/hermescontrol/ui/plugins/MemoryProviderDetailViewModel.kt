@@ -47,7 +47,9 @@ data class MemoryProviderDetailUiState(
  * [setProvider] + [load] per entry instead (same bug/fix as #782's
  * ToolsetDetailViewModel).
  */
-class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
+class MemoryProviderDetailViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(MemoryProviderDetailUiState())
     val uiState: StateFlow<MemoryProviderDetailUiState> = _uiState.asStateFlow()
 
@@ -74,13 +76,17 @@ class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
             val statusResult = safeApiCall { ApiClient.hermesApi.getMemory() }
             val status =
                 when (statusResult) {
-                    is NetworkResult.Success ->
+                    is NetworkResult.Success -> {
                         statusResult.data.providers.firstOrNull { it.name == name }
-                    else -> null
+                    }
+
+                    else -> {
+                        null
+                    }
                 }
             val configResult = safeApiCall { ApiClient.hermesApi.getMemoryProviderConfig(name) }
             when (configResult) {
-                is NetworkResult.Success ->
+                is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -90,7 +96,9 @@ class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
                             edits = seedEdits(configResult.data),
                         )
                     }
-                is NetworkResult.Failure ->
+                }
+
+                is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -99,6 +107,7 @@ class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
                             errorMessage = configResult.error.message,
                         )
                     }
+                }
             }
         }
     }
@@ -143,7 +152,7 @@ class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
                     )
                 }
             when (result) {
-                is NetworkResult.Success ->
+                is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
                             saving = false,
@@ -154,13 +163,16 @@ class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
                             toastMessage = "Memory provider settings saved",
                         )
                     }
-                is NetworkResult.Failure ->
+                }
+
+                is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
                             saving = false,
                             toastMessage = "Failed to save settings: ${result.error.message}",
                         )
                     }
+                }
             }
             refreshStatus(name)
         }
@@ -180,7 +192,7 @@ class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
                     ApiClient.hermesApi.setupMemoryProvider(name, MemoryProviderSetupRequest())
                 }
             when (result) {
-                is NetworkResult.Success ->
+                is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
                             runningSetup = false,
@@ -193,13 +205,16 @@ class MemoryProviderDetailViewModel : ViewModel(), ToastHost {
                                 },
                         )
                     }
-                is NetworkResult.Failure ->
+                }
+
+                is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
                             runningSetup = false,
                             toastMessage = "Setup failed: ${result.error.message}",
                         )
                     }
+                }
             }
             refreshStatus(name)
         }

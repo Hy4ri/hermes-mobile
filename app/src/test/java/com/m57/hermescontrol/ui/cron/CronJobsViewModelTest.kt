@@ -204,7 +204,9 @@ class CronJobsViewModelTest {
         vm.saveEditor()
         settle()
 
-        val toast = vm.uiState.value.editorState.toastMessage.orEmpty()
+        val toast =
+            vm.uiState.value.editorState.toastMessage
+                .orEmpty()
         assertTrue(toast, toast.contains("invalid time '25:00'"))
         assertFalse(vm.uiState.value.editorState.isSaving)
     }
@@ -394,7 +396,11 @@ class CronJobsViewModelTest {
 
         coVerify { mockApi.deleteCronJob("j5") }
         assertTrue(vm.uiState.value.editorState.isOpen)
-        assertTrue(vm.uiState.value.editorState.toastMessage.orEmpty().contains("Failed to save"))
+        assertTrue(
+            vm.uiState.value.editorState.toastMessage
+                .orEmpty()
+                .contains("Failed to save"),
+        )
     }
 
     @Test
@@ -549,7 +555,9 @@ class CronJobsViewModelTest {
         vm.loadCronJobs()
         settle()
 
-        val job = vm.uiState.value.jobs.first()
+        val job =
+            vm.uiState.value.jobs
+                .first()
         assertNotNull(job.last_fire_error)
         assertEquals("gateway unreachable", job.last_fire_error?.detail)
         assertEquals("2026-08-18T09:00:00", job.last_fire_error?.at)

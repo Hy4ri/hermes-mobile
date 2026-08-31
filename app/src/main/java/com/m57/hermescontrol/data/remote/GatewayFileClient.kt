@@ -76,7 +76,9 @@ object GatewayFileClient {
         token: String,
         path: String,
     ): String? {
-        val kind = com.m57.hermescontrol.ui.chat.mediaKindForPath(path)
+        val kind =
+            com.m57.hermescontrol.ui.chat
+                .mediaKindForPath(path)
         val endpoint =
             if (kind == com.m57.hermescontrol.ui.chat.MediaKind.AUDIO ||
                 kind == com.m57.hermescontrol.ui.chat.MediaKind.VIDEO

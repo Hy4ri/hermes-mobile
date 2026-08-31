@@ -218,8 +218,7 @@ object ToolResultSummary {
                 .mapNotNull { k ->
                     val s = summarizeScalar(record[k])
                     if (s.isEmpty()) null else "${titleCase(k)}: $s"
-                }
-                .take(2)
+                }.take(2)
 
         return if (pairs.isNotEmpty()) pairs.joinToString(" · ") else pluralize(record.keys.size, "field")
     }
@@ -474,12 +473,13 @@ object ToolResultSummary {
 
         if (v is JsonArray) {
             return clipBlock(
-                v.mapNotNull {
-                    valueErrorText(it).takeIf {
-                            s ->
-                        s.isNotEmpty()
-                    }
-                }.take(3).joinToString("; "),
+                v
+                    .mapNotNull {
+                        valueErrorText(it).takeIf { s ->
+                            s.isNotEmpty()
+                        }
+                    }.take(3)
+                    .joinToString("; "),
                 700,
                 12,
             )

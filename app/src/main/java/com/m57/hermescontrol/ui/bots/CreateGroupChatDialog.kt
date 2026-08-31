@@ -100,8 +100,7 @@ fun CreateGroupChatDialog(
                                             } else {
                                                 selectedBots + bot.name
                                             }
-                                    }
-                                    .padding(vertical = 4.dp),
+                                    }.padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Checkbox(

@@ -55,17 +55,28 @@ enum class KanbanTaskAction(
 /** Desktop parity: which actions are valid from a given status. */
 fun kanbanActionsForStatus(status: String): List<KanbanTaskAction> =
     when (status) {
-        "triage" -> listOf(KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
-        "todo" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
-        "scheduled" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
-        "ready" ->
+        "triage" -> {
+            listOf(KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        }
+
+        "todo" -> {
+            listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        }
+
+        "scheduled" -> {
+            listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        }
+
+        "ready" -> {
             listOf(
                 KanbanTaskAction.TRIAGE,
                 KanbanTaskAction.BLOCK,
                 KanbanTaskAction.COMPLETE,
                 KanbanTaskAction.ARCHIVE,
             )
-        "running" ->
+        }
+
+        "running" -> {
             listOf(
                 KanbanTaskAction.TRIAGE,
                 KanbanTaskAction.READY,
@@ -73,22 +84,38 @@ fun kanbanActionsForStatus(status: String): List<KanbanTaskAction> =
                 KanbanTaskAction.COMPLETE,
                 KanbanTaskAction.ARCHIVE,
             )
-        "blocked" ->
+        }
+
+        "blocked" -> {
             listOf(
                 KanbanTaskAction.TRIAGE,
                 KanbanTaskAction.UNBLOCK,
                 KanbanTaskAction.COMPLETE,
                 KanbanTaskAction.ARCHIVE,
             )
-        "review" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
-        "done" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
-        "archived" -> listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY)
-        else -> emptyList()
+        }
+
+        "review" -> {
+            listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        }
+
+        "done" -> {
+            listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY, KanbanTaskAction.ARCHIVE)
+        }
+
+        "archived" -> {
+            listOf(KanbanTaskAction.TRIAGE, KanbanTaskAction.READY)
+        }
+
+        else -> {
+            emptyList()
+        }
     }
 
 class KanbanViewModel(
     private val eventsClientProvider: () -> KanbanEventsClient = { KanbanEventsClient() },
-) : ViewModel(), ToastHost {
+) : ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(KanbanUiState())
     val uiState: StateFlow<KanbanUiState> = _uiState.asStateFlow()
 

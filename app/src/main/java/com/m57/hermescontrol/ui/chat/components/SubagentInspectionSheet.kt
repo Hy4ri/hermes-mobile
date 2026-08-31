@@ -194,15 +194,22 @@ private fun TodoInspectionCard(todo: TodoItem) {
             val statusColors = LocalHermesStatusColors.current
             val (statusIcon, statusTint) =
                 when {
-                    todo.isCompleted ->
+                    todo.isCompleted -> {
                         Icons.Filled.CheckCircle to statusColors.success
-                    todo.isInProgress ->
+                    }
+
+                    todo.isInProgress -> {
                         Icons.Filled.Autorenew to MaterialTheme.colorScheme.primary
-                    todo.isCancelled ->
+                    }
+
+                    todo.isCancelled -> {
                         Icons.Filled.Cancel to statusColors.warning
-                    else ->
+                    }
+
+                    else -> {
                         Icons.Filled.RadioButtonUnchecked to
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    }
                 }
             Icon(
                 imageVector = statusIcon,
@@ -242,12 +249,17 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                 val statusColors = LocalHermesStatusColors.current
                 val (statusIcon, statusTint) =
                     when {
-                        indicator.isComplete ->
+                        indicator.isComplete -> {
                             Icons.Filled.CheckCircle to statusColors.success
-                        indicator.isFailed ->
+                        }
+
+                        indicator.isFailed -> {
                             Icons.Filled.Cancel to statusColors.error
-                        else ->
+                        }
+
+                        else -> {
                             Icons.Filled.Autorenew to MaterialTheme.colorScheme.primary
+                        }
                     }
                 Icon(
                     imageVector = statusIcon,

@@ -205,7 +205,9 @@ class GroupChatViewModelTest {
             testScheduler.runCurrent()
 
             // State should contain user message
-            val userMsg = viewModel.uiState.value.messages.first()
+            val userMsg =
+                viewModel.uiState.value.messages
+                    .first()
             assertTrue(userMsg.isUser)
             assertEquals("@scout what's the status?", userMsg.text)
 
@@ -213,7 +215,9 @@ class GroupChatViewModelTest {
             eventsFlow.emit(WsEvent.MessageToken(token = "Building ", sessionId = "session-scout-1"))
             testScheduler.runCurrent()
 
-            val streamingMsg = viewModel.uiState.value.messages.last()
+            val streamingMsg =
+                viewModel.uiState.value.messages
+                    .last()
             assertFalse(streamingMsg.isUser)
             assertEquals("scout", streamingMsg.senderName)
             assertEquals("Building ", streamingMsg.text)
@@ -222,7 +226,9 @@ class GroupChatViewModelTest {
             eventsFlow.emit(WsEvent.MessageToken(token = "the APK...", sessionId = "session-scout-1"))
             testScheduler.runCurrent()
 
-            val updatedStreaming = viewModel.uiState.value.messages.last()
+            val updatedStreaming =
+                viewModel.uiState.value.messages
+                    .last()
             assertEquals("Building the APK...", updatedStreaming.text)
 
             // Complete turn
@@ -285,7 +291,11 @@ class GroupChatViewModelTest {
             testScheduler.runCurrent()
 
             assertEquals(2, viewModel.uiState.value.messages.size)
-            assertEquals("scout", viewModel.uiState.value.messages[1].senderName)
+            assertEquals(
+                "scout",
+                viewModel.uiState.value.messages[1]
+                    .senderName,
+            )
 
             // Continuation pass triggers coder
             eventsFlow.emit(
@@ -345,7 +355,11 @@ class GroupChatViewModelTest {
 
             // Because lease is held by desktop_client_99, mobile only posts the user message and yields
             assertEquals(1, viewModel.uiState.value.messages.size)
-            assertTrue(viewModel.uiState.value.messages.first().isUser)
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .first()
+                    .isUser,
+            )
         }
 
     @Test
@@ -452,7 +466,9 @@ class GroupChatViewModelTest {
             )
             testScheduler.runCurrent()
 
-            val msgWithTool = viewModel.uiState.value.messages.last()
+            val msgWithTool =
+                viewModel.uiState.value.messages
+                    .last()
             assertEquals(1, msgWithTool.toolCalls.size)
             val toolCall = msgWithTool.toolCalls.first()
             assertEquals("terminal", toolCall.name)
@@ -469,7 +485,9 @@ class GroupChatViewModelTest {
             )
             testScheduler.runCurrent()
 
-            val msgAfterToolDone = viewModel.uiState.value.messages.last()
+            val msgAfterToolDone =
+                viewModel.uiState.value.messages
+                    .last()
             assertFalse(msgAfterToolDone.toolCalls.first().isRunning)
 
             // Complete message
@@ -481,7 +499,9 @@ class GroupChatViewModelTest {
             )
             testScheduler.runCurrent()
 
-            val finalMsg = viewModel.uiState.value.messages.last()
+            val finalMsg =
+                viewModel.uiState.value.messages
+                    .last()
             assertEquals("Current time is Sat Aug 29", finalMsg.text)
             assertEquals(1, finalMsg.toolCalls.size)
             assertFalse(finalMsg.toolCalls.first().isRunning)

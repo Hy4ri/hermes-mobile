@@ -137,8 +137,7 @@ fun ReasoningCard(
                         clipboard.setPrimaryClip(ClipData.newPlainText(null, reasoningText))
                         copied = true
                     },
-                )
-                .testTag("reasoning_card"),
+                ).testTag("reasoning_card"),
         colors =
             CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,

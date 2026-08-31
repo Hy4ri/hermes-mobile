@@ -44,12 +44,30 @@ data class JsonRpcError(
 
 fun Any?.toJsonElement(): JsonElement =
     when (this) {
-        null -> JsonNull
-        is JsonElement -> this
-        is Boolean -> JsonPrimitive(this)
-        is Int -> JsonPrimitive(this)
-        is Long -> JsonPrimitive(this)
-        is Float -> JsonPrimitive(this)
+        null -> {
+            JsonNull
+        }
+
+        is JsonElement -> {
+            this
+        }
+
+        is Boolean -> {
+            JsonPrimitive(this)
+        }
+
+        is Int -> {
+            JsonPrimitive(this)
+        }
+
+        is Long -> {
+            JsonPrimitive(this)
+        }
+
+        is Float -> {
+            JsonPrimitive(this)
+        }
+
         is Double -> {
             // Preserve integer semantics: 177.0 → JsonPrimitive(177) not "177.0"
             if (this % 1.0 == 0.0 && this >= Int.MIN_VALUE.toDouble() && this <= Int.MAX_VALUE.toDouble()) {
@@ -60,11 +78,26 @@ fun Any?.toJsonElement(): JsonElement =
                 JsonPrimitive(this)
             }
         }
-        is Number -> JsonPrimitive(this)
-        is String -> JsonPrimitive(this)
-        is Map<*, *> -> JsonObject(this.map { it.key.toString() to it.value.toJsonElement() }.toMap())
-        is List<*> -> JsonArray(this.map { it.toJsonElement() })
-        else -> JsonPrimitive(this.toString())
+
+        is Number -> {
+            JsonPrimitive(this)
+        }
+
+        is String -> {
+            JsonPrimitive(this)
+        }
+
+        is Map<*, *> -> {
+            JsonObject(this.map { it.key.toString() to it.value.toJsonElement() }.toMap())
+        }
+
+        is List<*> -> {
+            JsonArray(this.map { it.toJsonElement() })
+        }
+
+        else -> {
+            JsonPrimitive(this.toString())
+        }
     }
 
 fun JsonElement.toAny(): Any? =

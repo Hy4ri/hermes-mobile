@@ -158,7 +158,13 @@ class ChatInputPolicyTest {
 
     @Test
     fun applyMention_insertsHandleAndAdvancesCursor() {
-        val initial = TextFieldValue("ask @sc", selection = androidx.compose.ui.text.TextRange(7))
+        val initial =
+            TextFieldValue(
+                "ask @sc",
+                selection =
+                    androidx.compose.ui.text
+                        .TextRange(7),
+            )
         val updated = ChatInputPolicy.applyMention(initial, "scout")
         assertEquals("ask @scout ", updated.text)
         assertEquals(11, updated.selection.end)

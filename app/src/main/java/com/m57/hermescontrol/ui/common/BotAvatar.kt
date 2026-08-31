@@ -87,7 +87,8 @@ fun BotAvatar(
             if (imageUrl != null) {
                 AsyncImage(
                     model =
-                        ImageRequest.Builder(LocalContext.current)
+                        ImageRequest
+                            .Builder(LocalContext.current)
                             .data(imageUrl)
                             .crossfade(true)
                             .build(),
@@ -137,21 +138,20 @@ fun BotAvatar(
 fun resolveAvatarShape(
     shapeKey: String?,
     size: Dp,
-): Shape {
-    return when (shapeKey?.lowercase()?.trim()) {
+): Shape =
+    when (shapeKey?.lowercase()?.trim()) {
         "square", "box", "boxy" -> RoundedCornerShape(size * 0.15f)
         "rounded", "nub", "organic" -> RoundedCornerShape(size * 0.32f)
         "hexagon", "cut", "diamond", "cloud", "sun" -> CutCornerShape(size * 0.25f)
         "circle", "round" -> CircleShape
         else -> CircleShape
     }
-}
 
 /**
  * Maps known icon keys to Material [ImageVector] icons.
  */
-fun resolveAvatarIcon(iconKey: String?): ImageVector? {
-    return when (iconKey?.lowercase()?.trim()) {
+fun resolveAvatarIcon(iconKey: String?): ImageVector? =
+    when (iconKey?.lowercase()?.trim()) {
         "code", "dev", "terminal" -> Icons.Filled.Code
         "build", "tool", "tools" -> Icons.Filled.Build
         "psychology", "brain", "ai", "research", "intel" -> Icons.Filled.Psychology
@@ -162,7 +162,6 @@ fun resolveAvatarIcon(iconKey: String?): ImageVector? {
         "robot", "bot", "smart_toy" -> Icons.Filled.SmartToy
         else -> null
     }
-}
 
 /**
  * Extract 1-2 uppercase letters from name for initials fallback.

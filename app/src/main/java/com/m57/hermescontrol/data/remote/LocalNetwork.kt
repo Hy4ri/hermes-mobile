@@ -23,11 +23,21 @@ fun isLocalNetworkHost(host: String): Boolean {
     val a = raw[0].toInt() and 0xFF
     val b = raw[1].toInt() and 0xFF
     return when {
-        a == 10 -> true // 10.0.0.0/8
-        a == 172 && b in 16..31 -> true // 172.16.0.0/12
-        a == 192 && b == 168 -> true // 192.168.0.0/16
-        a == 169 && b == 254 -> true // 169.254.0.0/16 link-local
-        a == 100 && b in 64..127 -> true // 100.64.0.0/10 CGNAT
+        a == 10 -> true
+
+        // 10.0.0.0/8
+        a == 172 && b in 16..31 -> true
+
+        // 172.16.0.0/12
+        a == 192 && b == 168 -> true
+
+        // 192.168.0.0/16
+        a == 169 && b == 254 -> true
+
+        // 169.254.0.0/16 link-local
+        a == 100 && b in 64..127 -> true
+
+        // 100.64.0.0/10 CGNAT
         else -> false
     }
 }

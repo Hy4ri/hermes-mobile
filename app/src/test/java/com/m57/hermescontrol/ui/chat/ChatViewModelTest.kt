@@ -513,7 +513,10 @@ class ChatViewModelTest {
 
             // A blocklisted command can never dispatch — it must not climb
             // the autocomplete ranking either.
-            assertTrue(viewModel.uiState.value.slashUsageCounts.isEmpty())
+            assertTrue(
+                viewModel.uiState.value.slashUsageCounts
+                    .isEmpty(),
+            )
             verify(exactly = 0) {
                 HermesWsClient.request(WsMethods.COMMAND_DISPATCH, any(), any())
             }
@@ -1033,7 +1036,10 @@ class ChatViewModelTest {
                 viewModel.uiState.value.messages[1]
                     .role,
             )
-            assertFalse(viewModel.uiState.value.messages[1].isStreaming)
+            assertFalse(
+                viewModel.uiState.value.messages[1]
+                    .isStreaming,
+            )
             assertEquals(
                 MessageRole.TOOL,
                 viewModel.uiState.value.messages[2]
@@ -1041,7 +1047,10 @@ class ChatViewModelTest {
             )
             assertNull(viewModel.streamingState.value.streamingMessage)
             assertEquals(
-                listOf(viewModel.uiState.value.messages[1].id),
+                listOf(
+                    viewModel.uiState.value.messages[1]
+                        .id,
+                ),
                 viewModel.streamingState.value.sealedOrphanIds,
             )
 
@@ -1050,7 +1059,8 @@ class ChatViewModelTest {
             mockEventsFlow.emit(WsEvent.MessageComplete("Calculating sum = 4", sessionId))
             advanceUntilIdle()
             val assistant =
-                viewModel.uiState.value.messages.filter { it.role == MessageRole.ASSISTANT }
+                viewModel.uiState.value.messages
+                    .filter { it.role == MessageRole.ASSISTANT }
             assertEquals(2, assistant.size)
             assertEquals("Calculating sum", assistant[0].content)
             assertEquals(" = 4", assistant[1].content)
@@ -1573,7 +1583,8 @@ class ChatViewModelTest {
             every { AuthManager.getBaseUrl() } returns "http://test.local/"
             coEvery { mockApi.getSessions(any(), any(), any()) } returns
                 retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionListResponse(sessions = emptyList(), total = 0),
+                    com.m57.hermescontrol.data.model
+                        .SessionListResponse(sessions = emptyList(), total = 0),
                 )
             coEvery {
                 mockApi.getSessionMessages(
@@ -1623,7 +1634,8 @@ class ChatViewModelTest {
 
             val empty =
                 retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
+                    com.m57.hermescontrol.data.model
+                        .SessionMessagesResponse(messages = emptyList()),
                 )
             messagesA.complete(empty)
             messagesB.complete(empty)
@@ -1641,7 +1653,8 @@ class ChatViewModelTest {
             every { AuthManager.getBaseUrl() } returns "http://test.local/"
             coEvery { mockApi.getSessions(any(), any(), any()) } returns
                 retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionListResponse(sessions = emptyList(), total = 0),
+                    com.m57.hermescontrol.data.model
+                        .SessionListResponse(sessions = emptyList(), total = 0),
                 )
             coEvery {
                 mockApi.getSessionMessages(
@@ -1698,7 +1711,11 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals("session-b", viewModel.uiState.value.currentSessionId)
-            assertEquals(listOf("message-b"), viewModel.uiState.value.messages.map { it.content })
+            assertEquals(
+                listOf("message-b"),
+                viewModel.uiState.value.messages
+                    .map { it.content },
+            )
         }
 
     @Test
@@ -1927,7 +1944,8 @@ class ChatViewModelTest {
         sessionIds.forEach { sessionId ->
             coEvery { mockApi.getSessionMessages(sessionId, any(), any(), any(), any()) } returns
                 retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
+                    com.m57.hermescontrol.data.model
+                        .SessionMessagesResponse(messages = emptyList()),
                 )
         }
     }
@@ -1956,7 +1974,11 @@ class ChatViewModelTest {
             // Warm cache painted and survived the exhausted retry cycle — the
             // screen never went blank, and the user gets history + an error.
             assertEquals(1, viewModel.uiState.value.messages.size)
-            assertEquals("Cached hello", viewModel.uiState.value.messages[0].content)
+            assertEquals(
+                "Cached hello",
+                viewModel.uiState.value.messages[0]
+                    .content,
+            )
             assertFalse(viewModel.uiState.value.isLoading)
             assertNotNull("resumeError must be set after retries exhaust", viewModel.uiState.value.resumeError)
             assertFalse(viewModel.uiState.value.isResumeRetrying)
@@ -2305,7 +2327,8 @@ class ChatViewModelTest {
             assertEquals("session-new", viewModel.uiState.value.currentSessionId)
             assertTrue(
                 "recovery notice must be visible",
-                viewModel.uiState.value.messages.any { it.content.contains("no longer available") },
+                viewModel.uiState.value.messages
+                    .any { it.content.contains("no longer available") },
             )
         }
 
@@ -2328,7 +2351,8 @@ class ChatViewModelTest {
                 ApiClient.hermesApi.getSessionMessages(capture(fetchedSessions), any(), any(), any(), any())
             } returns
                 retrofit2.Response.success(
-                    com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
+                    com.m57.hermescontrol.data.model
+                        .SessionMessagesResponse(messages = emptyList()),
                 )
 
             // /fork sends session.branch keyed on the runtime id.
@@ -2379,7 +2403,8 @@ class ChatViewModelTest {
                     )
                 } else {
                     retrofit2.Response.success(
-                        com.m57.hermescontrol.data.model.SessionMessagesResponse(messages = emptyList()),
+                        com.m57.hermescontrol.data.model
+                            .SessionMessagesResponse(messages = emptyList()),
                     )
                 }
             }
@@ -3301,7 +3326,12 @@ class ChatViewModelTest {
             assertTrue(viewModel.uiState.value.hasOlderMessages)
             assertEquals(150, viewModel.uiState.value.messages.size)
             // Stable keys come from the server row id, not the from-end position.
-            assertEquals("rest-session-456-150", viewModel.uiState.value.messages.last().id)
+            assertEquals(
+                "rest-session-456-150",
+                viewModel.uiState.value.messages
+                    .last()
+                    .id,
+            )
         }
 
     @Test
@@ -3444,7 +3474,10 @@ class ChatViewModelTest {
             // 160 rows: the 10 new ones appended, the existing 150 kept —
             // no duplicates, no dropped newest copy (stable row-id keys).
             assertEquals(160, viewModel.uiState.value.messages.size)
-            assertTrue(viewModel.uiState.value.messages.any { it.id == "rest-session-456-160" })
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.id == "rest-session-456-160" },
+            )
         }
 
     // ── Attachment open (issue #724) ─────────────────────────────────────
@@ -3506,15 +3539,17 @@ class ChatViewModelTest {
         runTest {
             mockkObject(GatewayFileClient)
             val cacheDir =
-                java.io.File(
-                    System.getProperty("java.io.tmpdir"),
-                    "gw_save_${System.nanoTime()}",
-                ).apply { mkdirs() }
+                java.io
+                    .File(
+                        System.getProperty("java.io.tmpdir"),
+                        "gw_save_${System.nanoTime()}",
+                    ).apply { mkdirs() }
             every { app.cacheDir } returns cacheDir
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
             val file =
-                java.io.File(System.getProperty("java.io.tmpdir"), "note_${System.nanoTime()}.txt")
+                java.io
+                    .File(System.getProperty("java.io.tmpdir"), "note_${System.nanoTime()}.txt")
                     .apply { writeText("downloaded") }
             coEvery { GatewayFileClient.fetch("/tmp/note.txt", any()) } returns
                 GatewayFileResult.Success(GatewayFile("note.txt", "text/plain", file))
@@ -3552,10 +3587,11 @@ class ChatViewModelTest {
         runTest {
             mockkObject(GatewayFileClient)
             val cacheDir =
-                java.io.File(
-                    System.getProperty("java.io.tmpdir"),
-                    "gw_save_${System.nanoTime()}",
-                ).apply { mkdirs() }
+                java.io
+                    .File(
+                        System.getProperty("java.io.tmpdir"),
+                        "gw_save_${System.nanoTime()}",
+                    ).apply { mkdirs() }
             every { app.cacheDir } returns cacheDir
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
@@ -3590,10 +3626,11 @@ class ChatViewModelTest {
         runTest {
             mockkObject(GatewayFileClient)
             val cacheDir =
-                java.io.File(
-                    System.getProperty("java.io.tmpdir"),
-                    "gw_save_${System.nanoTime()}",
-                ).apply { mkdirs() }
+                java.io
+                    .File(
+                        System.getProperty("java.io.tmpdir"),
+                        "gw_save_${System.nanoTime()}",
+                    ).apply { mkdirs() }
             every { app.cacheDir } returns cacheDir
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
@@ -3606,7 +3643,8 @@ class ChatViewModelTest {
                     GatewayFile(
                         "report.pdf",
                         "application/pdf",
-                        java.io.File(System.getProperty("java.io.tmpdir"), "report_${System.nanoTime()}.pdf")
+                        java.io
+                            .File(System.getProperty("java.io.tmpdir"), "report_${System.nanoTime()}.pdf")
                             .apply { writeBytes(byteArrayOf(1)) },
                     ),
                 )
@@ -3625,7 +3663,11 @@ class ChatViewModelTest {
 
             verify(exactly = 0) { resolver.delete(any(), any(), any()) }
             assertNull(viewModel.uiState.value.savingAttachmentPath)
-            assertTrue(viewModel.uiState.value.openError.orEmpty().startsWith("Could not save"))
+            assertTrue(
+                viewModel.uiState.value.openError
+                    .orEmpty()
+                    .startsWith("Could not save"),
+            )
         }
 
     @Test
@@ -3633,10 +3675,11 @@ class ChatViewModelTest {
         runTest {
             mockkObject(GatewayFileClient)
             val cacheDir =
-                java.io.File(
-                    System.getProperty("java.io.tmpdir"),
-                    "gw_save_${System.nanoTime()}",
-                ).apply { mkdirs() }
+                java.io
+                    .File(
+                        System.getProperty("java.io.tmpdir"),
+                        "gw_save_${System.nanoTime()}",
+                    ).apply { mkdirs() }
             every { app.cacheDir } returns cacheDir
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
@@ -3675,10 +3718,11 @@ class ChatViewModelTest {
         runTest {
             mockkObject(GatewayFileClient)
             val cacheDir =
-                java.io.File(
-                    System.getProperty("java.io.tmpdir"),
-                    "gw_open_${System.nanoTime()}",
-                ).apply { mkdirs() }
+                java.io
+                    .File(
+                        System.getProperty("java.io.tmpdir"),
+                        "gw_open_${System.nanoTime()}",
+                    ).apply { mkdirs() }
             every { app.cacheDir } returns cacheDir
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
@@ -3711,10 +3755,11 @@ class ChatViewModelTest {
         runTest {
             mockkObject(GatewayFileClient)
             val cacheDir =
-                java.io.File(
-                    System.getProperty("java.io.tmpdir"),
-                    "gw_open_${System.nanoTime()}",
-                ).apply { mkdirs() }
+                java.io
+                    .File(
+                        System.getProperty("java.io.tmpdir"),
+                        "gw_open_${System.nanoTime()}",
+                    ).apply { mkdirs() }
             every { app.cacheDir } returns cacheDir
             every { app.applicationContext } returns app
             every { app.getApplicationContext() } returns app
@@ -3743,7 +3788,11 @@ class ChatViewModelTest {
 
             // …and cleared in all outcomes.
             assertNull(vm.uiState.value.openingAttachmentPath)
-            assertTrue(vm.uiState.value.openError.orEmpty().contains("big.pdf"))
+            assertTrue(
+                vm.uiState.value.openError
+                    .orEmpty()
+                    .contains("big.pdf"),
+            )
         }
 
     @Test
@@ -3763,7 +3812,10 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // Optimistic UI state has the user message immediately
-            assertTrue(vm.uiState.value.messages.any { it.content == "My super important long prompt" })
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "My super important long prompt" },
+            )
             assertTrue(vm.uiState.value.isAgentTyping)
             // But wsClient.sendMessage not dispatched yet because session_id was null
             assertTrue(sentPrompts.isEmpty())
@@ -3781,7 +3833,10 @@ class ChatViewModelTest {
             // Prompt should be dispatched automatically!
             assertEquals(listOf("My super important long prompt"), sentPrompts)
             assertEquals("session-storage-969", vm.uiState.value.currentSessionId)
-            assertTrue(vm.uiState.value.messages.any { it.content == "My super important long prompt" })
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "My super important long prompt" },
+            )
         }
 
     @Test
@@ -3806,7 +3861,10 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             // Optimistic message in UI
-            assertTrue(vm.uiState.value.messages.any { it.content == "Prompt typed during reconnect" })
+            assertTrue(
+                vm.uiState.value.messages
+                    .any { it.content == "Prompt typed during reconnect" },
+            )
 
             // Complete the new SESSION_CREATE RPC
             mockEventsFlow.emit(
@@ -3842,6 +3900,9 @@ class ChatViewModelTest {
 
             assertFalse(vm.uiState.value.isAgentTyping)
             assertNotNull(vm.uiState.value.errorMessage)
-            assertTrue(vm.uiState.value.errorMessage!!.contains("Backend exploded"))
+            assertTrue(
+                vm.uiState.value.errorMessage!!
+                    .contains("Backend exploded"),
+            )
         }
 }

@@ -18,7 +18,11 @@ data class ConfigRow(
 ) {
     /** Human label: last path segment, underscores → spaces. */
     val label: String =
-        key.split(".").last().replace("_", " ").replaceFirstChar { it.uppercase() }
+        key
+            .split(".")
+            .last()
+            .replace("_", " ")
+            .replaceFirstChar { it.uppercase() }
 
     /** Search/display text of the current value. */
     val valueText: String = value?.let(::jsonText) ?: ""

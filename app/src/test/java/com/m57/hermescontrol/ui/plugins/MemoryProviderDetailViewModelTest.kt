@@ -229,7 +229,11 @@ class MemoryProviderDetailViewModelTest {
         vm.saveConfig()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage.orEmpty().contains("Failed to save"))
+        assertTrue(
+            vm.uiState.value.toastMessage
+                .orEmpty()
+                .contains("Failed to save"),
+        )
     }
 
     @Test
@@ -242,7 +246,13 @@ class MemoryProviderDetailViewModelTest {
         val state = vm.uiState.value
         assertEquals("Setup completed", state.toastMessage)
         assertTrue(state.setupResult?.ok == true)
-        assertEquals("installed", state.setupResult?.results?.first()?.status)
+        assertEquals(
+            "installed",
+            state.setupResult
+                ?.results
+                ?.first()
+                ?.status,
+        )
     }
 
     @Test
@@ -253,7 +263,11 @@ class MemoryProviderDetailViewModelTest {
         vm.runSetup()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage.orEmpty().contains("Setup failed"))
+        assertTrue(
+            vm.uiState.value.toastMessage
+                .orEmpty()
+                .contains("Setup failed"),
+        )
     }
 
     @Test

@@ -110,7 +110,10 @@ object ToolViewBuilder {
 
     private fun parseMaybeObject(value: JsonElement?): JsonObject? =
         when (value) {
-            is JsonObject -> value
+            is JsonObject -> {
+                value
+            }
+
             is JsonPrimitive -> {
                 if (!value.isString || value.content.trim().isEmpty()) {
                     null
@@ -122,7 +125,10 @@ object ToolViewBuilder {
                     }
                 }
             }
-            else -> null
+
+            else -> {
+                null
+            }
         }
 
     private fun unwrapToolPayload(value: JsonElement?): JsonElement? {
@@ -459,7 +465,13 @@ object ToolViewBuilder {
             val lines =
                 content
                     .split("\n")
-                    .mapNotNull { line -> Regex("^(\\d+)\\|").find(line)?.groupValues?.get(1)?.toIntOrNull() }
+                    .mapNotNull { line ->
+                        Regex("^(\\d+)\\|")
+                            .find(line)
+                            ?.groupValues
+                            ?.get(1)
+                            ?.toIntOrNull()
+                    }
 
             if (lines.isNotEmpty()) {
                 lineLabel =
@@ -659,13 +671,11 @@ object ToolViewBuilder {
             Regex(
                 """\b(\d+)\s+(results?|items?|files?|matches?|documents?|sources?|searches?|steps?|rows?)\b""",
                 RegexOption.IGNORE_CASE,
-            )
-                .find(t)
+            ).find(t)
                 ?: Regex(
                     """\b(?:did|found|returned|listed|searched|matched|updated|created|deleted|processed)\s+(\d+)\b""",
                     RegexOption.IGNORE_CASE,
-                )
-                    .find(t)
+                ).find(t)
 
         val n = unitMatch?.groupValues?.get(1)?.toIntOrNull() ?: return null
         val noun = unitMatch.groupValues.getOrNull(2)?.takeIf { it.isNotEmpty() } ?: fallbackNoun
@@ -715,12 +725,11 @@ object ToolViewBuilder {
         return if (payload === record) emptyList() else collectResultItems(payload)
     }
 
-    private fun cleanVisibleText(text: String): String {
-        return text
+    private fun cleanVisibleText(text: String): String =
+        text
             .replace(Regex("`{3,}"), "")
             .replace(Regex("(?<=[\\p{L}\\p{N})\\].,!?:;\"'”’])\\[(?:\\d+(?:\\s*,\\s*\\d+)*)\\](?!\\()"), "")
             .replace(Regex("\\[([^\\]]+)\\]\\(([^)\\s]+)\\)")) { m -> "${m.groupValues[1]} ${m.groupValues[2]}" }
-    }
 
     private fun extractSearchResults(
         result: JsonElement?,
@@ -735,8 +744,7 @@ object ToolViewBuilder {
                     url = firstString(r, listOf("url", "href", "link")),
                     snippet = cleanVisibleText(firstString(r, listOf("snippet", "description", "body"))),
                 )
-            }
-            .filter { it.title.isNotEmpty() || it.url.isNotEmpty() }
+            }.filter { it.title.isNotEmpty() || it.url.isNotEmpty() }
             .take(limit)
     }
 
@@ -913,12 +921,24 @@ object ToolViewBuilder {
     private fun pendingTitle(
         toolName: String,
         args: JsonObject?,
-    ): String {
-        return when (toolName) {
-            "web_extract" -> "Reading ${targetHostname(toolName, args, null)}"
-            "browser_navigate" -> "Opening ${targetHostname(toolName, args, null)}"
-            "web_search" -> "Searching \"${compactPreview(searchQueryFor(args), 48)}\""
-            "read_file" -> "Reading ${readFileDisplayTarget(args, null)}"
+    ): String =
+        when (toolName) {
+            "web_extract" -> {
+                "Reading ${targetHostname(toolName, args, null)}"
+            }
+
+            "browser_navigate" -> {
+                "Opening ${targetHostname(toolName, args, null)}"
+            }
+
+            "web_search" -> {
+                "Searching \"${compactPreview(searchQueryFor(args), 48)}\""
+            }
+
+            "read_file" -> {
+                "Reading ${readFileDisplayTarget(args, null)}"
+            }
+
             "terminal", "execute_code" -> {
                 val command = shellCommand(args)
                 val verb = if (toolName == "execute_code") "Running code" else "Running"
@@ -931,21 +951,38 @@ object ToolViewBuilder {
                     titleForTool(toolName)
                 }
             }
-            "memory" -> "Saving"
-            else -> titleForTool(toolName)
+
+            "memory" -> {
+                "Saving"
+            }
+
+            else -> {
+                titleForTool(toolName)
+            }
         }
-    }
 
     private fun doneTitle(
         toolName: String,
         args: JsonObject?,
         result: JsonObject?,
-    ): String {
-        return when (toolName) {
-            "web_extract" -> "Read ${targetHostname(toolName, args, result)}"
-            "browser_navigate" -> "Opened ${targetHostname(toolName, args, result)}"
-            "web_search" -> "Searched \"${compactPreview(searchQueryFor(args), 48)}\""
-            "read_file" -> "Read ${readFileDisplayTarget(args, result)}"
+    ): String =
+        when (toolName) {
+            "web_extract" -> {
+                "Read ${targetHostname(toolName, args, result)}"
+            }
+
+            "browser_navigate" -> {
+                "Opened ${targetHostname(toolName, args, result)}"
+            }
+
+            "web_search" -> {
+                "Searched \"${compactPreview(searchQueryFor(args), 48)}\""
+            }
+
+            "read_file" -> {
+                "Read ${readFileDisplayTarget(args, result)}"
+            }
+
             "terminal", "execute_code" -> {
                 val command = shellCommand(args)
                 val verb = if (toolName == "execute_code") "Ran code" else "Ran"
@@ -958,6 +995,7 @@ object ToolViewBuilder {
                     titleForTool(toolName)
                 }
             }
+
             "memory" -> {
                 val action = firstString(args, listOf("action")).lowercase()
                 val target = firstString(args, listOf("target"))
@@ -973,27 +1011,35 @@ object ToolViewBuilder {
                 // pre-engine mobile summary did.
                 if (target.isNotEmpty()) "$base ($target)" else base
             }
-            "cronjob" -> "Cron ${firstString(args, listOf("action")).ifEmpty { "manage" }}"
+
+            "cronjob" -> {
+                "Cron ${firstString(args, listOf("action")).ifEmpty { "manage" }}"
+            }
+
             "edit_file", "patch", "write_file" -> {
                 val path = fileEditPath(args, result)
                 if (path.isNotEmpty()) fileEditBasename(path) else titleForTool(toolName)
             }
-            else -> titleForTool(toolName)
+
+            else -> {
+                titleForTool(toolName)
+            }
         }
-    }
 
     private fun errorTitle(
         toolName: String,
         result: JsonObject?,
-    ): String {
-        return when (toolName) {
+    ): String =
+        when (toolName) {
             "browser_navigate" -> {
                 val url = findFirstUrl(result).ifEmpty { result?.get("url")?.toString() ?: "" }
                 if (url.isNotEmpty()) "Failed to open ${hostnameOf(url)}" else titleForTool(toolName)
             }
-            else -> titleForTool(toolName)
+
+            else -> {
+                titleForTool(toolName)
+            }
         }
-    }
 
     private fun targetHostname(
         toolName: String,
@@ -1033,6 +1079,7 @@ object ToolViewBuilder {
 
                 if (url.isNotEmpty()) hostnameOf(url) else "Navigated in browser"
             }
+
             "browser_snapshot" -> {
                 val snapshot = firstString(result, listOf("snapshot"))
                 if (snapshot.isNotEmpty()) {
@@ -1043,6 +1090,7 @@ object ToolViewBuilder {
                     "Captured a browser accessibility snapshot"
                 }
             }
+
             "browser_click" -> {
                 val clicked =
                     firstString(
@@ -1058,21 +1106,24 @@ object ToolViewBuilder {
                     "Clicked $clicked"
                 }
             }
+
             "browser_fill", "browser_type" -> {
                 val field = firstString(args, listOf("label", "field", "ref", "target"))
                 val value = firstString(args, listOf("value", "text"))
                 listOf(
                     field.takeIf { it.isNotEmpty() }?.let { "Field: $it" },
                     value.takeIf { it.isNotEmpty() }?.let { "Value: ${compactPreview(it, 42)}" },
-                )
-                    .filterNotNull()
+                ).filterNotNull()
                     .joinToString(" · ")
                     .ifEmpty { "Filled page input" }
             }
-            "web_search" ->
+
+            "web_search" -> {
                 searchQueryFor(
                     args,
                 ).takeIf { it.isNotEmpty() }?.let { "Query: $it" } ?: "Queried web sources"
+            }
+
             "terminal", "execute_code" -> {
                 val output = shellOutput(result)
                 val firstMeaningfulLine =
@@ -1089,6 +1140,7 @@ object ToolViewBuilder {
                     ""
                 }
             }
+
             "read_file", "edit_file", "patch", "write_file" -> {
                 val path =
                     if (isFileEditTool(toolName)) {
@@ -1103,6 +1155,7 @@ object ToolViewBuilder {
                     fallbackDetailText(args, rawResult)
                 }
             }
+
             "web_extract" -> {
                 val url =
                     firstString(args, listOf("url"))
@@ -1111,11 +1164,27 @@ object ToolViewBuilder {
 
                 if (url.isNotEmpty()) hostnameOf(url) else "Fetched webpage"
             }
-            "memory" -> firstString(result, listOf("message", "error"))
-            "cronjob" -> cronjobSubtitle(args, result)
-            "todo" -> todoSubtitle(result)
-            "fact_store" -> factStoreSubtitle(args, result)
-            "session_search" -> sessionSearchSubtitle(result)
+
+            "memory" -> {
+                firstString(result, listOf("message", "error"))
+            }
+
+            "cronjob" -> {
+                cronjobSubtitle(args, result)
+            }
+
+            "todo" -> {
+                todoSubtitle(result)
+            }
+
+            "fact_store" -> {
+                factStoreSubtitle(args, result)
+            }
+
+            "session_search" -> {
+                sessionSearchSubtitle(result)
+            }
+
             "skills_list" -> {
                 val category = firstString(args, listOf("category"))
                 val count =
@@ -1128,17 +1197,23 @@ object ToolViewBuilder {
                     "No skills found"
                 }
             }
-            "skill_view" -> firstString(args, listOf("name"))
+
+            "skill_view" -> {
+                firstString(args, listOf("name"))
+            }
+
             "skill_manage" -> {
                 val action = firstString(args, listOf("action"))
                 val name = firstString(args, listOf("name"))
                 if (name.isNotEmpty()) "Skill $action: $name" else "Skill $action"
             }
+
             "process" -> {
                 val action = firstString(args, listOf("action"))
                 val procId = firstString(args, listOf("session_id"))
                 if (procId.isNotEmpty()) "$action: $procId" else action
             }
+
             "x_search" -> {
                 val query = firstString(args, listOf("query"))
                 val degraded =
@@ -1149,12 +1224,17 @@ object ToolViewBuilder {
                     )?.let { !it.isString && it.content == "true" } == true
                 if (query.isNotEmpty()) "$query${if (degraded) " (no citations)" else ""}" else "Queried X"
             }
-            "vision_analyze" -> firstString(args, listOf("image_url")).take(60)
+
+            "vision_analyze" -> {
+                firstString(args, listOf("image_url")).take(60)
+            }
+
             "tool_search" -> {
                 val query = firstString(args, listOf("query"))
                 val matches = (result?.get("matches") as? JsonArray)?.size
                 if (matches != null) "$query ($matches matches)" else query
             }
+
             "image_generate" -> {
                 val imageUrl = firstString(result, listOf("image")).ifEmpty { firstString(args, listOf("image_url")) }
                 val modality = firstString(result, listOf("modality"))
@@ -1162,6 +1242,7 @@ object ToolViewBuilder {
                     .filterNotNull()
                     .joinToString(" ")
             }
+
             "project_list" -> {
                 val projects = (result?.get("projects") as? JsonArray)?.size
                 val active = firstString(result, listOf("active_id"))
@@ -1171,11 +1252,13 @@ object ToolViewBuilder {
                     "Projects"
                 }
             }
+
             "project_create", "project_switch" -> {
                 val actionLabel = if (toolName == "project_create") "Created" else "Switched to"
                 val name = firstString(result, listOf("name"))
                 if (name.isNotEmpty()) "$actionLabel $name" else actionLabel
             }
+
             "read_terminal" -> {
                 val error = firstString(result, listOf("error"))
                 if (error.isNotEmpty()) {
@@ -1193,7 +1276,11 @@ object ToolViewBuilder {
                     }
                 }
             }
-            "computer_use" -> computerUseSubtitle(args, result)
+
+            "computer_use" -> {
+                computerUseSubtitle(args, result)
+            }
+
             else -> {
                 val summary = ToolResultSummary.formatToolResultSummary(rawResult)
                 val firstLine = summary.split("\n").firstOrNull()?.takeIf { it.isNotEmpty() } ?: ""
@@ -1304,9 +1391,13 @@ object ToolViewBuilder {
                     60,
                 )}"
             } ?: ""}"
+
             "scroll" -> "${messages?.size ?: 0} messages (scroll)"
+
             "read" -> "${msgCount ?: messages?.size ?: 0} messages${if (truncated) " (truncated)" else ""}"
+
             "browse" -> "${count ?: 0} recent sessions"
+
             else -> "session_search"
         }
     }
@@ -1369,6 +1460,7 @@ object ToolViewBuilder {
                     fallbackDetailText(rawArgs, rawResult)
                 }
             }
+
             "terminal", "execute_code" -> {
                 val output = shellOutput(result)
                 if (output.isNotEmpty()) {
@@ -1381,6 +1473,7 @@ object ToolViewBuilder {
                     ""
                 }
             }
+
             "web_extract" -> {
                 val direct = firstString(result, listOf("content", "text", "markdown", "body", "summary", "message"))
                 if (direct.isNotEmpty()) {
@@ -1393,20 +1486,24 @@ object ToolViewBuilder {
                         .mapNotNull { item ->
                             val row = parseMaybeObject(item) ?: return@mapNotNull null
                             firstString(row, listOf("content", "text", "markdown", "body"))
-                        }
-                        .filter { it.isNotEmpty() }
+                        }.filter { it.isNotEmpty() }
                         .joinToString("\n\n---\n\n")
                 }
 
                 fallbackDetailText(rawArgs, rawResult)
             }
+
             "read_file" -> {
                 if (rawResult == null) {
                     return ""
                 }
                 firstString(result, listOf("content", "text", "data", "body"))
             }
-            "memory" -> firstString(result, listOf("message", "error"))
+
+            "memory" -> {
+                firstString(result, listOf("message", "error"))
+            }
+
             "edit_file", "patch", "write_file" -> {
                 if (inlineDiffFromResult(rawResult).isNotEmpty()) {
                     ""
@@ -1416,11 +1513,27 @@ object ToolViewBuilder {
                     }
                 }
             }
-            "web_search" -> fallbackDetailText(rawArgs, rawResult)
-            "cronjob" -> cronjobDetail(args, result)
-            "todo" -> todoDetail(result) ?: ""
-            "fact_store" -> factStoreDetail(result) ?: ""
-            "session_search" -> sessionSearchDetail(result) ?: ""
+
+            "web_search" -> {
+                fallbackDetailText(rawArgs, rawResult)
+            }
+
+            "cronjob" -> {
+                cronjobDetail(args, result)
+            }
+
+            "todo" -> {
+                todoDetail(result) ?: ""
+            }
+
+            "fact_store" -> {
+                factStoreDetail(result) ?: ""
+            }
+
+            "session_search" -> {
+                sessionSearchDetail(result) ?: ""
+            }
+
             "skills_list" -> {
                 val skills =
                     (result?.get("skills") as? JsonArray)
@@ -1435,10 +1548,10 @@ object ToolViewBuilder {
                         if (desc.isNotEmpty()) lines += "     $desc"
                         if (cat.isNotEmpty()) lines += "     [$cat]"
                         lines.joinToString("\n")
-                    }
-                    ?.joinToString("\n\n")
+                    }?.joinToString("\n\n")
                     ?: "No skills found"
             }
+
             "skill_view" -> {
                 val content = firstString(result, listOf("content"))
                 val linkedFiles = result?.get("linked_files") as? JsonObject
@@ -1456,12 +1569,19 @@ object ToolViewBuilder {
                         ?.joinToString("\n") { (k, v) ->
                             val paths =
                                 when (v) {
-                                    is JsonArray ->
+                                    is JsonArray -> {
                                         v.joinToString(
                                             ", ",
                                         ) { (it as? JsonPrimitive)?.content ?: it.toString() }
-                                    is JsonPrimitive -> v.content
-                                    else -> v.toString()
+                                    }
+
+                                    is JsonPrimitive -> {
+                                        v.content
+                                    }
+
+                                    else -> {
+                                        v.toString()
+                                    }
                                 }
                             "     📎 $k: $paths"
                         }
@@ -1475,6 +1595,7 @@ object ToolViewBuilder {
                     if (content.isEmpty() && linkedFiles == null) append("No content available")
                 }
             }
+
             "skill_manage" -> {
                 val error = firstString(result, listOf("error"))
                 if (error.isNotEmpty()) {
@@ -1494,8 +1615,15 @@ object ToolViewBuilder {
                     }
                 }
             }
-            "process" -> processDetail(args, result)
-            "x_search" -> xSearchDetail(result)
+
+            "process" -> {
+                processDetail(args, result)
+            }
+
+            "x_search" -> {
+                xSearchDetail(result)
+            }
+
             "vision_analyze" -> {
                 val error = firstString(result, listOf("error"))
                 val description = firstString(result, listOf("description"))
@@ -1507,6 +1635,7 @@ object ToolViewBuilder {
                     else -> "No description available"
                 }
             }
+
             "tool_search" -> {
                 val matches = result?.get("matches") as? JsonArray
                 matches
@@ -1517,10 +1646,10 @@ object ToolViewBuilder {
                         val lines = mutableListOf("🔧 $name")
                         if (desc.isNotEmpty()) lines += "     $desc"
                         lines.joinToString("\n")
-                    }
-                    ?.joinToString("\n\n")
+                    }?.joinToString("\n\n")
                     ?: "No matching tools"
             }
+
             "image_generate" -> {
                 val error = firstString(result, listOf("error"))
                 val imageUrl = firstString(result, listOf("image"))
@@ -1539,6 +1668,7 @@ object ToolViewBuilder {
                     }
                 }
             }
+
             "project_list" -> {
                 val projects = result?.get("projects") as? JsonArray
                 projects
@@ -1555,10 +1685,10 @@ object ToolViewBuilder {
                         if (path.isNotEmpty()) lines += "     📍 $path"
                         if (isActive) lines += "     ✅ ACTIVE PROJECT"
                         lines.joinToString("\n")
-                    }
-                    ?.joinToString("\n\n")
+                    }?.joinToString("\n\n")
                     ?: ""
             }
+
             "project_create", "project_switch" -> {
                 val error = firstString(result, listOf("error"))
                 val actionLabel = if (toolName == "project_create") "Created" else "Switched to"
@@ -1577,9 +1707,18 @@ object ToolViewBuilder {
                     }
                 }
             }
-            "read_terminal" -> readTerminalDetail(result)
-            "computer_use" -> computerUseDetail(args, result)
-            else -> fallbackDetailText(rawArgs, rawResult)
+
+            "read_terminal" -> {
+                readTerminalDetail(result)
+            }
+
+            "computer_use" -> {
+                computerUseDetail(args, result)
+            }
+
+            else -> {
+                fallbackDetailText(rawArgs, rawResult)
+            }
         }
     }
 
@@ -1601,8 +1740,7 @@ object ToolViewBuilder {
                     val name = firstString(row, listOf("name", "id")).ifEmpty { "job" }
                     val sched = firstString(row, listOf("schedule_display", "schedule"))
                     if (sched.isNotEmpty()) "- $name · $sched" else "- $name"
-                }
-                .joinToString("\n")
+                }.joinToString("\n")
         }
 
         val rows =
@@ -1639,8 +1777,7 @@ object ToolViewBuilder {
                         else -> "[ ]"
                     }
                 "$marker $id. $content"
-            }
-            .joinToString("\n")
+            }.joinToString("\n")
             .takeIf { it.isNotEmpty() }
     }
 
@@ -1669,8 +1806,7 @@ object ToolViewBuilder {
                 } else {
                     "#$fid  $content"
                 }
-            }
-            .joinToString("\n")
+            }.joinToString("\n")
             .takeIf { it.isNotEmpty() }
     }
 
@@ -1700,8 +1836,7 @@ object ToolViewBuilder {
                         snippet.takeIf { it.isNotEmpty() }?.let { "\n     ┃ ${it.take(200).replace("\n", " ")}" } ?: ""
 
                     "━━━ #${idx + 1}  $header$sourceTag$titleLine$modelLine$matchedLine$countLine$snippetLine"
-                }
-                ?.joinToString("\n")
+                }?.joinToString("\n")
                 ?.takeIf { it.isNotEmpty() }
 
         val anchorId = intValue(result?.get("around_message_id"))
@@ -1727,8 +1862,7 @@ object ToolViewBuilder {
                     val cleanContent = content.take(300).replace("\n", " ")
 
                     "[$msgId] $roleEmoji $role$namePart$anchor\n     $cleanContent"
-                }
-                ?.joinToString("\n")
+                }?.joinToString("\n")
                 ?.takeIf { it.isNotEmpty() }
 
         return formattedResults ?: formattedMessages
@@ -1756,8 +1890,7 @@ object ToolViewBuilder {
                     if (pStatus.isNotEmpty()) parts += "     Status: $pStatus"
                     if (running != null) parts += "     Running: $running"
                     parts.joinToString("\n")
-                }
-                .joinToString("\n\n")
+                }.joinToString("\n\n")
         }
 
         val output = firstString(result, listOf("output"))
@@ -1782,7 +1915,10 @@ object ToolViewBuilder {
         val degraded = (result?.get("degraded") as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true
 
         return when {
-            error.isNotEmpty() -> "❌ $error"
+            error.isNotEmpty() -> {
+                "❌ $error"
+            }
+
             answer.isNotEmpty() -> {
                 val lines = mutableListOf(answer)
                 if (citations != null && citations.isNotEmpty()) {
@@ -1798,7 +1934,10 @@ object ToolViewBuilder {
                 if (degraded) lines += "\n⚠️ No citations — answer based on model's knowledge"
                 lines.joinToString("\n")
             }
-            else -> "No results"
+
+            else -> {
+                "No results"
+            }
         }
     }
 
@@ -1845,8 +1984,7 @@ object ToolViewBuilder {
                     .mapNotNull { el ->
                         val e = parseMaybeObject(el) ?: return@mapNotNull null
                         if (firstString(e, listOf("type")) == "text") firstString(e, listOf("text")) else null
-                    }
-                    .joinToString("\n")
+                    }.joinToString("\n")
             } else {
                 ""
             }
@@ -1866,12 +2004,13 @@ object ToolViewBuilder {
         val body =
             buildString {
                 val textPart =
-                    multimodalText.ifEmpty {
-                        firstString(
-                            result,
-                            listOf("text_summary"),
-                        )
-                    }.ifEmpty { textSummary }
+                    multimodalText
+                        .ifEmpty {
+                            firstString(
+                                result,
+                                listOf("text_summary"),
+                            )
+                        }.ifEmpty { textSummary }
                 if (textPart.isNotEmpty()) {
                     append(textPart)
                     if (textPart == multimodalText && textSummary.isNotEmpty() && multimodalText != textSummary) {

@@ -86,8 +86,9 @@ data class SystemUiState(
     val updateConfirmOpen: Boolean = false,
 )
 
-class SystemViewModel(application: Application) :
-    AndroidViewModel(application),
+class SystemViewModel(
+    application: Application,
+) : AndroidViewModel(application),
     ToastHost {
     companion object {
         private const val TAG = "SystemViewModel"

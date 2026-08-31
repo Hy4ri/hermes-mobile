@@ -239,13 +239,14 @@ data class GroupChatRoomMeta(
 ) {
     val memberNames: List<String>
         get() =
-            members?.mapNotNull { el ->
-                when (el) {
-                    is JsonPrimitive -> el.content
-                    is JsonObject -> el["name"]?.jsonPrimitive?.content ?: el["handle"]?.jsonPrimitive?.content
-                    else -> null
-                }
-            }.orEmpty()
+            members
+                ?.mapNotNull { el ->
+                    when (el) {
+                        is JsonPrimitive -> el.content
+                        is JsonObject -> el["name"]?.jsonPrimitive?.content ?: el["handle"]?.jsonPrimitive?.content
+                        else -> null
+                    }
+                }.orEmpty()
 }
 
 @Serializable

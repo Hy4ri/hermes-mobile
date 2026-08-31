@@ -52,13 +52,13 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.local/bin/ktlint
-          key: ktlint-1.2.1
+          key: ktlint-1.8.0
 
       - name: Install ktlint
         if: steps.cache-ktlint.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/bin
-          curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.2.1/ktlint
+          curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.8.0/ktlint
           chmod +x ktlint
           mv ktlint ~/.local/bin/
 

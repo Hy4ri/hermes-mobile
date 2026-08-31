@@ -73,7 +73,7 @@ We enforce Kotlin coding conventions and Jetpack Compose best practices.
 
 ### Kotlin Formatting
 
-- Code formatting is checked and enforced by **ktlint 1.2.1** in CI. The authoritative command is the Gradle task (not the standalone binary):
+- Code formatting is checked and enforced by **ktlint 1.8.0** in CI. The authoritative command is the Gradle task (not the standalone binary):
   ```bash
   ./gradlew ktlintCheck        # check (CI-equivalent)
   ./gradlew ktlintFormat       # auto-fix, then re-check with ktlintCheck

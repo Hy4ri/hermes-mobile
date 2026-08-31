@@ -20,7 +20,13 @@ class KanbanEventsClientTest {
         assertEquals("t-1", event.taskId)
         assertEquals("r-9", event.runId)
         assertEquals("status", event.kind)
-        assertEquals("done", event.payload?.get("status")?.jsonPrimitive?.content)
+        assertEquals(
+            "done",
+            event.payload
+                ?.get("status")
+                ?.jsonPrimitive
+                ?.content,
+        )
         assertEquals(1710000000L, event.createdAt)
     }
 

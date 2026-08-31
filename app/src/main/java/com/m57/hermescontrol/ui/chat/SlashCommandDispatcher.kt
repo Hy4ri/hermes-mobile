@@ -26,11 +26,26 @@ class SlashCommandDispatcher {
         val cmd = parts[0].lowercase()
 
         return when (cmd) {
-            "/stop", "/interrupt" -> SlashResult.Interrupt
-            "/new" -> SlashResult.NewSession
-            "/fork", "/branch" -> SlashResult.SessionBranch
-            "/model" -> SlashResult.ModelSwitch
-            "/update" -> SlashResult.Update
+            "/stop", "/interrupt" -> {
+                SlashResult.Interrupt
+            }
+
+            "/new" -> {
+                SlashResult.NewSession
+            }
+
+            "/fork", "/branch" -> {
+                SlashResult.SessionBranch
+            }
+
+            "/model" -> {
+                SlashResult.ModelSwitch
+            }
+
+            "/update" -> {
+                SlashResult.Update
+            }
+
             "/queue", "/q" -> {
                 val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
                 // Bubble shows the queued TEXT (prefix stripped) so the
@@ -41,8 +56,14 @@ class SlashCommandDispatcher {
                 // text so the usage message has something to sit under.
                 SlashResult.QueuePrompt(displayContent = arg.ifBlank { command })
             }
-            "/resume", "/history" -> SlashResult.OpenHistory
-            else -> SlashResult.RpcDispatch
+
+            "/resume", "/history" -> {
+                SlashResult.OpenHistory
+            }
+
+            else -> {
+                SlashResult.RpcDispatch
+            }
         }
     }
 }
@@ -105,5 +126,7 @@ sealed class SlashResult {
      * argument). Matching the server echo verbatim lets the transcript sync
      * dedupe the two copies of the same logical message.
      */
-    data class QueuePrompt(val displayContent: String) : SlashResult()
+    data class QueuePrompt(
+        val displayContent: String,
+    ) : SlashResult()
 }

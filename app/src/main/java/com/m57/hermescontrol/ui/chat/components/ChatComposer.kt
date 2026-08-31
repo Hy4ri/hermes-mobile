@@ -236,8 +236,7 @@ fun ChatInputBar(
                                                     onInputChange(
                                                         ChatInputPolicy.applyMention(inputFieldValue, bot.name),
                                                     )
-                                                }
-                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                }.padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         BotAvatar(

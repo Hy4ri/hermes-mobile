@@ -62,7 +62,12 @@ data class BotsUiState(
                 profiles.find { it.is_default == true || it.name == "default" }
                     ?: profiles.firstOrNull()
             val syncSnapshot = defaultProfile?.groupChatSyncSnapshot()
-            val deletedKeys = syncSnapshot?.deleted?.keys.orEmpty().map { it.lowercase() }
+            val deletedKeys =
+                syncSnapshot
+                    ?.deleted
+                    ?.keys
+                    .orEmpty()
+                    .map { it.lowercase() }
 
             val groupNameMap = linkedMapOf<String, String>()
 
@@ -101,61 +106,63 @@ data class BotsUiState(
                 }
             }
 
-            return groupNameMap.values.map { gName ->
-                val lower = gName.lowercase()
-                val matchingRoom =
-                    snapshotRooms[gName]
-                        ?: snapshotRooms["name:$gName"]
-                        ?: snapshotRooms["id:$gName"]
-                        ?: snapshotRooms.values.find { it.name.equals(gName, ignoreCase = true) }
+            return groupNameMap.values
+                .map { gName ->
+                    val lower = gName.lowercase()
+                    val matchingRoom =
+                        snapshotRooms[gName]
+                            ?: snapshotRooms["name:$gName"]
+                            ?: snapshotRooms["id:$gName"]
+                            ?: snapshotRooms.values.find { it.name.equals(gName, ignoreCase = true) }
 
-                val roomMemberNames = matchingRoom?.memberNames.orEmpty().map { it.lowercase() }
+                    val roomMemberNames = matchingRoom?.memberNames.orEmpty().map { it.lowercase() }
 
-                val matchedProfiles =
-                    profiles.filter { profile ->
-                        val botGroups = profile.botMeta()?.allGroups.orEmpty()
-                        botGroups.any { it.equals(gName, ignoreCase = true) } ||
-                            roomMemberNames.contains(profile.name.lowercase()) ||
-                            roomMemberNames.contains(profile.effectiveTitle.lowercase())
-                    }.toMutableList()
+                    val matchedProfiles =
+                        profiles
+                            .filter { profile ->
+                                val botGroups = profile.botMeta()?.allGroups.orEmpty()
+                                botGroups.any { it.equals(gName, ignoreCase = true) } ||
+                                    roomMemberNames.contains(profile.name.lowercase()) ||
+                                    roomMemberNames.contains(profile.effectiveTitle.lowercase())
+                            }.toMutableList()
 
-                // If room listed members (e.g. remote bots or bots not in local profiles), ensure they are seated
-                if (matchingRoom != null && roomMemberNames.isNotEmpty()) {
-                    for (mName in matchingRoom.memberNames) {
-                        val exists =
-                            matchedProfiles.any {
-                                it.name.equals(mName, ignoreCase = true) ||
-                                    it.effectiveTitle.equals(mName, ignoreCase = true)
+                    // If room listed members (e.g. remote bots or bots not in local profiles), ensure they are seated
+                    if (matchingRoom != null && roomMemberNames.isNotEmpty()) {
+                        for (mName in matchingRoom.memberNames) {
+                            val exists =
+                                matchedProfiles.any {
+                                    it.name.equals(mName, ignoreCase = true) ||
+                                        it.effectiveTitle.equals(mName, ignoreCase = true)
+                                }
+                            if (!exists) {
+                                val local = profiles.find { it.name.equals(mName, ignoreCase = true) }
+                                matchedProfiles.add(local ?: ProfileInfo(name = mName))
                             }
-                        if (!exists) {
-                            val local = profiles.find { it.name.equals(mName, ignoreCase = true) }
-                            matchedProfiles.add(local ?: ProfileInfo(name = mName))
                         }
                     }
-                }
 
-                var groupMembers: List<ProfileInfo> = matchedProfiles
+                    var groupMembers: List<ProfileInfo> = matchedProfiles
 
-                // Fallback: If group name was composed from bot names (e.g. "default, scoutbot")
-                if (groupMembers.isEmpty() && gName.contains(",")) {
-                    val targetNames = gName.split(",").map { it.trim().lowercase() }
-                    groupMembers = profiles.filter { targetNames.contains(it.name.lowercase()) }
-                }
+                    // Fallback: If group name was composed from bot names (e.g. "default, scoutbot")
+                    if (groupMembers.isEmpty() && gName.contains(",")) {
+                        val targetNames = gName.split(",").map { it.trim().lowercase() }
+                        groupMembers = profiles.filter { targetNames.contains(it.name.lowercase()) }
+                    }
 
-                val lastAt =
-                    matchingRoom?.log?.lastOrNull()?.at
-                        ?: matchingRoom?.updatedAt
-                        ?: 0L
+                    val lastAt =
+                        matchingRoom?.log?.lastOrNull()?.at
+                            ?: matchingRoom?.updatedAt
+                            ?: 0L
 
-                GroupInfo(
-                    name = gName,
-                    members = groupMembers,
-                    lastActivity = lastAt,
+                    GroupInfo(
+                        name = gName,
+                        members = groupMembers,
+                        lastActivity = lastAt,
+                    )
+                }.sortedWith(
+                    compareByDescending<GroupInfo> { it.lastActivity }
+                        .thenBy { it.name },
                 )
-            }.sortedWith(
-                compareByDescending<GroupInfo> { it.lastActivity }
-                    .thenBy { it.name },
-            )
         }
 
     val displayGroups: List<GroupInfo>
@@ -193,15 +200,13 @@ data class BotsUiState(
                     profile.name.lowercase().contains(query) ||
                         profile.effectiveTitle.lowercase().contains(query) ||
                         profile.effectiveDescription.lowercase().contains(query)
-                }
-                .sortedWith(
+                }.sortedWith(
                     compareByDescending<ProfileInfo> { it.name == activeProfileName }
                         .thenByDescending {
                             it.canonical_session?.last_active
                                 ?: it.last_session?.last_active
                                 ?: 0.0
-                        }
-                        .thenBy { it.name },
+                        }.thenBy { it.name },
                 )
         }
 }
@@ -464,13 +469,14 @@ class BotsViewModel(
                             rooms = updatedRooms,
                             deleted = updatedDeleted,
                         )
-                    HermesWsClient.request(
-                        WsMethods.PROFILES_CONFIGURE,
-                        mapOf(
-                            "name" to defaultProfile.name,
-                            "ui_meta" to mapOf("hermes-bots-groups" to newSnapshot.toMap()),
-                        ),
-                    ).await()
+                    HermesWsClient
+                        .request(
+                            WsMethods.PROFILES_CONFIGURE,
+                            mapOf(
+                                "name" to defaultProfile.name,
+                                "ui_meta" to mapOf("hermes-bots-groups" to newSnapshot.toMap()),
+                            ),
+                        ).await()
                 }
             } catch (_: Exception) {
             }
@@ -528,13 +534,14 @@ class BotsViewModel(
                                 rooms = updatedRooms,
                                 deleted = deletedMap,
                             )
-                        HermesWsClient.request(
-                            WsMethods.PROFILES_CONFIGURE,
-                            mapOf(
-                                "name" to defaultProfile.name,
-                                "ui_meta" to mapOf("hermes-bots-groups" to newSnapshot.toMap()),
-                            ),
-                        ).await()
+                        HermesWsClient
+                            .request(
+                                WsMethods.PROFILES_CONFIGURE,
+                                mapOf(
+                                    "name" to defaultProfile.name,
+                                    "ui_meta" to mapOf("hermes-bots-groups" to newSnapshot.toMap()),
+                                ),
+                            ).await()
                     }
                 }
             } catch (_: Exception) {

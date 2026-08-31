@@ -421,7 +421,12 @@ class ChatWsEventReducerTest {
             )
 
         assertEquals(1, result.state.messages.size)
-        assertEquals("complete", result.state.messages.single().content)
+        assertEquals(
+            "complete",
+            result.state.messages
+                .single()
+                .content,
+        )
     }
 
     @Test
@@ -556,12 +561,13 @@ class ChatWsEventReducerTest {
         var reasoningState = start.streamingState
         for (token in reasoningTokens) {
             reasoningState =
-                ChatWsEventReducer.reduce(
-                    state,
-                    reasoningState,
-                    WsEvent.ReasoningDelta(token, "session-1"),
-                    "session-1",
-                ).streamingState
+                ChatWsEventReducer
+                    .reduce(
+                        state,
+                        reasoningState,
+                        WsEvent.ReasoningDelta(token, "session-1"),
+                        "session-1",
+                    ).streamingState
         }
         assertEquals(true, reasoningState.isReasoning)
         assertEquals("The user just said \"run echo hi\". Let me run it.", reasoningState.reasoningText)
@@ -578,8 +584,18 @@ class ChatWsEventReducerTest {
                 "session-1",
             )
         assertEquals(1, result.state.messages.size)
-        assertEquals(MessageRole.TOOL, result.state.messages.first().role)
-        assertEquals("terminal", result.state.messages.first().toolName)
+        assertEquals(
+            MessageRole.TOOL,
+            result.state.messages
+                .first()
+                .role,
+        )
+        assertEquals(
+            "terminal",
+            result.state.messages
+                .first()
+                .toolName,
+        )
         // Issue #771: streaming message + reasoning survive the tool call
         assertEquals(true, result.streamingState.streamingMessage?.isStreaming)
         assertEquals("The user just said \"run echo hi\". Let me run it.", result.streamingState.reasoningText)
@@ -592,7 +608,12 @@ class ChatWsEventReducerTest {
                 WsEvent.ToolComplete("terminal", mapOf("output" to "hi"), "session-1"),
                 "session-1",
             )
-        assertEquals(ToolStatus.COMPLETED, result.state.messages.first().toolStatus)
+        assertEquals(
+            ToolStatus.COMPLETED,
+            result.state.messages
+                .first()
+                .toolStatus,
+        )
 
         // 5. reasoning.available — authoritative full-trace fill
         val fullReasoning = "The user just said \"run echo hi\". That's a simple terminal command. Let me just run it."
@@ -683,7 +704,12 @@ class ChatWsEventReducerTest {
                 "session-1",
             )
 
-        assertEquals("payload reasoning", result.state.messages.last().reasoningText)
+        assertEquals(
+            "payload reasoning",
+            result.state.messages
+                .last()
+                .reasoningText,
+        )
     }
 
     @Test

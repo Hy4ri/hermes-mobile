@@ -578,7 +578,10 @@ private fun ConfigFieldCard(
     val field = row.field
     val description =
         field?.description
-            ?: row.key.replace(".", " → ").replace("_", " ").replaceFirstChar { it.uppercase() }
+            ?: row.key
+                .replace(".", " → ")
+                .replace("_", " ")
+                .replaceFirstChar { it.uppercase() }
 
     Card(
         modifier =

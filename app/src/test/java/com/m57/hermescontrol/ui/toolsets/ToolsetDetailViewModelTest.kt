@@ -165,7 +165,15 @@ class ToolsetDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = vm.uiState.value
-        assertEquals(true, state.config?.providers?.get(1)?.envVars?.first { it.key == "KEY_B" }?.isSet)
+        assertEquals(
+            true,
+            state.config
+                ?.providers
+                ?.get(1)
+                ?.envVars
+                ?.first { it.key == "KEY_B" }
+                ?.isSet,
+        )
         assertEquals("Saved KEY_B", state.toastMessage)
         assertNull(state.savingEnvKey)
     }
@@ -196,7 +204,15 @@ class ToolsetDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = vm.uiState.value
-        assertEquals(false, state.config?.providers?.get(1)?.envVars?.first { it.key == "KEY_B" }?.isSet)
+        assertEquals(
+            false,
+            state.config
+                ?.providers
+                ?.get(1)
+                ?.envVars
+                ?.first { it.key == "KEY_B" }
+                ?.isSet,
+        )
         assertFalse(state.revealedValues.containsKey("KEY_B"))
         assertEquals("Cleared KEY_B", state.toastMessage)
         assertNull(state.deletingEnvKey)
@@ -213,7 +229,10 @@ class ToolsetDetailViewModelTest {
         assertEquals("sekret", vm.uiState.value.revealedValues["KEY_B"])
 
         vm.hideEnvVar("KEY_B")
-        assertFalse(vm.uiState.value.revealedValues.containsKey("KEY_B"))
+        assertFalse(
+            vm.uiState.value.revealedValues
+                .containsKey("KEY_B"),
+        )
     }
 
     @Test
@@ -316,7 +335,10 @@ class ToolsetDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNull(vm.uiState.value.postSetup)
-        assertTrue(vm.uiState.value.toastMessage?.contains("spawn rejected") == true)
+        assertTrue(
+            vm.uiState.value.toastMessage
+                ?.contains("spawn rejected") == true,
+        )
         coVerify(exactly = 0) { mockApi.getActionStatus(any()) }
     }
 }

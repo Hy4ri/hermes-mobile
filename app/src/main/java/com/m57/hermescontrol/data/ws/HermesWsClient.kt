@@ -256,12 +256,15 @@ object HermesWsClient {
                     is WsEvent.ThinkingDelta,
                     is WsEvent.ReasoningDelta,
                     is WsEvent.ToolStart,
-                    -> pendingReply = true
+                    -> {
+                        pendingReply = true
+                    }
 
                     is WsEvent.MessageComplete -> {
                         pendingReply = false
                         disconnectIfIdleInBackground()
                     }
+
                     else -> {}
                 }
             }
@@ -992,7 +995,9 @@ object HermesWsClient {
                     disconnectIfIdleInBackground()
                 }
 
-                else -> Unit
+                else -> {
+                    Unit
+                }
             }
             // tryEmit on a DROP_OLDEST flow only returns false when the
             // buffer is full AND no subscriber is draining; with extraBuffer=512

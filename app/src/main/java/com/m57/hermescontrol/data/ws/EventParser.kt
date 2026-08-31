@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.ws
 
 import android.util.Log
+import com.m57.hermescontrol.ui.chat.extractTodosFromMap
 
 /**
  * Converts raw [JsonRpcResponse] objects into typed [WsEvent] instances.
@@ -187,6 +188,15 @@ object EventParser {
 
             "session.usage" -> {
                 WsEvent.SessionUsage(payload, sessionId)
+            }
+
+            "todo.updated" -> {
+                val revision =
+                    (payload?.get("revision") as? Number)?.toInt()
+                        ?: (params["revision"] as? Number)?.toInt()
+                val rawTodos = payload ?: params
+                val todos = extractTodosFromMap(rawTodos) ?: emptyList()
+                WsEvent.TodoUpdated(todos, revision, sessionId)
             }
 
             "reaction" -> {

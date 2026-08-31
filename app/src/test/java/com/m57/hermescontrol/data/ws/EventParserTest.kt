@@ -6,6 +6,7 @@ import io.mockk.unmockkAll
 import kotlinx.serialization.json.JsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -699,5 +700,50 @@ class EventParserTest {
         val toolEvent = event as WsEvent.ToolStart
         assertEquals("terminal", toolEvent.name)
         assertEquals("sess-replay-2", toolEvent.sessionId)
+    }
+
+    @Test
+    fun testParseTodoUpdated_returnsTodoUpdatedEvent() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "todo.updated",
+                        "session_id" to "sess-abc",
+                        "payload" to
+                            mapOf(
+                                "revision" to 5,
+                                "todos" to
+                                    listOf(
+                                        mapOf("id" to "1", "content" to "Parent task", "status" to "in_progress"),
+                                        mapOf(
+                                            "id" to "2",
+                                            "content" to "Sub task",
+                                            "status" to "pending",
+                                            "parent" to "1",
+                                        ),
+                                    ),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.TodoUpdated)
+        val todoUpdated = event as WsEvent.TodoUpdated
+        assertEquals("sess-abc", todoUpdated.sessionId)
+        assertEquals(5, todoUpdated.revision)
+        assertEquals(2, todoUpdated.todos.size)
+        assertEquals("1", todoUpdated.todos[0].id)
+        assertEquals("Parent task", todoUpdated.todos[0].content)
+        assertEquals(null, todoUpdated.todos[0].parent)
+        assertFalse(todoUpdated.todos[0].isSubtask)
+        assertEquals("2", todoUpdated.todos[1].id)
+        assertEquals("Sub task", todoUpdated.todos[1].content)
+        assertEquals("1", todoUpdated.todos[1].parent)
+        assertTrue(todoUpdated.todos[1].isSubtask)
     }
 }

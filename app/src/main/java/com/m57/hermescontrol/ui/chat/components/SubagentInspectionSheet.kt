@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.ui.chat.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,8 @@ import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +34,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +65,9 @@ fun SubagentInspectionSheet(
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val todoTree = remember(todos) { buildTodoTree(todos) }
+    var collapsedParentIds by remember { mutableStateOf(setOf<String>()) }
+    val displayRows = remember(todoTree, collapsedParentIds) { flattenTodoTree(todoTree, collapsedParentIds) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -111,9 +122,9 @@ fun SubagentInspectionSheet(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (todos.isNotEmpty()) {
+                    if (displayRows.isNotEmpty()) {
                         item(key = "todos_header") {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -134,11 +145,26 @@ fun SubagentInspectionSheet(
                                 )
                             }
                         }
-                        itemsIndexed(
-                            items = todos,
-                            key = { index, todo -> "todo-${todo.id}_$index" },
-                        ) { _, todo ->
-                            TodoInspectionCard(todo = todo)
+                        items(
+                            items = displayRows,
+                            key = { row -> "todo-${row.todo.id}_${row.depth}" },
+                        ) { row ->
+                            TodoInspectionCard(
+                                row = row,
+                                onToggleExpand =
+                                    if (row.hasChildren) {
+                                        {
+                                            collapsedParentIds =
+                                                if (row.todo.id in collapsedParentIds) {
+                                                    collapsedParentIds - row.todo.id
+                                                } else {
+                                                    collapsedParentIds + row.todo.id
+                                                }
+                                        }
+                                    } else {
+                                        null
+                                    },
+                            )
                         }
                     }
 
@@ -180,12 +206,128 @@ fun SubagentInspectionSheet(
     }
 }
 
+/**
+ * Node in the hierarchical todo tree.
+ */
+data class TodoNode(
+    val item: TodoItem,
+    val children: List<TodoNode> = emptyList(),
+    val depth: Int = 0,
+)
+
+/**
+ * Flattened row representation ready for lazy column rendering with indentation and collapse state.
+ */
+data class TodoDisplayRow(
+    val todo: TodoItem,
+    val depth: Int,
+    val hasChildren: Boolean,
+    val isExpanded: Boolean,
+    val completedSubtasksCount: Int,
+    val totalSubtasksCount: Int,
+)
+
+/**
+ * Constructs a hierarchical tree from a flat list of [TodoItem]s using the [TodoItem.parent] property.
+ */
+fun buildTodoTree(todos: List<TodoItem>): List<TodoNode> {
+    val itemsById = todos.associateBy { it.id }
+    val childrenByParent = mutableMapOf<String, MutableList<TodoItem>>()
+    val rootItems = mutableListOf<TodoItem>()
+
+    for (item in todos) {
+        val p = item.parent
+        if (p != null && itemsById.containsKey(p) && p != item.id) {
+            childrenByParent.getOrPut(p) { mutableListOf() }.add(item)
+        } else {
+            rootItems.add(item)
+        }
+    }
+
+    fun buildNode(
+        item: TodoItem,
+        depth: Int,
+    ): TodoNode {
+        val children = childrenByParent[item.id]?.map { buildNode(it, depth + 1) } ?: emptyList()
+        return TodoNode(item = item, children = children, depth = depth)
+    }
+
+    return rootItems.map { buildNode(it, 0) }
+}
+
+fun getAllDescendantTodos(node: TodoNode): List<TodoItem> {
+    val descendants = mutableListOf<TodoItem>()
+    for (child in node.children) {
+        descendants.add(child.item)
+        descendants.addAll(getAllDescendantTodos(child))
+    }
+    return descendants
+}
+
+fun flattenTodoTree(
+    nodes: List<TodoNode>,
+    collapsedParentIds: Set<String>,
+): List<TodoDisplayRow> {
+    val result = mutableListOf<TodoDisplayRow>()
+
+    fun traverse(node: TodoNode) {
+        val isExpanded = node.item.id !in collapsedParentIds
+        val descendants = getAllDescendantTodos(node)
+        val completedCount = descendants.count { it.isCompleted }
+        val totalCount = descendants.size
+
+        result.add(
+            TodoDisplayRow(
+                todo = node.item,
+                depth = node.depth,
+                hasChildren = node.children.isNotEmpty(),
+                isExpanded = isExpanded,
+                completedSubtasksCount = completedCount,
+                totalSubtasksCount = totalCount,
+            ),
+        )
+        if (node.children.isNotEmpty() && isExpanded) {
+            for (child in node.children) {
+                traverse(child)
+            }
+        }
+    }
+
+    for (root in nodes) {
+        traverse(root)
+    }
+    return result
+}
+
 @Composable
-private fun TodoInspectionCard(todo: TodoItem) {
+private fun TodoInspectionCard(
+    row: TodoDisplayRow,
+    onToggleExpand: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val todo = row.todo
+    val depth = row.depth
+    val startPadding = (depth * 20).coerceAtMost(60).dp
+
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(start = startPadding)
+                .then(
+                    if (onToggleExpand != null) {
+                        Modifier.clickable(onClick = onToggleExpand)
+                    } else {
+                        Modifier
+                    },
+                ),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color =
+            if (depth > 0) {
+                MaterialTheme.colorScheme.surfaceContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -211,19 +353,35 @@ private fun TodoInspectionCard(todo: TodoItem) {
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     }
                 }
+
+            if (depth > 0) {
+                Text(
+                    text = "↳",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(end = 6.dp),
+                )
+            }
+
             Icon(
                 imageVector = statusIcon,
                 contentDescription = null,
                 tint = statusTint,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(if (depth > 0) 16.dp else 18.dp),
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = todo.content,
                 style =
-                    MaterialTheme.typography.bodyMedium.copy(
-                        textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                    ),
+                    if (depth > 0) {
+                        MaterialTheme.typography.bodySmall.copy(
+                            textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                        )
+                    } else {
+                        MaterialTheme.typography.bodyMedium.copy(
+                            textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                        )
+                    },
                 fontWeight = if (todo.isInProgress) FontWeight.Bold else FontWeight.Normal,
                 color =
                     if (todo.isCompleted) {
@@ -233,6 +391,28 @@ private fun TodoInspectionCard(todo: TodoItem) {
                     },
                 modifier = Modifier.weight(1f),
             )
+
+            if (row.hasChildren) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    Text(
+                        text = "${row.completedSubtasksCount}/${row.totalSubtasksCount}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = if (row.isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (row.isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }

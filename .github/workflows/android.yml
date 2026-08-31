@@ -22,10 +22,42 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
+  # Job 0: Detect changes — skips heavy Android build/tests for doc-only PRs
+  # ─────────────────────────────────────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Paths Filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'app/**'
+              - 'gradle/**'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'gradlew'
+              - 'gradlew.bat'
+              - '.github/workflows/android.yml'
+              - '.editorconfig'
+              - 'flake.nix'
+              - 'flake.lock'
+
+  # ─────────────────────────────────────────────────────────────────────
   # Job 1: ktlint (code style) — fastest feedback, runs in parallel.
   # ─────────────────────────────────────────────────────────────────────
   ktlint:
     name: ktlint — Code Style
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -88,6 +120,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   android-lint:
     name: Android Lint — Static Analysis
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -125,6 +159,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit & Integration Tests
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -162,7 +198,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   build:
     name: Build Debug APK
-    needs: [ktlint, android-lint, unit-tests]
+    needs: [changes, ktlint, android-lint, unit-tests]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -204,7 +241,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   release-compile:
     name: Release Compile Check
-    needs: [ktlint, android-lint, unit-tests]
+    needs: [changes, ktlint, android-lint, unit-tests]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -236,6 +274,8 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   instrumented-tests:
     name: Instrumented Tests
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -299,7 +339,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   ci-summary:
     name: CI Summary
-    needs: [ktlint, android-lint, unit-tests, build, release-compile]
+    needs: [changes, ktlint, android-lint, unit-tests, build, release-compile]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     if: always()
@@ -323,7 +363,7 @@ jobs:
             name="${entry%%:*}"
             result="${entry#*:}"
             echo "::notice::$name = $result"
-            if [[ "$result" != "success" ]]; then
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
               FAILED=1
               FAILED_JOBS+="$name "
             fi

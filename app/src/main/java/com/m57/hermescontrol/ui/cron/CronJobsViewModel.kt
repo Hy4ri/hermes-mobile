@@ -552,19 +552,32 @@ class CronJobsViewModel :
     ): CronJobEditorState =
         when (name) {
             "name" -> copy(name = value)
+
             "schedule" -> copy(schedule = value)
+
             "prompt" -> copy(prompt = value)
+
             "deliver" -> copy(deliver = value)
+
             "skills" -> copy(skills = value)
+
             "model" -> copy(model = value)
+
             "provider" -> copy(provider = value)
+
             "base_url" -> copy(base_url = value)
+
             "script" -> copy(script = value)
+
             "workdir" -> copy(workdir = value)
+
             "run_continuity" -> copy(runContinuity = value.toBooleanStrictOrNull() ?: false)
+
             // Monitor fields are mutually exclusive: entering one clears the other.
             "monitor_script" -> copy(monitor_script = value, monitor_url = if (value.isNotBlank()) "" else monitor_url)
+
             "monitor_url" -> copy(monitor_url = value, monitor_script = if (value.isNotBlank()) "" else monitor_script)
+
             else -> this
         }
 
@@ -618,8 +631,8 @@ class CronJobsViewModel :
     }
 
     /** Monitor fields configured in the editor (at most one is non-blank). */
-    private fun editorMonitorUpdates(editor: CronJobEditorState): Map<String, String> {
-        return buildMap {
+    private fun editorMonitorUpdates(editor: CronJobEditorState): Map<String, String> =
+        buildMap {
             if (editor.monitor_script.isNotBlank()) {
                 put("monitor_script", editor.monitor_script.trim())
             }
@@ -627,5 +640,4 @@ class CronJobsViewModel :
                 put("monitor_url", editor.monitor_url.trim())
             }
         }
-    }
 }

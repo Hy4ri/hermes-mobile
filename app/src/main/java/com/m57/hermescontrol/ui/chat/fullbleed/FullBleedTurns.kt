@@ -13,18 +13,28 @@ import com.m57.hermescontrol.ui.chat.MessageRole
  */
 sealed interface ChatTurn {
     /** User message — always its own turn (bubble anchor). */
-    data class User(val message: ChatMessage) : ChatTurn
+    data class User(
+        val message: ChatMessage,
+    ) : ChatTurn
 
     /** One agent turn: prose, tool rows, and system events in order. */
-    data class Agent(val entries: List<AgentEntry>) : ChatTurn
+    data class Agent(
+        val entries: List<AgentEntry>,
+    ) : ChatTurn
 }
 
 sealed interface AgentEntry {
-    data class Prose(val message: ChatMessage) : AgentEntry
+    data class Prose(
+        val message: ChatMessage,
+    ) : AgentEntry
 
-    data class ToolRow(val message: ChatMessage) : AgentEntry
+    data class ToolRow(
+        val message: ChatMessage,
+    ) : AgentEntry
 
-    data class SystemEvent(val message: ChatMessage) : AgentEntry
+    data class SystemEvent(
+        val message: ChatMessage,
+    ) : AgentEntry
 }
 
 /**
@@ -71,21 +81,31 @@ fun groupIntoTurns(messages: List<ChatMessage>): List<ChatTurn> {
             // display_kind (it's stripped on persistence); detect it by its
             // stable content prefix and route it as a system event too, tagging
             // it so the timeline chip can name it.
-            message.displayKind != null ->
+            message.displayKind != null -> {
                 agentEntries += AgentEntry.SystemEvent(message)
+            }
 
-            message.isSyntheticSystemRow() ->
+            message.isSyntheticSystemRow() -> {
                 agentEntries +=
                     AgentEntry.SystemEvent(message.copy(displayKind = "max_iterations_reached"))
+            }
 
             message.role == MessageRole.USER -> {
                 flushAgent()
                 turns += ChatTurn.User(message)
             }
 
-            MessageRole.ASSISTANT == message.role -> agentEntries += AgentEntry.Prose(message)
-            MessageRole.TOOL == message.role -> agentEntries += AgentEntry.ToolRow(message)
-            MessageRole.SYSTEM == message.role -> agentEntries += AgentEntry.SystemEvent(message)
+            MessageRole.ASSISTANT == message.role -> {
+                agentEntries += AgentEntry.Prose(message)
+            }
+
+            MessageRole.TOOL == message.role -> {
+                agentEntries += AgentEntry.ToolRow(message)
+            }
+
+            MessageRole.SYSTEM == message.role -> {
+                agentEntries += AgentEntry.SystemEvent(message)
+            }
         }
     }
     flushAgent()
@@ -167,8 +187,13 @@ fun messageIdToLazyIndex(
                             itemIndex++
                         }
 
-                        is AgentEntry.ToolRow -> itemIndex++
-                        is AgentEntry.SystemEvent -> itemIndex++
+                        is AgentEntry.ToolRow -> {
+                            itemIndex++
+                        }
+
+                        is AgentEntry.SystemEvent -> {
+                            itemIndex++
+                        }
                     }
                 }
             }

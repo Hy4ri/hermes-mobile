@@ -38,14 +38,20 @@ fun toolCallMilestones(messages: List<ChatMessage>): Map<Int, Int> {
     var toolCount = 0
     messages.forEachIndexed { index, message ->
         when (message.role) {
-            MessageRole.USER -> toolCount = 0
+            MessageRole.USER -> {
+                toolCount = 0
+            }
+
             MessageRole.TOOL -> {
                 toolCount += 1
                 if (toolCount % TOOL_CALL_DIVIDER_INTERVAL == 0) {
                     milestones[index] = toolCount
                 }
             }
-            else -> Unit
+
+            else -> {
+                Unit
+            }
         }
     }
     return milestones

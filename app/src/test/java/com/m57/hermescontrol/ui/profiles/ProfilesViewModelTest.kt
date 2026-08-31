@@ -136,7 +136,10 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify { mockApi.renameProfile("work", RenameProfileRequest("play")) }
-        assertTrue(vm.uiState.value.toastMessage!!.contains("renamed"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("renamed"),
+        )
         // reload happened
         coVerify { mockApi.getProfiles() }
     }
@@ -162,7 +165,10 @@ class ProfilesViewModelTest {
         vm.renameProfile("work", "play")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to rename"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Failed to rename"),
+        )
         assertFalse(vm.uiState.value.isLoading)
     }
 
@@ -175,7 +181,10 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify { mockApi.deleteProfile("work") }
-        assertTrue(vm.uiState.value.toastMessage!!.contains("deleted"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("deleted"),
+        )
         coVerify { mockApi.getProfiles() }
     }
 
@@ -187,7 +196,10 @@ class ProfilesViewModelTest {
         vm.deleteProfile("work")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to delete"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Failed to delete"),
+        )
     }
 
     @Test
@@ -200,7 +212,10 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify { mockApi.describeProfileAuto("work", ProfileDescribeAutoRequest(overwrite = true)) }
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Auto-described"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Auto-described"),
+        )
         assertFalse(vm.uiState.value.isAutoDescribing)
         coVerify { mockApi.getProfiles() }
     }
@@ -214,7 +229,10 @@ class ProfilesViewModelTest {
         vm.autoDescribeProfile("work")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage!!.contains("no aux client configured"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("no aux client configured"),
+        )
         assertFalse(vm.uiState.value.isAutoDescribing)
     }
 
@@ -241,7 +259,10 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNull(vm.uiState.value.setupCommand)
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to fetch setup command"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Failed to fetch setup command"),
+        )
     }
 
     @Test
@@ -265,7 +286,11 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, vm.uiState.value.modelProviders.size)
-        assertEquals("gpt-4o", vm.uiState.value.modelProviders[0].models!![0])
+        assertEquals(
+            "gpt-4o",
+            vm.uiState.value.modelProviders[0]
+                .models!![0],
+        )
         assertEquals(listOf(PinnedModel("openai", "gpt-4")), vm.uiState.value.modelPickerPinned)
         assertFalse(vm.uiState.value.isLoadingBuilderData)
     }
@@ -278,7 +303,10 @@ class ProfilesViewModelTest {
         vm.loadModelOptions()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to load models"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Failed to load models"),
+        )
         assertNull(vm.uiState.value.errorMessage)
         assertFalse(vm.uiState.value.isLoadingBuilderData)
     }
@@ -292,7 +320,10 @@ class ProfilesViewModelTest {
         assertEquals(listOf(PinnedModel("openai", "gpt-4")), storedPinnedModels)
 
         vm.togglePinModel("openai", "gpt-4")
-        assertTrue(vm.uiState.value.modelPickerPinned.isEmpty())
+        assertTrue(
+            vm.uiState.value.modelPickerPinned
+                .isEmpty(),
+        )
         assertTrue(storedPinnedModels.isEmpty())
     }
 
@@ -305,7 +336,10 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify { ProfileSwitchCoordinator.switchProfile("work") }
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Switched to profile work"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Switched to profile work"),
+        )
         coVerify { mockApi.getProfiles() }
     }
 
@@ -320,7 +354,10 @@ class ProfilesViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNull(vm.uiState.value.activeProfileName)
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to switch profile"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Failed to switch profile"),
+        )
     }
 
     @Test
@@ -339,7 +376,10 @@ class ProfilesViewModelTest {
                 ),
             )
         }
-        assertTrue(vm.uiState.value.toastMessage!!.contains("cloned successfully"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("cloned successfully"),
+        )
         assertFalse(vm.uiState.value.isLoading)
         coVerify { mockApi.getProfiles() }
     }
@@ -352,7 +392,10 @@ class ProfilesViewModelTest {
         vm.cloneProfile("default", "dev-copy")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Failed to clone profile"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Failed to clone profile"),
+        )
         assertFalse(vm.uiState.value.isLoading)
     }
 
@@ -378,12 +421,20 @@ class ProfilesViewModelTest {
         vm.hideProfile("secret-bot")
         assertEquals(listOf("secret-bot"), storedHiddenProfiles)
         assertTrue(vm.uiState.value.hasHiddenProfiles)
-        assertEquals(listOf("default"), vm.uiState.value.displayProfiles.map { it.name })
+        assertEquals(
+            listOf("default"),
+            vm.uiState.value.displayProfiles
+                .map { it.name },
+        )
 
         // Toggle show hidden
         vm.toggleShowHidden()
         assertTrue(vm.uiState.value.showHidden)
-        assertEquals(listOf("default", "secret-bot"), vm.uiState.value.displayProfiles.map { it.name })
+        assertEquals(
+            listOf("default", "secret-bot"),
+            vm.uiState.value.displayProfiles
+                .map { it.name },
+        )
 
         // Unhide
         vm.unhideProfile("secret-bot")

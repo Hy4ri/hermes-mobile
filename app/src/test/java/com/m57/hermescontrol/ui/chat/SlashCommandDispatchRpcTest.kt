@@ -223,7 +223,8 @@ class SlashCommandDispatchRpcTest {
             // The optimistic bubble shows the queued TEXT (prefix stripped) so
             // the transcript sync dedupes it against the server echo.
             val userBubble =
-                vm.uiState.value.messages.lastOrNull { it.role == MessageRole.USER }
+                vm.uiState.value.messages
+                    .lastOrNull { it.role == MessageRole.USER }
             assertEquals("do the thing", userBubble?.content)
         }
 
@@ -247,7 +248,9 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/queue")
             advanceUntilIdle()
 
-            val last = vm.uiState.value.messages.lastOrNull()
+            val last =
+                vm.uiState.value.messages
+                    .lastOrNull()
             assertEquals("usage: /queue <prompt>", last?.content)
             assertEquals(0, sendCalls)
             assertTrue(
@@ -628,7 +631,9 @@ class SlashCommandDispatchRpcTest {
             vm.sendMessage("/focus on")
             advanceUntilIdle()
 
-            val last = vm.uiState.value.messages.lastOrNull()
+            val last =
+                vm.uiState.value.messages
+                    .lastOrNull()
             assertEquals("Focus view: ON (tool progress pinned off)", last?.content)
         }
 }

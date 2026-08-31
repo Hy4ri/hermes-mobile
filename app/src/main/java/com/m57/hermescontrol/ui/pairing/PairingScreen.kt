@@ -328,10 +328,9 @@ private fun ApprovedCard(
 }
 
 @Composable
-private fun formatAge(ageMinutes: Int): String {
-    return if (ageMinutes < 60) {
+private fun formatAge(ageMinutes: Int): String =
+    if (ageMinutes < 60) {
         stringResource(R.string.pairing_label_request_age_m, ageMinutes)
     } else {
         stringResource(R.string.pairing_label_request_age_hm, ageMinutes / 60, ageMinutes % 60)
     }
-}

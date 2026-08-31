@@ -222,7 +222,12 @@ class KanbanViewModelTest {
         coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.success(Unit)
         vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
         settle()
-        assertEquals("ready", vm.uiState.value.tasks.first { it.id == "t1" }.status)
+        assertEquals(
+            "ready",
+            vm.uiState.value.tasks
+                .first { it.id == "t1" }
+                .status,
+        )
         coVerify { mockApi.updateKanbanTask("t1", mapOf("status" to "ready")) }
     }
 
@@ -234,8 +239,16 @@ class KanbanViewModelTest {
         coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.error(409, "".toResponseBody())
         vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
         settle()
-        assertEquals("todo", vm.uiState.value.tasks.first { it.id == "t1" }.status)
-        assertTrue(vm.uiState.value.toastMessage?.contains("Move failed") == true)
+        assertEquals(
+            "todo",
+            vm.uiState.value.tasks
+                .first { it.id == "t1" }
+                .status,
+        )
+        assertTrue(
+            vm.uiState.value.toastMessage
+                ?.contains("Move failed") == true,
+        )
     }
 
     @Test

@@ -117,7 +117,7 @@ active preset via `LocalHermesStatusColors`.
 
 ## Conventions
 
-- ktlint 1.2.1 is enforced in CI. Run `./gradlew ktlintCheck` before committing
+- ktlint 1.8.0 is enforced in CI. Run `./gradlew ktlintCheck` before committing
   (the gradle task is the gate, not the standalone `ktlint` binary).
 - Import order is ASCII-lexicographic (uppercase before lowercase).
 - Every change goes through a PR — never push directly to `main`.

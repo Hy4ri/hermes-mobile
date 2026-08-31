@@ -21,7 +21,9 @@ import com.m57.hermescontrol.MainActivity
  * the launch works on every supported API level (the framework's
  * [AssistState] default forwards to it below API 29).
  */
-class AssistantSession(context: Context) : VoiceInteractionSession(context) {
+class AssistantSession(
+    context: Context,
+) : VoiceInteractionSession(context) {
     private var launchHandled = false
 
     override fun onShow(

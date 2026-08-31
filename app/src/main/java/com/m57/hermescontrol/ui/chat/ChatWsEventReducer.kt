@@ -9,9 +9,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage> {
-    return (this + message).dedupeById()
-}
+private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage> = (this + message).dedupeById()
 
 /**
  * Strips this turn's sealed-orphan prefix from the final message text.
@@ -943,15 +941,16 @@ fun extractTodosFromJson(content: String): List<TodoItem>? {
                 ?: ((obj["parameters"] as? JsonObject)?.get("todos") as? JsonArray)
                 ?: return null
 
-        todosArray.mapNotNull { item ->
-            val itemObj = item as? JsonObject ?: return@mapNotNull null
-            val id = (itemObj["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
-            val contentStr =
-                (itemObj["content"] as? JsonPrimitive)?.content
-                    ?: (itemObj["text"] as? JsonPrimitive)?.content ?: ""
-            val status = (itemObj["status"] as? JsonPrimitive)?.content ?: "pending"
-            TodoItem(id = id, content = contentStr, status = status)
-        }.takeIf { it.isNotEmpty() }
+        todosArray
+            .mapNotNull { item ->
+                val itemObj = item as? JsonObject ?: return@mapNotNull null
+                val id = (itemObj["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                val contentStr =
+                    (itemObj["content"] as? JsonPrimitive)?.content
+                        ?: (itemObj["text"] as? JsonPrimitive)?.content ?: ""
+                val status = (itemObj["status"] as? JsonPrimitive)?.content ?: "pending"
+                TodoItem(id = id, content = contentStr, status = status)
+            }.takeIf { it.isNotEmpty() }
     } catch (_: Exception) {
         null
     }

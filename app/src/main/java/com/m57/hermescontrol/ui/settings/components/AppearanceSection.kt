@@ -207,7 +207,8 @@ internal fun ChatSection(
 ) {
     val fontScaleOptions = listOf(0.85f, 1.0f, 1.15f, 1.30f, 1.50f)
     val currentIndex =
-        fontScaleOptions.indexOfFirst { abs(it - chatFontScale) < 0.05f }
+        fontScaleOptions
+            .indexOfFirst { abs(it - chatFontScale) < 0.05f }
             .takeIf { it >= 0 } ?: 1
 
     SectionCard {

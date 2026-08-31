@@ -611,12 +611,13 @@ fun ChatScreen(
                     onNeverAskAgain = { appUpdateViewModel.dismissCurrentUpdate() },
                     onOpenSettings = {
                         val intent =
-                            android.content.Intent(
-                                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                android.net.Uri.parse("package:${context.packageName}"),
-                            ).apply {
-                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
+                            android.content
+                                .Intent(
+                                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    android.net.Uri.parse("package:${context.packageName}"),
+                                ).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                         try {
                             context.startActivity(intent)
                         } catch (e: Exception) {

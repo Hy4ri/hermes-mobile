@@ -456,6 +456,7 @@ class McpServersViewModel :
                         }
                     }
                 }
+
                 is NetworkResult.Failure -> {
                     _uiState.update { it.copy(toastMessage = "Failed to start OAuth: ${result.error.message}") }
                 }
@@ -489,6 +490,7 @@ class McpServersViewModel :
                                     }
                                     loadServers()
                                 }
+
                                 "error" -> {
                                     polling = false
                                     _uiState.update {
@@ -498,15 +500,18 @@ class McpServersViewModel :
                                         )
                                     }
                                 }
+
                                 "authorization_required" -> {
                                     // Keep polling
                                 }
+
                                 else -> {
                                     // Check if worker is done or expired
                                     // Continue polling until status transitions
                                 }
                             }
                         }
+
                         is NetworkResult.Failure -> {
                             // Keep polling or stop after too many failures? Let's just log/toast n retry a few times
                         }

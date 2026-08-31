@@ -151,7 +151,7 @@ app/src/main/java/com/m57/hermescontrol/
 - **Theming:** 6 built-in presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir) + Material You dynamic colors
 - **Image Loading:** Coil 2.7.0
 - **Testing:** JUnit 5, MockK, Turbine, Espresso, Compose UI testing
-- **Formatting:** `ktlint` 1.2.1 style rules (checked automatically in CI)
+- **Formatting:** `ktlint` 1.8.0 style rules (checked automatically in CI)
 
 ---
 

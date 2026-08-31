@@ -59,7 +59,9 @@ data class ToolsetDetailUiState(
  * first-opened toolset into every entry — bug found on-device 2026-08-06).
  * The screen drives [setToolset] + [loadConfig] per entry instead.
  */
-class ToolsetDetailViewModel : ViewModel(), ToastHost {
+class ToolsetDetailViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(ToolsetDetailUiState())
     val uiState: StateFlow<ToolsetDetailUiState> = _uiState.asStateFlow()
 
@@ -101,11 +103,12 @@ class ToolsetDetailViewModel : ViewModel(), ToastHost {
                         )
                     }
 
-                    is NetworkResult.Failure ->
+                    is NetworkResult.Failure -> {
                         state.copy(
                             isLoading = false,
                             errorMessage = "Failed to load toolset config: ${result.error.message}",
                         )
+                    }
                 }
             }
         }
@@ -150,11 +153,12 @@ class ToolsetDetailViewModel : ViewModel(), ToastHost {
                         )
                     }
 
-                    is NetworkResult.Failure ->
+                    is NetworkResult.Failure -> {
                         state.copy(
                             selectingProvider = null,
                             toastMessage = "Failed to select backend: ${result.error.message}",
                         )
+                    }
                 }
             }
         }
@@ -176,18 +180,20 @@ class ToolsetDetailViewModel : ViewModel(), ToastHost {
                 }
             _uiState.update { state ->
                 when (result) {
-                    is NetworkResult.Success ->
+                    is NetworkResult.Success -> {
                         state.copy(
                             savingEnvKey = null,
                             config = state.config?.let { patchEnvIsSet(it, key, true) },
                             toastMessage = "Saved $key",
                         )
+                    }
 
-                    is NetworkResult.Failure ->
+                    is NetworkResult.Failure -> {
                         state.copy(
                             savingEnvKey = null,
                             toastMessage = "Failed to save $key: ${result.error.message}",
                         )
+                    }
                 }
             }
         }
@@ -199,19 +205,21 @@ class ToolsetDetailViewModel : ViewModel(), ToastHost {
             val result = safeApiCall { ApiClient.hermesApi.deleteEnvVar(EnvVarDeleteRequest(key)) }
             _uiState.update { state ->
                 when (result) {
-                    is NetworkResult.Success ->
+                    is NetworkResult.Success -> {
                         state.copy(
                             deletingEnvKey = null,
                             config = state.config?.let { patchEnvIsSet(it, key, false) },
                             revealedValues = state.revealedValues - key,
                             toastMessage = "Cleared $key",
                         )
+                    }
 
-                    is NetworkResult.Failure ->
+                    is NetworkResult.Failure -> {
                         state.copy(
                             deletingEnvKey = null,
                             toastMessage = "Failed to clear $key: ${result.error.message}",
                         )
+                    }
                 }
             }
         }
@@ -222,11 +230,13 @@ class ToolsetDetailViewModel : ViewModel(), ToastHost {
             val result = safeApiCall { ApiClient.hermesApi.revealEnvVar(EnvVarRevealRequest(key)) }
             _uiState.update { state ->
                 when (result) {
-                    is NetworkResult.Success ->
+                    is NetworkResult.Success -> {
                         state.copy(revealedValues = state.revealedValues + (key to result.data.value))
+                    }
 
-                    is NetworkResult.Failure ->
+                    is NetworkResult.Failure -> {
                         state.copy(toastMessage = "Failed to reveal $key: ${result.error.message}")
+                    }
                 }
             }
         }

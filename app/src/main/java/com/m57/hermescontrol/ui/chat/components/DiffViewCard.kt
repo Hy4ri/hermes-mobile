@@ -107,7 +107,8 @@ fun parseDiffText(
             line.startsWith("--- ") || line.startsWith("+++ ") -> {
                 if (extractedPath == null || extractedPath == defaultPath) {
                     val candidate =
-                        line.drop(4)
+                        line
+                            .drop(4)
                             .trim()
                             .removePrefix("a/")
                             .removePrefix("b/")

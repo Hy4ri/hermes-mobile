@@ -79,10 +79,14 @@ internal fun canonicalToolResultKey(content: String): String? {
 
     fun canon(e: kotlinx.serialization.json.JsonElement): String =
         when (e) {
-            is kotlinx.serialization.json.JsonObject ->
+            is kotlinx.serialization.json.JsonObject -> {
                 e.entries.sortedBy { it.key }.joinToString("|") { "${it.key}=${canon(it.value)}" }
-            is kotlinx.serialization.json.JsonArray ->
+            }
+
+            is kotlinx.serialization.json.JsonArray -> {
                 e.joinToString(",") { canon(it) }
+            }
+
             is kotlinx.serialization.json.JsonPrimitive -> {
                 // Canonicalize ALL numbers through double, collapsing int/float
                 // spellings of the same value (0 vs 0.0 → "i0", 0.5 → "d0.5").
@@ -96,9 +100,13 @@ internal fun canonicalToolResultKey(content: String): String? {
             }
         }
     return when (element) {
-        is kotlinx.serialization.json.JsonObject ->
+        is kotlinx.serialization.json.JsonObject -> {
             element["result"]?.let { canon(it) } ?: canon(element)
-        else -> canon(element)
+        }
+
+        else -> {
+            canon(element)
+        }
     }
 }
 
@@ -178,8 +186,7 @@ internal fun stripAttachmentRefLines(content: String): String =
             line.startsWith("@image:") ||
                 line.startsWith("@file:") ||
                 line == "[screenshot]"
-        }
-        .joinToString("\n")
+        }.joinToString("\n")
         .trim()
 
 /**
@@ -764,7 +771,9 @@ class ChatViewModel(
                 streamingController.flushPendingTokens()
             }
 
-            else -> Unit
+            else -> {
+                Unit
+            }
         }
 
         // First, let the reducer compute the new state and any effects
@@ -2168,7 +2177,10 @@ class ChatViewModel(
         sessionHasServerPresence = true
         sessionGoneRecoveryInFlight = false
         pendingGoneSessionNotice = false
-        val title = _uiState.value.sessions.find { it.id == sessionId }?.title ?: "Hermes"
+        val title =
+            _uiState.value.sessions
+                .find { it.id == sessionId }
+                ?.title ?: "Hermes"
         val generation = resetSessionState(sessionId, title, isLoading = true)
         viewModelScope.launch {
             // Warm-cache fast-path (desktop parity): paint the cached Room

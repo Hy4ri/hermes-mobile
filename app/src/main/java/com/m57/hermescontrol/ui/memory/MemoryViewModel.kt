@@ -31,7 +31,9 @@ data class MemoryUiState(
  * Retrofit suspend calls already run off the caller thread, keeping tests
  * free of the static Dispatchers mock that bleeds across test classes.
  */
-class MemoryViewModel : ViewModel(), ToastHost {
+class MemoryViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(MemoryUiState())
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
 
@@ -41,15 +43,18 @@ class MemoryViewModel : ViewModel(), ToastHost {
         viewModelScope.launch {
             val result = safeApiCall { ApiClient.hermesApi.getMemory() }
             when (result) {
-                is NetworkResult.Success ->
+                is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, memory = result.data) }
-                is NetworkResult.Failure ->
+                }
+
+                is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             errorMessage = result.error.message,
                         )
                     }
+                }
             }
             loadLearningGraph()
         }
@@ -70,20 +75,23 @@ class MemoryViewModel : ViewModel(), ToastHost {
         viewModelScope.launch {
             val result = safeApiCall { ApiClient.hermesApi.resetMemory(MemoryResetRequest(target = target)) }
             when (result) {
-                is NetworkResult.Success ->
+                is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
                             resetting = null,
                             toastMessage = "Memory ($target) reset successfully",
                         )
                     }
-                is NetworkResult.Failure ->
+                }
+
+                is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
                             resetting = null,
                             toastMessage = "Failed to reset memory: ${result.error.message}",
                         )
                     }
+                }
             }
             load()
         }

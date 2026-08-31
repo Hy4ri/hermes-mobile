@@ -81,7 +81,9 @@ class MemoryViewModelTest {
 
     @Test
     fun `load also fetches learning graph for self-improvement section`() {
-        val graph = com.m57.hermescontrol.data.model.LearningGraphResponse(nodes = emptyList())
+        val graph =
+            com.m57.hermescontrol.data.model
+                .LearningGraphResponse(nodes = emptyList())
         coEvery { mockApi.getLearningGraph() } returns Response.success(graph)
         val vm = MemoryViewModel()
         vm.load()
@@ -100,7 +102,11 @@ class MemoryViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertNull(vm.uiState.value.memory)
-        assertTrue(vm.uiState.value.errorMessage.orEmpty().isNotBlank())
+        assertTrue(
+            vm.uiState.value.errorMessage
+                .orEmpty()
+                .isNotBlank(),
+        )
     }
 
     @Test
@@ -127,7 +133,11 @@ class MemoryViewModelTest {
         vm.resetMemory("memory")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.uiState.value.toastMessage.orEmpty().contains("Failed to reset memory"))
+        assertTrue(
+            vm.uiState.value.toastMessage
+                .orEmpty()
+                .contains("Failed to reset memory"),
+        )
         assertNull(vm.uiState.value.resetting)
     }
 }

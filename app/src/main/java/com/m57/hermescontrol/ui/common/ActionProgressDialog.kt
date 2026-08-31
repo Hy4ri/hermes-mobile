@@ -107,21 +107,25 @@ fun ActionProgressDialog(
                     Text(
                         text =
                             when (state.phase) {
-                                ActionProgressPhase.STARTING ->
+                                ActionProgressPhase.STARTING -> {
                                     stringResource(R.string.action_progress_starting)
+                                }
 
-                                ActionProgressPhase.RUNNING ->
+                                ActionProgressPhase.RUNNING -> {
                                     stringResource(R.string.action_progress_running)
+                                }
 
-                                ActionProgressPhase.SUCCEEDED ->
+                                ActionProgressPhase.SUCCEEDED -> {
                                     stringResource(R.string.action_progress_succeeded)
+                                }
 
-                                ActionProgressPhase.FAILED ->
+                                ActionProgressPhase.FAILED -> {
                                     if (exitCode != null) {
                                         stringResource(R.string.action_progress_failed_exit, exitCode)
                                     } else {
                                         stringResource(R.string.action_progress_failed)
                                     }
+                                }
                             },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,

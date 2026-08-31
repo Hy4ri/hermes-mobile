@@ -478,6 +478,40 @@ class ChatViewModelTest {
             verify { HermesWsClient.send(WsMethods.SESSION_INTERRUPT, any(), any()) }
         }
 
+    @Test
+    fun testSlashCommand_btw_dispatchesPromptBtw_andSetsBtwState() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(WsMethods.PROMPT_BTW, any(), any())
+            } returns
+                CompletableDeferred(
+                    mapOf("task_id" to "btw_123456"),
+                )
+
+            viewModel.sendMessage("/btw which file was that in?")
+            advanceUntilIdle()
+
+            val btw = viewModel.uiState.value.btwState
+            assertNotNull(btw)
+            assertEquals("which file was that in?", btw?.question)
+            assertEquals("btw_123456", btw?.taskId)
+            assertTrue(btw?.isLoading == true)
+            verify {
+                HermesWsClient.request(
+                    WsMethods.PROMPT_BTW,
+                    mapOf("session_id" to sessionId, "text" to "which file was that in?"),
+                    any(),
+                )
+            }
+            // Ensure transcript messages were NOT polluted with the side question
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .none { it.content.contains("which file was that in?") },
+            )
+        }
+
     // ── Slash usage ranking (issue #865) ────────────────────────────────────
 
     @Test

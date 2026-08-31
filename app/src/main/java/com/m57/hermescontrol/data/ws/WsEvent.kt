@@ -150,6 +150,18 @@ sealed class WsEvent {
         val sessionId: String? = null,
     ) : WsEvent()
 
+    /**
+     * Context-aware side-question completion event (issue #1015).
+     * Emitted when `prompt.btw` completes answering a side question.
+     * Payload: `{ task_id: "...", question: "...", text: "..." }`
+     */
+    data class BtwComplete(
+        val taskId: String = "",
+        val question: String = "",
+        val text: String = "",
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── Status ───────────────────────────────────────────────────────────
 
     data class StatusUpdate(

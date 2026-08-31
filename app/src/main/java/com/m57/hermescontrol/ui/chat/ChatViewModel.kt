@@ -353,6 +353,8 @@ data class ChatUiState(
     val reactionKind: String? = null,
     /** Monotonic trigger ID so consecutive same-kind reactions re-animate. */
     val reactionTriggerId: Long = 0L,
+    /** Side-question state for /btw (issue #1015). */
+    val btwState: BtwUiState? = null,
     /** Subagent delegation indicators (issue #538) — transient UI state. */
     val subagentIndicators: List<SubagentIndicator> = emptyList(),
     /** Agent todo / plan items (issue #736). */
@@ -377,6 +379,17 @@ data class ClarifyUi(
     val text: String,
     val options: List<String>,
     val clarifyId: String? = null,
+)
+
+/**
+ * State for the context-aware side-question bottom sheet (issue #1015, `/btw`).
+ */
+data class BtwUiState(
+    val taskId: String? = null,
+    val question: String = "",
+    val answer: String? = null,
+    val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 /**
@@ -1546,6 +1559,12 @@ class ChatViewModel(
         // it matches the server echo and the transcript sync dedupes instead
         // of rendering a duplicate below its answer.
         val result = slashDispatcher.dispatch(command)
+
+        if (result is SlashResult.SideQuestion) {
+            handleSideQuestionCommand(result.question)
+            return
+        }
+
         val displayContent =
             if (result is SlashResult.QueuePrompt) result.displayContent else command
         val userMsg = ChatMessage(role = MessageRole.USER, content = displayContent)
@@ -1627,6 +1646,10 @@ class ChatViewModel(
                 handleQueueCommand(command)
             }
 
+            is SlashResult.SideQuestion -> {
+                handleSideQuestionCommand(result.question)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
@@ -1649,6 +1672,75 @@ class ChatViewModel(
             return
         }
         submitPrompt(arg, queued = true)
+    }
+
+    // ── Side Questions via /btw (issue #1015) ─────────────────────────────
+
+    fun dismissBtw() {
+        _uiState.update { it.copy(btwState = null) }
+    }
+
+    fun submitSideQuestion(question: String) {
+        val trimmed = question.trim()
+        if (trimmed.isBlank()) {
+            addAssistantMessage(
+                "Usage: `/btw <question>` — Ask a side question about this session without mutating its history.",
+            )
+            return
+        }
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+        if (sessionId.isNullOrBlank()) {
+            addAssistantMessage("No active session for side questions. Start a chat first.")
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                btwState =
+                    BtwUiState(
+                        question = trimmed,
+                        isLoading = true,
+                    ),
+            )
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val rpcResult =
+                    wsClient
+                        .request(
+                            WsMethods.PROMPT_BTW,
+                            mapOf("session_id" to sessionId, "text" to trimmed),
+                        ).await()
+                val taskId = (rpcResult as? Map<*, *>)?.get("task_id") as? String
+                if (!taskId.isNullOrBlank()) {
+                    _uiState.update { state ->
+                        state.btwState?.let { current ->
+                            state.copy(btwState = current.copy(taskId = taskId))
+                        } ?: state
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { state ->
+                    state.btwState?.let { current ->
+                        state.copy(
+                            btwState =
+                                current.copy(
+                                    isLoading = false,
+                                    error = e.message ?: "Failed to dispatch side question",
+                                ),
+                        )
+                    } ?: state
+                }
+            }
+        }
+    }
+
+    private fun handleSideQuestionCommand(question: String) {
+        viewModelScope.launch {
+            slashUsageStore.recordUse("btw")
+        }
+        submitSideQuestion(question)
     }
 
     // ── Update from chat (issue #862) ────────────────────────────────────

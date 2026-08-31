@@ -100,6 +100,7 @@ import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
+import com.m57.hermescontrol.ui.chat.components.SideQuestionSheet
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
@@ -930,6 +931,13 @@ fun ChatScreen(
                 indicators = state.subagentIndicators,
                 todos = state.todos,
                 onDismiss = { showSubagentInspectionSheet = false },
+            )
+        }
+
+        state.btwState?.let { btw ->
+            SideQuestionSheet(
+                state = btw,
+                onDismiss = { viewModel.dismissBtw() },
             )
         }
 

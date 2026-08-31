@@ -31,6 +31,17 @@ object EventParser {
         // ── Notification / event (no id, has method) ─────────────────────
         @Suppress("UNCHECKED_CAST")
         val params = response.params?.toAny() as? Map<String, Any?> ?: return WsEvent.Unknown(rawJson)
+        return parseParams(params, rawJson)
+    }
+
+    /**
+     * Parses an event object (bare params map containing `type`, `session_id`, `seq`, `payload`).
+     * Used both for live notifications and for event lists returned by `session.events.since`.
+     */
+    fun parseParams(
+        params: Map<String, Any?>,
+        rawJson: String = "",
+    ): WsEvent {
         val eventType = params["type"] as? String ?: return WsEvent.Unknown(rawJson)
 
         @Suppress("UNCHECKED_CAST")

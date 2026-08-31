@@ -27,12 +27,14 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonElement
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.utf8Size
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -127,6 +129,19 @@ object HermesWsClient {
 
     @Volatile
     private var outboundDrainJob: Job? = null
+
+    // ── Sequence tracking & replay on reconnect (issue #1016) ─────────────
+    private val lastSeenSeq = ConcurrentHashMap<String, Int>()
+
+    @Volatile
+    private var replayEpoch: String? = null
+
+    @Volatile
+    private var replayInFlight: Boolean = false
+    private val replayHold = ConcurrentHashMap<String, MutableList<Pair<Int?, WsEvent>>>()
+
+    @Volatile
+    private var replayJob: Job? = null
 
     // ── Health and Ping/Pong tracking ────────────────────────────────────
 
@@ -276,6 +291,20 @@ object HermesWsClient {
             events
                 .filterIsInstance<WsEvent.ChangeEvent>()
                 .collect { ChangeEventHub.emit(it) }
+        }
+        // Track gateway replay_epoch across gateway.ready events (issue #1016)
+        wsScope.launch {
+            events.collect { event ->
+                if (event is WsEvent.GatewayReady) {
+                    val epoch = event.data?.get("replay_epoch") as? String
+                    if (!epoch.isNullOrEmpty()) {
+                        if (replayEpoch != null && replayEpoch != epoch) {
+                            lastSeenSeq.clear()
+                        }
+                        replayEpoch = epoch
+                    }
+                }
+            }
         }
     }
 
@@ -576,6 +605,12 @@ object HermesWsClient {
                 queuedMessagesById.clear()
                 pendingPromptSubmits.clear()
                 pendingReply = false
+                lastSeenSeq.clear()
+                replayHold.clear()
+                replayEpoch = null
+                replayJob?.cancel()
+                replayJob = null
+                replayInFlight = false
             }
             connected.set(false)
             _connectionStatus.value = ConnectionStatus.DISCONNECTED
@@ -819,6 +854,135 @@ object HermesWsClient {
             onSent = onSent,
         )
 
+    // ── Sequence tracking & replay on reconnect (issue #1016) ─────────────
+
+    private fun triggerReplay() {
+        if (lastSeenSeq.isEmpty() || replayInFlight) return
+        replayJob?.cancel()
+        replayJob =
+            wsScope.launch {
+                fetchReplay()
+            }
+    }
+
+    private suspend fun fetchReplay() {
+        if (replayInFlight || lastSeenSeq.isEmpty()) return
+        replayInFlight = true
+        val sessionsToReplay = lastSeenSeq.keys().toList()
+        for (sid in sessionsToReplay) {
+            replayHold[sid] = Collections.synchronizedList(mutableListOf())
+        }
+        try {
+            for (sid in sessionsToReplay) {
+                val lastSeen = lastSeenSeq[sid] ?: continue
+                try {
+                    val deferred =
+                        request(
+                            method = WsMethods.SESSION_EVENTS_SINCE,
+                            params = mapOf("session_id" to sid, "last_seen" to lastSeen, "since_seq" to lastSeen),
+                            timeoutMs = 10_000L,
+                        )
+                    val result = deferred.await()
+
+                    @Suppress("UNCHECKED_CAST")
+                    val resultMap =
+                        when (result) {
+                            is JsonElement -> result.toAny() as? Map<String, Any?>
+                            is Map<*, *> -> result as? Map<String, Any?>
+                            else -> null
+                        }
+                    if (resultMap != null) {
+                        val epoch = resultMap["epoch"] as? String
+                        if (!epoch.isNullOrEmpty()) {
+                            if (replayEpoch != null && replayEpoch != epoch) {
+                                replayEpoch = epoch
+                                lastSeenSeq.clear()
+                                continue
+                            }
+                            replayEpoch = epoch
+                        }
+                        val eventsList = (resultMap["events"] as? List<*>)?.filterIsInstance<Map<String, Any?>>()
+                        if (eventsList != null) {
+                            for (eventMap in eventsList) {
+                                val eventSeq = (eventMap["seq"] as? Number)?.toInt()
+                                val eventSid = (eventMap["session_id"] as? String) ?: sid
+                                if (eventSeq != null && eventSid.isNotEmpty()) {
+                                    val prev = lastSeenSeq[eventSid] ?: 0
+                                    if (eventSeq <= prev) continue
+                                    lastSeenSeq[eventSid] = eventSeq
+                                }
+                                val parsedEvent = EventParser.parseParams(eventMap)
+                                val finalEvent =
+                                    if (parsedEvent is WsEvent.MessageComplete) {
+                                        parsedEvent.copy(
+                                            storedSessionId =
+                                                ActiveSessionHolder.resolveStoredSessionId(
+                                                    parsedEvent.sessionId,
+                                                ),
+                                        )
+                                    } else {
+                                        parsedEvent
+                                    }
+                                parsedEvents.tryEmit(finalEvent)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Replay failed for session $sid: ${e.message}")
+                }
+            }
+        } finally {
+            for (sid in sessionsToReplay) {
+                val held = replayHold.remove(sid)
+                if (held != null) {
+                    synchronized(held) {
+                        for ((heldSeq, heldEvent) in held) {
+                            if (heldSeq != null) {
+                                val prev = lastSeenSeq[sid] ?: 0
+                                if (heldSeq <= prev) continue
+                                lastSeenSeq[sid] = heldSeq
+                            }
+                            parsedEvents.tryEmit(heldEvent)
+                        }
+                    }
+                }
+            }
+            replayInFlight = false
+        }
+    }
+
+    @VisibleForTesting
+    internal fun getSeqWatermarks(): Map<String, Int> = HashMap(lastSeenSeq)
+
+    @VisibleForTesting
+    internal fun setSeqWatermark(
+        sessionId: String,
+        seq: Int,
+    ) {
+        lastSeenSeq[sessionId] = seq
+    }
+
+    @VisibleForTesting
+    internal fun clearSeqWatermarks() {
+        lastSeenSeq.clear()
+        replayHold.clear()
+        replayEpoch = null
+        replayInFlight = false
+    }
+
+    @VisibleForTesting
+    internal fun isReplayInFlight(): Boolean = replayInFlight
+
+    @VisibleForTesting
+    internal fun setReplayEpochForTest(epoch: String?) {
+        replayEpoch = epoch
+    }
+
+    @VisibleForTesting
+    internal suspend fun fetchReplayForTest() {
+        fetchReplay()
+    }
+
     // ── Internal ─────────────────────────────────────────────────────────
 
     private fun openSocket() {
@@ -937,6 +1101,7 @@ object HermesWsClient {
                     messageQueue.poll()
                     markQueuedMessageSent(msg)
                 }
+                triggerReplay()
             }
             disconnectIfIdleInBackground()
         }
@@ -963,6 +1128,39 @@ object HermesWsClient {
                         removeQueuedMessage(rpcId)
                         resolvePending(rpcId, rpc.result, null)
                     }
+
+                    if (rpc.id == null) {
+                        @Suppress("UNCHECKED_CAST")
+                        val params = rpc.params?.toAny() as? Map<String, Any?>
+                        val sid =
+                            (params?.get("session_id") as? String)
+                                ?: ((params?.get("payload") as? Map<*, *>)?.get("session_id") as? String)
+                        val seq = (params?.get("seq") as? Number)?.toInt()
+
+                        if (!sid.isNullOrBlank() && seq != null) {
+                            val prev = lastSeenSeq[sid] ?: 0
+                            if (seq <= prev) {
+                                return
+                            }
+                            val parsed = EventParser.parse(rpc, text)
+                            val finalEvent =
+                                if (parsed is WsEvent.MessageComplete) {
+                                    parsed.copy(
+                                        storedSessionId = ActiveSessionHolder.resolveStoredSessionId(parsed.sessionId),
+                                    )
+                                } else {
+                                    parsed
+                                }
+                            if (replayInFlight && replayHold.containsKey(sid)) {
+                                replayHold[sid]?.add(seq to finalEvent)
+                                return
+                            }
+                            lastSeenSeq[sid] = seq
+                            parsedEvents.tryEmit(finalEvent)
+                            return
+                        }
+                    }
+
                     val parsed = EventParser.parse(rpc, text)
                     if (parsed is WsEvent.MessageComplete) {
                         parsed.copy(

@@ -668,4 +668,36 @@ class EventParserTest {
         assertEquals(3, (usage?.get("compressions") as? Number)?.toInt())
         assertEquals(12500, (usage?.get("context_used") as? Number)?.toInt())
     }
+
+    @Test
+    fun testParseParams_parsesBareEventMap() {
+        val params =
+            mapOf(
+                "type" to "message.token",
+                "session_id" to "sess-replay-1",
+                "seq" to 42,
+                "payload" to mapOf("text" to "hello replay"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.MessageToken)
+        val tokenEvent = event as WsEvent.MessageToken
+        assertEquals("hello replay", tokenEvent.token)
+        assertEquals("sess-replay-1", tokenEvent.sessionId)
+    }
+
+    @Test
+    fun testParseParams_parsesToolEvent() {
+        val params =
+            mapOf(
+                "type" to "tool.start",
+                "session_id" to "sess-replay-2",
+                "seq" to 43,
+                "payload" to mapOf("name" to "terminal", "tool_id" to "t1"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.ToolStart)
+        val toolEvent = event as WsEvent.ToolStart
+        assertEquals("terminal", toolEvent.name)
+        assertEquals("sess-replay-2", toolEvent.sessionId)
+    }
 }

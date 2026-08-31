@@ -15,6 +15,12 @@ object WsMethods {
     const val SESSION_TITLE = "session.title"
     const val SESSION_BRANCH = "session.branch"
 
+    /** Replay recorded events newer than client's last-seen seq for a session. */
+    const val SESSION_EVENTS_SINCE = "session.events.since"
+
+    /** Replay buffer telemetry for ops/debug. */
+    const val SESSION_EVENTS_STATS = "session.events.stats"
+
     /** Live context-window occupancy for the chat meter (desktop-mirror). */
     const val SESSION_CONTEXT_BREAKDOWN = "session.context_breakdown"
 

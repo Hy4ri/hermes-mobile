@@ -66,6 +66,9 @@
 
             # Android SDK (platforms, build-tools, platform-tools, emulator, system-images)
             androidSdk
+
+            # Linting
+            ktlint
           ];
 
           # Point everything at the Nix-managed SDK
@@ -79,6 +82,8 @@
           shellHook = ''
             echo " HermesControl Android dev shell"
             echo "   Java:         $(java -version 2>&1 | head -1)"
+            echo "   Gradle:       $(gradle --version 2>/dev/null | grep -m1 Gradle || echo "gradle $(gradle --version 2>&1 | head -1)")"
+            echo "   ktlint:       $(ktlint --version 2>/dev/null || echo "not found")"
             echo "   ANDROID_HOME: $ANDROID_HOME"
             echo ""
 

@@ -3,8 +3,34 @@ name: "CodeQL Analysis"
 on:
   push:
     branches: [ "main", "dev" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - '.github/workflows/pr-labeler.yml'
+      - '.github/workflows/stale.yml'
+      - '.github/workflows/merge-conflict-detector.yml'
+      - 'LICENSE'
+      - 'fastlane/**'
+      - '.gitignore'
+      - '.editorconfig'
+      - '.envrc'
+      - '*.html'
   pull_request:
     branches: [ "main", "dev" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - '.github/workflows/pr-labeler.yml'
+      - '.github/workflows/stale.yml'
+      - '.github/workflows/merge-conflict-detector.yml'
+      - 'LICENSE'
+      - 'fastlane/**'
+      - '.gitignore'
+      - '.editorconfig'
+      - '.envrc'
+      - '*.html'
   schedule:
     - cron: '30 3 * * 1' # Runs at 03:30 UTC every Monday
 

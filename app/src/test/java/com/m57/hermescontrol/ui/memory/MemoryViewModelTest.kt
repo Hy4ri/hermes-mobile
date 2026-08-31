@@ -1,8 +1,8 @@
 package com.m57.hermescontrol.ui.memory
 
+import com.m57.hermescontrol.data.model.MemoryProviderStatusRow
 import com.m57.hermescontrol.data.model.MemoryResetRequest
 import com.m57.hermescontrol.data.model.MemoryResetResponse
-import com.m57.hermescontrol.data.model.MemoryProviderStatusRow
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
@@ -130,3 +130,4 @@ class MemoryViewModelTest {
         assertTrue(vm.uiState.value.toastMessage.orEmpty().contains("Failed to reset memory"))
         assertNull(vm.uiState.value.resetting)
     }
+}

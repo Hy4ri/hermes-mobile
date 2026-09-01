@@ -216,6 +216,14 @@ interface HermesApiService {
         @Body body: SessionRenameRequest,
     ): Response<Unit>
 
+    // Hide/unhide rides the same PATCH /api/sessions/{id} — body carries only
+    // {hidden} (backend SessionRename model, any subset accepted; issue #1019).
+    @PATCH("api/sessions/{id}")
+    suspend fun setSessionHidden(
+        @Path("id", encoded = true) sessionId: String,
+        @Body body: SessionRenameRequest,
+    ): Response<Unit>
+
     @POST("api/sessions/bulk-delete")
     suspend fun bulkDeleteSessions(
         @Body body: BulkDeleteRequest,

@@ -31,13 +31,19 @@ class RefreshOnChangeTest {
 
     private class TestViewModel : ViewModel() {
         val state = MutableStateFlow("initial")
+        var job: kotlinx.coroutines.Job? = null
 
         init {
-            refreshOnChange(
-                eventType = ChangeEvents.CRON,
-                apiCall = { NetworkResult.Success("refreshed") },
-                onSuccess = { state.value = it },
-            )
+            job =
+                refreshOnChange(
+                    eventType = ChangeEvents.CRON,
+                    apiCall = { NetworkResult.Success("refreshed") },
+                    onSuccess = { state.value = it },
+                )
+        }
+
+        fun cleanup() {
+            job?.cancel()
         }
     }
 
@@ -55,23 +61,31 @@ class RefreshOnChangeTest {
     fun testRefreshOnChange_updatesOnMatchingEvent() =
         runTest(testDispatcher) {
             val viewModel = TestViewModel()
-            // Let the init coroutine run so the collector actually subscribes
-            // before the event fires (replay=0 — events before subscription
-            // are dropped, matching production where VMs subscribe at
-            // construction and events arrive afterwards).
-            advanceUntilIdle()
-            ChangeEventHub.emit(WsEvent.ChangeEvent(ChangeEvents.CRON))
-            advanceUntilIdle()
-            assertEquals("refreshed", viewModel.state.value)
+            try {
+                // Let the init coroutine run so the collector actually subscribes
+                // before the event fires (replay=0 — events before subscription
+                // are dropped, matching production where VMs subscribe at
+                // construction and events arrive afterwards).
+                advanceUntilIdle()
+                ChangeEventHub.emit(WsEvent.ChangeEvent(ChangeEvents.CRON))
+                advanceUntilIdle()
+                assertEquals("refreshed", viewModel.state.value)
+            } finally {
+                viewModel.cleanup()
+            }
         }
 
     @Test
     fun testRefreshOnChange_ignoresOtherEventTypes() =
         runTest(testDispatcher) {
             val viewModel = TestViewModel()
-            advanceUntilIdle()
-            ChangeEventHub.emit(WsEvent.ChangeEvent(ChangeEvents.SESSIONS))
-            advanceUntilIdle()
-            assertEquals("initial", viewModel.state.value)
+            try {
+                advanceUntilIdle()
+                ChangeEventHub.emit(WsEvent.ChangeEvent(ChangeEvents.SESSIONS))
+                advanceUntilIdle()
+                assertEquals("initial", viewModel.state.value)
+            } finally {
+                viewModel.cleanup()
+            }
         }
 }

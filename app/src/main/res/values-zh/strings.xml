@@ -523,6 +523,12 @@
     <string name="sessions_action_rename">重命名</string>
     <string name="sessions_action_pin">置顶</string>
     <string name="sessions_action_unpin">取消置顶</string>
+    <string name="sessions_action_hide">隐藏</string>
+    <string name="sessions_action_unhide">取消隐藏</string>
+    <string name="sessions_show_hidden">显示已隐藏的会话</string>
+    <string name="sessions_hide_hidden">隐藏已隐藏的会话</string>
+    <string name="sessions_hidden_badge">已隐藏</string>
+    <string name="sessions_all_hidden_desc">所有会话当前均已隐藏。点击下方以显示已隐藏的会话。</string>
     <string name="sessions_pinned_indicator">已置顶</string>
     <string name="sessions_fork_indicator">分支会话</string>
     <string name="sessions_rename_title">重命名会话</string>

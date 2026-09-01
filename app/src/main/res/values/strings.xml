@@ -599,6 +599,12 @@
     <string name="sessions_action_rename">Rename</string>
     <string name="sessions_action_pin">Pin</string>
     <string name="sessions_action_unpin">Unpin</string>
+    <string name="sessions_action_hide">Hide</string>
+    <string name="sessions_action_unhide">Unhide</string>
+    <string name="sessions_show_hidden">Show hidden sessions</string>
+    <string name="sessions_hide_hidden">Hide hidden sessions</string>
+    <string name="sessions_hidden_badge">Hidden</string>
+    <string name="sessions_all_hidden_desc">All sessions are currently hidden. Tap below to show hidden sessions.</string>
     <string name="sessions_pinned_indicator">Pinned</string>
     <string name="sessions_fork_indicator">Forked session</string>
     <string name="sessions_rename_title">Rename Session</string>

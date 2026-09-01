@@ -114,12 +114,39 @@ class McpJsonParserTest {
     }
 
     @Test
+    fun testParseMalformedArgsAndEnvDoesNotCrash() {
+        val json =
+            """
+            {
+              "mcpServers": {
+                "faulty": {
+                  "command": "npx",
+                  "args": ["valid", {"nested": "bad"}, ["array"], 123],
+                  "env": {
+                    "VALID_KEY": "valid_val",
+                    "BAD_KEY": {"nested": "bad"},
+                    "BAD_LIST": [1, 2]
+                  }
+                }
+              }
+            }
+            """.trimIndent()
+
+        val parsed = McpJsonParser.parse(json)
+        assertEquals(1, parsed.size)
+        val server = parsed[0]
+        assertEquals("faulty", server.name)
+        assertEquals(listOf("valid", "123"), server.args)
+        assertEquals(mapOf("VALID_KEY" to "valid_val"), server.env)
+    }
+
+    @Test
     fun testTokenOverheadEstimator() {
         val tools =
             listOf(
-                McpServerToolInfo(name = "read_file", schema_chars = 400),
-                McpServerToolInfo(name = "write_file", schema_chars = 401),
-                McpServerToolInfo(name = "no_chars", schema_chars = null),
+                McpServerToolInfo(name = "read_file", schemaChars = 400),
+                McpServerToolInfo(name = "write_file", schemaChars = 401),
+                McpServerToolInfo(name = "no_chars", schemaChars = null),
             )
 
         // ceil(400/4) = 100, ceil(401/4) = 101 -> sum = 201
@@ -134,7 +161,7 @@ class McpJsonParserTest {
     fun testTokenOverheadLargeFormatting() {
         val tools =
             listOf(
-                McpServerToolInfo(name = "tool_huge", schema_chars = 12800),
+                McpServerToolInfo(name = "tool_huge", schemaChars = 12800),
             )
 
         // ceil(12800/4) = 3200 tokens -> ~3.2k tokens
@@ -148,8 +175,8 @@ class McpJsonParserTest {
     fun testTokenOverheadNoSchemaChars() {
         val tools =
             listOf(
-                McpServerToolInfo(name = "tool1", schema_chars = null),
-                McpServerToolInfo(name = "tool2", schema_chars = 0),
+                McpServerToolInfo(name = "tool1", schemaChars = null),
+                McpServerToolInfo(name = "tool2", schemaChars = 0),
             )
 
         val est = McpTokenEstimator.estimateTokens(tools)

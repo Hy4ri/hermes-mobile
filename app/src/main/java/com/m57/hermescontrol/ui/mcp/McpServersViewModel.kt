@@ -80,6 +80,8 @@ class McpServersViewModel :
                     it.copy(
                         isLoading = false,
                         servers = data.servers.orEmpty(),
+                        serverTestResults = emptyMap(),
+                        testingServers = emptySet(),
                     )
                 }
             },
@@ -275,14 +277,19 @@ class McpServersViewModel :
 
         _uiState.update { it.copy(isImportingJson = true) }
         viewModelScope.launch {
+            val importJobs =
+                requests.map { req ->
+                    async(Dispatchers.IO) {
+                        val result = safeApiCall { ApiClient.hermesApi.addMcpServer(req) }
+                        req to result
+                    }
+                }
+
+            val results = importJobs.awaitAll()
             var successCount = 0
             val errors = mutableListOf<String>()
 
-            for (req in requests) {
-                val result =
-                    withContext(Dispatchers.IO) {
-                        safeApiCall { ApiClient.hermesApi.addMcpServer(req) }
-                    }
+            for ((req, result) in results) {
                 when (result) {
                     is NetworkResult.Success -> successCount++
                     is NetworkResult.Failure -> errors.add("${req.name}: ${result.error.message}")

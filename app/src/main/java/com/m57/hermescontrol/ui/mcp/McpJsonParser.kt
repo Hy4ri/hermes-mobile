@@ -106,8 +106,15 @@ object McpJsonParser {
 
         val args: List<String>? =
             when (val argsElement = obj["args"]) {
-                is JsonArray -> argsElement.mapNotNull { it.jsonPrimitive.contentOrNull }
-                else -> null
+                is JsonArray -> {
+                    argsElement.mapNotNull {
+                        (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                    }
+                }
+
+                else -> {
+                    null
+                }
             }
 
         val env: Map<String, String>? =
@@ -115,7 +122,7 @@ object McpJsonParser {
                 is JsonObject -> {
                     envElement.entries
                         .mapNotNull { (k, v) ->
-                            v.jsonPrimitive.contentOrNull?.let { k to it }
+                            (v as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull?.let { k to it }
                         }.toMap()
                         .takeIf { it.isNotEmpty() }
                 }
@@ -126,14 +133,14 @@ object McpJsonParser {
             }
 
         // Auth detection from "auth" or "headers"
-        var auth = obj["auth"]?.jsonPrimitive?.contentOrNull?.lowercase()
-        var bearerToken = obj["bearerToken"]?.jsonPrimitive?.contentOrNull
+        var auth = (obj["auth"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull?.lowercase()
+        var bearerToken = (obj["bearerToken"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
 
         val headers = obj["headers"]
         if (headers is JsonObject) {
             val authHeader =
-                headers["Authorization"]?.jsonPrimitive?.contentOrNull
-                    ?: headers["authorization"]?.jsonPrimitive?.contentOrNull
+                (headers["Authorization"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                    ?: (headers["authorization"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
             if (authHeader != null) {
                 auth = "header"
                 if (authHeader.startsWith("Bearer ", ignoreCase = true)) {
@@ -163,18 +170,18 @@ object McpJsonParser {
     }
 
     private fun inferName(obj: JsonObject): String {
-        val command = obj["command"]?.jsonPrimitive?.contentOrNull?.trim()
+        val command = (obj["command"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull?.trim()
         val args = obj["args"]
         if (!command.isNullOrEmpty()) {
             if (args is JsonArray && args.isNotEmpty()) {
-                val firstArg = args[0].jsonPrimitive.contentOrNull
+                val firstArg = (args[0] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
                 if (firstArg != null && !firstArg.startsWith("-")) {
                     return sanitizeName(firstArg.split("/").last())
                 }
             }
             return sanitizeName(command.split("/").last())
         }
-        val url = obj["url"]?.jsonPrimitive?.contentOrNull?.trim()
+        val url = (obj["url"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull?.trim()
         if (!url.isNullOrEmpty()) {
             return try {
                 val host = java.net.URI(url).host ?: "server"
@@ -206,7 +213,7 @@ object McpTokenEstimator {
         var total = 0
         var sawValid = false
         for (tool in tools) {
-            val chars = tool.schema_chars
+            val chars = tool.schemaChars
             if (chars != null && chars > 0) {
                 total += ceil(chars / 4.0).toInt()
                 sawValid = true

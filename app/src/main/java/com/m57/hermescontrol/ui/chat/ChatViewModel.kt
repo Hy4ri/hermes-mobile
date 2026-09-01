@@ -1960,6 +1960,85 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Send course-correction guidance to a live subagent child session (issue #1030).
+     */
+    fun steerSubagent(
+        indicator: SubagentIndicator,
+        message: String,
+    ) {
+        val trimmed = message.trim()
+        if (trimmed.isBlank()) return
+        val sessionId = runtimeSessionId ?: return
+        val subagentId = indicator.subagentId
+        val steerCommand =
+            if (!subagentId.isNullOrBlank()) {
+                "/steer $subagentId $trimmed"
+            } else {
+                "/steer $trimmed"
+            }
+        viewModelScope.launch(ioDispatcher) {
+            wsClient.sendRedirect(
+                sessionId,
+                steerCommand,
+                onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
+            )
+        }
+        _uiState.update { current ->
+            val updated =
+                current.subagentIndicators.map { ind ->
+                    if (ind.subagentId == indicator.subagentId &&
+                        (ind.goal == indicator.goal || indicator.subagentId != null)
+                    ) {
+                        val newLogs =
+                            (ind.logs + SubagentLogLine(text = "Course correction: \"$trimmed\"", isSummary = true))
+                                .takeLast(30)
+                        ind.copy(status = "steered", logs = newLogs)
+                    } else {
+                        ind
+                    }
+                }
+            current.copy(subagentIndicators = updated)
+        }
+    }
+
+    /**
+     * Stop / interrupt a single live subagent early (issue #1030).
+     */
+    fun stopSubagent(indicator: SubagentIndicator) {
+        val sessionId = runtimeSessionId ?: return
+        val subagentId = indicator.subagentId
+        val stopCommand =
+            if (!subagentId.isNullOrBlank()) {
+                "/stop $subagentId"
+            } else {
+                "/stop"
+            }
+        viewModelScope.launch(ioDispatcher) {
+            wsClient.sendRedirect(
+                sessionId,
+                stopCommand,
+                onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
+            )
+        }
+        _uiState.update { current ->
+            val updated =
+                current.subagentIndicators.map { ind ->
+                    if (ind.subagentId == indicator.subagentId &&
+                        (ind.goal == indicator.goal || indicator.subagentId != null)
+                    ) {
+                        val newLogs =
+                            (ind.logs + SubagentLogLine(text = "Stopped subagent", isError = true))
+                                .takeLast(30)
+                        ind.copy(status = "cancelled", logs = newLogs)
+                    } else {
+                        ind
+                    }
+                }
+            current.copy(subagentIndicators = updated)
+        }
+    }
+
     fun createNewSession(setLoading: Boolean = true) {
         // A fresh create has no persisted row until the first prompt.
         sessionHasServerPresence = false

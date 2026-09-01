@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +16,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
@@ -24,12 +29,18 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -45,6 +56,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,13 +66,15 @@ import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.TodoItem
 
 /**
- * Inspection sheet displaying active & completed subagent tasks and agent todos.
+ * Inspection sheet displaying active & completed subagent tasks and agent todos (issue #1030).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubagentInspectionSheet(
     indicators: List<SubagentIndicator> = emptyList(),
     todos: List<TodoItem> = emptyList(),
+    onSteerSubagent: ((SubagentIndicator, String) -> Unit)? = null,
+    onStopSubagent: ((SubagentIndicator) -> Unit)? = null,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -197,7 +211,21 @@ fun SubagentInspectionSheet(
                                 "subagent-${indicator.subagentId ?: indicator.goal ?: "${indicator.type}_$index"}"
                             },
                         ) { _, indicator ->
-                            InspectionItemCard(indicator = indicator)
+                            InspectionItemCard(
+                                indicator = indicator,
+                                onSteer =
+                                    if (onSteerSubagent != null) {
+                                        { message -> onSteerSubagent(indicator, message) }
+                                    } else {
+                                        null
+                                    },
+                                onStop =
+                                    if (onStopSubagent != null) {
+                                        { onStopSubagent(indicator) }
+                                    } else {
+                                        null
+                                    },
+                            )
                         }
                     }
                 }
@@ -418,29 +446,77 @@ private fun TodoInspectionCard(
 }
 
 @Composable
-private fun InspectionItemCard(indicator: SubagentIndicator) {
+private fun InspectionItemCard(
+    indicator: SubagentIndicator,
+    onSteer: ((String) -> Unit)? = null,
+    onStop: (() -> Unit)? = null,
+) {
+    var showSteerInput by remember { mutableStateOf(false) }
+    var steerText by remember { mutableStateOf("") }
+    val statusColors = LocalHermesStatusColors.current
+
+    val (statusIcon, statusTint, statusLabel) =
+        when {
+            indicator.isComplete -> {
+                Triple(
+                    Icons.Filled.CheckCircle,
+                    statusColors.success,
+                    stringResource(R.string.subagent_status_completed),
+                )
+            }
+
+            indicator.isFailed -> {
+                Triple(
+                    Icons.Filled.Cancel,
+                    statusColors.error,
+                    stringResource(R.string.subagent_status_failed),
+                )
+            }
+
+            indicator.isCancelled -> {
+                Triple(
+                    Icons.Filled.Cancel,
+                    statusColors.warning,
+                    stringResource(R.string.subagent_status_cancelled),
+                )
+            }
+
+            indicator.isSteered -> {
+                Triple(
+                    Icons.AutoMirrored.Filled.AltRoute,
+                    MaterialTheme.colorScheme.primary,
+                    stringResource(R.string.subagent_status_steered),
+                )
+            }
+
+            indicator.isQueued -> {
+                Triple(
+                    Icons.Filled.HourglassEmpty,
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    stringResource(R.string.subagent_status_running),
+                )
+            }
+
+            else -> {
+                Triple(
+                    Icons.Filled.Autorenew,
+                    MaterialTheme.colorScheme.primary,
+                    stringResource(R.string.subagent_status_running),
+                )
+            }
+        }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val statusColors = LocalHermesStatusColors.current
-                val (statusIcon, statusTint) =
-                    when {
-                        indicator.isComplete -> {
-                            Icons.Filled.CheckCircle to statusColors.success
-                        }
-
-                        indicator.isFailed -> {
-                            Icons.Filled.Cancel to statusColors.error
-                        }
-
-                        else -> {
-                            Icons.Filled.Autorenew to MaterialTheme.colorScheme.primary
-                        }
-                    }
+            // Header Row: Status Icon, Goal, and Status Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(
                     imageVector = statusIcon,
                     contentDescription = null,
@@ -456,6 +532,44 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
+
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = statusTint.copy(alpha = 0.15f),
+                ) {
+                    Text(
+                        text = statusLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusTint,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+
+            // Duration & Model info
+            if (indicator.durationSeconds != null || !indicator.model.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (indicator.durationSeconds != null) {
+                        Text(
+                            text = stringResource(R.string.subagent_duration, indicator.durationSeconds),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (!indicator.model.isNullOrBlank()) {
+                        Text(
+                            text = indicator.model,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        )
+                    }
+                }
             }
 
             if (!indicator.summary.isNullOrBlank()) {
@@ -467,6 +581,7 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                 )
             }
 
+            // Live Transcript Logs
             if (indicator.logs.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
@@ -500,6 +615,106 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                         )
+                    }
+                }
+            }
+
+            // Interactive Controls for active subagent (issue #1030)
+            if (indicator.isRunning || indicator.isSteered) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (onSteer != null) {
+                        FilledTonalButton(
+                            onClick = { showSteerInput = !showSteerInput },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.AltRoute,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.subagent_action_steer))
+                        }
+                    }
+
+                    if (onStop != null) {
+                        OutlinedButton(
+                            onClick = onStop,
+                            colors =
+                                ButtonDefaults.outlinedButtonColors(
+                                    contentColor = statusColors.error,
+                                ),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(stringResource(R.string.subagent_action_stop))
+                        }
+                    }
+                }
+
+                // Inline Steering Input Field
+                AnimatedVisibility(visible = showSteerInput) {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedTextField(
+                                value = steerText,
+                                onValueChange = { steerText = it },
+                                placeholder = {
+                                    Text(
+                                        text = stringResource(R.string.subagent_steer_placeholder),
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                keyboardActions =
+                                    KeyboardActions(
+                                        onSend = {
+                                            if (steerText.isNotBlank()) {
+                                                onSteer?.invoke(steerText)
+                                                steerText = ""
+                                                showSteerInput = false
+                                            }
+                                        },
+                                    ),
+                                modifier = Modifier.weight(1f),
+                                textStyle = MaterialTheme.typography.bodySmall,
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            IconButton(
+                                onClick = {
+                                    if (steerText.isNotBlank()) {
+                                        onSteer?.invoke(steerText)
+                                        steerText = ""
+                                        showSteerInput = false
+                                    }
+                                },
+                                enabled = steerText.isNotBlank(),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = stringResource(R.string.subagent_action_steer),
+                                    tint =
+                                        if (steerText.isNotBlank()) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        },
+                                )
+                            }
+                        }
                     }
                 }
             }

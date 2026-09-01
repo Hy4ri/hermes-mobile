@@ -930,6 +930,8 @@ fun ChatScreen(
             SubagentInspectionSheet(
                 indicators = state.subagentIndicators,
                 todos = state.todos,
+                onSteerSubagent = { indicator, msg -> viewModel.steerSubagent(indicator, msg) },
+                onStopSubagent = { indicator -> viewModel.stopSubagent(indicator) },
                 onDismiss = { showSubagentInspectionSheet = false },
             )
         }

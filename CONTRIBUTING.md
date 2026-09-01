@@ -67,6 +67,16 @@ If you use AI coding tools (including agents) to contribute:
 
 ---
 
+## Translations
+
+Translations for Hermes Mobile are managed through [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/).
+
+- Source strings are located in `app/src/main/res/values/strings.xml`.
+- Localized strings are stored in `app/src/main/res/values-<locale>/strings.xml`.
+- You can contribute translations directly on Weblate without modifying code or opening manual PRs.
+
+---
+
 ## Code Style
 
 We enforce Kotlin coding conventions and Jetpack Compose best practices.

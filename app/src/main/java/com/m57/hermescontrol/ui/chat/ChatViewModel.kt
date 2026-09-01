@@ -2469,6 +2469,27 @@ class ChatViewModel(
                 }
 
                 is NetworkResult.Failure -> {
+                    val errorMsg = result.error.message
+                    val is404 =
+                        errorMsg.contains("404", ignoreCase = true) ||
+                            errorMsg.contains("not found", ignoreCase = true)
+                    if (is404) {
+                        // A 404 from GET /api/sessions/{id}/messages indicates the session has no
+                        // persisted rows in state.db (e.g. newly created/lazy unprompted session, or empty history).
+                        // It is NOT a fatal error: keep the session open with empty transcript, clear loading,
+                        // and mark hydrated cleanly.
+                        _uiState.update {
+                            if (!isCurrentHydration(sessionId, generation, requestSequence)) return@update it
+                            it.copy(
+                                isLoading = false,
+                                isLoadingOlder = false,
+                                hasOlderMessages = false,
+                            )
+                        }
+                        hydratedGeneration = generation
+                        finishResumeWhenHydrated(generation)
+                        return@launch
+                    }
                     if (hydratedGeneration == generation) hydratedGeneration = -1L
                     _uiState.update {
                         if (!isCurrentHydration(sessionId, generation, requestSequence)) return@update it

@@ -3939,4 +3939,68 @@ class ChatViewModelTest {
                     .contains("Backend exploded"),
             )
         }
+
+    // ── Subagent steering & cancellation (issue #1030) ───────────────────
+
+    @Test
+    fun testSteerSubagent_sendsRedirectAndUpdatesStatus() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val indicator =
+                SubagentIndicator(
+                    type = "subagent.start",
+                    subagentId = "sub-123",
+                    goal = "Search database",
+                    status = "running",
+                )
+            mockEventsFlow.emit(
+                WsEvent.SubagentEvent(
+                    type = "subagent.start",
+                    payload = mapOf("subagent_id" to "sub-123", "goal" to "Search database"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.steerSubagent(indicator, "Use index scan instead")
+            advanceUntilIdle()
+
+            val updated =
+                viewModel.uiState.value.subagentIndicators
+                    .first { it.subagentId == "sub-123" }
+            assertEquals("steered", updated.status)
+            assertTrue(updated.logs.any { it.text.contains("Use index scan instead") })
+            io.mockk.verify { HermesWsClient.sendRedirect(sessionId, "/steer sub-123 Use index scan instead", any()) }
+        }
+
+    @Test
+    fun testStopSubagent_sendsRedirectAndMarksCancelled() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            val indicator =
+                SubagentIndicator(
+                    type = "subagent.start",
+                    subagentId = "sub-123",
+                    goal = "Run deep scan",
+                    status = "running",
+                )
+            mockEventsFlow.emit(
+                WsEvent.SubagentEvent(
+                    type = "subagent.start",
+                    payload = mapOf("subagent_id" to "sub-123", "goal" to "Run deep scan"),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.stopSubagent(indicator)
+            advanceUntilIdle()
+
+            val updated =
+                viewModel.uiState.value.subagentIndicators
+                    .first { it.subagentId == "sub-123" }
+            assertEquals("cancelled", updated.status)
+            assertTrue(updated.logs.any { it.text.contains("Stopped subagent") })
+            io.mockk.verify { HermesWsClient.sendRedirect(sessionId, "/stop sub-123", any()) }
+        }
 }

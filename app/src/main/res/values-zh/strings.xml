@@ -1089,6 +1089,15 @@
     <string name="subagent_no_active">没有活动任务或计划项。</string>
     <string name="subagent_summary">摘要：%1$s</string>
     <string name="subagent_task_plan_inspection">任务与计划检查</string>
+    <string name="subagent_action_steer">引导</string>
+    <string name="subagent_action_stop">停止</string>
+    <string name="subagent_steer_placeholder">向子代理发送调整引导…</string>
+    <string name="subagent_status_running">运行中</string>
+    <string name="subagent_status_completed">已完成</string>
+    <string name="subagent_status_steered">已引导</string>
+    <string name="subagent_status_cancelled">已取消</string>
+    <string name="subagent_status_failed">失败</string>
+    <string name="subagent_duration">%1$.1f秒</string>
     <string name="system_auth_required">需要认证</string>
     <string name="system_checkpoint_prune">清理检查点</string>
     <string name="system_config_migrate">迁移配置</string>

@@ -846,4 +846,18 @@
     <string name="group_chat_settings_system_prompt_hint">이 그룹을 위한 사용자 지정 규칙, 어조 또는 컨텍스트 (선택사항)…</string>
     <string name="group_chat_settings_system_prompt_desc">이 방의 모든 봇에 적용되는 사용자 지정 가이드라인</string>
     <string name="group_chat_action_settings">설정</string>
+    <string name="subagent_agent_plan">에이전트 계획</string>
+    <string name="subagent_live_transcript">실시간 기록</string>
+    <string name="subagent_no_active">활성 작업 또는 계획 항목이 없습니다.</string>
+    <string name="subagent_summary">요약: %1$s</string>
+    <string name="subagent_task_plan_inspection">작업 및 계획 검사</string>
+    <string name="subagent_action_steer">안내</string>
+    <string name="subagent_action_stop">중지</string>
+    <string name="subagent_steer_placeholder">하위 에이전트 안내 입력…</string>
+    <string name="subagent_status_running">실행 중</string>
+    <string name="subagent_status_completed">완료됨</string>
+    <string name="subagent_status_steered">안내됨</string>
+    <string name="subagent_status_cancelled">취소됨</string>
+    <string name="subagent_status_failed">실패</string>
+    <string name="subagent_duration">%1$.1f초</string>
 </resources>

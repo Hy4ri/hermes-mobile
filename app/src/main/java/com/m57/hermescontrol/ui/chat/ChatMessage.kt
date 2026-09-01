@@ -114,8 +114,10 @@ data class SubagentIndicator(
 ) {
     val isComplete: Boolean get() = type == "subagent.complete" || status == "completed" || status == "done"
     val isFailed: Boolean get() = status == "failed" || status == "interrupted"
+    val isCancelled: Boolean get() = status == "cancelled" || status == "stopped" || status == "canceled"
+    val isSteered: Boolean get() = status == "steered"
     val isQueued: Boolean get() = status == "queued"
-    val isRunning: Boolean get() = !isComplete && !isFailed && !isQueued
+    val isRunning: Boolean get() = !isComplete && !isFailed && !isCancelled && !isQueued
 }
 
 enum class MessageRole {

@@ -1218,6 +1218,15 @@
     <string name="subagent_no_active">No active tasks or plan items.</string>
     <string name="subagent_summary">Summary: %1$s</string>
     <string name="subagent_task_plan_inspection">Task &amp; Plan Inspection</string>
+    <string name="subagent_action_steer">Steer</string>
+    <string name="subagent_action_stop">Stop</string>
+    <string name="subagent_steer_placeholder">Course-correction guidance for subagent…</string>
+    <string name="subagent_status_running">Running</string>
+    <string name="subagent_status_completed">Completed</string>
+    <string name="subagent_status_steered">Steered</string>
+    <string name="subagent_status_cancelled">Cancelled</string>
+    <string name="subagent_status_failed">Failed</string>
+    <string name="subagent_duration">%1$.1fs</string>
     <string name="system_auth_required">Auth required</string>
     <string name="system_checkpoint_prune">Checkpoint prune</string>
     <string name="system_config_migrate">Config migrate</string>

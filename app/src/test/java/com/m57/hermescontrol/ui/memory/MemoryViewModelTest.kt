@@ -6,6 +6,7 @@ import com.m57.hermescontrol.data.model.MemoryResetResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -14,6 +15,7 @@ import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -36,6 +38,8 @@ import retrofit2.Response
 class MemoryViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockApi: HermesApiService
+    private val mockSwitchFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val mockConnSwitchFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     private val memoryResponse =
         MemoryResponse(
@@ -56,6 +60,9 @@ class MemoryViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         mockkObject(ApiClient)
+        mockkObject(ProfileSwitchCoordinator)
+        every { ProfileSwitchCoordinator.switched } returns mockSwitchFlow
+        every { ProfileSwitchCoordinator.connectionSwitched } returns mockConnSwitchFlow
         mockApi = mockk(relaxed = true)
         every { ApiClient.hermesApi } returns mockApi
         coEvery { mockApi.getMemory() } returns Response.success(memoryResponse)
@@ -77,6 +84,30 @@ class MemoryViewModelTest {
         assertEquals("web", state.memory?.active)
         assertEquals(2, state.memory?.providers?.size)
         assertEquals(1024L, state.memory?.builtin_files?.memory)
+    }
+
+    @Test
+    fun `profile switch triggers silent reload`() {
+        val vm = MemoryViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { mockApi.getMemory() }
+
+        mockSwitchFlow.tryEmit("yasmin")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockApi.getMemory() }
+    }
+
+    @Test
+    fun `connection profile switch triggers silent reload`() {
+        val vm = MemoryViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { mockApi.getMemory() }
+
+        mockConnSwitchFlow.tryEmit("server-remote")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockApi.getMemory() }
     }
 
     @Test

@@ -804,9 +804,13 @@ fun SessionsScreen(
                                 derivedStateOf {
                                     val info = listState.layoutInfo
                                     val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
-                                    lastVisible >= 0 &&
-                                        info.totalItemsCount >= AUTO_LOAD_THRESHOLD &&
+                                    if (lastVisible < 0 || info.totalItemsCount == 0) {
+                                        false
+                                    } else if (info.totalItemsCount <= AUTO_LOAD_THRESHOLD) {
+                                        lastVisible >= info.totalItemsCount - 1
+                                    } else {
                                         lastVisible >= info.totalItemsCount - AUTO_LOAD_THRESHOLD
+                                    }
                                 }
                             }
                             LaunchedEffect(

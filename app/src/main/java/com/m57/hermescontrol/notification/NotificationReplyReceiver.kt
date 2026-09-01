@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsMethods
@@ -124,11 +125,20 @@ open class NotificationReplyReceiver : BroadcastReceiver() {
     }
 
     private suspend fun resumeSession(storedSessionId: String): String {
+        val profile = AuthManager.activeProfileId.value
+        val params =
+            mutableMapOf<String, Any>(
+                "session_id" to storedSessionId,
+                "omit_messages" to true,
+            )
+        if (!profile.isNullOrBlank()) {
+            params["profile"] = profile
+        }
         val result =
             HermesWsClient
                 .request(
                     WsMethods.SESSION_RESUME,
-                    mapOf("session_id" to storedSessionId, "omit_messages" to true),
+                    params,
                     timeoutMs = REPLY_TIMEOUT_MS,
                 ).await() as? Map<*, *>
         val runtimeSessionId =

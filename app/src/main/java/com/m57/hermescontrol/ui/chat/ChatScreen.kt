@@ -231,7 +231,7 @@ fun ChatScreen(
             .collectLatest { firstVisibleIndex ->
                 if (firstVisibleIndex > 2) {
                     isOlderPagingArmed = true
-                } else if (isOlderPagingArmed) {
+                } else if (isOlderPagingArmed || state.messages.size <= 3) {
                     val anchorId = state.messages.getOrNull(firstVisibleIndex)?.id
                     val offset = scrollController.captureAnchorOffset()
                     pagingAnchor.value = if (anchorId != null) anchorId to offset else null

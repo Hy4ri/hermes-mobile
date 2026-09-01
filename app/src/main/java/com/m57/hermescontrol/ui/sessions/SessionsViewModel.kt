@@ -216,11 +216,6 @@ class SessionsViewModel :
                         val hasMore = receivedFullPage && addedNewItems && data.total > newSessions.size
                         it.copy(
                             isLoadingMore = false,
-                            // distinctBy guards offset-pagination churn: if a new
-                            // session lands on top between page loads, offsets
-                            // shift and the next page can repeat an id we already
-                            // have — LazyColumn would crash on the duplicate key.
-                            // pinnedFirst keeps pinned sessions above the rest.
                             sessions = newSessions,
                             total = if (hasMore) data.total else newSessions.size,
                             hasMore = hasMore,

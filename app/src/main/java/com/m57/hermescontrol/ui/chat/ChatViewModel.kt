@@ -2576,10 +2576,19 @@ class ChatViewModel(
     ) {
         val requestSequence = ++resumeRequestSequence
         activeResumeRequestSequence = requestSequence
+        val profile = AuthManager.activeProfileId.value
+        val params =
+            mutableMapOf<String, Any>(
+                "session_id" to sessionId,
+                "omit_messages" to true,
+            )
+        if (!profile.isNullOrBlank()) {
+            params["profile"] = profile
+        }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_RESUME,
-                mapOf("session_id" to sessionId, "omit_messages" to true),
+                params,
                 onSent = { id ->
                     trackSessionRequest(
                         id = id,
@@ -2653,6 +2662,17 @@ class ChatViewModel(
     private fun recoverGoneSession(sessionId: String) {
         if (_uiState.value.currentSessionId != sessionId) return
         if (sessionGoneRecoveryInFlight) return
+        if (_uiState.value.messages.isNotEmpty()) {
+            cancelResumeRetry()
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isResumeRetrying = false,
+                    resumeError = "Session not found on server (displaying cached messages)",
+                )
+            }
+            return
+        }
         sessionGoneRecoveryInFlight = true
         cancelResumeRetry()
         _uiState.update {

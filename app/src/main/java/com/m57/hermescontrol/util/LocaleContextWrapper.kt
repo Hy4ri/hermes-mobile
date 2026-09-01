@@ -79,6 +79,7 @@ object LocaleContextWrapper {
                     @Suppress("DEPRECATION")
                     setLocale(locale)
                 }
+                setLayoutDirection(locale)
             }
         return base.createConfigurationContext(newConfig)
     }

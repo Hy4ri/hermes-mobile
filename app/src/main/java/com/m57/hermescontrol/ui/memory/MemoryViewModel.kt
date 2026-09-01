@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,9 +38,24 @@ class MemoryViewModel :
     private val _uiState = MutableStateFlow(MemoryUiState())
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
 
-    fun load() {
+    init {
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.switched.collect {
+                load(silent = true)
+            }
+        }
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.connectionSwitched.collect {
+                load(silent = true)
+            }
+        }
+    }
+
+    fun load(silent: Boolean = false) {
         if (_uiState.value.isLoading) return
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        if (!silent) {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        }
         viewModelScope.launch {
             val result = safeApiCall { ApiClient.hermesApi.getMemory() }
             when (result) {

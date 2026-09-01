@@ -647,6 +647,8 @@ class ChatViewModel(
         viewModelScope.launch {
             ProfileSwitchCoordinator.switched
                 .collect { _ ->
+                    pendingGoneSessionNotice = false
+                    sessionHasServerPresence = false
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
                 }
         }
@@ -657,6 +659,8 @@ class ChatViewModel(
         viewModelScope.launch {
             ProfileSwitchCoordinator.connectionSwitched
                 .collect { _ ->
+                    pendingGoneSessionNotice = false
+                    sessionHasServerPresence = false
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
                 }
         }

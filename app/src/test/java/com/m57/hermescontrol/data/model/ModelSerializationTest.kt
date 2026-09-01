@@ -313,6 +313,41 @@ class ModelSerializationTest {
     }
 
     @Test
+    fun testSessionInfoDeserialization_hiddenToleratesIntAndBooleanAndString() {
+        val s1 = json.decodeFromString<SessionInfo>("""{"id": "s1", "hidden": 0}""")
+        assertEquals(false, s1.hidden)
+
+        val s2 = json.decodeFromString<SessionInfo>("""{"id": "s2", "hidden": 1}""")
+        assertEquals(true, s2.hidden)
+
+        val s3 = json.decodeFromString<SessionInfo>("""{"id": "s3", "hidden": false}""")
+        assertEquals(false, s3.hidden)
+
+        val s4 = json.decodeFromString<SessionInfo>("""{"id": "s4", "hidden": true}""")
+        assertEquals(true, s4.hidden)
+
+        val s5 = json.decodeFromString<SessionInfo>("""{"id": "s5", "hidden": null}""")
+        assertNull(s5.hidden)
+
+        val s6 = json.decodeFromString<SessionInfo>("""{"id": "s6"}""")
+        assertNull(s6.hidden)
+
+        val s7 = json.decodeFromString<SessionInfo>("""{"id": "s7", "hidden": "1"}""")
+        assertEquals(true, s7.hidden)
+
+        val s8 = json.decodeFromString<SessionInfo>("""{"id": "s8", "hidden": "false"}""")
+        assertEquals(false, s8.hidden)
+    }
+
+    @Test
+    fun testSessionRenameRequestSerialization_includesHidden() {
+        val req = SessionRenameRequest(title = "new name", hidden = true)
+        val encoded = json.encodeToString(SessionRenameRequest.serializer(), req)
+        assertTrue(encoded.contains("\"hidden\":true"))
+        assertTrue(encoded.contains("\"title\":\"new name\""))
+    }
+
+    @Test
     fun testSessionMessagesResponseDeserialization_missingMessages_causesNullOnNonNullableField() {
         val jsonStr = "{}"
         org.junit.jupiter.api.Assertions.assertThrows(kotlinx.serialization.SerializationException::class.java) {

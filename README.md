@@ -159,6 +159,10 @@ app/src/main/java/com/m57/hermescontrol/
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our branch workflow, code style guidelines, and PR checklist.
 
+### Translations
+
+Help translate Hermes Mobile into your language on [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/)!
+
 For developer-specific details, code conventions, and project architecture notes, refer to [AGENTS.md](AGENTS.md).
 
 ---

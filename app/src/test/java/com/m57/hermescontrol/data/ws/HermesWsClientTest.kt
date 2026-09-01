@@ -1688,4 +1688,65 @@ class HermesWsClientTest {
         Thread.sleep(200)
         assertEquals(6, HermesWsClient.getSeqWatermarks()["s1"])
     }
+
+    @Test
+    fun testPingMethodConstant() {
+        assertEquals("ping", WsMethods.PING)
+    }
+
+    @Test
+    fun testPingMeasuresLatencyAndUpdatesTimestamp() {
+        var serverWebSocket: WebSocket? = null
+        val serverLatch = CountDownLatch(1)
+        val pingLatch = CountDownLatch(1)
+        var pingReceived = false
+
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverWebSocket = webSocket
+                        serverLatch.countDown()
+                    }
+
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        if (text.contains(""""method":"ping"""")) {
+                            pingReceived = true
+                            val id = Regex(""""id":"([^"]+)"""").find(text)?.groupValues?.get(1) ?: "1"
+                            webSocket.send(
+                                """{"jsonrpc":"2.0","id":"$id","result":{"pong":true,"timestamp":1700000000.0}}""",
+                            )
+                            pingLatch.countDown()
+                        }
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.connect()
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
+        assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
+
+        val latency =
+            runBlocking {
+                HermesWsClient.ping(timeoutMs = 5000)
+            }
+
+        assertTrue(pingLatch.await(5, TimeUnit.SECONDS))
+        assertTrue(pingReceived)
+        assertTrue(latency >= 0)
+        assertNotNull(HermesWsClient.lastLatencyMs.value)
+        assertEquals(latency, HermesWsClient.lastLatencyMs.value)
+        assertTrue(HermesWsClient.lastPongTimestamp > 0)
+    }
 }

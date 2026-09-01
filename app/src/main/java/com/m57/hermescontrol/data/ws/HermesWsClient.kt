@@ -152,6 +152,12 @@ object HermesWsClient {
     val isHealthy: Boolean
         get() = isConnected && (System.currentTimeMillis() - lastPongTimestamp < 60_000L)
 
+    // ── Observable latency tracking (issue #1017) ─────────────────────────
+    private val _lastLatencyMs = MutableStateFlow<Long?>(null)
+
+    /** Last measured round-trip latency in milliseconds via [ping], or null when disconnected / unmeasured. */
+    val lastLatencyMs: StateFlow<Long?> = _lastLatencyMs.asStateFlow()
+
     private var healthJob: Job? = null
 
     private fun startHealthTracking() {
@@ -161,9 +167,35 @@ object HermesWsClient {
             wsScope.launch {
                 while (connected.get()) {
                     delay(30_000L)
+                    if (connected.get()) {
+                        try {
+                            ping(timeoutMs = 10_000L)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Health check ping failed: ${e.message}")
+                        }
+                    }
                     if (!runHealthCheckPass()) break
                 }
             }
+    }
+
+    /**
+     * Ultra-lightweight JSON-RPC liveness check and RTT measurement (issue #1017).
+     * Bypasses agent queues on the backend; measures round-trip time in milliseconds.
+     * Updates [lastLatencyMs] and [lastPongTimestamp].
+     */
+    suspend fun ping(timeoutMs: Long = 5_000L): Long {
+        val start = System.currentTimeMillis()
+        request(WsMethods.PING, emptyMap(), timeoutMs = timeoutMs).await()
+        val latency = (System.currentTimeMillis() - start).coerceAtLeast(0L)
+        lastPongTimestamp = System.currentTimeMillis()
+        _lastLatencyMs.value = latency
+        return latency
+    }
+
+    @VisibleForTesting
+    internal fun setLastLatencyForTest(latency: Long?) {
+        _lastLatencyMs.value = latency
     }
 
     /**
@@ -199,6 +231,7 @@ object HermesWsClient {
     private fun stopHealthTracking() {
         healthJob?.cancel()
         healthJob = null
+        _lastLatencyMs.value = null
     }
 
     // ── Public observable stream ─────────────────────────────────────────

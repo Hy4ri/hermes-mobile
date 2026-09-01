@@ -37,6 +37,11 @@ object WsMethods {
     const val SUDO_RESPOND = "sudo.respond"
     const val SECRET_RESPOND = "secret.respond"
 
+    // ── Heartbeat & Latency (issue #1017) ──────────────────────────────────
+
+    /** Ultra-lightweight liveness check and round-trip latency measurement. */
+    const val PING = "ping"
+
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"
     const val COMMAND_DISPATCH = "command.dispatch"

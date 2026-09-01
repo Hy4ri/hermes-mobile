@@ -51,6 +51,7 @@ import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
 import com.m57.hermescontrol.data.model.McpCatalogResponse
 import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
+import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigResponse
@@ -519,7 +520,7 @@ interface HermesApiService {
     @POST("api/mcp/servers/{name}/test")
     suspend fun testMcpServer(
         @Path("name") name: String,
-    ): Response<Unit>
+    ): Response<McpServerTestResponse>
 
     @DELETE("api/mcp/servers/{name}")
     suspend fun deleteMcpServer(

@@ -18,6 +18,21 @@ data class McpServer(
     val status: String? = null,
     val error: String? = null,
     val auth: String? = null,
+    val tools: List<String>? = null,
+)
+
+@Serializable
+data class McpServerTestResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val tools: List<McpServerToolInfo> = emptyList(),
+)
+
+@Serializable
+data class McpServerToolInfo(
+    val name: String,
+    val description: String? = null,
+    val schema_chars: Int? = null,
 )
 
 @Serializable

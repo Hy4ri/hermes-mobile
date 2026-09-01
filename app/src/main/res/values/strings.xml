@@ -812,6 +812,16 @@
     <string name="mcp_servers_label_transport">Transport: %1$s</string>
     <string name="mcp_servers_label_command">Command:</string>
     <string name="mcp_servers_action_test">Test</string>
+    <string name="mcp_servers_action_test_all">Test All</string>
+    <string name="mcp_servers_action_import_json">Import JSON</string>
+    <string name="mcp_servers_import_dialog_title">Import MCP Servers</string>
+    <string name="mcp_servers_import_dialog_desc">Paste Claude Desktop / Cursor mcpServers JSON snippet or server definition.</string>
+    <string name="mcp_servers_import_dialog_paste">Paste Clipboard</string>
+    <string name="mcp_servers_import_dialog_importing">Importing…</string>
+    <string name="mcp_servers_status_healthy">Healthy</string>
+    <string name="mcp_servers_status_needs_auth">Needs Auth</string>
+    <string name="mcp_servers_status_error">Error</string>
+    <string name="mcp_servers_status_testing">Testing…</string>
     <string name="mcp_servers_add_server">Add server</string>
     <string name="mcp_servers_add_http">HTTP URL</string>
     <string name="mcp_servers_empty_title">No MCP servers</string>

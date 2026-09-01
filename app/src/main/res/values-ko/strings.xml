@@ -583,6 +583,16 @@
     <string name="mcp_servers_label_transport">전송: %1$s</string>
     <string name="mcp_servers_label_command">명령어:</string>
     <string name="mcp_servers_action_test">테스트</string>
+    <string name="mcp_servers_action_test_all">모두 테스트</string>
+    <string name="mcp_servers_action_import_json">JSON 가져오기</string>
+    <string name="mcp_servers_import_dialog_title">MCP 서버 가져오기</string>
+    <string name="mcp_servers_import_dialog_desc">Claude Desktop / Cursor mcpServers JSON 스니펫 또는 서버 정의를 붙여넣으세요.</string>
+    <string name="mcp_servers_import_dialog_paste">클립보드 붙여넣기</string>
+    <string name="mcp_servers_import_dialog_importing">가져오는 중…</string>
+    <string name="mcp_servers_status_healthy">정상</string>
+    <string name="mcp_servers_status_needs_auth">인증 필요</string>
+    <string name="mcp_servers_status_error">오류</string>
+    <string name="mcp_servers_status_testing">테스트 중…</string>
     <string name="mcp_servers_add_server">서버 추가</string>
     <string name="mcp_servers_add_http">HTTP URL</string>
     <string name="mcp_servers_add_stdio">Stdio 명령어</string>

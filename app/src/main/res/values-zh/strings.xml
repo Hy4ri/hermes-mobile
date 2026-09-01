@@ -720,6 +720,16 @@
     <string name="mcp_servers_label_transport">传输：%1$s</string>
     <string name="mcp_servers_label_command">命令：</string>
     <string name="mcp_servers_action_test">测试</string>
+    <string name="mcp_servers_action_test_all">测试全部</string>
+    <string name="mcp_servers_action_import_json">导入 JSON</string>
+    <string name="mcp_servers_import_dialog_title">导入 MCP 服务器</string>
+    <string name="mcp_servers_import_dialog_desc">粘贴 Claude Desktop / Cursor mcpServers JSON 片段或服务器定义。</string>
+    <string name="mcp_servers_import_dialog_paste">从剪贴板粘贴</string>
+    <string name="mcp_servers_import_dialog_importing">导入中…</string>
+    <string name="mcp_servers_status_healthy">正常</string>
+    <string name="mcp_servers_status_needs_auth">需要认证</string>
+    <string name="mcp_servers_status_error">错误</string>
+    <string name="mcp_servers_status_testing">测试中…</string>
     <string name="mcp_servers_add_server">添加服务器</string>
     <string name="mcp_servers_add_http">HTTP 地址</string>
     <string name="mcp_servers_empty_title">没有 MCP 服务器</string>

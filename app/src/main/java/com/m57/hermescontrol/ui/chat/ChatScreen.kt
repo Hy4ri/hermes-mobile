@@ -2,12 +2,12 @@ package com.m57.hermescontrol.ui.chat
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -343,21 +343,18 @@ fun ChatScreen(
         ) { granted ->
             ExternalActivityLifecycleGuard.externalActivityReturned()
             if (granted) {
-                if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                    val intent =
-                        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                            )
-                            putExtra(
-                                RecognizerIntent.EXTRA_PROMPT,
-                                micListeningPrompt,
-                            )
-                        }
+                if (SpeechInputHelper.isSpeechInputAvailable(context)) {
+                    val intent = SpeechInputHelper.createSpeechIntent(micListeningPrompt)
                     isListening = true
                     launchExternalActivity {
-                        speechLauncher.launch(intent)
+                        try {
+                            speechLauncher.launch(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            isListening = false
+                            scrollScope.launch {
+                                snackbarHostState.showSnackbar(sttNotAvailableMsg)
+                            }
+                        }
                     }
                 } else {
                     scrollScope.launch {
@@ -781,21 +778,18 @@ fun ChatScreen(
                             Manifest.permission.RECORD_AUDIO,
                         ) == PackageManager.PERMISSION_GRANTED
                     ) {
-                        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                            val intent =
-                                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(
-                                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                                    )
-                                    putExtra(
-                                        RecognizerIntent.EXTRA_PROMPT,
-                                        micListeningPrompt,
-                                    )
-                                }
+                        if (SpeechInputHelper.isSpeechInputAvailable(context)) {
+                            val intent = SpeechInputHelper.createSpeechIntent(micListeningPrompt)
                             isListening = true
                             launchExternalActivity {
-                                speechLauncher.launch(intent)
+                                try {
+                                    speechLauncher.launch(intent)
+                                } catch (_: ActivityNotFoundException) {
+                                    isListening = false
+                                    scrollScope.launch {
+                                        snackbarHostState.showSnackbar(sttNotAvailableMsg)
+                                    }
+                                }
                             }
                         } else {
                             scrollScope.launch {

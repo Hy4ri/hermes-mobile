@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,25 +13,42 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +56,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,17 +66,22 @@ import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import com.m57.hermescontrol.ui.chat.TodoItem
 
 /**
- * Inspection sheet displaying active & completed subagent tasks and agent todos.
+ * Inspection sheet displaying active & completed subagent tasks and agent todos (issue #1030).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubagentInspectionSheet(
     indicators: List<SubagentIndicator> = emptyList(),
     todos: List<TodoItem> = emptyList(),
+    onSteerSubagent: ((SubagentIndicator, String) -> Unit)? = null,
+    onStopSubagent: ((SubagentIndicator) -> Unit)? = null,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val todoTree = remember(todos) { buildTodoTree(todos) }
+    var collapsedParentIds by remember { mutableStateOf(setOf<String>()) }
+    val displayRows = remember(todoTree, collapsedParentIds) { flattenTodoTree(todoTree, collapsedParentIds) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -111,9 +136,9 @@ fun SubagentInspectionSheet(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (todos.isNotEmpty()) {
+                    if (displayRows.isNotEmpty()) {
                         item(key = "todos_header") {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -134,11 +159,26 @@ fun SubagentInspectionSheet(
                                 )
                             }
                         }
-                        itemsIndexed(
-                            items = todos,
-                            key = { index, todo -> "todo-${todo.id}_$index" },
-                        ) { _, todo ->
-                            TodoInspectionCard(todo = todo)
+                        items(
+                            items = displayRows,
+                            key = { row -> "todo-${row.todo.id}_${row.depth}" },
+                        ) { row ->
+                            TodoInspectionCard(
+                                row = row,
+                                onToggleExpand =
+                                    if (row.hasChildren) {
+                                        {
+                                            collapsedParentIds =
+                                                if (row.todo.id in collapsedParentIds) {
+                                                    collapsedParentIds - row.todo.id
+                                                } else {
+                                                    collapsedParentIds + row.todo.id
+                                                }
+                                        }
+                                    } else {
+                                        null
+                                    },
+                            )
                         }
                     }
 
@@ -171,7 +211,21 @@ fun SubagentInspectionSheet(
                                 "subagent-${indicator.subagentId ?: indicator.goal ?: "${indicator.type}_$index"}"
                             },
                         ) { _, indicator ->
-                            InspectionItemCard(indicator = indicator)
+                            InspectionItemCard(
+                                indicator = indicator,
+                                onSteer =
+                                    if (onSteerSubagent != null) {
+                                        { message -> onSteerSubagent(indicator, message) }
+                                    } else {
+                                        null
+                                    },
+                                onStop =
+                                    if (onStopSubagent != null) {
+                                        { onStopSubagent(indicator) }
+                                    } else {
+                                        null
+                                    },
+                            )
                         }
                     }
                 }
@@ -180,12 +234,128 @@ fun SubagentInspectionSheet(
     }
 }
 
+/**
+ * Node in the hierarchical todo tree.
+ */
+data class TodoNode(
+    val item: TodoItem,
+    val children: List<TodoNode> = emptyList(),
+    val depth: Int = 0,
+)
+
+/**
+ * Flattened row representation ready for lazy column rendering with indentation and collapse state.
+ */
+data class TodoDisplayRow(
+    val todo: TodoItem,
+    val depth: Int,
+    val hasChildren: Boolean,
+    val isExpanded: Boolean,
+    val completedSubtasksCount: Int,
+    val totalSubtasksCount: Int,
+)
+
+/**
+ * Constructs a hierarchical tree from a flat list of [TodoItem]s using the [TodoItem.parent] property.
+ */
+fun buildTodoTree(todos: List<TodoItem>): List<TodoNode> {
+    val itemsById = todos.associateBy { it.id }
+    val childrenByParent = mutableMapOf<String, MutableList<TodoItem>>()
+    val rootItems = mutableListOf<TodoItem>()
+
+    for (item in todos) {
+        val p = item.parent
+        if (p != null && itemsById.containsKey(p) && p != item.id) {
+            childrenByParent.getOrPut(p) { mutableListOf() }.add(item)
+        } else {
+            rootItems.add(item)
+        }
+    }
+
+    fun buildNode(
+        item: TodoItem,
+        depth: Int,
+    ): TodoNode {
+        val children = childrenByParent[item.id]?.map { buildNode(it, depth + 1) } ?: emptyList()
+        return TodoNode(item = item, children = children, depth = depth)
+    }
+
+    return rootItems.map { buildNode(it, 0) }
+}
+
+fun getAllDescendantTodos(node: TodoNode): List<TodoItem> {
+    val descendants = mutableListOf<TodoItem>()
+    for (child in node.children) {
+        descendants.add(child.item)
+        descendants.addAll(getAllDescendantTodos(child))
+    }
+    return descendants
+}
+
+fun flattenTodoTree(
+    nodes: List<TodoNode>,
+    collapsedParentIds: Set<String>,
+): List<TodoDisplayRow> {
+    val result = mutableListOf<TodoDisplayRow>()
+
+    fun traverse(node: TodoNode) {
+        val isExpanded = node.item.id !in collapsedParentIds
+        val descendants = getAllDescendantTodos(node)
+        val completedCount = descendants.count { it.isCompleted }
+        val totalCount = descendants.size
+
+        result.add(
+            TodoDisplayRow(
+                todo = node.item,
+                depth = node.depth,
+                hasChildren = node.children.isNotEmpty(),
+                isExpanded = isExpanded,
+                completedSubtasksCount = completedCount,
+                totalSubtasksCount = totalCount,
+            ),
+        )
+        if (node.children.isNotEmpty() && isExpanded) {
+            for (child in node.children) {
+                traverse(child)
+            }
+        }
+    }
+
+    for (root in nodes) {
+        traverse(root)
+    }
+    return result
+}
+
 @Composable
-private fun TodoInspectionCard(todo: TodoItem) {
+private fun TodoInspectionCard(
+    row: TodoDisplayRow,
+    onToggleExpand: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val todo = row.todo
+    val depth = row.depth
+    val startPadding = (depth * 20).coerceAtMost(60).dp
+
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(start = startPadding)
+                .then(
+                    if (onToggleExpand != null) {
+                        Modifier.clickable(onClick = onToggleExpand)
+                    } else {
+                        Modifier
+                    },
+                ),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color =
+            if (depth > 0) {
+                MaterialTheme.colorScheme.surfaceContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            },
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -194,29 +364,52 @@ private fun TodoInspectionCard(todo: TodoItem) {
             val statusColors = LocalHermesStatusColors.current
             val (statusIcon, statusTint) =
                 when {
-                    todo.isCompleted ->
+                    todo.isCompleted -> {
                         Icons.Filled.CheckCircle to statusColors.success
-                    todo.isInProgress ->
+                    }
+
+                    todo.isInProgress -> {
                         Icons.Filled.Autorenew to MaterialTheme.colorScheme.primary
-                    todo.isCancelled ->
+                    }
+
+                    todo.isCancelled -> {
                         Icons.Filled.Cancel to statusColors.warning
-                    else ->
+                    }
+
+                    else -> {
                         Icons.Filled.RadioButtonUnchecked to
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    }
                 }
+
+            if (depth > 0) {
+                Text(
+                    text = "↳",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(end = 6.dp),
+                )
+            }
+
             Icon(
                 imageVector = statusIcon,
                 contentDescription = null,
                 tint = statusTint,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(if (depth > 0) 16.dp else 18.dp),
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = todo.content,
                 style =
-                    MaterialTheme.typography.bodyMedium.copy(
-                        textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                    ),
+                    if (depth > 0) {
+                        MaterialTheme.typography.bodySmall.copy(
+                            textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                        )
+                    } else {
+                        MaterialTheme.typography.bodyMedium.copy(
+                            textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                        )
+                    },
                 fontWeight = if (todo.isInProgress) FontWeight.Bold else FontWeight.Normal,
                 color =
                     if (todo.isCompleted) {
@@ -226,29 +419,104 @@ private fun TodoInspectionCard(todo: TodoItem) {
                     },
                 modifier = Modifier.weight(1f),
             )
+
+            if (row.hasChildren) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    Text(
+                        text = "${row.completedSubtasksCount}/${row.totalSubtasksCount}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = if (row.isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (row.isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun InspectionItemCard(indicator: SubagentIndicator) {
+private fun InspectionItemCard(
+    indicator: SubagentIndicator,
+    onSteer: ((String) -> Unit)? = null,
+    onStop: (() -> Unit)? = null,
+) {
+    var showSteerInput by remember { mutableStateOf(false) }
+    var steerText by remember { mutableStateOf("") }
+    val statusColors = LocalHermesStatusColors.current
+
+    val (statusIcon, statusTint, statusLabel) =
+        when {
+            indicator.isComplete -> {
+                Triple(
+                    Icons.Filled.CheckCircle,
+                    statusColors.success,
+                    stringResource(R.string.subagent_status_completed),
+                )
+            }
+
+            indicator.isFailed -> {
+                Triple(
+                    Icons.Filled.Cancel,
+                    statusColors.error,
+                    stringResource(R.string.subagent_status_failed),
+                )
+            }
+
+            indicator.isCancelled -> {
+                Triple(
+                    Icons.Filled.Cancel,
+                    statusColors.warning,
+                    stringResource(R.string.subagent_status_cancelled),
+                )
+            }
+
+            indicator.isSteered -> {
+                Triple(
+                    Icons.AutoMirrored.Filled.AltRoute,
+                    MaterialTheme.colorScheme.primary,
+                    stringResource(R.string.subagent_status_steered),
+                )
+            }
+
+            indicator.isQueued -> {
+                Triple(
+                    Icons.Filled.HourglassEmpty,
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    stringResource(R.string.subagent_status_running),
+                )
+            }
+
+            else -> {
+                Triple(
+                    Icons.Filled.Autorenew,
+                    MaterialTheme.colorScheme.primary,
+                    stringResource(R.string.subagent_status_running),
+                )
+            }
+        }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val statusColors = LocalHermesStatusColors.current
-                val (statusIcon, statusTint) =
-                    when {
-                        indicator.isComplete ->
-                            Icons.Filled.CheckCircle to statusColors.success
-                        indicator.isFailed ->
-                            Icons.Filled.Cancel to statusColors.error
-                        else ->
-                            Icons.Filled.Autorenew to MaterialTheme.colorScheme.primary
-                    }
+            // Header Row: Status Icon, Goal, and Status Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(
                     imageVector = statusIcon,
                     contentDescription = null,
@@ -264,6 +532,44 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
+
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = statusTint.copy(alpha = 0.15f),
+                ) {
+                    Text(
+                        text = statusLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusTint,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+
+            // Duration & Model info
+            if (indicator.durationSeconds != null || !indicator.model.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (indicator.durationSeconds != null) {
+                        Text(
+                            text = stringResource(R.string.subagent_duration, indicator.durationSeconds),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (!indicator.model.isNullOrBlank()) {
+                        Text(
+                            text = indicator.model,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        )
+                    }
+                }
             }
 
             if (!indicator.summary.isNullOrBlank()) {
@@ -275,6 +581,7 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                 )
             }
 
+            // Live Transcript Logs
             if (indicator.logs.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
@@ -308,6 +615,106 @@ private fun InspectionItemCard(indicator: SubagentIndicator) {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                         )
+                    }
+                }
+            }
+
+            // Interactive Controls for active subagent (issue #1030)
+            if (indicator.isRunning || indicator.isSteered) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (onSteer != null) {
+                        FilledTonalButton(
+                            onClick = { showSteerInput = !showSteerInput },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.AltRoute,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.subagent_action_steer))
+                        }
+                    }
+
+                    if (onStop != null) {
+                        OutlinedButton(
+                            onClick = onStop,
+                            colors =
+                                ButtonDefaults.outlinedButtonColors(
+                                    contentColor = statusColors.error,
+                                ),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(stringResource(R.string.subagent_action_stop))
+                        }
+                    }
+                }
+
+                // Inline Steering Input Field
+                AnimatedVisibility(visible = showSteerInput) {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedTextField(
+                                value = steerText,
+                                onValueChange = { steerText = it },
+                                placeholder = {
+                                    Text(
+                                        text = stringResource(R.string.subagent_steer_placeholder),
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                keyboardActions =
+                                    KeyboardActions(
+                                        onSend = {
+                                            if (steerText.isNotBlank()) {
+                                                onSteer?.invoke(steerText)
+                                                steerText = ""
+                                                showSteerInput = false
+                                            }
+                                        },
+                                    ),
+                                modifier = Modifier.weight(1f),
+                                textStyle = MaterialTheme.typography.bodySmall,
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            IconButton(
+                                onClick = {
+                                    if (steerText.isNotBlank()) {
+                                        onSteer?.invoke(steerText)
+                                        steerText = ""
+                                        showSteerInput = false
+                                    }
+                                },
+                                enabled = steerText.isNotBlank(),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = stringResource(R.string.subagent_action_steer),
+                                    tint =
+                                        if (steerText.isNotBlank()) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        },
+                                )
+                            }
+                        }
                     }
                 }
             }

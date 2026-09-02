@@ -357,6 +357,28 @@ object AuthManager {
         serverStore.update { it.copy(pinnedModels = pinned) }
     }
 
+    // ── Hidden Profiles (Local On-Device Filtering) ──────────────────────
+
+    fun getHiddenProfiles(): List<String> = serverStore.getLatestState().hiddenProfiles
+
+    fun isProfileHidden(name: String): Boolean = serverStore.getLatestState().hiddenProfiles.contains(name)
+
+    fun hideProfile(name: String) {
+        serverStore.update { s ->
+            s.copy(hiddenProfiles = (s.hiddenProfiles + name).distinct())
+        }
+    }
+
+    fun unhideProfile(name: String) {
+        serverStore.update { s ->
+            s.copy(hiddenProfiles = s.hiddenProfiles.filter { it != name })
+        }
+    }
+
+    fun setHiddenProfiles(hidden: List<String>) {
+        serverStore.update { it.copy(hiddenProfiles = hidden.distinct()) }
+    }
+
     fun getProfileToken(profileId: String): String? = requirePrefs().getString("token_$profileId", null)
 
     fun setProfileToken(

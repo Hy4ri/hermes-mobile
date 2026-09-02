@@ -580,9 +580,13 @@ private fun tableTextAlign(align: TableAlign?): TextAlign? =
     }
 
 internal sealed interface InlineMathSegment {
-    data class Text(val value: String) : InlineMathSegment
+    data class Text(
+        val value: String,
+    ) : InlineMathSegment
 
-    data class Math(val latex: String) : InlineMathSegment
+    data class Math(
+        val latex: String,
+    ) : InlineMathSegment
 }
 
 /** Splits `$…$` without treating escaped dollars or inline-code contents as math. */

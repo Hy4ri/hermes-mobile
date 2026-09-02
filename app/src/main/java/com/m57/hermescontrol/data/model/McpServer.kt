@@ -1,4 +1,5 @@
 package com.m57.hermescontrol.data.model
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -18,6 +19,22 @@ data class McpServer(
     val status: String? = null,
     val error: String? = null,
     val auth: String? = null,
+    val tools: List<String>? = null,
+)
+
+@Serializable
+data class McpServerTestResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val tools: List<McpServerToolInfo> = emptyList(),
+)
+
+@Serializable
+data class McpServerToolInfo(
+    val name: String,
+    val description: String? = null,
+    @SerialName("schema_chars")
+    val schemaChars: Int? = null,
 )
 
 @Serializable

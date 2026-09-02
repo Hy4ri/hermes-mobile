@@ -276,6 +276,7 @@
     <string name="settings_item_language">Language</string>
     <string name="language_system">System</string>
     <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
     <string name="language_chinese">简体中文</string>
     <string name="language_korean">한국어</string>
 
@@ -599,6 +600,12 @@
     <string name="sessions_action_rename">Rename</string>
     <string name="sessions_action_pin">Pin</string>
     <string name="sessions_action_unpin">Unpin</string>
+    <string name="sessions_action_hide">Hide</string>
+    <string name="sessions_action_unhide">Unhide</string>
+    <string name="sessions_show_hidden">Show hidden sessions</string>
+    <string name="sessions_hide_hidden">Hide hidden sessions</string>
+    <string name="sessions_hidden_badge">Hidden</string>
+    <string name="sessions_all_hidden_desc">All sessions are currently hidden. Tap below to show hidden sessions.</string>
     <string name="sessions_pinned_indicator">Pinned</string>
     <string name="sessions_fork_indicator">Forked session</string>
     <string name="sessions_rename_title">Rename Session</string>
@@ -682,6 +689,12 @@
     <string name="profiles_action_set_model">Set Model</string>
     <string name="profiles_action_clone">Clone</string>
     <string name="profiles_action_edit_description">Edit Description</string>
+    <string name="profiles_action_hide">Hide Profile</string>
+    <string name="profiles_action_unhide">Unhide Profile</string>
+    <string name="profiles_show_hidden">Show hidden profiles</string>
+    <string name="profiles_hide_hidden">Hide hidden profiles</string>
+    <string name="profiles_hidden_badge">Hidden</string>
+    <string name="profiles_all_hidden_desc">All profiles are currently hidden. Tap below to show hidden profiles.</string>
     <string name="profiles_content_desc_active">Active Profile</string>
     <string name="profiles_title_edit_soul">Edit Soul Profile: %1$s</string>
     <string name="profiles_title_set_model">Set Model: %1$s</string>
@@ -800,6 +813,16 @@
     <string name="mcp_servers_label_transport">Transport: %1$s</string>
     <string name="mcp_servers_label_command">Command:</string>
     <string name="mcp_servers_action_test">Test</string>
+    <string name="mcp_servers_action_test_all">Test All</string>
+    <string name="mcp_servers_action_import_json">Import JSON</string>
+    <string name="mcp_servers_import_dialog_title">Import MCP Servers</string>
+    <string name="mcp_servers_import_dialog_desc">Paste Claude Desktop / Cursor mcpServers JSON snippet or server definition.</string>
+    <string name="mcp_servers_import_dialog_paste">Paste Clipboard</string>
+    <string name="mcp_servers_import_dialog_importing">Importing…</string>
+    <string name="mcp_servers_status_healthy">Healthy</string>
+    <string name="mcp_servers_status_needs_auth">Needs Auth</string>
+    <string name="mcp_servers_status_error">Error</string>
+    <string name="mcp_servers_status_testing">Testing…</string>
     <string name="mcp_servers_add_server">Add server</string>
     <string name="mcp_servers_add_http">HTTP URL</string>
     <string name="mcp_servers_empty_title">No MCP servers</string>
@@ -1206,6 +1229,15 @@
     <string name="subagent_no_active">No active tasks or plan items.</string>
     <string name="subagent_summary">Summary: %1$s</string>
     <string name="subagent_task_plan_inspection">Task &amp; Plan Inspection</string>
+    <string name="subagent_action_steer">Steer</string>
+    <string name="subagent_action_stop">Stop</string>
+    <string name="subagent_steer_placeholder">Course-correction guidance for subagent…</string>
+    <string name="subagent_status_running">Running</string>
+    <string name="subagent_status_completed">Completed</string>
+    <string name="subagent_status_steered">Steered</string>
+    <string name="subagent_status_cancelled">Cancelled</string>
+    <string name="subagent_status_failed">Failed</string>
+    <string name="subagent_duration">%1$.1fs</string>
     <string name="system_auth_required">Auth required</string>
     <string name="system_checkpoint_prune">Checkpoint prune</string>
     <string name="system_config_migrate">Config migrate</string>

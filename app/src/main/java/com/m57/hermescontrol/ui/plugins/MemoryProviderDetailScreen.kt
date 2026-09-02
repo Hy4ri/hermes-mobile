@@ -334,15 +334,16 @@ private fun ProviderFieldRow(
             Spacer(modifier = Modifier.height(8.dp))
 
             when (field.kind) {
-                "select" ->
+                "select" -> {
                     ExposedDropdownField(
                         label = field.label.ifEmpty { field.key },
                         options = field.options.map { it.value }.ifEmpty { listOf(value) },
                         selectedValue = value,
                         onOptionSelected = onChange,
                     )
+                }
 
-                "bool" ->
+                "bool" -> {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -365,8 +366,9 @@ private fun ProviderFieldRow(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
+                }
 
-                else ->
+                else -> {
                     OutlinedTextField(
                         value = value,
                         onValueChange = onChange,
@@ -400,6 +402,7 @@ private fun ProviderFieldRow(
                                 KeyboardOptions.Default
                             },
                     )
+                }
             }
         }
     }

@@ -89,8 +89,15 @@ data class SessionsUiState(
     val isSearching: Boolean = false,
     val searchResults: List<SessionSearchResult> = emptyList(),
     val searchError: String? = null,
+    val showHidden: Boolean = false,
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
+
+    val hasHiddenSessions: Boolean
+        get() = sessions.any { it.hidden == true }
+
+    val displaySessions: List<SessionInfo>
+        get() = if (showHidden) sessions else sessions.filter { it.hidden != true }
 }
 
 class SessionsViewModel :
@@ -209,11 +216,6 @@ class SessionsViewModel :
                         val hasMore = receivedFullPage && addedNewItems && data.total > newSessions.size
                         it.copy(
                             isLoadingMore = false,
-                            // distinctBy guards offset-pagination churn: if a new
-                            // session lands on top between page loads, offsets
-                            // shift and the next page can repeat an id we already
-                            // have — LazyColumn would crash on the duplicate key.
-                            // pinnedFirst keeps pinned sessions above the rest.
                             sessions = newSessions,
                             total = if (hasMore) data.total else newSessions.size,
                             hasMore = hasMore,
@@ -314,6 +316,10 @@ class SessionsViewModel :
     }
 
     // ── Bulk selection ───────────────────────────────────────────────────
+
+    fun toggleShowHidden() {
+        _uiState.update { it.copy(showHidden = !it.showHidden) }
+    }
 
     fun toggleSelecting() {
         _uiState.update {
@@ -449,6 +455,49 @@ class SessionsViewModel :
                 is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(toastMessage = "Pin failed: ${result.error.message}")
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Hide / unhide (issue #1019) ──────────────────────────────────────
+
+    /**
+     * Toggle the hidden flag on a session via PATCH /api/sessions/{id} ({hidden}).
+     */
+    fun toggleHide(sessionId: String) {
+        val session = _uiState.value.sessions.find { it.id == sessionId } ?: return
+        val targetHidden = session.hidden != true
+        viewModelScope.launch {
+            val result =
+                safeApiCall {
+                    ApiClient.hermesApi.setSessionHidden(
+                        sessionId = sessionId,
+                        body = SessionRenameRequest(hidden = targetHidden),
+                    )
+                }
+            when (result) {
+                is NetworkResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            sessions =
+                                it.sessions
+                                    .map { s -> if (s.id == sessionId) s.copy(hidden = targetHidden) else s }
+                                    .pinnedFirst(),
+                            toastMessage =
+                                if (targetHidden) {
+                                    "Session hidden"
+                                } else {
+                                    "Session unhidden"
+                                },
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(toastMessage = "Hide failed: ${result.error.message}")
                     }
                 }
             }

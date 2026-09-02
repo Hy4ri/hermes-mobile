@@ -421,7 +421,12 @@ class ChatWsEventReducerTest {
             )
 
         assertEquals(1, result.state.messages.size)
-        assertEquals("complete", result.state.messages.single().content)
+        assertEquals(
+            "complete",
+            result.state.messages
+                .single()
+                .content,
+        )
     }
 
     @Test
@@ -530,6 +535,43 @@ class ChatWsEventReducerTest {
         assertEquals("💾 Self-improvement review: Skill 'android-ci' patched", msg.content)
     }
 
+    @Test
+    fun testBtwComplete_updatesBtwState() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                btwState =
+                    BtwUiState(
+                        question = "what model?",
+                        isLoading = true,
+                    ),
+            )
+        val event =
+            WsEvent.BtwComplete(
+                taskId = "btw_123456",
+                question = "what model?",
+                text = "This conversation uses Gemini 3.7.",
+                sessionId = "session-1",
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        val btw = result.state.btwState
+        org.junit.Assert.assertNotNull(btw)
+        assertEquals("btw_123456", btw?.taskId)
+        assertEquals("what model?", btw?.question)
+        assertEquals("This conversation uses Gemini 3.7.", btw?.answer)
+        assertEquals(false, btw?.isLoading)
+        // Zero messages appended to transcript!
+        assertEquals(0, result.state.messages.size)
+    }
+
     // ── Issue #771: reasoning survives a tool call (regression) ────────────
     //
     // Real gateway capture for `run echo hi` (reasoning model):
@@ -556,12 +598,13 @@ class ChatWsEventReducerTest {
         var reasoningState = start.streamingState
         for (token in reasoningTokens) {
             reasoningState =
-                ChatWsEventReducer.reduce(
-                    state,
-                    reasoningState,
-                    WsEvent.ReasoningDelta(token, "session-1"),
-                    "session-1",
-                ).streamingState
+                ChatWsEventReducer
+                    .reduce(
+                        state,
+                        reasoningState,
+                        WsEvent.ReasoningDelta(token, "session-1"),
+                        "session-1",
+                    ).streamingState
         }
         assertEquals(true, reasoningState.isReasoning)
         assertEquals("The user just said \"run echo hi\". Let me run it.", reasoningState.reasoningText)
@@ -578,8 +621,18 @@ class ChatWsEventReducerTest {
                 "session-1",
             )
         assertEquals(1, result.state.messages.size)
-        assertEquals(MessageRole.TOOL, result.state.messages.first().role)
-        assertEquals("terminal", result.state.messages.first().toolName)
+        assertEquals(
+            MessageRole.TOOL,
+            result.state.messages
+                .first()
+                .role,
+        )
+        assertEquals(
+            "terminal",
+            result.state.messages
+                .first()
+                .toolName,
+        )
         // Issue #771: streaming message + reasoning survive the tool call
         assertEquals(true, result.streamingState.streamingMessage?.isStreaming)
         assertEquals("The user just said \"run echo hi\". Let me run it.", result.streamingState.reasoningText)
@@ -592,7 +645,12 @@ class ChatWsEventReducerTest {
                 WsEvent.ToolComplete("terminal", mapOf("output" to "hi"), "session-1"),
                 "session-1",
             )
-        assertEquals(ToolStatus.COMPLETED, result.state.messages.first().toolStatus)
+        assertEquals(
+            ToolStatus.COMPLETED,
+            result.state.messages
+                .first()
+                .toolStatus,
+        )
 
         // 5. reasoning.available — authoritative full-trace fill
         val fullReasoning = "The user just said \"run echo hi\". That's a simple terminal command. Let me just run it."
@@ -683,7 +741,12 @@ class ChatWsEventReducerTest {
                 "session-1",
             )
 
-        assertEquals("payload reasoning", result.state.messages.last().reasoningText)
+        assertEquals(
+            "payload reasoning",
+            result.state.messages
+                .last()
+                .reasoningText,
+        )
     }
 
     @Test
@@ -915,5 +978,89 @@ class ChatWsEventReducerTest {
             )
         assertEquals(1, result.state.compressionCount)
         assertEquals(null, result.state.usedContextTokens)
+    }
+
+    @Test
+    fun testTodoUpdated_updatesStateTodos() {
+        val state = ChatUiState(currentSessionId = "session-1")
+        val todos =
+            listOf(
+                TodoItem(id = "1", content = "Main task", status = "in_progress"),
+                TodoItem(id = "2", content = "Subtask 1", status = "completed", parent = "1"),
+                TodoItem(id = "3", content = "Subtask 2", status = "pending", parent = "1"),
+            )
+        val event = WsEvent.TodoUpdated(todos = todos, revision = 1, sessionId = "session-1")
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(3, result.state.todos.size)
+        assertEquals("Main task", result.state.todos[0].content)
+        assertEquals(null, result.state.todos[0].parent)
+        assertEquals("1", result.state.todos[1].parent)
+        assertTrue(result.state.todos[1].isCompleted)
+        assertTrue(result.state.todos[1].isSubtask)
+    }
+
+    @Test
+    fun testTodoUpdated_differentSession_isIgnored() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                todos = listOf(TodoItem(id = "orig", content = "Original", status = "pending")),
+            )
+        val event =
+            WsEvent.TodoUpdated(
+                todos = listOf(TodoItem(id = "new", content = "New", status = "in_progress")),
+                revision = 1,
+                sessionId = "session-other",
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = event,
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(1, result.state.todos.size)
+        assertEquals("Original", result.state.todos[0].content)
+    }
+
+    @Test
+    fun testExtractTodosFromMap_preservesParentHierarchy() {
+        val payload =
+            mapOf(
+                "todos" to
+                    listOf(
+                        mapOf("id" to "t1", "content" to "Root", "status" to "in_progress"),
+                        mapOf("id" to "t2", "content" to "Child", "status" to "pending", "parent" to "t1"),
+                    ),
+            )
+        val extracted = extractTodosFromMap(payload)
+        assertEquals(2, extracted?.size)
+        assertEquals("t1", extracted?.get(0)?.id)
+        assertEquals(null, extracted?.get(0)?.parent)
+        assertEquals("t2", extracted?.get(1)?.id)
+        assertEquals("t1", extracted?.get(1)?.parent)
+    }
+
+    @Test
+    fun testExtractTodosFromJson_preservesParentHierarchy() {
+        val json =
+            """{"todos":[{"id":"a","content":"Task A","status":"done"},""" +
+                """{"id":"b","content":"Task B","status":"pending","parent":"a"}]}"""
+        val extracted = extractTodosFromJson(json)
+        assertEquals(2, extracted?.size)
+        assertEquals("a", extracted?.get(0)?.id)
+        assertEquals(null, extracted?.get(0)?.parent)
+        assertEquals("b", extracted?.get(1)?.id)
+        assertEquals("a", extracted?.get(1)?.parent)
     }
 }

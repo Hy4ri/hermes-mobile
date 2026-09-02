@@ -22,11 +22,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -41,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -54,8 +59,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -90,6 +97,7 @@ fun McpServersScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     var query by remember { mutableStateOf("") }
     var showDetail by remember { mutableStateOf<McpServer?>(null) }
 
@@ -123,6 +131,32 @@ fun McpServersScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadServers() },
+        actions = {
+            IconButton(
+                onClick = { viewModel.testAllServers() },
+                enabled = !state.isTestingAll && state.servers.any { it.enabled },
+            ) {
+                if (state.isTestingAll) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Science,
+                        contentDescription = stringResource(R.string.mcp_servers_action_test_all),
+                    )
+                }
+            }
+            IconButton(
+                onClick = { viewModel.toggleImportDialog() },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.UploadFile,
+                    contentDescription = stringResource(R.string.mcp_servers_action_import_json),
+                )
+            }
+        },
     ) { paddingValues ->
         when {
             state.isLoading && state.servers.isEmpty() -> {
@@ -272,6 +306,95 @@ fun McpServersScreen(
             },
         )
     }
+
+    if (state.showImportDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.toggleImportDialog() },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.UploadFile,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.width(spacing.sm))
+                    Text(stringResource(R.string.mcp_servers_import_dialog_title))
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(R.string.mcp_servers_import_dialog_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(spacing.sm))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val clip = clipboardManager.getText()?.text
+                                if (!clip.isNullOrBlank()) {
+                                    viewModel.updateImportJsonInput(clip)
+                                }
+                            },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(spacing.xs))
+                            Text(
+                                text = stringResource(R.string.mcp_servers_import_dialog_paste),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(spacing.xs))
+                    OutlinedTextField(
+                        value = state.importJsonInput,
+                        onValueChange = viewModel::updateImportJsonInput,
+                        placeholder = {
+                            Text(
+                                "{\n  \"mcpServers\": {\n    \"name\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@mcp/srv\"]\n    }\n  }\n}",
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(180.dp),
+                        maxLines = 10,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.submitImportJson() },
+                    enabled = !state.isImportingJson && state.importJsonInput.isNotBlank(),
+                ) {
+                    if (state.isImportingJson) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                        Spacer(modifier = Modifier.width(spacing.xs))
+                        Text(stringResource(R.string.mcp_servers_import_dialog_importing))
+                    } else {
+                        Text(stringResource(R.string.mcp_servers_action_submit))
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { viewModel.toggleImportDialog() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 // ── Section header (MCP-specific: distinct icon + neutral title so it reads
@@ -325,15 +448,29 @@ private fun AddServerSection(
         icon = Icons.Filled.Add,
         title = stringResource(R.string.mcp_servers_add_server),
         trailing = {
-            TextButton(
-                onClick = { viewModel.toggleAddForm() },
-                colors =
-                    ButtonDefaults.textButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    ),
-            ) {
-                Text(if (state.showAddForm) "Hide" else "New")
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                TextButton(
+                    onClick = { viewModel.toggleImportDialog() },
+                    colors =
+                        ButtonDefaults.textButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                ) {
+                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(spacing.xs))
+                    Text(stringResource(R.string.mcp_servers_action_import_json))
+                }
+                TextButton(
+                    onClick = { viewModel.toggleAddForm() },
+                    colors =
+                        ButtonDefaults.textButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ),
+                ) {
+                    Text(if (state.showAddForm) "Hide" else "New")
+                }
             }
         },
     )
@@ -463,6 +600,9 @@ private fun ServerCard(
     onOpenBrowser: (String) -> Unit,
 ) {
     var showEnv by remember { mutableStateOf(false) }
+    val isTesting = server.name in state.testingServers
+    val testResult = state.serverTestResults[server.name]
+    val healthStatus = McpHealthStatus.resolve(isTesting, testResult, server.status, server.error)
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -491,13 +631,77 @@ private fun ServerCard(
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(modifier = Modifier.width(spacing.sm))
-                        ServerStatusBadge(server.status)
+                        when (healthStatus) {
+                            McpHealthStatus.HEALTHY -> {
+                                StatusBadge(
+                                    text = stringResource(R.string.mcp_servers_status_healthy),
+                                    status = StatusBadgeType.SUCCESS,
+                                )
+                            }
+
+                            McpHealthStatus.AUTH_REQUIRED -> {
+                                StatusBadge(
+                                    text = stringResource(R.string.mcp_servers_status_needs_auth),
+                                    status = StatusBadgeType.WARNING,
+                                )
+                            }
+
+                            McpHealthStatus.ERROR -> {
+                                StatusBadge(
+                                    text = stringResource(R.string.mcp_servers_status_error),
+                                    status = StatusBadgeType.ERROR,
+                                )
+                            }
+
+                            McpHealthStatus.TESTING -> {
+                                StatusBadge(
+                                    text = stringResource(R.string.mcp_servers_status_testing),
+                                    status = StatusBadgeType.INFO,
+                                )
+                            }
+
+                            McpHealthStatus.UNKNOWN -> {
+                                ServerStatusBadge(server.status)
+                            }
+                        }
                     }
                     Text(
                         text = stringResource(R.string.mcp_servers_label_transport, server.transport ?: "stdio"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+
+                    // Tool count & schema token overhead badge (issue #1029)
+                    val toolInfos = testResult?.tools
+                    val toolCount = toolInfos?.size ?: server.tools?.size
+                    if (toolCount != null && toolCount > 0) {
+                        val tokenEst = toolInfos?.let { McpTokenEstimator.estimateTokens(it) }
+                        val label = McpTokenEstimator.formatTokenOverhead(toolCount, tokenEst)
+                        Spacer(modifier = Modifier.height(spacing.xs))
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(6.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = spacing.xs + 2.dp, vertical = 2.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Build,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                                Spacer(modifier = Modifier.width(spacing.xs))
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+                    }
                 }
                 Switch(
                     checked = server.enabled,
@@ -556,12 +760,22 @@ private fun ServerCard(
                 }
                 FilledTonalButton(
                     onClick = { viewModel.testServer(server.name) },
+                    enabled = !isTesting,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                 ) {
-                    Icon(Icons.Filled.Science, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(spacing.xs))
-                    Text(stringResource(R.string.mcp_servers_action_test), maxLines = 1)
+                    if (isTesting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(modifier = Modifier.width(spacing.xs))
+                        Text(stringResource(R.string.mcp_servers_status_testing), maxLines = 1)
+                    } else {
+                        Icon(Icons.Filled.Science, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(spacing.xs))
+                        Text(stringResource(R.string.mcp_servers_action_test), maxLines = 1)
+                    }
                 }
                 IconButton(onClick = { viewModel.deleteServer(server.name) }) {
                     Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete))

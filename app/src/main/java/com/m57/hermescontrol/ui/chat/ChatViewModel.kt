@@ -79,10 +79,14 @@ internal fun canonicalToolResultKey(content: String): String? {
 
     fun canon(e: kotlinx.serialization.json.JsonElement): String =
         when (e) {
-            is kotlinx.serialization.json.JsonObject ->
+            is kotlinx.serialization.json.JsonObject -> {
                 e.entries.sortedBy { it.key }.joinToString("|") { "${it.key}=${canon(it.value)}" }
-            is kotlinx.serialization.json.JsonArray ->
+            }
+
+            is kotlinx.serialization.json.JsonArray -> {
                 e.joinToString(",") { canon(it) }
+            }
+
             is kotlinx.serialization.json.JsonPrimitive -> {
                 // Canonicalize ALL numbers through double, collapsing int/float
                 // spellings of the same value (0 vs 0.0 → "i0", 0.5 → "d0.5").
@@ -96,9 +100,13 @@ internal fun canonicalToolResultKey(content: String): String? {
             }
         }
     return when (element) {
-        is kotlinx.serialization.json.JsonObject ->
+        is kotlinx.serialization.json.JsonObject -> {
             element["result"]?.let { canon(it) } ?: canon(element)
-        else -> canon(element)
+        }
+
+        else -> {
+            canon(element)
+        }
     }
 }
 
@@ -178,8 +186,7 @@ internal fun stripAttachmentRefLines(content: String): String =
             line.startsWith("@image:") ||
                 line.startsWith("@file:") ||
                 line == "[screenshot]"
-        }
-        .joinToString("\n")
+        }.joinToString("\n")
         .trim()
 
 /**
@@ -346,6 +353,8 @@ data class ChatUiState(
     val reactionKind: String? = null,
     /** Monotonic trigger ID so consecutive same-kind reactions re-animate. */
     val reactionTriggerId: Long = 0L,
+    /** Side-question state for /btw (issue #1015). */
+    val btwState: BtwUiState? = null,
     /** Subagent delegation indicators (issue #538) — transient UI state. */
     val subagentIndicators: List<SubagentIndicator> = emptyList(),
     /** Agent todo / plan items (issue #736). */
@@ -370,6 +379,17 @@ data class ClarifyUi(
     val text: String,
     val options: List<String>,
     val clarifyId: String? = null,
+)
+
+/**
+ * State for the context-aware side-question bottom sheet (issue #1015, `/btw`).
+ */
+data class BtwUiState(
+    val taskId: String? = null,
+    val question: String = "",
+    val answer: String? = null,
+    val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 /**
@@ -627,6 +647,8 @@ class ChatViewModel(
         viewModelScope.launch {
             ProfileSwitchCoordinator.switched
                 .collect { _ ->
+                    pendingGoneSessionNotice = false
+                    sessionHasServerPresence = false
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
                 }
         }
@@ -637,6 +659,8 @@ class ChatViewModel(
         viewModelScope.launch {
             ProfileSwitchCoordinator.connectionSwitched
                 .collect { _ ->
+                    pendingGoneSessionNotice = false
+                    sessionHasServerPresence = false
                     resetSessionState(sessionId = null, title = "Hermes", isLoading = true)
                 }
         }
@@ -764,7 +788,9 @@ class ChatViewModel(
                 streamingController.flushPendingTokens()
             }
 
-            else -> Unit
+            else -> {
+                Unit
+            }
         }
 
         // First, let the reducer compute the new state and any effects
@@ -1537,6 +1563,12 @@ class ChatViewModel(
         // it matches the server echo and the transcript sync dedupes instead
         // of rendering a duplicate below its answer.
         val result = slashDispatcher.dispatch(command)
+
+        if (result is SlashResult.SideQuestion) {
+            handleSideQuestionCommand(result.question)
+            return
+        }
+
         val displayContent =
             if (result is SlashResult.QueuePrompt) result.displayContent else command
         val userMsg = ChatMessage(role = MessageRole.USER, content = displayContent)
@@ -1618,6 +1650,10 @@ class ChatViewModel(
                 handleQueueCommand(command)
             }
 
+            is SlashResult.SideQuestion -> {
+                handleSideQuestionCommand(result.question)
+            }
+
             is SlashResult.RpcDispatch -> {
                 dispatchViaRpc(command)
             }
@@ -1640,6 +1676,75 @@ class ChatViewModel(
             return
         }
         submitPrompt(arg, queued = true)
+    }
+
+    // ── Side Questions via /btw (issue #1015) ─────────────────────────────
+
+    fun dismissBtw() {
+        _uiState.update { it.copy(btwState = null) }
+    }
+
+    fun submitSideQuestion(question: String) {
+        val trimmed = question.trim()
+        if (trimmed.isBlank()) {
+            addAssistantMessage(
+                "Usage: `/btw <question>` — Ask a side question about this session without mutating its history.",
+            )
+            return
+        }
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+        if (sessionId.isNullOrBlank()) {
+            addAssistantMessage("No active session for side questions. Start a chat first.")
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                btwState =
+                    BtwUiState(
+                        question = trimmed,
+                        isLoading = true,
+                    ),
+            )
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val rpcResult =
+                    wsClient
+                        .request(
+                            WsMethods.PROMPT_BTW,
+                            mapOf("session_id" to sessionId, "text" to trimmed),
+                        ).await()
+                val taskId = (rpcResult as? Map<*, *>)?.get("task_id") as? String
+                if (!taskId.isNullOrBlank()) {
+                    _uiState.update { state ->
+                        state.btwState?.let { current ->
+                            state.copy(btwState = current.copy(taskId = taskId))
+                        } ?: state
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { state ->
+                    state.btwState?.let { current ->
+                        state.copy(
+                            btwState =
+                                current.copy(
+                                    isLoading = false,
+                                    error = e.message ?: "Failed to dispatch side question",
+                                ),
+                        )
+                    } ?: state
+                }
+            }
+        }
+    }
+
+    private fun handleSideQuestionCommand(question: String) {
+        viewModelScope.launch {
+            slashUsageStore.recordUse("btw")
+        }
+        submitSideQuestion(question)
     }
 
     // ── Update from chat (issue #862) ────────────────────────────────────
@@ -1859,6 +1964,85 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Send course-correction guidance to a live subagent child session (issue #1030).
+     */
+    fun steerSubagent(
+        indicator: SubagentIndicator,
+        message: String,
+    ) {
+        val trimmed = message.trim()
+        if (trimmed.isBlank()) return
+        val sessionId = runtimeSessionId ?: return
+        val subagentId = indicator.subagentId
+        val steerCommand =
+            if (!subagentId.isNullOrBlank()) {
+                "/steer $subagentId $trimmed"
+            } else {
+                "/steer $trimmed"
+            }
+        viewModelScope.launch(ioDispatcher) {
+            wsClient.sendRedirect(
+                sessionId,
+                steerCommand,
+                onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
+            )
+        }
+        _uiState.update { current ->
+            val updated =
+                current.subagentIndicators.map { ind ->
+                    if (ind.subagentId == indicator.subagentId &&
+                        (ind.goal == indicator.goal || indicator.subagentId != null)
+                    ) {
+                        val newLogs =
+                            (ind.logs + SubagentLogLine(text = "Course correction: \"$trimmed\"", isSummary = true))
+                                .takeLast(30)
+                        ind.copy(status = "steered", logs = newLogs)
+                    } else {
+                        ind
+                    }
+                }
+            current.copy(subagentIndicators = updated)
+        }
+    }
+
+    /**
+     * Stop / interrupt a single live subagent early (issue #1030).
+     */
+    fun stopSubagent(indicator: SubagentIndicator) {
+        val sessionId = runtimeSessionId ?: return
+        val subagentId = indicator.subagentId
+        val stopCommand =
+            if (!subagentId.isNullOrBlank()) {
+                "/stop $subagentId"
+            } else {
+                "/stop"
+            }
+        viewModelScope.launch(ioDispatcher) {
+            wsClient.sendRedirect(
+                sessionId,
+                stopCommand,
+                onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
+            )
+        }
+        _uiState.update { current ->
+            val updated =
+                current.subagentIndicators.map { ind ->
+                    if (ind.subagentId == indicator.subagentId &&
+                        (ind.goal == indicator.goal || indicator.subagentId != null)
+                    ) {
+                        val newLogs =
+                            (ind.logs + SubagentLogLine(text = "Stopped subagent", isError = true))
+                                .takeLast(30)
+                        ind.copy(status = "cancelled", logs = newLogs)
+                    } else {
+                        ind
+                    }
+                }
+            current.copy(subagentIndicators = updated)
+        }
+    }
+
     fun createNewSession(setLoading: Boolean = true) {
         // A fresh create has no persisted row until the first prompt.
         sessionHasServerPresence = false
@@ -1901,7 +2085,10 @@ class ChatViewModel(
             // Fetch available bot profiles for @ autocomplete
             val profilesResult = safeApiCall { ApiClient.hermesApi.getProfiles() }
             if (profilesResult is NetworkResult.Success) {
-                val profiles = profilesResult.data.profiles.orEmpty()
+                val profiles =
+                    profilesResult.data.profiles.orEmpty().filter {
+                        !AuthManager.isProfileHidden(it.name) && it.botMeta()?.hidden != true
+                    }
                 _uiState.update { it.copy(availableBots = profiles) }
             }
         }
@@ -2165,7 +2352,10 @@ class ChatViewModel(
         sessionHasServerPresence = true
         sessionGoneRecoveryInFlight = false
         pendingGoneSessionNotice = false
-        val title = _uiState.value.sessions.find { it.id == sessionId }?.title ?: "Hermes"
+        val title =
+            _uiState.value.sessions
+                .find { it.id == sessionId }
+                ?.title ?: "Hermes"
         val generation = resetSessionState(sessionId, title, isLoading = true)
         viewModelScope.launch {
             // Warm-cache fast-path (desktop parity): paint the cached Room
@@ -2283,6 +2473,27 @@ class ChatViewModel(
                 }
 
                 is NetworkResult.Failure -> {
+                    val errorMsg = result.error.message
+                    val is404 =
+                        errorMsg.contains("404", ignoreCase = true) ||
+                            errorMsg.contains("not found", ignoreCase = true)
+                    if (is404) {
+                        // A 404 from GET /api/sessions/{id}/messages indicates the session has no
+                        // persisted rows in state.db (e.g. newly created/lazy unprompted session, or empty history).
+                        // It is NOT a fatal error: keep the session open with empty transcript, clear loading,
+                        // and mark hydrated cleanly.
+                        _uiState.update {
+                            if (!isCurrentHydration(sessionId, generation, requestSequence)) return@update it
+                            it.copy(
+                                isLoading = false,
+                                isLoadingOlder = false,
+                                hasOlderMessages = false,
+                            )
+                        }
+                        hydratedGeneration = generation
+                        finishResumeWhenHydrated(generation)
+                        return@launch
+                    }
                     if (hydratedGeneration == generation) hydratedGeneration = -1L
                     _uiState.update {
                         if (!isCurrentHydration(sessionId, generation, requestSequence)) return@update it
@@ -2390,10 +2601,19 @@ class ChatViewModel(
     ) {
         val requestSequence = ++resumeRequestSequence
         activeResumeRequestSequence = requestSequence
+        val profile = AuthManager.activeProfileId.value
+        val params =
+            mutableMapOf<String, Any>(
+                "session_id" to sessionId,
+                "omit_messages" to true,
+            )
+        if (!profile.isNullOrBlank()) {
+            params["profile"] = profile
+        }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.SESSION_RESUME,
-                mapOf("session_id" to sessionId, "omit_messages" to true),
+                params,
                 onSent = { id ->
                     trackSessionRequest(
                         id = id,
@@ -2467,6 +2687,17 @@ class ChatViewModel(
     private fun recoverGoneSession(sessionId: String) {
         if (_uiState.value.currentSessionId != sessionId) return
         if (sessionGoneRecoveryInFlight) return
+        if (_uiState.value.messages.isNotEmpty()) {
+            cancelResumeRetry()
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isResumeRetrying = false,
+                    resumeError = "Session not found on server (displaying cached messages)",
+                )
+            }
+            return
+        }
         sessionGoneRecoveryInFlight = true
         cancelResumeRetry()
         _uiState.update {

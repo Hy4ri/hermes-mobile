@@ -51,6 +51,7 @@ import com.m57.hermescontrol.data.model.McpCatalogInstallRequest
 import com.m57.hermescontrol.data.model.McpCatalogResponse
 import com.m57.hermescontrol.data.model.McpOAuthFlowResponse
 import com.m57.hermescontrol.data.model.McpServer
+import com.m57.hermescontrol.data.model.McpServerTestResponse
 import com.m57.hermescontrol.data.model.McpServerToggleRequest
 import com.m57.hermescontrol.data.model.McpServersResponse
 import com.m57.hermescontrol.data.model.MemoryProviderConfigResponse
@@ -58,6 +59,8 @@ import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateRequest
 import com.m57.hermescontrol.data.model.MemoryProviderConfigUpdateResponse
 import com.m57.hermescontrol.data.model.MemoryProviderSetupRequest
 import com.m57.hermescontrol.data.model.MemoryProviderSetupResponse
+import com.m57.hermescontrol.data.model.MemoryResetRequest
+import com.m57.hermescontrol.data.model.MemoryResetResponse
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformResponse
 import com.m57.hermescontrol.data.model.MessagingPlatformTestResult
@@ -210,6 +213,14 @@ interface HermesApiService {
     // {pinned} (backend SessionRename model, any subset accepted).
     @PATCH("api/sessions/{id}")
     suspend fun setSessionPinned(
+        @Path("id", encoded = true) sessionId: String,
+        @Body body: SessionRenameRequest,
+    ): Response<Unit>
+
+    // Hide/unhide rides the same PATCH /api/sessions/{id} — body carries only
+    // {hidden} (backend SessionRename model, any subset accepted; issue #1019).
+    @PATCH("api/sessions/{id}")
+    suspend fun setSessionHidden(
         @Path("id", encoded = true) sessionId: String,
         @Body body: SessionRenameRequest,
     ): Response<Unit>
@@ -509,7 +520,7 @@ interface HermesApiService {
     @POST("api/mcp/servers/{name}/test")
     suspend fun testMcpServer(
         @Path("name") name: String,
-    ): Response<Unit>
+    ): Response<McpServerTestResponse>
 
     @DELETE("api/mcp/servers/{name}")
     suspend fun deleteMcpServer(
@@ -851,8 +862,8 @@ interface HermesApiService {
 
     @POST("api/memory/reset")
     suspend fun resetMemory(
-        @Body body: Map<String, String>,
-    ): Response<Map<String, Any>>
+        @Body body: MemoryResetRequest,
+    ): Response<MemoryResetResponse>
 
     // ── Admin: Credential pool ────────────────────────────────────────
     @GET("api/credentials/pool")

@@ -180,15 +180,27 @@ class ChatMediaDelegate(
                         }
                     }
 
-                    is GatewayFileResult.NotFound -> showOpenError("File not found on gateway: ${attachment.name}")
-                    is GatewayFileResult.Forbidden -> showOpenError("Access denied: ${attachment.name}")
-                    is GatewayFileResult.TooLarge -> showOpenError("File too large to save: ${attachment.name}")
-                    is GatewayFileResult.Unauthorized ->
+                    is GatewayFileResult.NotFound -> {
+                        showOpenError("File not found on gateway: ${attachment.name}")
+                    }
+
+                    is GatewayFileResult.Forbidden -> {
+                        showOpenError("Access denied: ${attachment.name}")
+                    }
+
+                    is GatewayFileResult.TooLarge -> {
+                        showOpenError("File too large to save: ${attachment.name}")
+                    }
+
+                    is GatewayFileResult.Unauthorized -> {
                         showOpenError(
                             "Session expired — reconnect to save: ${attachment.name}",
                         )
-                    is GatewayFileResult.Failure ->
+                    }
+
+                    is GatewayFileResult.Failure -> {
                         showOpenError("Could not save ${attachment.name}: ${result.throwable.message}")
+                    }
                 }
             } finally {
                 uiState.update {

@@ -46,6 +46,8 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -59,6 +61,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -290,7 +293,7 @@ private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
             )
         }
     } else {
-        flattenSessionTree(state.sessions)
+        flattenSessionTree(state.displaySessions)
     }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -313,6 +316,7 @@ fun SessionsScreen(
             state.isSearchMode,
             state.searchQuery,
             state.sessions,
+            state.showHidden,
             state.searchResults,
         ) {
             displayedSessions(state)
@@ -521,6 +525,29 @@ fun SessionsScreen(
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadSessions() },
+        actions = {
+            if (state.hasHiddenSessions) {
+                IconButton(
+                    onClick = { viewModel.toggleShowHidden() },
+                    modifier = Modifier.testTag("sessions_action_toggle_hidden"),
+                ) {
+                    Icon(
+                        imageVector =
+                            if (state.showHidden) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
+                        contentDescription =
+                            if (state.showHidden) {
+                                stringResource(R.string.sessions_hide_hidden)
+                            } else {
+                                stringResource(R.string.sessions_show_hidden)
+                            },
+                    )
+                }
+            }
+        },
         modifier = modifier,
     ) {
         // Single scrolling column: search bar pinned on top, list fills below.
@@ -685,6 +712,16 @@ fun SessionsScreen(
                         )
                     }
 
+                    state.displaySessions.isEmpty() -> {
+                        EmptyState(
+                            title = stringResource(R.string.history_empty_title),
+                            subtitle = stringResource(R.string.sessions_all_hidden_desc),
+                            icon = Icons.Filled.VisibilityOff,
+                            actionLabel = stringResource(R.string.sessions_show_hidden),
+                            onAction = { viewModel.toggleShowHidden() },
+                        )
+                    }
+
                     else -> {
                         Column(modifier = Modifier.fillMaxSize()) {
                             // ── Stats row ───────────────────────────────────────
@@ -767,9 +804,13 @@ fun SessionsScreen(
                                 derivedStateOf {
                                     val info = listState.layoutInfo
                                     val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
-                                    lastVisible >= 0 &&
-                                        info.totalItemsCount >= AUTO_LOAD_THRESHOLD &&
+                                    if (lastVisible < 0 || info.totalItemsCount == 0) {
+                                        false
+                                    } else if (info.totalItemsCount <= AUTO_LOAD_THRESHOLD) {
+                                        lastVisible >= info.totalItemsCount - 1
+                                    } else {
                                         lastVisible >= info.totalItemsCount - AUTO_LOAD_THRESHOLD
+                                    }
                                 }
                             }
                             LaunchedEffect(
@@ -801,6 +842,7 @@ fun SessionsScreen(
                                         isSelected = session.id in state.selectedIds,
                                         isDeleting = session.id in state.deletingSessionIds,
                                         isPinned = session.pinned == true,
+                                        isHidden = session.hidden == true,
                                         highlightBackground = primaryContainer,
                                         highlightForeground = onPrimaryContainer,
                                         onCardClick = {
@@ -822,6 +864,7 @@ fun SessionsScreen(
                                             )
                                         },
                                         onTogglePin = { viewModel.togglePin(session.id) },
+                                        onToggleHide = { viewModel.toggleHide(session.id) },
                                         onDelete = { viewModel.requestDeleteSession(session.id) },
                                     )
                                 }
@@ -969,6 +1012,7 @@ private fun SessionCard(
     isSelected: Boolean,
     isDeleting: Boolean,
     isPinned: Boolean,
+    isHidden: Boolean = false,
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
@@ -976,6 +1020,7 @@ private fun SessionCard(
     onSelect: () -> Unit,
     onRename: () -> Unit,
     onTogglePin: () -> Unit,
+    onToggleHide: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -1095,6 +1140,13 @@ private fun SessionCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (session.hidden == true) {
+                            Spacer(modifier = Modifier.width(spacing.sm))
+                            StatusBadge(
+                                text = stringResource(R.string.sessions_hidden_badge),
+                                status = StatusBadgeType.NEUTRAL,
+                            )
+                        }
                         if (!session.status.isNullOrBlank()) {
                             Spacer(modifier = Modifier.width(spacing.sm))
                             StatusBadge(
@@ -1115,6 +1167,11 @@ private fun SessionCard(
                 onTogglePin = {
                     menuExpanded = false
                     onTogglePin()
+                },
+                isHidden = isHidden,
+                onToggleHide = {
+                    menuExpanded = false
+                    onToggleHide()
                 },
                 onSelect = {
                     menuExpanded = false
@@ -1301,6 +1358,8 @@ private fun SessionActionMenu(
     isDeleting: Boolean,
     isPinned: Boolean = false,
     onTogglePin: (() -> Unit)? = null,
+    isHidden: Boolean = false,
+    onToggleHide: (() -> Unit)? = null,
     onSelect: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
@@ -1322,6 +1381,33 @@ private fun SessionActionMenu(
                 },
                 leadingIcon = { Icon(Icons.Filled.PushPin, contentDescription = null) },
                 onClick = onTogglePin,
+            )
+        }
+        if (onToggleHide != null) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(
+                            if (isHidden) {
+                                R.string.sessions_action_unhide
+                            } else {
+                                R.string.sessions_action_hide
+                            },
+                        ),
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector =
+                            if (isHidden) {
+                                Icons.Filled.Visibility
+                            } else {
+                                Icons.Filled.VisibilityOff
+                            },
+                        contentDescription = null,
+                    )
+                },
+                onClick = onToggleHide,
             )
         }
         DropdownMenuItem(

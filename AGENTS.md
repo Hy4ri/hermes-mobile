@@ -36,7 +36,7 @@ If you have a local Android SDK (`ANDROID_HOME` set), these work:
 
 ```bash
 # Download the matching binary
-curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.2.1/ktlint
+curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.8.0/ktlint
 chmod +x ktlint
 ./ktlint <file>                             # check one file
 ./ktlint --format <file>                    # auto-fix
@@ -48,7 +48,7 @@ chmod +x ktlint
 
 | Job                  | Purpose                                                                                                                            |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `ktlint`             | ktlint 1.2.1 style check + `checkColorLiterals` (hardcoded Color guard, issue #622)                                                |
+| `ktlint`             | ktlint 1.8.0 style check + `checkColorLiterals` (hardcoded Color guard, issue #622)                                                |
 | `android-lint`       | Android Lint                                                                                                                       |
 | `unit-tests`         | JUnit                                                                                                                              |
 | `build`              | assembleDebug (gated by the 3 above)                                                                                               |
@@ -68,7 +68,7 @@ Requires `permissions: contents: write` on the `build-release` job.
 
 ## Code Style
 
-- **ktlint 1.2.1** is enforced in CI. Run `./ktlint --format` before pushing.
+- **ktlint 1.8.0** is enforced in CI. Run `./ktlint --format` before pushing.
 - Import ordering is the #1 CI failure: ktlint enforces ASCII-lexicographic order
   (uppercase before lowercase: `LaunchedEffect` before `collectAsState`).
 - `const val` must use SCREAMING_SNAKE_CASE.

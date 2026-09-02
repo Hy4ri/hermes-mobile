@@ -83,6 +83,10 @@ data class SessionInfo(
     // Uses LenientNullableBooleanSerializer to tolerate both JSON booleans and raw SQLite ints (issue #966).
     @Serializable(with = LenientNullableBooleanSerializer::class)
     val pinned: Boolean? = null,
+    // Session-level hidden flag (issue #1019): background agent sessions or internal routines.
+    // Uses LenientNullableBooleanSerializer to tolerate booleans, raw SQLite ints (0/1), and strings.
+    @Serializable(with = LenientNullableBooleanSerializer::class)
+    val hidden: Boolean? = null,
 )
 
 @Serializable
@@ -95,10 +99,11 @@ data class SessionStatsResponse(
 
 @Serializable
 data class SessionRenameRequest(
-    // Both fields are optional: the backend PATCH accepts any subset
-    // (SessionRename model: title/archived/pinned, omitted = unchanged).
+    // All fields are optional: the backend PATCH accepts any subset
+    // (SessionRename model: title/archived/pinned/hidden, omitted = unchanged).
     val title: String? = null,
     val pinned: Boolean? = null,
+    val hidden: Boolean? = null,
 )
 
 @Serializable

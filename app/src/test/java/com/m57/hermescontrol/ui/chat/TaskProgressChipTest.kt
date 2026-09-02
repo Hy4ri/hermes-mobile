@@ -1,6 +1,9 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.ui.chat.components.buildTodoTree
 import com.m57.hermescontrol.ui.chat.components.computeChipDisplay
+import com.m57.hermescontrol.ui.chat.components.flattenTodoTree
+import com.m57.hermescontrol.ui.chat.components.getAllDescendantTodos
 import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -141,5 +144,73 @@ class TaskProgressChipTest {
                 ChatMessage(id = "m1", role = MessageRole.USER, content = "hi"),
             )
         assertTrue(hydrateTodosFromMessages(messages).isEmpty())
+    }
+
+    @Test
+    fun `buildTodoTree constructs correct multi-level hierarchy`() {
+        val todos =
+            listOf(
+                TodoItem(id = "1", content = "Root 1", status = "in_progress"),
+                TodoItem(id = "1.1", content = "Child 1.1", status = "completed", parent = "1"),
+                TodoItem(id = "1.2", content = "Child 1.2", status = "pending", parent = "1"),
+                TodoItem(id = "1.2.1", content = "Grandchild 1.2.1", status = "pending", parent = "1.2"),
+                TodoItem(id = "2", content = "Root 2", status = "pending"),
+            )
+
+        val tree = buildTodoTree(todos)
+        assertEquals(2, tree.size)
+        assertEquals("1", tree[0].item.id)
+        assertEquals(0, tree[0].depth)
+        assertEquals(2, tree[0].children.size)
+        assertEquals("1.1", tree[0].children[0].item.id)
+        assertEquals(1, tree[0].children[0].depth)
+        assertEquals("1.2", tree[0].children[1].item.id)
+        assertEquals(1, tree[0].children[1].depth)
+        assertEquals(1, tree[0].children[1].children.size)
+        assertEquals(
+            "1.2.1",
+            tree[0]
+                .children[1]
+                .children[0]
+                .item.id,
+        )
+        assertEquals(2, tree[0].children[1].children[0].depth)
+        assertEquals("2", tree[1].item.id)
+        assertEquals(0, tree[1].depth)
+    }
+
+    @Test
+    fun `flattenTodoTree collapses and expands subtasks correctly`() {
+        val todos =
+            listOf(
+                TodoItem(id = "1", content = "Root 1", status = "in_progress"),
+                TodoItem(id = "1.1", content = "Child 1.1", status = "completed", parent = "1"),
+                TodoItem(id = "1.2", content = "Child 1.2", status = "pending", parent = "1"),
+                TodoItem(id = "2", content = "Root 2", status = "pending"),
+            )
+        val tree = buildTodoTree(todos)
+
+        // Expanded state
+        val expandedRows = flattenTodoTree(tree, collapsedParentIds = emptySet())
+        assertEquals(4, expandedRows.size)
+        assertEquals("1", expandedRows[0].todo.id)
+        assertTrue(expandedRows[0].hasChildren)
+        assertTrue(expandedRows[0].isExpanded)
+        assertEquals(1, expandedRows[0].completedSubtasksCount)
+        assertEquals(2, expandedRows[0].totalSubtasksCount)
+        assertEquals("1.1", expandedRows[1].todo.id)
+        assertEquals(1, expandedRows[1].depth)
+        assertEquals("1.2", expandedRows[2].todo.id)
+        assertEquals(1, expandedRows[2].depth)
+        assertEquals("2", expandedRows[3].todo.id)
+        assertEquals(0, expandedRows[3].depth)
+
+        // Collapsed state
+        val collapsedRows = flattenTodoTree(tree, collapsedParentIds = setOf("1"))
+        assertEquals(2, collapsedRows.size)
+        assertEquals("1", collapsedRows[0].todo.id)
+        assertTrue(collapsedRows[0].hasChildren)
+        assertFalse(collapsedRows[0].isExpanded)
+        assertEquals("2", collapsedRows[1].todo.id)
     }
 }

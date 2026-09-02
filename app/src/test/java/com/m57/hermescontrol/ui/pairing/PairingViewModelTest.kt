@@ -97,9 +97,21 @@ class PairingViewModelTest {
         assertFalse(state.isLoading)
         assertNull(state.errorMessage)
         assertEquals(1, state.pairing?.pending?.size)
-        assertEquals("bob", state.pairing?.pending?.first()?.userName)
+        assertEquals(
+            "bob",
+            state.pairing
+                ?.pending
+                ?.first()
+                ?.userName,
+        )
         assertEquals(1, state.pairing?.approved?.size)
-        assertEquals("alice", state.pairing?.approved?.first()?.userName)
+        assertEquals(
+            "alice",
+            state.pairing
+                ?.approved
+                ?.first()
+                ?.userName,
+        )
     }
 
     @Test
@@ -148,7 +160,10 @@ class PairingViewModelTest {
         assertEquals("discord", requestSlot.captured.platform)
         assertEquals("u2", requestSlot.captured.userId)
         coVerify(exactly = 1) { mockApi.getPairing() }
-        assertTrue(vm.uiState.value.toastMessage?.contains("u2") == true)
+        assertTrue(
+            vm.uiState.value.toastMessage
+                ?.contains("u2") == true,
+        )
     }
 
     @Test

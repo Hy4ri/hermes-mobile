@@ -369,12 +369,13 @@ class ChatToolDedupeTest {
         var stream = StreamingState()
         stream = ChatWsEventReducer.reduce(s, stream, WsEvent.MessageStart("session-1"), "session-1").streamingState
         stream =
-            ChatWsEventReducer.reduce(
-                s,
-                stream,
-                WsEvent.ReasoningDelta("thinking about meow", "session-1"),
-                "session-1",
-            ).streamingState
+            ChatWsEventReducer
+                .reduce(
+                    s,
+                    stream,
+                    WsEvent.ReasoningDelta("thinking about meow", "session-1"),
+                    "session-1",
+                ).streamingState
         var r =
             ChatWsEventReducer.reduce(
                 s,

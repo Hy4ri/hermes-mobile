@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.bots
 
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.ActiveProfileResponse
 import com.m57.hermescontrol.data.model.BotAvatarMeta
 import com.m57.hermescontrol.data.model.BotRosterMeta
@@ -45,6 +46,8 @@ class BotsViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        mockkObject(AuthManager)
+        every { AuthManager.getHiddenProfiles() } returns emptyList()
         mockkObject(ApiClient)
         mockApi = mockk(relaxed = true)
         every { ApiClient.hermesApi } returns mockApi
@@ -57,6 +60,7 @@ class BotsViewModelTest {
 
     @After
     fun tearDown() {
+        unmockkObject(AuthManager)
         unmockkObject(ApiClient)
         unmockkObject(HermesWsClient)
         Dispatchers.resetMain()
@@ -139,12 +143,16 @@ class BotsViewModelTest {
 
             // Toggle show hidden (sorted: default (active), scout (worker active now), reviewer (canonical last_active))
             viewModel.toggleShowHidden()
-            val displayedWithHidden = viewModel.uiState.value.displayProfiles.map { it.name }
+            val displayedWithHidden =
+                viewModel.uiState.value.displayProfiles
+                    .map { it.name }
             assertEquals(listOf("default", "reviewer", "scout"), displayedWithHidden)
 
             // Search filter
             viewModel.setSearchQuery("arxiv")
-            val searchResults = viewModel.uiState.value.displayProfiles.map { it.name }
+            val searchResults =
+                viewModel.uiState.value.displayProfiles
+                    .map { it.name }
             assertEquals(listOf("scout"), searchResults)
         }
 
@@ -226,8 +234,16 @@ class BotsViewModelTest {
             advanceUntilIdle()
 
             assertEquals(2, viewModel.uiState.value.allGroups.size)
-            assertEquals("Dream Team", viewModel.uiState.value.allGroups[0].name)
-            assertEquals(2, viewModel.uiState.value.allGroups[0].members.size)
+            assertEquals(
+                "Dream Team",
+                viewModel.uiState.value.allGroups[0]
+                    .name,
+            )
+            assertEquals(
+                2,
+                viewModel.uiState.value.allGroups[0]
+                    .members.size,
+            )
 
             var success = false
             viewModel.disbandGroupChat("Dream Team") { success = true }

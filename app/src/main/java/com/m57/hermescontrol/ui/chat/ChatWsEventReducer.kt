@@ -9,9 +9,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage> {
-    return (this + message).dedupeById()
-}
+private fun List<ChatMessage>.upsertById(message: ChatMessage): List<ChatMessage> = (this + message).dedupeById()
 
 /**
  * Strips this turn's sealed-orphan prefix from the final message text.
@@ -73,6 +71,7 @@ object ChatWsEventReducer {
                 is WsEvent.ToolGenerating -> event.sessionId
                 is WsEvent.SubagentEvent -> event.sessionId
                 is WsEvent.ReviewSummary -> event.sessionId
+                is WsEvent.BtwComplete -> event.sessionId
                 is WsEvent.SessionUsage -> event.sessionId
                 else -> null
             }
@@ -131,7 +130,11 @@ object ChatWsEventReducer {
 
             is WsEvent.ReviewSummary -> onReviewSummary(state, streamingState, event)
 
+            is WsEvent.BtwComplete -> onBtwComplete(state, streamingState, event)
+
             is WsEvent.SessionUsage -> onSessionUsage(state, streamingState, event)
+
+            is WsEvent.TodoUpdated -> onTodoUpdated(state, streamingState, event)
 
             is WsEvent.RpcError -> onRpcError(state, streamingState, event)
 
@@ -654,6 +657,36 @@ object ChatWsEventReducer {
         )
     }
 
+    // ── BtwComplete (Side question completed) ─────────────────────────────
+
+    private fun onBtwComplete(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.BtwComplete,
+    ): ReducerResult {
+        val currentBtw = state.btwState
+        val updatedBtw =
+            if (currentBtw != null) {
+                currentBtw.copy(
+                    taskId = event.taskId.ifBlank { currentBtw.taskId },
+                    question = event.question.ifBlank { currentBtw.question },
+                    answer = event.text,
+                    isLoading = false,
+                )
+            } else {
+                BtwUiState(
+                    taskId = event.taskId,
+                    question = event.question,
+                    answer = event.text,
+                    isLoading = false,
+                )
+            }
+        return ReducerResult(
+            state = state.copy(btwState = updatedBtw),
+            streamingState = streamingState,
+        )
+    }
+
     // ── RpcError ──────────────────────────────────────────────────────
 
     private fun onRpcError(
@@ -839,6 +872,20 @@ object ChatWsEventReducer {
         )
     }
 
+    private fun onTodoUpdated(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.TodoUpdated,
+    ): ReducerResult {
+        if (event.sessionId != null && state.currentSessionId != null && event.sessionId != state.currentSessionId) {
+            return ReducerResult(state = state, streamingState = streamingState)
+        }
+        return ReducerResult(
+            state = state.copy(todos = event.todos),
+            streamingState = streamingState,
+        )
+    }
+
     private fun onSessionUsage(
         state: ChatUiState,
         streamingState: StreamingState,
@@ -926,7 +973,8 @@ fun extractTodosFromMap(data: Map<String, Any?>?): List<TodoItem>? {
         val id = (map["id"] as? String) ?: continue
         val content = (map["content"] as? String) ?: (map["text"] as? String) ?: ""
         val status = (map["status"] as? String) ?: "pending"
-        items.add(TodoItem(id = id, content = content, status = status))
+        val parent = (map["parent"] as? String)?.takeIf { it.isNotBlank() }
+        items.add(TodoItem(id = id, content = content, status = status, parent = parent))
     }
     return items.takeIf { it.isNotEmpty() }
 }
@@ -943,15 +991,17 @@ fun extractTodosFromJson(content: String): List<TodoItem>? {
                 ?: ((obj["parameters"] as? JsonObject)?.get("todos") as? JsonArray)
                 ?: return null
 
-        todosArray.mapNotNull { item ->
-            val itemObj = item as? JsonObject ?: return@mapNotNull null
-            val id = (itemObj["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
-            val contentStr =
-                (itemObj["content"] as? JsonPrimitive)?.content
-                    ?: (itemObj["text"] as? JsonPrimitive)?.content ?: ""
-            val status = (itemObj["status"] as? JsonPrimitive)?.content ?: "pending"
-            TodoItem(id = id, content = contentStr, status = status)
-        }.takeIf { it.isNotEmpty() }
+        todosArray
+            .mapNotNull { item ->
+                val itemObj = item as? JsonObject ?: return@mapNotNull null
+                val id = (itemObj["id"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                val contentStr =
+                    (itemObj["content"] as? JsonPrimitive)?.content
+                        ?: (itemObj["text"] as? JsonPrimitive)?.content ?: ""
+                val status = (itemObj["status"] as? JsonPrimitive)?.content ?: "pending"
+                val parent = (itemObj["parent"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+                TodoItem(id = id, content = contentStr, status = status, parent = parent)
+            }.takeIf { it.isNotEmpty() }
     } catch (_: Exception) {
         null
     }

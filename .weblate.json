@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Hermes Mobile",
+    "slug": "hermes-mobile",
+    "project": "hermes-mobile",
+    "vcs": "git",
+    "branch": "dev",
+    "filemask": "app/src/main/res/values-*/strings.xml",
+    "template": "app/src/main/res/values/strings.xml",
+    "file_format": "android",
+    "new_base": "app/src/main/res/values/strings.xml",
+    "language_code_style": "android"
+  }
+]

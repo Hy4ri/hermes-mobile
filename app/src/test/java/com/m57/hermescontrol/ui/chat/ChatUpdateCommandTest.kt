@@ -159,7 +159,12 @@ class ChatUpdateCommandTest {
             advanceUntilIdle()
 
             assertTrue("confirm dialog should open", vm.uiState.value.updateConfirmOpen)
-            assertEquals("/update", vm.uiState.value.messages.last().content)
+            assertEquals(
+                "/update",
+                vm.uiState.value.messages
+                    .last()
+                    .content,
+            )
 
             // The whole point of the fix: NOTHING goes over the wire.
             verify(exactly = 0) {

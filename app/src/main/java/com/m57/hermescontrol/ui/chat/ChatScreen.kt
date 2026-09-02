@@ -2,12 +2,12 @@ package com.m57.hermescontrol.ui.chat
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -100,6 +100,7 @@ import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
+import com.m57.hermescontrol.ui.chat.components.SideQuestionSheet
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
@@ -230,7 +231,7 @@ fun ChatScreen(
             .collectLatest { firstVisibleIndex ->
                 if (firstVisibleIndex > 2) {
                     isOlderPagingArmed = true
-                } else if (isOlderPagingArmed) {
+                } else if (isOlderPagingArmed || state.messages.size <= 3) {
                     val anchorId = state.messages.getOrNull(firstVisibleIndex)?.id
                     val offset = scrollController.captureAnchorOffset()
                     pagingAnchor.value = if (anchorId != null) anchorId to offset else null
@@ -342,21 +343,18 @@ fun ChatScreen(
         ) { granted ->
             ExternalActivityLifecycleGuard.externalActivityReturned()
             if (granted) {
-                if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                    val intent =
-                        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                            )
-                            putExtra(
-                                RecognizerIntent.EXTRA_PROMPT,
-                                micListeningPrompt,
-                            )
-                        }
+                if (SpeechInputHelper.isSpeechInputAvailable(context)) {
+                    val intent = SpeechInputHelper.createSpeechIntent(micListeningPrompt)
                     isListening = true
                     launchExternalActivity {
-                        speechLauncher.launch(intent)
+                        try {
+                            speechLauncher.launch(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            isListening = false
+                            scrollScope.launch {
+                                snackbarHostState.showSnackbar(sttNotAvailableMsg)
+                            }
+                        }
                     }
                 } else {
                     scrollScope.launch {
@@ -611,12 +609,13 @@ fun ChatScreen(
                     onNeverAskAgain = { appUpdateViewModel.dismissCurrentUpdate() },
                     onOpenSettings = {
                         val intent =
-                            android.content.Intent(
-                                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                android.net.Uri.parse("package:${context.packageName}"),
-                            ).apply {
-                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
+                            android.content
+                                .Intent(
+                                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                    android.net.Uri.parse("package:${context.packageName}"),
+                                ).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
                         try {
                             context.startActivity(intent)
                         } catch (e: Exception) {
@@ -779,21 +778,18 @@ fun ChatScreen(
                             Manifest.permission.RECORD_AUDIO,
                         ) == PackageManager.PERMISSION_GRANTED
                     ) {
-                        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                            val intent =
-                                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(
-                                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                                    )
-                                    putExtra(
-                                        RecognizerIntent.EXTRA_PROMPT,
-                                        micListeningPrompt,
-                                    )
-                                }
+                        if (SpeechInputHelper.isSpeechInputAvailable(context)) {
+                            val intent = SpeechInputHelper.createSpeechIntent(micListeningPrompt)
                             isListening = true
                             launchExternalActivity {
-                                speechLauncher.launch(intent)
+                                try {
+                                    speechLauncher.launch(intent)
+                                } catch (_: ActivityNotFoundException) {
+                                    isListening = false
+                                    scrollScope.launch {
+                                        snackbarHostState.showSnackbar(sttNotAvailableMsg)
+                                    }
+                                }
                             }
                         } else {
                             scrollScope.launch {
@@ -928,7 +924,16 @@ fun ChatScreen(
             SubagentInspectionSheet(
                 indicators = state.subagentIndicators,
                 todos = state.todos,
+                onSteerSubagent = { indicator, msg -> viewModel.steerSubagent(indicator, msg) },
+                onStopSubagent = { indicator -> viewModel.stopSubagent(indicator) },
                 onDismiss = { showSubagentInspectionSheet = false },
+            )
+        }
+
+        state.btwState?.let { btw ->
+            SideQuestionSheet(
+                state = btw,
+                onDismiss = { viewModel.dismissBtw() },
             )
         }
 

@@ -126,7 +126,11 @@ class SkillsViewModelTest {
         vm.loadHubSources()
         settle()
 
-        assertEquals(true, vm.uiState.value.hubSourcesError?.contains("Failed to load hub sources"))
+        assertEquals(
+            true,
+            vm.uiState.value.hubSourcesError
+                ?.contains("Failed to load hub sources"),
+        )
         assertEquals(false, vm.uiState.value.isHubSourcesLoading)
     }
 

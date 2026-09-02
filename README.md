@@ -151,13 +151,17 @@ app/src/main/java/com/m57/hermescontrol/
 - **Theming:** 6 built-in presets (Default, Monochrome, Gruvbox, Catppuccin, AMOLED, Neon Noir) + Material You dynamic colors
 - **Image Loading:** Coil 2.7.0
 - **Testing:** JUnit 5, MockK, Turbine, Espresso, Compose UI testing
-- **Formatting:** `ktlint` 1.2.1 style rules (checked automatically in CI)
+- **Formatting:** `ktlint` 1.8.0 style rules (checked automatically in CI)
 
 ---
 
 ## Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our branch workflow, code style guidelines, and PR checklist.
+
+### Translations
+
+Help translate Hermes Mobile into your language on [Hosted Weblate](https://hosted.weblate.org/projects/hermes-mobile/hermes-mobile/)!
 
 For developer-specific details, code conventions, and project architecture notes, refer to [AGENTS.md](AGENTS.md).
 

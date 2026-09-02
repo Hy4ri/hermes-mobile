@@ -680,11 +680,23 @@ private fun PostSetupRunner(
 
 private fun ToolsetProvider.statusTextRes(): Int =
     when (status) {
-        "ready" -> R.string.toolset_status_ready
-        "needs_keys" -> R.string.toolset_status_needs_keys
-        "needs_auth" -> R.string.toolset_status_needs_auth
-        "needs_setup" -> R.string.toolset_status_needs_setup
-        else ->
+        "ready" -> {
+            R.string.toolset_status_ready
+        }
+
+        "needs_keys" -> {
+            R.string.toolset_status_needs_keys
+        }
+
+        "needs_auth" -> {
+            R.string.toolset_status_needs_auth
+        }
+
+        "needs_setup" -> {
+            R.string.toolset_status_needs_setup
+        }
+
+        else -> {
             // Older backends may omit `status` — fall back to the legacy
             // env-var heuristic the desktop used before server-computed
             // readiness landed.
@@ -693,16 +705,24 @@ private fun ToolsetProvider.statusTextRes(): Int =
             } else {
                 R.string.toolset_status_needs_keys
             }
+        }
     }
 
 private fun ToolsetProvider.statusType(): StatusBadgeType =
     when (status) {
-        "ready" -> StatusBadgeType.SUCCESS
-        "needs_keys", "needs_auth", "needs_setup" -> StatusBadgeType.WARNING
-        else ->
+        "ready" -> {
+            StatusBadgeType.SUCCESS
+        }
+
+        "needs_keys", "needs_auth", "needs_setup" -> {
+            StatusBadgeType.WARNING
+        }
+
+        else -> {
             if (envVars.isEmpty() || envVars.all { it.isSet }) {
                 StatusBadgeType.SUCCESS
             } else {
                 StatusBadgeType.WARNING
             }
+        }
     }

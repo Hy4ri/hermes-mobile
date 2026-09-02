@@ -15,6 +15,12 @@ object WsMethods {
     const val SESSION_TITLE = "session.title"
     const val SESSION_BRANCH = "session.branch"
 
+    /** Replay recorded events newer than client's last-seen seq for a session. */
+    const val SESSION_EVENTS_SINCE = "session.events.since"
+
+    /** Replay buffer telemetry for ops/debug. */
+    const val SESSION_EVENTS_STATS = "session.events.stats"
+
     /** Live context-window occupancy for the chat meter (desktop-mirror). */
     const val SESSION_CONTEXT_BREAKDOWN = "session.context_breakdown"
 
@@ -25,10 +31,16 @@ object WsMethods {
 
     // ── Interaction ───────────────────────────────────────────────────────
     const val PROMPT_SUBMIT = "prompt.submit"
+    const val PROMPT_BTW = "prompt.btw"
     const val CLARIFY_RESPOND = "clarify.respond"
     const val APPROVAL_RESPOND = "approval.respond"
     const val SUDO_RESPOND = "sudo.respond"
     const val SECRET_RESPOND = "secret.respond"
+
+    // ── Heartbeat & Latency (issue #1017) ──────────────────────────────────
+
+    /** Ultra-lightweight liveness check and round-trip latency measurement. */
+    const val PING = "ping"
 
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"

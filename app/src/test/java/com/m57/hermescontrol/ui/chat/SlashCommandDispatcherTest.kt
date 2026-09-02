@@ -75,6 +75,14 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `btw routes to SideQuestion`() {
+        assertEquals(SlashResult.SideQuestion("what model is this?"), dispatcher.dispatch("/btw what model is this?"))
+        assertEquals(SlashResult.SideQuestion("what model is this?"), dispatcher.dispatch("/BTW what model is this?"))
+        assertEquals(SlashResult.SideQuestion(""), dispatcher.dispatch("/btw"))
+        assertEquals(SlashResult.SideQuestion(""), dispatcher.dispatch("/btw   "))
+    }
+
+    @Test
     fun `NEW uppercase still routes to NewSession`() {
         // Dispatcher lower-cases before matching, so case must not matter.
         assertEquals(SlashResult.NewSession, dispatcher.dispatch("/NEW"))

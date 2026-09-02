@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.ws
 
 import android.util.Log
+import com.m57.hermescontrol.ui.chat.extractTodosFromMap
 
 /**
  * Converts raw [JsonRpcResponse] objects into typed [WsEvent] instances.
@@ -31,6 +32,17 @@ object EventParser {
         // ── Notification / event (no id, has method) ─────────────────────
         @Suppress("UNCHECKED_CAST")
         val params = response.params?.toAny() as? Map<String, Any?> ?: return WsEvent.Unknown(rawJson)
+        return parseParams(params, rawJson)
+    }
+
+    /**
+     * Parses an event object (bare params map containing `type`, `session_id`, `seq`, `payload`).
+     * Used both for live notifications and for event lists returned by `session.events.since`.
+     */
+    fun parseParams(
+        params: Map<String, Any?>,
+        rawJson: String = "",
+    ): WsEvent {
         val eventType = params["type"] as? String ?: return WsEvent.Unknown(rawJson)
 
         @Suppress("UNCHECKED_CAST")
@@ -163,12 +175,28 @@ object EventParser {
                 WsEvent.ReviewSummary(text, sessionId)
             }
 
+            "btw.complete" -> {
+                val taskId = payload?.get("task_id") as? String ?: ""
+                val question = payload?.get("question") as? String ?: ""
+                val text = (payload?.get("text") as? String)?.trim() ?: ""
+                WsEvent.BtwComplete(taskId, question, text, sessionId)
+            }
+
             "session.updated" -> {
                 WsEvent.SessionUpdated(payload)
             }
 
             "session.usage" -> {
                 WsEvent.SessionUsage(payload, sessionId)
+            }
+
+            "todo.updated" -> {
+                val revision =
+                    (payload?.get("revision") as? Number)?.toInt()
+                        ?: (params["revision"] as? Number)?.toInt()
+                val rawTodos = payload ?: params
+                val todos = extractTodosFromMap(rawTodos) ?: emptyList()
+                WsEvent.TodoUpdated(todos, revision, sessionId)
             }
 
             "reaction" -> {

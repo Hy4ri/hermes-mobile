@@ -32,6 +32,7 @@ internal fun supportedLanguages(): List<Pair<String, String>> =
     listOf(
         LocaleContextWrapper.SYSTEM_LANGUAGE to stringResource(R.string.language_system),
         "en" to stringResource(R.string.language_english),
+        "ar" to stringResource(R.string.language_arabic),
         "zh" to stringResource(R.string.language_chinese),
         "ko" to stringResource(R.string.language_korean),
     )

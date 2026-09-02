@@ -3,10 +3,12 @@ package com.m57.hermescontrol.ui.memory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.LearningGraphResponse
+import com.m57.hermescontrol.data.model.MemoryResetRequest
 import com.m57.hermescontrol.data.model.MemoryResponse
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.session.ProfileSwitchCoordinator
 import com.m57.hermescontrol.ui.common.ToastHost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,25 +32,45 @@ data class MemoryUiState(
  * Retrofit suspend calls already run off the caller thread, keeping tests
  * free of the static Dispatchers mock that bleeds across test classes.
  */
-class MemoryViewModel : ViewModel(), ToastHost {
+class MemoryViewModel :
+    ViewModel(),
+    ToastHost {
     private val _uiState = MutableStateFlow(MemoryUiState())
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
 
-    fun load() {
+    init {
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.switched.collect {
+                load(silent = true)
+            }
+        }
+        viewModelScope.launch {
+            ProfileSwitchCoordinator.connectionSwitched.collect {
+                load(silent = true)
+            }
+        }
+    }
+
+    fun load(silent: Boolean = false) {
         if (_uiState.value.isLoading) return
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        if (!silent) {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        }
         viewModelScope.launch {
             val result = safeApiCall { ApiClient.hermesApi.getMemory() }
             when (result) {
-                is NetworkResult.Success ->
+                is NetworkResult.Success -> {
                     _uiState.update { it.copy(isLoading = false, memory = result.data) }
-                is NetworkResult.Failure ->
+                }
+
+                is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             errorMessage = result.error.message,
                         )
                     }
+                }
             }
             loadLearningGraph()
         }
@@ -67,22 +89,25 @@ class MemoryViewModel : ViewModel(), ToastHost {
         if (_uiState.value.resetting != null) return
         _uiState.update { it.copy(resetting = target) }
         viewModelScope.launch {
-            val result = safeApiCall { ApiClient.hermesApi.resetMemory(mapOf("target" to target)) }
+            val result = safeApiCall { ApiClient.hermesApi.resetMemory(MemoryResetRequest(target = target)) }
             when (result) {
-                is NetworkResult.Success ->
+                is NetworkResult.Success -> {
                     _uiState.update {
                         it.copy(
                             resetting = null,
                             toastMessage = "Memory ($target) reset successfully",
                         )
                     }
-                is NetworkResult.Failure ->
+                }
+
+                is NetworkResult.Failure -> {
                     _uiState.update {
                         it.copy(
                             resetting = null,
                             toastMessage = "Failed to reset memory: ${result.error.message}",
                         )
                     }
+                }
             }
             load()
         }

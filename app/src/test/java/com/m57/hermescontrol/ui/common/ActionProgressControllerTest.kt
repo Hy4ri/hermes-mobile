@@ -202,7 +202,10 @@ class ActionProgressControllerTest {
         tick()
 
         assertEquals(ActionProgressPhase.SUCCEEDED, controller.state.value.phase)
-        assertTrue(controller.state.value.trailingLines.isEmpty())
+        assertTrue(
+            controller.state.value.trailingLines
+                .isEmpty(),
+        )
 
         controller.pushTrailingLines(listOf("Outcome: success", "Version: 0.20.4 → 0.20.5"))
 
@@ -216,7 +219,10 @@ class ActionProgressControllerTest {
         val controller = controller()
         controller.open()
         controller.pushTrailingLines(emptyList())
-        assertTrue(controller.state.value.trailingLines.isEmpty())
+        assertTrue(
+            controller.state.value.trailingLines
+                .isEmpty(),
+        )
     }
 
     @Test

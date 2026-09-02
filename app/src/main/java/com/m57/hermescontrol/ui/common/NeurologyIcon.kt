@@ -16,41 +16,42 @@ import com.m57.hermescontrol.theme.IconDefaultFill
  * original path data (viewBox 0 -960 960 960, translated into compose space).
  */
 val NeurologyIcon: ImageVector by lazy {
-    ImageVector.Builder(
-        name = "Neurology",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 960f,
-        viewportHeight = 960f,
-    ).apply {
-        addGroup(
-            name = "translate",
-            rotate = 0f,
-            pivotX = 0f,
-            pivotY = 0f,
-            scaleX = 1f,
-            scaleY = 1f,
-            translationX = 0f,
-            translationY = 960f,
-            clipPathData = emptyList(),
-        )
-        addPath(
-            pathData = addPathNodes(PATH),
-            pathFillType = PathFillType.NonZero,
-            name = "NeurologyPath",
-            fill = SolidColor(IconDefaultFill),
-            fillAlpha = 1f,
-            stroke = null,
-            strokeAlpha = 1f,
-            strokeLineWidth = 1f,
-            strokeLineCap = StrokeCap.Butt,
-            strokeLineJoin = StrokeJoin.Miter,
-            strokeLineMiter = 4f,
-            trimPathStart = 0f,
-            trimPathEnd = 1f,
-            trimPathOffset = 0f,
-        )
-    }.build()
+    ImageVector
+        .Builder(
+            name = "Neurology",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 960f,
+            viewportHeight = 960f,
+        ).apply {
+            addGroup(
+                name = "translate",
+                rotate = 0f,
+                pivotX = 0f,
+                pivotY = 0f,
+                scaleX = 1f,
+                scaleY = 1f,
+                translationX = 0f,
+                translationY = 960f,
+                clipPathData = emptyList(),
+            )
+            addPath(
+                pathData = addPathNodes(PATH),
+                pathFillType = PathFillType.NonZero,
+                name = "NeurologyPath",
+                fill = SolidColor(IconDefaultFill),
+                fillAlpha = 1f,
+                stroke = null,
+                strokeAlpha = 1f,
+                strokeLineWidth = 1f,
+                strokeLineCap = StrokeCap.Butt,
+                strokeLineJoin = StrokeJoin.Miter,
+                strokeLineMiter = 4f,
+                trimPathStart = 0f,
+                trimPathEnd = 1f,
+                trimPathOffset = 0f,
+            )
+        }.build()
 }
 
 private const val PATH =

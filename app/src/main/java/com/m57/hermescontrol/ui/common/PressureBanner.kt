@@ -82,22 +82,27 @@ fun PressureBanner(
 
     val message =
         when (trigger) {
-            PressureTrigger.DISK_CRITICAL ->
+            PressureTrigger.DISK_CRITICAL -> {
                 stringResource(R.string.pressure_banner_disk_critical) +
                     diskFreeSuffix(disk)
+            }
 
-            PressureTrigger.DISK_ELEVATED ->
+            PressureTrigger.DISK_ELEVATED -> {
                 stringResource(R.string.pressure_banner_disk_elevated) +
                     diskFreeSuffix(disk)
+            }
 
-            PressureTrigger.MEMORY_CRITICAL ->
+            PressureTrigger.MEMORY_CRITICAL -> {
                 stringResource(R.string.pressure_banner_memory_critical)
+            }
 
-            PressureTrigger.OOM_RESTART ->
+            PressureTrigger.OOM_RESTART -> {
                 stringResource(R.string.pressure_banner_memory_oom)
+            }
 
-            PressureTrigger.MEMORY_ELEVATED ->
+            PressureTrigger.MEMORY_ELEVATED -> {
                 stringResource(R.string.pressure_banner_memory_elevated)
+            }
         }
 
     Surface(

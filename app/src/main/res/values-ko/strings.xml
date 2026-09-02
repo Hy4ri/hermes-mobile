@@ -240,6 +240,14 @@
     <string name="theme_preset_catppuccin">Catppuccin</string>
     <string name="theme_preset_amoled">AMOLED 블랙 (다크 전용)</string>
 
+    <!-- Language -->
+    <string name="settings_item_language">언어</string>
+    <string name="language_system">시스템 기본값</string>
+    <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
+    <string name="language_chinese">简体中文</string>
+    <string name="language_korean">한국어</string>
+
     <!-- Connect Screen -->
     <string name="connect_selected_profile">프로필: %1$s</string>
     <string name="connect_action_select_profile">저장된 프로필 선택</string>
@@ -406,6 +414,12 @@
     <string name="sessions_action_select_all">전체 선택</string>
     <string name="sessions_action_deselect_all">선택 해제</string>
     <string name="sessions_action_delete_n">%1$d개 삭제</string>
+    <string name="sessions_action_hide">숨기기</string>
+    <string name="sessions_action_unhide">숨김 해제</string>
+    <string name="sessions_show_hidden">숨겨진 세션 표시</string>
+    <string name="sessions_hide_hidden">숨겨진 세션 숨기기</string>
+    <string name="sessions_hidden_badge">숨김</string>
+    <string name="sessions_all_hidden_desc">모든 세션이 현재 숨겨져 있습니다. 아래를 탭하여 숨겨진 세션을 표시하세요.</string>
 
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">툴셋이 없습니다</string>
@@ -453,6 +467,12 @@
     <string name="profiles_action_set_model">모델 설정</string>
     <string name="profiles_action_clone">복제</string>
     <string name="profiles_action_edit_description">설명 편집</string>
+    <string name="profiles_action_hide">프로필 숨기기</string>
+    <string name="profiles_action_unhide">프로필 숨김 해제</string>
+    <string name="profiles_show_hidden">숨겨진 프로필 표시</string>
+    <string name="profiles_hide_hidden">숨겨진 프로필 숨기기</string>
+    <string name="profiles_hidden_badge">숨김</string>
+    <string name="profiles_all_hidden_desc">모든 프로필이 현재 숨겨져 있습니다. 아래를 탭하여 숨겨진 프로필을 표시하세요.</string>
     <string name="profiles_content_desc_active">활성 프로필</string>
     <string name="profiles_title_edit_soul">소울 프로필 편집: %1$s</string>
     <string name="profiles_title_set_model">모델 설정: %1$s</string>
@@ -571,6 +591,16 @@
     <string name="mcp_servers_label_transport">전송: %1$s</string>
     <string name="mcp_servers_label_command">명령어:</string>
     <string name="mcp_servers_action_test">테스트</string>
+    <string name="mcp_servers_action_test_all">모두 테스트</string>
+    <string name="mcp_servers_action_import_json">JSON 가져오기</string>
+    <string name="mcp_servers_import_dialog_title">MCP 서버 가져오기</string>
+    <string name="mcp_servers_import_dialog_desc">Claude Desktop / Cursor mcpServers JSON 스니펫 또는 서버 정의를 붙여넣으세요.</string>
+    <string name="mcp_servers_import_dialog_paste">클립보드 붙여넣기</string>
+    <string name="mcp_servers_import_dialog_importing">가져오는 중…</string>
+    <string name="mcp_servers_status_healthy">정상</string>
+    <string name="mcp_servers_status_needs_auth">인증 필요</string>
+    <string name="mcp_servers_status_error">오류</string>
+    <string name="mcp_servers_status_testing">테스트 중…</string>
     <string name="mcp_servers_add_server">서버 추가</string>
     <string name="mcp_servers_add_http">HTTP URL</string>
     <string name="mcp_servers_add_stdio">Stdio 명령어</string>
@@ -834,4 +864,18 @@
     <string name="group_chat_settings_system_prompt_hint">이 그룹을 위한 사용자 지정 규칙, 어조 또는 컨텍스트 (선택사항)…</string>
     <string name="group_chat_settings_system_prompt_desc">이 방의 모든 봇에 적용되는 사용자 지정 가이드라인</string>
     <string name="group_chat_action_settings">설정</string>
+    <string name="subagent_agent_plan">에이전트 계획</string>
+    <string name="subagent_live_transcript">실시간 기록</string>
+    <string name="subagent_no_active">활성 작업 또는 계획 항목이 없습니다.</string>
+    <string name="subagent_summary">요약: %1$s</string>
+    <string name="subagent_task_plan_inspection">작업 및 계획 검사</string>
+    <string name="subagent_action_steer">안내</string>
+    <string name="subagent_action_stop">중지</string>
+    <string name="subagent_steer_placeholder">하위 에이전트 안내 입력…</string>
+    <string name="subagent_status_running">실행 중</string>
+    <string name="subagent_status_completed">완료됨</string>
+    <string name="subagent_status_steered">안내됨</string>
+    <string name="subagent_status_cancelled">취소됨</string>
+    <string name="subagent_status_failed">실패</string>
+    <string name="subagent_duration">%1$.1f초</string>
 </resources>

@@ -303,12 +303,13 @@ class GroupChatViewModel(
                 val roomMemberNames = matchingRoom?.memberNames.orEmpty().map { it.lowercase() }
 
                 val matchedProfiles =
-                    allProfiles.filter {
-                        val botGroups = it.botMeta()?.allGroups.orEmpty()
-                        botGroups.any { g -> g.equals(groupName, ignoreCase = true) } ||
-                            roomMemberNames.contains(it.name.lowercase()) ||
-                            roomMemberNames.contains(it.effectiveTitle.lowercase())
-                    }.toMutableList()
+                    allProfiles
+                        .filter {
+                            val botGroups = it.botMeta()?.allGroups.orEmpty()
+                            botGroups.any { g -> g.equals(groupName, ignoreCase = true) } ||
+                                roomMemberNames.contains(it.name.lowercase()) ||
+                                roomMemberNames.contains(it.effectiveTitle.lowercase())
+                        }.toMutableList()
 
                 // If room listed members (e.g. remote bots or bots not in local profiles), ensure they are seated
                 if (matchingRoom != null && roomMemberNames.isNotEmpty()) {
@@ -350,7 +351,11 @@ class GroupChatViewModel(
                         initialMessages =
                             syncedLog.map { entry ->
                                 val isUser = entry.from?.kind != "member"
-                                val senderName = entry.from?.name.orEmpty().ifBlank { if (isUser) "user" else "bot" }
+                                val senderName =
+                                    entry.from
+                                        ?.name
+                                        .orEmpty()
+                                        .ifBlank { if (isUser) "user" else "bot" }
                                 val memberProfile =
                                     allProfiles.find {
                                         it.name.equals(senderName, ignoreCase = true) ||
@@ -465,13 +470,14 @@ class GroupChatViewModel(
 
                 val uiMetaPayload = mapOf("hermes-bots-groups" to newSnapshot.toMap())
 
-                HermesWsClient.request(
-                    WsMethods.PROFILES_CONFIGURE,
-                    mapOf(
-                        "name" to defaultProfile.name,
-                        "ui_meta" to uiMetaPayload,
-                    ),
-                ).await()
+                HermesWsClient
+                    .request(
+                        WsMethods.PROFILES_CONFIGURE,
+                        mapOf(
+                            "name" to defaultProfile.name,
+                            "ui_meta" to uiMetaPayload,
+                        ),
+                    ).await()
             } catch (e: Exception) {
                 Log.w("GroupChatViewModel", "updateGroupLimits failed: ${e.message}")
             }
@@ -559,13 +565,14 @@ class GroupChatViewModel(
             val newSnapshot = existingSnapshot.copy(version = 3, updatedAt = now, rooms = updatedRooms)
             val uiMetaPayload = mapOf("hermes-bots-groups" to newSnapshot.toMap())
 
-            HermesWsClient.request(
-                WsMethods.PROFILES_CONFIGURE,
-                mapOf(
-                    "name" to defaultProfile.name,
-                    "ui_meta" to uiMetaPayload,
-                ),
-            ).await()
+            HermesWsClient
+                .request(
+                    WsMethods.PROFILES_CONFIGURE,
+                    mapOf(
+                        "name" to defaultProfile.name,
+                        "ui_meta" to uiMetaPayload,
+                    ),
+                ).await()
 
             return true
         } catch (e: Exception) {
@@ -629,10 +636,11 @@ class GroupChatViewModel(
             storedId?.let { inFlightTurns[it] = turnDeferred }
 
             try {
-                HermesWsClient.request(
-                    WsMethods.PROMPT_SUBMIT,
-                    mapOf("session_id" to runtimeId, "text" to prompt),
-                ).await()
+                HermesWsClient
+                    .request(
+                        WsMethods.PROMPT_SUBMIT,
+                        mapOf("session_id" to runtimeId, "text" to prompt),
+                    ).await()
             } catch (submitErr: Exception) {
                 Log.w(
                     "GroupChatViewModel",
@@ -662,10 +670,11 @@ class GroupChatViewModel(
                 storedId?.let { inFlightTurns[it] = turnDeferred }
 
                 try {
-                    HermesWsClient.request(
-                        WsMethods.PROMPT_SUBMIT,
-                        mapOf("session_id" to runtimeId, "text" to prompt),
-                    ).await()
+                    HermesWsClient
+                        .request(
+                            WsMethods.PROMPT_SUBMIT,
+                            mapOf("session_id" to runtimeId, "text" to prompt),
+                        ).await()
                 } catch (retryErr: Exception) {
                     Log.e("GroupChatViewModel", "Retry prompt.submit failed for ${bot.name}: ${retryErr.message}")
                     return null
@@ -880,7 +889,10 @@ class GroupChatViewModel(
 
                 val bot = remainingInitial.removeAt(0)
                 val reply = executeBotTurn(bot, epoch, members)
-                val nonSystemSize = _uiState.value.messages.filter { !it.isSystem }.size
+                val nonSystemSize =
+                    _uiState.value.messages
+                        .filter { !it.isSystem }
+                        .size
                 memberWatermarks[bot.name] = nonSystemSize
 
                 if (reply != null) {
@@ -931,7 +943,10 @@ class GroupChatViewModel(
 
                     val bot = continuationResponders.removeAt(0)
                     val reply = executeBotTurn(bot, epoch, members)
-                    val nonSystemSize = _uiState.value.messages.filter { !it.isSystem }.size
+                    val nonSystemSize =
+                        _uiState.value.messages
+                            .filter { !it.isSystem }
+                            .size
                     memberWatermarks[bot.name] = nonSystemSize
 
                     if (reply != null) {
@@ -1055,13 +1070,14 @@ class GroupChatViewModel(
 
                 val uiMetaPayload = mapOf("hermes-bots-groups" to newSnapshot.toMap())
 
-                HermesWsClient.request(
-                    WsMethods.PROFILES_CONFIGURE,
-                    mapOf(
-                        "name" to defaultProfile.name,
-                        "ui_meta" to uiMetaPayload,
-                    ),
-                ).await()
+                HermesWsClient
+                    .request(
+                        WsMethods.PROFILES_CONFIGURE,
+                        mapOf(
+                            "name" to defaultProfile.name,
+                            "ui_meta" to uiMetaPayload,
+                        ),
+                    ).await()
             } catch (e: Exception) {
                 Log.w("GroupChatViewModel", "persistSyncSnapshot failed: ${e.message}")
             }

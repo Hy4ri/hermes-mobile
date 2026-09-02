@@ -136,8 +136,8 @@ fun ChatInputBar(
                 // also enforced at dispatch time (issue #576, deliverable #3).
                 val hiddenSlashDisplay = CommandBlocklist.UNSUPPORTED
                 val commandNames =
-                    commandCatalog.pairs
-                        .map { it[0] }
+                    (commandCatalog.pairs.map { it[0] } + listOf("/btw", "/queue", "/fork", "/model", "/new", "/stop"))
+                        .distinct()
                         .filter { it.lowercase() !in hiddenSlashDisplay }
 
                 androidx.compose.animation.AnimatedVisibility(
@@ -236,8 +236,7 @@ fun ChatInputBar(
                                                     onInputChange(
                                                         ChatInputPolicy.applyMention(inputFieldValue, bot.name),
                                                     )
-                                                }
-                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                }.padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         BotAvatar(

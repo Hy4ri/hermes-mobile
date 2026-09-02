@@ -116,7 +116,11 @@ class SessionsViewModelTest {
         vm.loadSessions()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf("s-1", "s-2"), vm.uiState.value.sessions.map { it.id })
+        assertEquals(
+            listOf("s-1", "s-2"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
         assertEquals(2, vm.uiState.value.total)
         assertFalse(vm.uiState.value.hasMore)
         assertFalse(vm.uiState.value.isLoadingMore)
@@ -206,7 +210,11 @@ class SessionsViewModelTest {
         vm.loadSessions()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf("old-pinned", "recent"), vm.uiState.value.sessions.map { it.id })
+        assertEquals(
+            listOf("old-pinned", "recent"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
     }
 
     @Test
@@ -226,8 +234,17 @@ class SessionsViewModelTest {
         vm.togglePin("s-2")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf("s-2", "s-1"), vm.uiState.value.sessions.map { it.id })
-        assertEquals(true, vm.uiState.value.sessions.first().pinned)
+        assertEquals(
+            listOf("s-2", "s-1"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
+        assertEquals(
+            true,
+            vm.uiState.value.sessions
+                .first()
+                .pinned,
+        )
         assertEquals("Session pinned", vm.uiState.value.toastMessage)
     }
 
@@ -249,9 +266,99 @@ class SessionsViewModelTest {
         vm.togglePin("s-2")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(listOf("s-1", "s-2"), vm.uiState.value.sessions.map { it.id })
-        assertFalse(vm.uiState.value.sessions[1].pinned ?: false)
+        assertEquals(
+            listOf("s-1", "s-2"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
+        assertFalse(
+            vm.uiState.value.sessions[1]
+                .pinned ?: false,
+        )
         assertNotNull(vm.uiState.value.toastMessage)
-        assertTrue(vm.uiState.value.toastMessage!!.contains("Pin failed"))
+        assertTrue(
+            vm.uiState.value.toastMessage!!
+                .contains("Pin failed"),
+        )
+    }
+
+    @Test
+    fun `displaySessions filters out hidden sessions by default and shows them on toggleShowHidden`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions =
+                        listOf(
+                            SessionInfo("s-visible-1", hidden = false),
+                            SessionInfo("s-hidden", hidden = true),
+                            SessionInfo("s-visible-2", hidden = null),
+                        ),
+                    total = 3,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.hasHiddenSessions)
+        assertFalse(vm.uiState.value.showHidden)
+        assertEquals(
+            listOf("s-visible-1", "s-visible-2"),
+            vm.uiState.value.displaySessions
+                .map { it.id },
+        )
+
+        vm.toggleShowHidden()
+        assertTrue(vm.uiState.value.showHidden)
+        assertEquals(
+            listOf("s-visible-1", "s-hidden", "s-visible-2"),
+            vm.uiState.value.displaySessions
+                .map { it.id },
+        )
+
+        vm.toggleShowHidden()
+        assertFalse(vm.uiState.value.showHidden)
+        assertEquals(
+            listOf("s-visible-1", "s-visible-2"),
+            vm.uiState.value.displaySessions
+                .map { it.id },
+        )
+    }
+
+    @Test
+    fun `toggleHide updates hidden status and surfaces toast`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+            Response.success(
+                SessionListResponse(
+                    sessions = listOf(SessionInfo("s-1", hidden = false)),
+                    total = 1,
+                ),
+            )
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coEvery { mockApi.setSessionHidden(any(), any()) } returns Response.success(Unit)
+        vm.toggleHide("s-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            true,
+            vm.uiState.value.sessions
+                .first()
+                .hidden,
+        )
+        assertEquals("Session hidden", vm.uiState.value.toastMessage)
+
+        vm.toggleHide("s-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            false,
+            vm.uiState.value.sessions
+                .first()
+                .hidden,
+        )
+        assertEquals("Session unhidden", vm.uiState.value.toastMessage)
     }
 }

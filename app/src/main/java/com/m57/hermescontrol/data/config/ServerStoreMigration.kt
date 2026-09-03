@@ -55,7 +55,7 @@ class ServerStoreMigration(
             runCatching { ThemePreference.valueOf(themePrefString!!) }
                 .getOrDefault(ThemePreference.SYSTEM)
 
-        val useDynamicColors = prefs.getBoolean("use_dynamic_colors", true)
+        val useDynamicColors = prefs.getBoolean("use_dynamic_colors", false)
 
         val themePresetString = prefs.getString("theme_preset", ThemePreset.DEFAULT.name)
         val themePreset =

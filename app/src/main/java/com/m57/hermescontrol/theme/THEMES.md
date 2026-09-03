@@ -95,8 +95,8 @@ private fun themeFor(preset: ThemePreset): ThemePalette = when (preset) {
 }
 ```
 
-Dynamic (Material You) color on API 31+ overrides the preset scheme when
-`useDynamicColors = true`. Semantic status colors are always resolved from the
+Dynamic (Material You) color on API 31+ can optionally override the preset scheme when
+`useDynamicColors = true` (defaults to `false`). Semantic status colors are always resolved from the
 active preset via `LocalHermesStatusColors`.
 
 ## Adding a new theme

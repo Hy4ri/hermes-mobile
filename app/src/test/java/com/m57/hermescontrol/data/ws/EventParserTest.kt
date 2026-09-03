@@ -291,6 +291,42 @@ class EventParserTest {
         assertEquals(listOf("staging", "production"), clarifyEvent.options)
     }
 
+    @Test
+    fun testParseClarifyRequest_withBatchQuestions_parsesSuccessfully() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "clarify.request",
+                        "payload" to
+                            mapOf(
+                                "request_id" to "req-batch-1",
+                                "questions" to
+                                    listOf(
+                                        mapOf(
+                                            "qid" to "q0",
+                                            "question" to "Which database?",
+                                            "choices" to listOf("Postgres", "SQLite"),
+                                            "multi_select" to false,
+                                        ),
+                                    ),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ClarifyRequest)
+        val clarifyEvent = event as WsEvent.ClarifyRequest
+        assertEquals("Which database?", clarifyEvent.text)
+        assertEquals(listOf("Postgres", "SQLite"), clarifyEvent.options)
+        assertEquals("req-batch-1", clarifyEvent.clarifyId)
+        assertEquals("q0", clarifyEvent.questionId)
+    }
+
     // ── TEST-07: Untested subtypes ─────────────────────────────────────
 
     @Test

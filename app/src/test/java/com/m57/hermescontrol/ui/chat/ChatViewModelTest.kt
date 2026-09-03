@@ -1218,6 +1218,46 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testClarifyRequestWithQuestionIdAndRespond() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "Pick one:",
+                    options = listOf("Option 1"),
+                    clarifyId = "clarify-batch-1",
+                    sessionId = sessionId,
+                    questionId = "q0",
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("Pick one:", viewModel.uiState.value.clarifyRequest?.text)
+            assertEquals("q0", viewModel.uiState.value.clarifyRequest?.questionId)
+
+            viewModel.respondToClarify("Option 1")
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "Option 1",
+                            "answer" to "Option 1",
+                            "clarify_id" to "clarify-batch-1",
+                            "request_id" to "clarify-batch-1",
+                            "question_id" to "q0",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
+    @Test
     fun testClarifyRequestCustomResponse() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
@@ -1310,6 +1350,53 @@ class ChatViewModelTest {
                             "answer" to "The user cancelled — no answer provided.",
                             "clarify_id" to "clarify-789",
                             "request_id" to "clarify-789",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
+    @Test
+    fun testClarifyDismissWithQuestionIdInformsAgent() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    "Please choose:",
+                    listOf("Yes", "No"),
+                    "clarify-789",
+                    sessionId,
+                    questionId = "q0",
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "clarify-789",
+                viewModel.uiState.value.clarifyRequest
+                    ?.clarifyId,
+            )
+            assertEquals(
+                "q0",
+                viewModel.uiState.value.clarifyRequest
+                    ?.questionId,
+            )
+
+            viewModel.dismissClarify()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "The user cancelled — no answer provided.",
+                            "answer" to "The user cancelled — no answer provided.",
+                            "clarify_id" to "clarify-789",
+                            "request_id" to "clarify-789",
+                            "question_id" to "q0",
                         ),
                     onSent = any(),
                 )

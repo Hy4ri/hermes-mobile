@@ -140,6 +140,7 @@ sealed class WsEvent {
         val options: List<String>?,
         val clarifyId: String? = null,
         val sessionId: String? = null,
+        val questionId: String? = null,
     ) : WsEvent()
 
     /**

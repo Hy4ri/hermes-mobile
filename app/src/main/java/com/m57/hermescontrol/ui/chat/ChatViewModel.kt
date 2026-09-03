@@ -379,6 +379,7 @@ data class ClarifyUi(
     val text: String,
     val options: List<String>,
     val clarifyId: String? = null,
+    val questionId: String? = null,
 )
 
 /**
@@ -3236,6 +3237,7 @@ class ChatViewModel(
     fun dismissClarify() {
         val sessionId = _uiState.value.currentSessionId ?: return
         val clarifyId = _uiState.value.clarifyRequest?.clarifyId
+        val questionId = _uiState.value.clarifyRequest?.questionId
         _uiState.update { it.copy(clarifyRequest = null) }
 
         addSystemMessage("Clarify dismissed — no answer sent", persist = true)
@@ -3251,6 +3253,9 @@ class ChatViewModel(
                 params["clarify_id"] = clarifyId
                 params["request_id"] = clarifyId
             }
+            if (questionId != null) {
+                params["question_id"] = questionId
+            }
             wsClient.send(
                 method = WsMethods.CLARIFY_RESPOND,
                 params = params,
@@ -3262,6 +3267,7 @@ class ChatViewModel(
     fun respondToClarify(option: String) {
         val sessionId = _uiState.value.currentSessionId ?: return
         val clarifyId = _uiState.value.clarifyRequest?.clarifyId
+        val questionId = _uiState.value.clarifyRequest?.questionId
         _uiState.update { it.copy(clarifyRequest = null) }
 
         val userMessage =
@@ -3291,6 +3297,9 @@ class ChatViewModel(
             if (clarifyId != null) {
                 params["clarify_id"] = clarifyId
                 params["request_id"] = clarifyId
+            }
+            if (questionId != null) {
+                params["question_id"] = questionId
             }
             wsClient.send(
                 method = WsMethods.CLARIFY_RESPOND,

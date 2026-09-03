@@ -42,8 +42,10 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -549,6 +551,11 @@ private fun GroupChatSettingsDialog(
     var maxMessages by remember(currentMaxMessages) { mutableStateOf(currentMaxMessages.toFloat()) }
     var maxPasses by remember(currentMaxPasses) { mutableStateOf(currentMaxPasses.toFloat()) }
     var systemPrompt by remember(currentSystemPrompt) { mutableStateOf(currentSystemPrompt.orEmpty()) }
+    var showHighLimitsConfirmation by remember { mutableStateOf(false) }
+
+    val isHighLimit =
+        maxMessages.roundToInt() > WARN_MAX_BOT_MESSAGES ||
+            maxPasses.roundToInt() > WARN_MAX_CONTINUATION_PASSES
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -579,7 +586,12 @@ private fun GroupChatSettingsDialog(
                         Text(
                             text = "${maxMessages.roundToInt()}",
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            color =
+                                if (maxMessages.roundToInt() > WARN_MAX_BOT_MESSAGES) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
                             fontWeight = FontWeight.Bold,
                         )
                     }
@@ -595,8 +607,8 @@ private fun GroupChatSettingsDialog(
                     Slider(
                         value = maxMessages,
                         onValueChange = { maxMessages = it },
-                        valueRange = 1f..20f,
-                        steps = 18,
+                        valueRange = 1f..MAX_ALLOWED_BOT_MESSAGES.toFloat(),
+                        steps = MAX_ALLOWED_BOT_MESSAGES - 2,
                         modifier = Modifier.testTag("max_messages_slider"),
                     )
                 }
@@ -616,7 +628,12 @@ private fun GroupChatSettingsDialog(
                         Text(
                             text = "${maxPasses.roundToInt()}",
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            color =
+                                if (maxPasses.roundToInt() > WARN_MAX_CONTINUATION_PASSES) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
                             fontWeight = FontWeight.Bold,
                         )
                     }
@@ -632,10 +649,50 @@ private fun GroupChatSettingsDialog(
                     Slider(
                         value = maxPasses,
                         onValueChange = { maxPasses = it },
-                        valueRange = 0f..6f,
-                        steps = 5,
+                        valueRange = 0f..MAX_ALLOWED_CONTINUATION_PASSES.toFloat(),
+                        steps = MAX_ALLOWED_CONTINUATION_PASSES - 1,
                         modifier = Modifier.testTag("max_handoffs_slider"),
                     )
+                }
+
+                // Live In-Dialog Warning Banner (Option C)
+                AnimatedVisibility(
+                    visible = isHighLimit,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .testTag("high_limits_warning_banner"),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text =
+                                    stringResource(
+                                        R.string.group_chat_settings_high_limits_warning_desc,
+                                        maxMessages.roundToInt(),
+                                        maxPasses.roundToInt(),
+                                    ),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                 }
 
                 // Room Instructions / System Prompt
@@ -674,11 +731,15 @@ private fun GroupChatSettingsDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(
-                        maxMessages.roundToInt(),
-                        maxPasses.roundToInt(),
-                        systemPrompt.trim().ifBlank { null },
-                    )
+                    if (isHighLimit) {
+                        showHighLimitsConfirmation = true
+                    } else {
+                        onSave(
+                            maxMessages.roundToInt(),
+                            maxPasses.roundToInt(),
+                            systemPrompt.trim().ifBlank { null },
+                        )
+                    }
                 },
                 modifier = Modifier.testTag("save_settings_button"),
             ) {
@@ -702,6 +763,65 @@ private fun GroupChatSettingsDialog(
             }
         },
     )
+
+    if (showHighLimitsConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showHighLimitsConfirmation = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+            title = {
+                Text(
+                    text = stringResource(R.string.group_chat_settings_high_limits_warning_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.group_chat_settings_high_limits_warning_desc,
+                            maxMessages.roundToInt(),
+                            maxPasses.roundToInt(),
+                        ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showHighLimitsConfirmation = false
+                        onSave(
+                            maxMessages.roundToInt(),
+                            maxPasses.roundToInt(),
+                            systemPrompt.trim().ifBlank { null },
+                        )
+                    },
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                    modifier = Modifier.testTag("confirm_high_limits_button"),
+                ) {
+                    Text(stringResource(R.string.group_chat_settings_high_limits_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showHighLimitsConfirmation = false },
+                    modifier = Modifier.testTag("dismiss_high_limits_button"),
+                ) {
+                    Text(stringResource(R.string.group_chat_settings_high_limits_adjust))
+                }
+            },
+        )
+    }
 }
 
 @Composable

@@ -420,6 +420,33 @@ class GroupChatViewModelTest {
             assertEquals(15, viewModel.uiState.value.maxBotMessages)
             assertEquals(4, viewModel.uiState.value.maxContinuationPasses)
             assertEquals("Custom instructions for this group", viewModel.uiState.value.systemPrompt)
+
+            // Extended limits within new range
+            viewModel.updateGroupLimits(
+                maxMessages = 45,
+                maxPasses = 18,
+            )
+            testScheduler.runCurrent()
+            assertEquals(45, viewModel.uiState.value.maxBotMessages)
+            assertEquals(18, viewModel.uiState.value.maxContinuationPasses)
+
+            // Exceeding ceiling clamps to MAX_ALLOWED_BOT_MESSAGES (50) and MAX_ALLOWED_CONTINUATION_PASSES (20)
+            viewModel.updateGroupLimits(
+                maxMessages = 999,
+                maxPasses = 999,
+            )
+            testScheduler.runCurrent()
+            assertEquals(MAX_ALLOWED_BOT_MESSAGES, viewModel.uiState.value.maxBotMessages)
+            assertEquals(MAX_ALLOWED_CONTINUATION_PASSES, viewModel.uiState.value.maxContinuationPasses)
+
+            // Under floor clamps to 1 and 0
+            viewModel.updateGroupLimits(
+                maxMessages = -10,
+                maxPasses = -5,
+            )
+            testScheduler.runCurrent()
+            assertEquals(1, viewModel.uiState.value.maxBotMessages)
+            assertEquals(0, viewModel.uiState.value.maxContinuationPasses)
         }
 
     @Test

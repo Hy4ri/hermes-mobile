@@ -3407,15 +3407,18 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId ?: return
         val clarify = _uiState.value.clarifyRequest
         val clarifyId = clarify?.clarifyId
-        val questions = clarify?.resolvedQuestions.orEmpty()
+        // Raw batch questions (non-empty only for true batch payloads).
+        // Legacy singles keep questions empty and rely on questionId (nullable).
+        val isBatch = !clarify?.questions.isNullOrEmpty()
+        val displayQuestions = clarify?.resolvedQuestions.orEmpty()
         _uiState.update { it.copy(clarifyRequest = null) }
 
         addSystemMessage("Clarify dismissed — no answer sent", persist = true)
 
         viewModelScope.launch(ioDispatcher) {
-            if (questions.size > 1) {
+            if (isBatch) {
                 // Send dismissal for every question in the batch
-                for (q in questions) {
+                for (q in displayQuestions) {
                     val params =
                         mutableMapOf<String, Any>(
                             "session_id" to sessionId,
@@ -3434,7 +3437,8 @@ class ChatViewModel(
                     )
                 }
             } else {
-                val questionId = questions.firstOrNull()?.qid ?: clarify?.questionId
+                // Legacy: only send question_id when the original payload had one.
+                val questionId = clarify?.questionId
                 val params =
                     mutableMapOf<String, Any>(
                         "session_id" to sessionId,
@@ -3459,7 +3463,15 @@ class ChatViewModel(
 
     fun respondToClarify(option: String) {
         val clarify = _uiState.value.clarifyRequest
-        val qid = clarify?.resolvedQuestions?.firstOrNull()?.qid ?: clarify?.questionId
+        // Only use synthesized qid when this is a true batch or legacy with explicit qid.
+        val qid =
+            if (clarify != null &&
+                (clarify.questionId != null || clarify.questions.isNotEmpty())
+            ) {
+                clarify.resolvedQuestions.firstOrNull()?.qid ?: clarify.questionId
+            } else {
+                null
+            }
         if (qid != null && clarify?.resolvedQuestions?.size == 1) {
             respondToClarifyBatch(mapOf(qid to option))
         } else {
@@ -3474,6 +3486,7 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId ?: return
         val clarify = _uiState.value.clarifyRequest
         val clarifyId = clarify?.clarifyId
+        val isBatch = !clarify?.questions.isNullOrEmpty()
         val questions = clarify?.resolvedQuestions.orEmpty()
         _uiState.update { it.copy(clarifyRequest = null) }
 
@@ -3507,7 +3520,7 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(ioDispatcher) {
-            if (questions.size > 1) {
+            if (isBatch) {
                 for (q in questions) {
                     val ans = answers[q.qid]?.trim().orEmpty()
                     val params =
@@ -3528,7 +3541,8 @@ class ChatViewModel(
                     )
                 }
             } else {
-                val qid = questions.firstOrNull()?.qid ?: clarify?.questionId
+                // Legacy single: only include question_id when explicitly present.
+                val qid = clarify?.questionId
                 val ans = answers.values.firstOrNull() ?: singleFallbackAnswer.orEmpty()
                 val params =
                     mutableMapOf<String, Any>(

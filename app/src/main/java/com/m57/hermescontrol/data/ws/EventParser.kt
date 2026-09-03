@@ -163,9 +163,9 @@ object EventParser {
 
                         @Suppress("UNCHECKED_CAST")
                         val options = (rawOptions as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-                        val qid = payload?.get("qid") as? String ?: payload?.get("question_id") as? String ?: "q0"
+                        val qid = payload?.get("qid") as? String ?: payload?.get("question_id") as? String
                         val multi = payload?.get("multi_select") as? Boolean ?: false
-                        if (!text.isNullOrBlank() || options.isNotEmpty()) {
+                        if ((!text.isNullOrBlank() || options.isNotEmpty()) && qid != null) {
                             listOf(
                                 WsEvent.ClarifyQuestion(
                                     qid = qid,
@@ -183,12 +183,26 @@ object EventParser {
                 val legacyText =
                     if (parsedQuestions.size > 1) {
                         parsedQuestions.mapIndexed { index, q -> "${index + 1}. ${q.question}" }.joinToString("\n\n")
+                    } else if (primary != null) {
+                        primary.question
                     } else {
-                        primary?.question
+                        payload?.get("question") as? String
+                            ?: payload?.get("text") as? String
                     }
-                val legacyOptions = primary?.choices
-                val legacyQid = primary?.qid
-                val legacyMulti = primary?.multiSelect ?: false
+
+                @Suppress("UNCHECKED_CAST")
+                val legacyOptions =
+                    primary?.choices
+                        ?: (payload?.get("choices") ?: payload?.get("options"))
+                            .let { (it as? List<*>)?.filterIsInstance<String>() }
+                val legacyQid =
+                    primary?.qid
+                        ?: payload?.get("qid") as? String
+                        ?: payload?.get("question_id") as? String
+                val legacyMulti =
+                    primary?.multiSelect
+                        ?: payload?.get("multi_select") as? Boolean
+                        ?: false
 
                 WsEvent.ClarifyRequest(
                     text = legacyText,

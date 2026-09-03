@@ -651,14 +651,10 @@ object ChatWsEventReducer {
                     )
                 }
             } else {
-                listOf(
-                    ClarifyQuestionUi(
-                        qid = event.questionId ?: "q0",
-                        question = event.text.orEmpty(),
-                        choices = event.options.orEmpty(),
-                        multiSelect = event.multiSelect,
-                    ),
-                )
+                // Legacy single-question payload: keep questions empty so the wire
+                // layer can tell legacy apart from a true batch. UI synthesizes
+                // via ClarifyUi.resolvedQuestions; wire uses text/options/questionId.
+                emptyList()
             }
 
         return ReducerResult(

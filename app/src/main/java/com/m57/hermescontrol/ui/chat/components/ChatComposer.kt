@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,11 +54,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -68,6 +72,7 @@ import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 import com.m57.hermescontrol.ui.common.BotAvatar
+import com.m57.hermescontrol.util.BidiUtils
 
 /**
  * The chat input bar with a two-row layout: input+send on top,
@@ -318,6 +323,12 @@ fun ChatInputBar(
                             }
                         }
 
+                    val ambientLayoutDirection = LocalLayoutDirection.current
+                    val inputLayoutDirection =
+                        remember(inputFieldValue.text, ambientLayoutDirection) {
+                            BidiUtils.resolveLayoutDirection(inputFieldValue.text, fallback = ambientLayoutDirection)
+                        }
+
                     BasicTextField(
                         value = inputFieldValue,
                         onValueChange = onInputChange,
@@ -332,6 +343,12 @@ fun ChatInputBar(
                         textStyle =
                             MaterialTheme.typography.bodyMedium.copy(
                                 color = MaterialTheme.colorScheme.onSurface,
+                                textDirection =
+                                    if (inputLayoutDirection == LayoutDirection.Rtl) {
+                                        TextDirection.Rtl
+                                    } else {
+                                        TextDirection.Ltr
+                                    },
                             ),
                         singleLine = false,
                         maxLines = 4,
@@ -360,14 +377,21 @@ fun ChatInputBar(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Box(modifier = Modifier.weight(1f)) {
-                                        if (inputFieldValue.text.isEmpty()) {
-                                            Text(
-                                                text = placeholderText,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            )
+                                        CompositionLocalProvider(
+                                            LocalLayoutDirection provides inputLayoutDirection,
+                                        ) {
+                                            if (inputFieldValue.text.isEmpty()) {
+                                                Text(
+                                                    text = placeholderText,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color =
+                                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.6f,
+                                                        ),
+                                                )
+                                            }
+                                            innerTextField()
                                         }
-                                        innerTextField()
                                     }
 
                                     // Send button INSIDE the field. Shown whenever a send is
@@ -394,7 +418,10 @@ fun ChatInputBar(
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.AutoMirrored.Filled.Send,
-                                                    contentDescription = stringResource(R.string.chat_send_desc),
+                                                    contentDescription =
+                                                        stringResource(
+                                                            R.string.chat_send_desc,
+                                                        ),
                                                 )
                                             }
                                         }

@@ -896,6 +896,45 @@ class ChatViewModelTest {
             assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
         }
 
+    @Test
+    fun testUndoCommand_dispatchesAndPrefillsComposer() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(
+                    WsMethods.COMMAND_DISPATCH,
+                    mapOf("name" to "undo", "arg" to "2", "session_id" to sessionId),
+                    any(),
+                )
+            } returns
+                CompletableDeferred(
+                    mapOf(
+                        "type" to "prefill",
+                        "message" to "undone user message",
+                        "notice" to "↶ Undid 2 turns",
+                    ),
+                )
+
+            viewModel.sendMessage("/undo 2")
+            advanceUntilIdle()
+
+            // Prefill text is staged in UI state
+            assertEquals("undone user message", viewModel.uiState.value.pendingPrefillText)
+            // Notice is displayed as system message with rewind target feedback
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content.contains("↶ Undid 2 turns") && it.content.contains("undone user message") },
+            )
+            // Verify slash usage was recorded
+            assertEquals(1, viewModel.uiState.value.slashUsageCounts["/undo"])
+
+            // Consume prefill text
+            viewModel.consumePendingPrefill()
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.pendingPrefillText)
+        }
+
     // ── Connection / init tests ──────────────────────────────────────────────
 
     @Test

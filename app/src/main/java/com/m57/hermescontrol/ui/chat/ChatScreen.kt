@@ -290,6 +290,14 @@ fun ChatScreen(
     var inputFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
+
+    LaunchedEffect(state.pendingPrefillText) {
+        val prefill = state.pendingPrefillText
+        if (prefill != null) {
+            inputFieldValue = ChatInputPolicy.commandFieldValue(prefill)
+            viewModel.consumePendingPrefill()
+        }
+    }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }

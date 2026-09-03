@@ -363,6 +363,8 @@ data class ChatUiState(
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
     val resumeError: String? = null,
     val isResumeRetrying: Boolean = false,
+    /** Text staged to prefill the composer (e.g. from /undo). */
+    val pendingPrefillText: String? = null,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -1270,6 +1272,12 @@ class ChatViewModel(
                 handleSlashCommand(target)
             }
 
+            "prefill" -> {
+                val message = map["message"] as? String ?: ""
+                val notice = map["notice"] as? String ?: ""
+                handlePrefillResult(message, notice)
+            }
+
             else -> {
                 val output = map["output"] as? String ?: map.toString()
                 addAssistantMessage(output)
@@ -1611,6 +1619,11 @@ class ChatViewModel(
             }
         }
 
+        if (result is SlashResult.Undo) {
+            handleUndoCommand(result.count)
+            return
+        }
+
         // Block desktop/CLI-only + TUI-only commands that don't function on
         // mobile (issue #576, deliverable #3). These are also hidden from the
         // suggestion menu, but a user can still type one — intercept it here
@@ -1680,6 +1693,10 @@ class ChatViewModel(
 
             is SlashResult.SideQuestion -> {
                 handleSideQuestionCommand(result.question)
+            }
+
+            is SlashResult.Undo -> {
+                handleUndoCommand(result.count)
             }
 
             is SlashResult.RpcDispatch -> {
@@ -1994,6 +2011,67 @@ class ChatViewModel(
                 repo.persistMessage(msg, sessionId)
             }
         }
+    }
+
+    private fun handleUndoCommand(count: String) {
+        val sessionId = runtimeSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session to undo.")
+            return
+        }
+        viewModelScope.launch {
+            slashUsageStore.recordUse("/undo")
+        }
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val result =
+                    wsClient
+                        .request(
+                            WsMethods.COMMAND_DISPATCH,
+                            mapOf("name" to "undo", "arg" to count, "session_id" to sessionId),
+                        ).await()
+                handleDispatchResult(result)
+            } catch (e: HermesWsClient.HermesRpcException) {
+                addAssistantMessage(e.message ?: "Failed to undo.")
+            } catch (e: Exception) {
+                addAssistantMessage(e.message ?: "Failed to undo.")
+            }
+        }
+    }
+
+    private fun handlePrefillResult(
+        message: String,
+        notice: String,
+    ) {
+        val storageSessionId = _uiState.value.currentSessionId
+        if (message.isNotBlank()) {
+            _uiState.update { it.copy(pendingPrefillText = message) }
+        }
+        val feedback =
+            when {
+                notice.isNotBlank() && message.isNotBlank() -> "$notice (Rewound to: \"$message\")"
+                notice.isNotBlank() -> notice
+                message.isNotBlank() -> "↶ Rewound to: \"$message\""
+                else -> "↶ Rewound"
+            }
+        if (storageSessionId != null) {
+            val generation = sessionGeneration
+            viewModelScope.launch {
+                withContext(ioDispatcher) {
+                    repo.clearMessagesForSession(storageSessionId)
+                }
+                _uiState.update { it.copy(messages = emptyList()) }
+                loadSessionMessages(storageSessionId, generation)
+                addSystemMessage(feedback, persist = true)
+                fetchContextUsage()
+            }
+        } else {
+            addSystemMessage(feedback, persist = false)
+        }
+    }
+
+    fun consumePendingPrefill() {
+        _uiState.update { it.copy(pendingPrefillText = null) }
     }
 
     // ── Session management ───────────────────────────────────────────────
@@ -2659,6 +2737,7 @@ class ChatViewModel(
                 todos = emptyList(),
                 resumeError = null,
                 isResumeRetrying = false,
+                pendingPrefillText = null,
             )
         }
         return generation

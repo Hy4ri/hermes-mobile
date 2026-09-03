@@ -2,6 +2,11 @@ package com.m57.hermescontrol.ui.bots.group
 
 import android.content.ClipData
 import android.text.format.DateFormat
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +37,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -44,6 +51,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,17 +73,21 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalChatFontScale
+import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.chat.components.ChatScrollToBottomFab
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
@@ -85,6 +97,7 @@ import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.util.BidiUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -283,6 +296,111 @@ fun GroupChatScreen(
                 }
             }
 
+            // ── MENTION SUGGESTION CHIP BAR (Horizontal scrollable chips) ──
+            val mentionQuery =
+                remember(inputFieldValue.text, inputFieldValue.selection.end) {
+                    ChatInputPolicy.extractMentionQuery(
+                        inputFieldValue.text,
+                        inputFieldValue.selection.end,
+                    )
+                }
+
+            val groupBots =
+                remember(state.members) {
+                    state.members.distinctBy { it.name.lowercase() }
+                }
+
+            val showAllOption =
+                remember(mentionQuery, groupBots) {
+                    if (mentionQuery == null || groupBots.isEmpty()) {
+                        false
+                    } else {
+                        "all".startsWith(mentionQuery, ignoreCase = true) ||
+                            "everyone".startsWith(mentionQuery, ignoreCase = true)
+                    }
+                }
+
+            val filteredBots =
+                remember(mentionQuery, groupBots) {
+                    if (mentionQuery == null) {
+                        emptyList()
+                    } else {
+                        groupBots.filter { bot ->
+                            bot.name.startsWith(mentionQuery, ignoreCase = true) ||
+                                bot.effectiveTitle.contains(mentionQuery, ignoreCase = true)
+                        }
+                    }
+                }
+
+            AnimatedVisibility(
+                visible = mentionQuery != null && (showAllOption || filteredBots.isNotEmpty()),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                LazyRow(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp)
+                            .testTag("group_chat_mention_row"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (showAllOption) {
+                        item(key = "mention_all") {
+                            SuggestionChip(
+                                onClick = {
+                                    inputFieldValue = ChatInputPolicy.applyMention(inputFieldValue, "all")
+                                },
+                                label = {
+                                    Text(
+                                        text = "@all",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Groups,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("mention_chip_all"),
+                            )
+                        }
+                    }
+
+                    items(filteredBots, key = { it.name }) { bot ->
+                        SuggestionChip(
+                            onClick = {
+                                inputFieldValue = ChatInputPolicy.applyMention(inputFieldValue, bot.name)
+                            },
+                            label = {
+                                Text(
+                                    text = "@${bot.name}",
+                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            },
+                            icon = {
+                                BotAvatar(
+                                    name = bot.name,
+                                    avatar = bot.botMeta()?.avatar,
+                                    size = 18.dp,
+                                    showPresence = false,
+                                )
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.testTag("mention_chip_${bot.name}"),
+                        )
+                    }
+                }
+            }
+
             // ── COMPOSER (uses TextFieldValue + embedded Send button matching ChatComposer) ──
             Surface(
                 modifier =
@@ -309,7 +427,23 @@ fun GroupChatScreen(
                             .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(modifier = Modifier.weight(1f)) {
+                    val isInputRtl = remember(inputFieldValue.text) { BidiUtils.isRtlText(inputFieldValue.text) }
+                    val ambientLayoutDirection = LocalLayoutDirection.current
+                    val inputLayoutDirection =
+                        remember(inputFieldValue.text, ambientLayoutDirection) {
+                            if (inputFieldValue.text.isBlank()) {
+                                ambientLayoutDirection
+                            } else if (isInputRtl) {
+                                LayoutDirection.Rtl
+                            } else {
+                                LayoutDirection.Ltr
+                            }
+                        }
+
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = if (isInputRtl) Alignment.CenterEnd else Alignment.CenterStart,
+                    ) {
                         if (inputFieldValue.text.isEmpty()) {
                             Text(
                                 text =
@@ -319,27 +453,32 @@ fun GroupChatScreen(
                                     ),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
-                        BasicTextField(
-                            value = inputFieldValue,
-                            onValueChange = { inputFieldValue = it },
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 24.dp, max = 120.dp)
-                                    .onFocusChanged { isFocused = it.isFocused }
-                                    .testTag("group_chat_input"),
-                            textStyle =
-                                MaterialTheme.typography.bodyMedium.copy(
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                ),
-                            singleLine = false,
-                            maxLines = 4,
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(onSend = { handleSend() }),
-                        )
+                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                            BasicTextField(
+                                value = inputFieldValue,
+                                onValueChange = { inputFieldValue = it },
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 24.dp, max = 120.dp)
+                                        .onFocusChanged { isFocused = it.isFocused }
+                                        .testTag("group_chat_input"),
+                                textStyle =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                    ),
+                                singleLine = false,
+                                maxLines = 4,
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                keyboardActions = KeyboardActions(onSend = { handleSend() }),
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(4.dp))

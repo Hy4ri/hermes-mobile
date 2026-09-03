@@ -3035,6 +3035,167 @@ class ChatViewModelTest {
             assertNull(msgAfter!!.approvalInfo)
         }
 
+    @Test
+    fun testApprovalRequest_storesRequestIdAndChoices() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm -rf /tmp/x",
+                    description = "dangerous command",
+                    patternKeys = listOf("shell:rm"),
+                    sessionId = null,
+                    requestId = "req-1",
+                    choices = listOf("once", "session", "always", "deny"),
+                    allowPermanent = true,
+                    smartDenied = false,
+                ),
+            )
+            advanceUntilIdle()
+
+            val msg =
+                viewModel.uiState.value.messages
+                    .first { it.content.contains("Approval Required") }
+            assertEquals("req-1", msg.approvalInfo?.requestId)
+            assertEquals(
+                listOf("once", "session", "always", "deny"),
+                msg.approvalInfo?.choices,
+            )
+            assertEquals(true, msg.approvalInfo?.allowPermanent)
+        }
+
+    @Test
+    fun testRespondToApproval_mapsApproveToOnceAndSendsRequestId() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-42",
+                    choices = listOf("once", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("approve")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("once", params["choice"])
+                        assertEquals("req-42", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToApproval_sessionChoice() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-7",
+                    choices = listOf("once", "session", "always", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("session")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals("session", params["choice"])
+                        assertEquals("req-7", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToApproval_omitsRequestIdWhenAbsent() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "ls",
+                    description = "Safe",
+                    patternKeys = null,
+                    sessionId = null,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("deny")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals("deny", params["choice"])
+                        assertFalse(params.containsKey("request_id"))
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToApproval_triggersPendingReplay() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-9",
+                    choices = listOf("once", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("once")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_PENDING,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
     // ── Sudo / secret prompt flow (issue #524) ───────────────────────────
 
     @Test

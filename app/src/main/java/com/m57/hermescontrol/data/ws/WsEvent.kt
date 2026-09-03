@@ -230,6 +230,30 @@ sealed class WsEvent {
         val description: String?,
         val patternKeys: List<String>?,
         val sessionId: String?,
+        /**
+         * Backend `request_id` — unique across sessions. Sent back as
+         * `request_id` in `approval.respond` so the gateway resolves the
+         * EXACT pending instead of FIFO-oldest (desktop parity:
+         * `prompts.ts` `receiveApprovalRequest` + `approval.tsx` respond).
+         * Null on legacy payloads → omit, FIFO-compatible.
+         */
+        val requestId: String? = null,
+        /**
+         * Backend-advertised choices (e.g. `["once","session","always","deny"]`,
+         * smart-denied → `["once","deny"]`). Null = legacy → UI falls back
+         * to Run/Deny.
+         */
+        val choices: List<String>? = null,
+        /**
+         * False when the backend won't honor a permanent allow (tirith
+         * warning) → hide "Always allow" (desktop `allowPermanent` parity).
+         */
+        val allowPermanent: Boolean? = null,
+        /**
+         * True when this is an owner override of a Smart DENY — backend
+         * restricts to once/deny only (desktop `smartDenied` parity).
+         */
+        val smartDenied: Boolean? = null,
     ) : WsEvent()
 
     // ── Sudo / secret requests ─────────────────────────────────────────

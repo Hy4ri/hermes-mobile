@@ -5,13 +5,21 @@ import java.util.UUID
 
 /**
  * Metadata for a [ChatMessage] that represents an approval request.
- * When present, the UI renders Approve/Deny buttons inline.
+ * When present, the UI renders approval buttons inline.
  * Transient — not persisted to SQLite.
  */
 data class ApprovalInfo(
     val command: String?,
     val description: String?,
     val patternKeys: List<String>?,
+    /** Backend `request_id` — sent back in `approval.respond` to pin the exact pending. */
+    val requestId: String? = null,
+    /** Backend-advertised choices (`once`/`session`/`always`/`deny`). Null = legacy Run/Deny. */
+    val choices: List<String>? = null,
+    /** False → hide "Always allow" (tirith warning, desktop parity). */
+    val allowPermanent: Boolean? = null,
+    /** True → Smart DENY override, once/deny only. */
+    val smartDenied: Boolean? = null,
 )
 
 /**

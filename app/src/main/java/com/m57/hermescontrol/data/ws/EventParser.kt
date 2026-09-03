@@ -283,7 +283,40 @@ object EventParser {
 
                 @Suppress("UNCHECKED_CAST")
                 val patternKeys = (payload?.get("pattern_keys") as? List<*>)?.filterIsInstance<String>()
-                WsEvent.ApprovalRequest(command, description, patternKeys, sessionId)
+                val requestId = payload?.get("request_id") as? String
+
+                @Suppress("UNCHECKED_CAST")
+                val rawChoices = (payload?.get("choices") as? List<*>)?.filterIsInstance<String>()
+                val allowPermanent = payload?.get("allow_permanent") as? Boolean
+                val allowSession = payload?.get("allow_session") as? Boolean
+                val smartDenied = payload?.get("smart_denied") as? Boolean
+                // Backend default (server.py `_approval_request_payload`):
+                // smart-denied → once/deny only; else once + session? + always? + deny.
+                val choices =
+                    rawChoices ?: run {
+                        if (smartDenied == true) {
+                            listOf("once", "deny")
+                        } else {
+                            buildList {
+                                add("once")
+                                if (allowSession != false) {
+                                    add("session")
+                                    if (allowPermanent != false) add("always")
+                                }
+                                add("deny")
+                            }
+                        }
+                    }
+                WsEvent.ApprovalRequest(
+                    command,
+                    description,
+                    patternKeys,
+                    sessionId,
+                    requestId,
+                    choices,
+                    allowPermanent,
+                    smartDenied,
+                )
             }
 
             "sudo.request" -> {

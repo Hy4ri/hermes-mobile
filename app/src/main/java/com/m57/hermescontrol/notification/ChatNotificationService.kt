@@ -131,6 +131,14 @@ class ChatNotificationService : Service() {
                                         showReplyNotification(body, null)
                                     }
 
+                                    is WsEvent.ApprovalRequest -> {
+                                        val preview =
+                                            event.description?.takeIf { it.isNotBlank() }
+                                                ?: event.command?.takeIf { it.isNotBlank() }
+                                                ?: getString(R.string.notif_input_needed)
+                                        showReplyNotification(preview.take(100), null)
+                                    }
+
                                     else -> {}
                                 }
                             }

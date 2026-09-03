@@ -91,7 +91,6 @@ fun ChatInputBar(
     commandCatalog: CommandCatalog,
     slashUsageCounts: Map<String, Int> = emptyMap(),
     pendingAttachments: List<Attachment> = emptyList(),
-    availableBots: List<ProfileInfo> = emptyList(),
     onCameraTap: () -> Unit = {},
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
@@ -184,90 +183,6 @@ fun ChatInputBar(
                                         },
                                         onClick = { onInputChange(ChatInputPolicy.commandFieldValue(cmd)) },
                                     )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Bot mention @ suggestions
-                val mentionQuery =
-                    remember(inputFieldValue.text, inputFieldValue.selection.end) {
-                        ChatInputPolicy.extractMentionQuery(
-                            inputFieldValue.text,
-                            inputFieldValue.selection.end,
-                        )
-                    }
-
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = mentionQuery != null && availableBots.isNotEmpty(),
-                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
-                ) {
-                    val filteredBots =
-                        remember(mentionQuery, availableBots) {
-                            if (mentionQuery == null) {
-                                emptyList()
-                            } else {
-                                availableBots.filter { bot ->
-                                    bot.name.startsWith(mentionQuery, ignoreCase = true) ||
-                                        bot.effectiveTitle.contains(mentionQuery, ignoreCase = true)
-                                }
-                            }
-                        }
-
-                    if (filteredBots.isNotEmpty()) {
-                        Surface(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border =
-                                BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                ),
-                        ) {
-                            LazyColumn(
-                                modifier = Modifier.heightIn(max = 200.dp),
-                            ) {
-                                items(filteredBots, key = { it.name }) { bot ->
-                                    Row(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    onInputChange(
-                                                        ChatInputPolicy.applyMention(inputFieldValue, bot.name),
-                                                    )
-                                                }.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        BotAvatar(
-                                            name = bot.name,
-                                            avatar = bot.botMeta()?.avatar,
-                                            size = 28.dp,
-                                            showPresence = false,
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = "@${bot.name}",
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                            if (bot.effectiveTitle != bot.name) {
-                                                Text(
-                                                    text = bot.effectiveTitle,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                )
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }

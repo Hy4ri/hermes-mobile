@@ -817,8 +817,8 @@ class ChatViewModelTest {
             assertNull(capturedParams[0]["confirm_expensive_model"])
 
             // Backend returns confirm_required = true
-            mockEvents.emit(
-                WsEvent.RpcResponse(
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
                     id = lastReqId,
                     result =
                         mapOf(
@@ -872,8 +872,8 @@ class ChatViewModelTest {
             assertEquals("opencode-free/muse-spark-1.3-contributor-free", viewModel.uiState.value.currentSessionModel)
 
             // Backend requires confirmation
-            mockEvents.emit(
-                WsEvent.RpcResponse(
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
                     id = lastReqId,
                     result =
                         mapOf(

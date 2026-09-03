@@ -444,6 +444,8 @@ data class SudoPromptUi(
 data class SecretPromptUi(
     val requestId: String?,
     val sessionId: String?,
+    val envVar: String? = null,
+    val prompt: String? = null,
 )
 
 /**
@@ -1007,8 +1009,16 @@ class ChatViewModel(
                 handleSudoRequest(event)
             }
 
+            is WsEvent.SudoExpire -> {
+                handleSudoExpire(event)
+            }
+
             is WsEvent.SecretRequest -> {
                 handleSecretRequest(event)
+            }
+
+            is WsEvent.SecretExpire -> {
+                handleSecretExpire(event)
             }
 
             is WsEvent.GatewayError -> {
@@ -3652,6 +3662,23 @@ class ChatViewModel(
     }
 
     /**
+     * Backend sudo timeout (120s) — clear only the matching dialog so a
+     * late expire for an old prompt never kills the current one.
+     * Desktop parity: `patchOverlayState(prev => prev.sudo?.requestId === id ? null : prev)`.
+     */
+    private fun handleSudoExpire(event: WsEvent.SudoExpire) {
+        _uiState.update { state ->
+            val current = state.sudoPrompt ?: return@update state
+            if (event.requestId != null && current.requestId != null &&
+                event.requestId != current.requestId
+            ) {
+                return@update state
+            }
+            state.copy(sudoPrompt = null)
+        }
+    }
+
+    /**
      * The agent needs a secret value (token/password). Previously dropped →
      * agent hung forever. Now we surface a secure dialog and reply via
      * secret.respond.
@@ -3659,18 +3686,82 @@ class ChatViewModel(
     private fun handleSecretRequest(event: WsEvent.SecretRequest) {
         _uiState.update {
             it.copy(
-                secretPrompt = SecretPromptUi(event.requestId, event.sessionId),
+                secretPrompt =
+                    SecretPromptUi(
+                        event.requestId,
+                        event.sessionId,
+                        event.envVar,
+                        event.prompt,
+                    ),
                 isAgentTyping = false,
             )
         }
     }
 
-    fun dismissSudo() {
-        _uiState.update { it.copy(sudoPrompt = null) }
+    /**
+     * Backend secret timeout — match-only clear like [handleSudoExpire].
+     */
+    private fun handleSecretExpire(event: WsEvent.SecretExpire) {
+        _uiState.update { state ->
+            val current = state.secretPrompt ?: return@update state
+            if (event.requestId != null && current.requestId != null &&
+                event.requestId != current.requestId
+            ) {
+                return@update state
+            }
+            state.copy(secretPrompt = null)
+        }
     }
 
+    /**
+     * Cancel → send empty password (desktop parity:
+     * `prompt-overlays.tsx` `send('')`). Backend treats empty sudo as
+     * failed sudo (no command runs), so closing the dialog is a safe
+     * refusal that unblocks the turn instantly instead of hanging 120s
+     * until `sudo.expire`.
+     */
+    fun dismissSudo() {
+        val prompt = _uiState.value.sudoPrompt ?: return
+        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
+        _uiState.update { it.copy(sudoPrompt = null) }
+        if (sessionId == null) return
+        viewModelScope.launch(ioDispatcher) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "password" to "",
+                )
+            prompt.requestId?.let { id -> params["request_id"] = id }
+            wsClient.send(
+                method = WsMethods.SUDO_RESPOND,
+                params = params,
+                onSent = { id -> trackRequest(id, WsMethods.SUDO_RESPOND) },
+            )
+        }
+    }
+
+    /**
+     * Cancel → send empty value (desktop parity). Backend `secret_cb`
+     * returns `skipped=True` on empty, unblocking the turn instantly.
+     */
     fun dismissSecret() {
+        val prompt = _uiState.value.secretPrompt ?: return
+        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
         _uiState.update { it.copy(secretPrompt = null) }
+        if (sessionId == null) return
+        viewModelScope.launch(ioDispatcher) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "value" to "",
+                )
+            prompt.requestId?.let { id -> params["request_id"] = id }
+            wsClient.send(
+                method = WsMethods.SECRET_RESPOND,
+                params = params,
+                onSent = { id -> trackRequest(id, WsMethods.SECRET_RESPOND) },
+            )
+        }
     }
 
     /**

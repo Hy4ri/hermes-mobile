@@ -245,11 +245,34 @@ sealed class WsEvent {
     ) : WsEvent()
 
     /**
+     * Backend sudo timeout (120s `_block`) — clears the matching dialog.
+     * Payload: `{ request_id }`. Only clears when ids match so a late
+     * expire for an old prompt never kills the current one (desktop parity).
+     */
+    data class SudoExpire(
+        val requestId: String?,
+        val sessionId: String?,
+    ) : WsEvent()
+
+    /**
      * Backend needs a secret value (password / token) to continue a turn
      * (desktop: `secret.request` → `secret.respond {request_id, value}`).
      * Mobile previously dropped this and the agent hung forever.
+     * `envVar`/`prompt` mirror desktop: title = envVar ?: secretTitle,
+     * body = prompt ?: secretDesc.
      */
     data class SecretRequest(
+        val requestId: String?,
+        val sessionId: String?,
+        val envVar: String? = null,
+        val prompt: String? = null,
+    ) : WsEvent()
+
+    /**
+     * Backend secret timeout — clears the matching dialog.
+     * Payload: `{ request_id }`. Match-only clear like [SudoExpire].
+     */
+    data class SecretExpire(
         val requestId: String?,
         val sessionId: String?,
     ) : WsEvent()

@@ -855,4 +855,71 @@ class EventParserTest {
         assertEquals("1", todoUpdated.todos[1].parent)
         assertTrue(todoUpdated.todos[1].isSubtask)
     }
+
+    @Test
+    fun testParseSudoRequest_returnsSudoRequest() {
+        val params =
+            mapOf(
+                "type" to "sudo.request",
+                "session_id" to "sess-sudo-1",
+                "payload" to mapOf("request_id" to "sudo-1"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SudoRequest)
+        val sudo = event as WsEvent.SudoRequest
+        assertEquals("sudo-1", sudo.requestId)
+        assertEquals("sess-sudo-1", sudo.sessionId)
+    }
+
+    @Test
+    fun testParseSudoExpire_returnsSudoExpire() {
+        val params =
+            mapOf(
+                "type" to "sudo.expire",
+                "session_id" to "sess-sudo-1",
+                "payload" to mapOf("request_id" to "sudo-1"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SudoExpire)
+        val expire = event as WsEvent.SudoExpire
+        assertEquals("sudo-1", expire.requestId)
+        assertEquals("sess-sudo-1", expire.sessionId)
+    }
+
+    @Test
+    fun testParseSecretRequest_withEnvVarAndPrompt() {
+        val params =
+            mapOf(
+                "type" to "secret.request",
+                "session_id" to "sess-secret-1",
+                "payload" to
+                    mapOf(
+                        "request_id" to "secret-1",
+                        "env_var" to "GITHUB_TOKEN",
+                        "prompt" to "Enter your GitHub token to continue",
+                    ),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SecretRequest)
+        val secret = event as WsEvent.SecretRequest
+        assertEquals("secret-1", secret.requestId)
+        assertEquals("sess-secret-1", secret.sessionId)
+        assertEquals("GITHUB_TOKEN", secret.envVar)
+        assertEquals("Enter your GitHub token to continue", secret.prompt)
+    }
+
+    @Test
+    fun testParseSecretExpire_returnsSecretExpire() {
+        val params =
+            mapOf(
+                "type" to "secret.expire",
+                "session_id" to "sess-secret-1",
+                "payload" to mapOf("request_id" to "secret-1"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SecretExpire)
+        val expire = event as WsEvent.SecretExpire
+        assertEquals("secret-1", expire.requestId)
+        assertEquals("sess-secret-1", expire.sessionId)
+    }
 }

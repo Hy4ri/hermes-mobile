@@ -3159,6 +3159,130 @@ class ChatViewModelTest {
             assertNull(viewModel.uiState.value.secretPrompt)
         }
 
+    @Test
+    fun testSudoExpire_clearsMatchingPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SudoRequest(requestId = "sudo-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+
+            mockEventsFlow.emit(WsEvent.SudoExpire(requestId = "sudo-1", sessionId = null))
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.sudoPrompt)
+        }
+
+    @Test
+    fun testSudoExpire_ignoresNonMatchingRequestId() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SudoRequest(requestId = "sudo-2", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+
+            mockEventsFlow.emit(WsEvent.SudoExpire(requestId = "sudo-stale", sessionId = null))
+            advanceUntilIdle()
+
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+        }
+
+    @Test
+    fun testSecretExpire_clearsMatchingPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SecretRequest(requestId = "secret-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.secretPrompt)
+
+            mockEventsFlow.emit(WsEvent.SecretExpire(requestId = "secret-1", sessionId = null))
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.secretPrompt)
+        }
+
+    @Test
+    fun testSecretRequest_setsEnvVarAndPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SecretRequest(
+                    requestId = "secret-1",
+                    sessionId = null,
+                    envVar = "GITHUB_TOKEN",
+                    prompt = "Enter your GitHub token",
+                ),
+            )
+            advanceUntilIdle()
+
+            val prompt = viewModel.uiState.value.secretPrompt
+            assertNotNull(prompt)
+            assertEquals("GITHUB_TOKEN", prompt?.envVar)
+            assertEquals("Enter your GitHub token", prompt?.prompt)
+        }
+
+    @Test
+    fun testDismissSudo_sendsEmptyPassword() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SudoRequest(requestId = "sudo-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+
+            viewModel.dismissSudo()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.sudoPrompt)
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SUDO_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("", params["password"])
+                        assertEquals("sudo-1", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testDismissSecret_sendsEmptyValue() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SecretRequest(requestId = "secret-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.secretPrompt)
+
+            viewModel.dismissSecret()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.secretPrompt)
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SECRET_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("", params["value"])
+                        assertEquals("secret-1", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
     // ── Settings ─────────────────────────────────────────────────────────────
 
     @Test

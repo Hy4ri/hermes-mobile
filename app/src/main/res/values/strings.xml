@@ -145,6 +145,7 @@
     <string name="notif_waiting_replies">Waiting for Hermes replies</string>
     <string name="notif_new_message">New message</string>
     <string name="notif_clarification_needed">Hermes needs a clarification</string>
+    <string name="notif_input_needed">Hermes needs your input</string>
     <string name="notif_reply_placeholder">Type your reply\u2026</string>
     <string name="notif_channel_service_name">Hermes Background Service</string>
     <string name="notif_channel_service_desc">Keeps connection alive in the background</string>

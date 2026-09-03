@@ -87,20 +87,25 @@ fun SudoPromptDialog(
 fun SecretPromptDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
+    envVar: String? = null,
+    prompt: String? = null,
 ) {
     var secret by remember { mutableStateOf("") }
+    val titleText = envVar?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_secret_title)
+    val bodyText = prompt?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_secret_body)
+    val labelText = envVar?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_secret_value)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.chat_secret_title)) },
+        title = { Text(titleText) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = stringResource(R.string.chat_secret_body))
+                Text(text = bodyText)
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
                     value = secret,
                     onValueChange = { secret = it },
-                    label = { Text(stringResource(R.string.chat_secret_value)) },
+                    label = { Text(labelText) },
                     modifier = Modifier.fillMaxWidth().testTag("secret_value_input"),
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),

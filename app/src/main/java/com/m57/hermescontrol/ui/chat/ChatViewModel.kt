@@ -363,6 +363,8 @@ data class ChatUiState(
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
     val resumeError: String? = null,
     val isResumeRetrying: Boolean = false,
+    /** Text staged to prefill the composer (e.g. from /undo). */
+    val pendingPrefillText: String? = null,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -1270,6 +1272,12 @@ class ChatViewModel(
                 handleSlashCommand(target)
             }
 
+            "prefill" -> {
+                val message = map["message"] as? String ?: ""
+                val notice = map["notice"] as? String ?: ""
+                handlePrefillResult(message, notice)
+            }
+
             else -> {
                 val output = map["output"] as? String ?: map.toString()
                 addAssistantMessage(output)
@@ -1597,6 +1605,11 @@ class ChatViewModel(
             return
         }
 
+        if (result is SlashResult.Undo) {
+            handleUndoCommand(result.count)
+            return
+        }
+
         val displayContent =
             if (result is SlashResult.QueuePrompt) result.displayContent else command
         val userMsg = ChatMessage(role = MessageRole.USER, content = displayContent)
@@ -1680,6 +1693,10 @@ class ChatViewModel(
 
             is SlashResult.SideQuestion -> {
                 handleSideQuestionCommand(result.question)
+            }
+
+            is SlashResult.Undo -> {
+                handleUndoCommand(result.count)
             }
 
             is SlashResult.RpcDispatch -> {
@@ -1994,6 +2011,64 @@ class ChatViewModel(
                 repo.persistMessage(msg, sessionId)
             }
         }
+    }
+
+    private fun handleUndoCommand(count: String) {
+        val sessionId = runtimeSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session to undo.")
+            return
+        }
+        viewModelScope.launch {
+            slashUsageStore.recordUse("/undo")
+        }
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val result =
+                    wsClient
+                        .request(
+                            WsMethods.COMMAND_DISPATCH,
+                            mapOf("name" to "undo", "arg" to count, "session_id" to sessionId),
+                        ).await()
+                handleDispatchResult(result)
+            } catch (e: HermesWsClient.HermesRpcException) {
+                addAssistantMessage(e.message ?: "Failed to undo.")
+            } catch (e: Exception) {
+                addAssistantMessage(e.message ?: "Failed to undo.")
+            }
+        }
+    }
+
+    private fun handlePrefillResult(
+        message: String,
+        notice: String,
+    ) {
+        val storageSessionId = _uiState.value.currentSessionId
+        if (message.isNotBlank()) {
+            _uiState.update { it.copy(pendingPrefillText = message) }
+        }
+        if (storageSessionId != null) {
+            val generation = ++sessionGeneration
+            viewModelScope.launch {
+                withContext(ioDispatcher) {
+                    repo.clearMessagesForSession(storageSessionId)
+                }
+                _uiState.update { it.copy(messages = emptyList()) }
+                loadSessionMessages(storageSessionId, generation)
+                if (notice.isNotBlank()) {
+                    addSystemMessage(notice, persist = true)
+                }
+                fetchContextUsage()
+            }
+        } else {
+            if (notice.isNotBlank()) {
+                addSystemMessage(notice, persist = false)
+            }
+        }
+    }
+
+    fun consumePendingPrefill() {
+        _uiState.update { it.copy(pendingPrefillText = null) }
     }
 
     // ── Session management ───────────────────────────────────────────────
@@ -2659,6 +2734,7 @@ class ChatViewModel(
                 todos = emptyList(),
                 resumeError = null,
                 isResumeRetrying = false,
+                pendingPrefillText = null,
             )
         }
         return generation

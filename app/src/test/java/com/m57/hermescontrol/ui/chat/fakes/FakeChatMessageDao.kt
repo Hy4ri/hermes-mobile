@@ -27,6 +27,10 @@ class FakeChatMessageDao : ChatMessageDao {
         messageList.forEach { messages[it.id] = it }
     }
 
+    override suspend fun deleteMessagesForSession(sessionId: String) {
+        messages.values.removeAll { it.sessionId == sessionId }
+    }
+
     /** Direct access for test setup — bypasses the suspend modifier. */
     fun addMessageDirect(message: ChatMessageEntity) {
         messages[message.id] = message

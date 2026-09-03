@@ -68,4 +68,56 @@ class GroupChatMentionsTest {
         assertEquals(1, responders.size)
         assertEquals("coder", responders.first().name)
     }
+
+    @Test
+    fun groupChatMentionAutocomplete_endToEndIntegration() {
+        // 1. User types "@cod"
+        val input =
+            androidx.compose.ui.text.input
+                .TextFieldValue(
+                    "hey @cod",
+                    androidx.compose.ui.text
+                        .TextRange(8),
+                )
+        val query =
+            com.m57.hermescontrol.ui.chat.ChatInputPolicy
+                .extractMentionQuery(input.text, input.selection.end)
+        assertEquals("cod", query)
+
+        // 2. Candidate filtering:
+        // Query "@c" matches both "coder" (starts with c) and "Scout Bot" (contains c)
+        val broadMatches =
+            members.filter {
+                it.name.startsWith("c", ignoreCase = true) || it.effectiveTitle.contains("c", ignoreCase = true)
+            }
+        assertEquals(2, broadMatches.size)
+
+        // Narrower query "@cod" matches only "coder"
+        val matchingBots =
+            members.filter {
+                it.name.startsWith(query!!, ignoreCase = true) || it.effectiveTitle.contains(query, ignoreCase = true)
+            }
+        assertEquals(1, matchingBots.size)
+        assertEquals("coder", matchingBots.first().name)
+
+        // 3. User taps chip for coder
+        val completed =
+            com.m57.hermescontrol.ui.chat.ChatInputPolicy
+                .applyMention(input, matchingBots.first().name)
+        assertEquals("hey @coder ", completed.text)
+        assertEquals(11, completed.selection.end)
+
+        // 4. Mention query is now null after space
+        val nextQuery =
+            com.m57.hermescontrol.ui.chat.ChatInputPolicy.extractMentionQuery(
+                completed.text,
+                completed.selection.end,
+            )
+        org.junit.Assert.assertNull(nextQuery)
+
+        // 5. Group chat mentions resolver picks up the mentioned bot
+        val responders = GroupChatMentions.resolveResponders(completed.text, members)
+        assertEquals(1, responders.size)
+        assertEquals("coder", responders.first().name)
+    }
 }

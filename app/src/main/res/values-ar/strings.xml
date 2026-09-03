@@ -1181,6 +1181,10 @@
 <string name="group_chat_settings_system_prompt">تعليمات / موجه الغرفة</string>
 <string name="group_chat_settings_system_prompt_hint">قواعد مخصصة، أو أسلوب، أو سياق لهذه المجموعة (اختياري)…</string>
 <string name="group_chat_settings_system_prompt_desc">إرشادات مخصصة لجميع البوتات في هذه الغرفة</string>
+<string name="group_chat_settings_high_limits_warning_title">تحذير من الحدود المرتفعة</string>
+<string name="group_chat_settings_high_limits_warning_desc">قد يؤدي تعيين حدود مرتفعة للرسائل (%1$d) أو التمريرات (%2$d) إلى استهلاك كبير للرموز (Tokens) وحدوث حلقات نقاش طويلة ومستمرة بين البوتات.</string>
+<string name="group_chat_settings_high_limits_confirm">حفظ على أي حال</string>
+<string name="group_chat_settings_high_limits_adjust">تعديل الحدود</string>
 <string name="group_chat_action_settings">الإعدادات</string>
 <string name="group_chat_stopped_by_user">تم إيقاف النقاش</string>
 <string name="group_chat_action_stop">إيقاف التوليد</string>

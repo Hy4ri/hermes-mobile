@@ -52,6 +52,10 @@ data class MemberSession(
 
 const val DEFAULT_MAX_BOT_MESSAGES = 6
 const val DEFAULT_MAX_CONTINUATION_PASSES = 2
+const val MAX_ALLOWED_BOT_MESSAGES = 50
+const val MAX_ALLOWED_CONTINUATION_PASSES = 20
+const val WARN_MAX_BOT_MESSAGES = 20
+const val WARN_MAX_CONTINUATION_PASSES = 6
 private const val LEASE_STEP_TTL_MS = 45_000L
 private const val TURN_TIMEOUT_MS = 45_000L
 private const val HISTORY_LIMIT = 10
@@ -424,8 +428,8 @@ class GroupChatViewModel(
         maxPasses: Int,
         systemPrompt: String? = null,
     ) {
-        val clampedMessages = maxMessages.coerceIn(1, 20)
-        val clampedPasses = maxPasses.coerceIn(0, 10)
+        val clampedMessages = maxMessages.coerceIn(1, MAX_ALLOWED_BOT_MESSAGES)
+        val clampedPasses = maxPasses.coerceIn(0, MAX_ALLOWED_CONTINUATION_PASSES)
         val cleanPrompt = systemPrompt?.trim()?.ifBlank { null }
 
         _uiState.update {

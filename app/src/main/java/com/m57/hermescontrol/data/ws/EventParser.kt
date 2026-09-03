@@ -142,10 +142,11 @@ object EventParser {
                     payload?.get("question") as? String
                         ?: payload?.get("text") as? String
                         ?: if (rawQuestions != null && rawQuestions.size > 1) {
-                            rawQuestions.mapIndexedNotNull { index, item ->
-                                val q = (item as? Map<*, *>)?.get("question") as? String
-                                q?.let { "${index + 1}. $it" }
-                            }.joinToString("\n\n")
+                            rawQuestions
+                                .mapIndexedNotNull { index, item ->
+                                    val q = (item as? Map<*, *>)?.get("question") as? String
+                                    q?.let { "${index + 1}. $it" }
+                                }.joinToString("\n\n")
                         } else {
                             firstQuestion?.get("question") as? String
                         }

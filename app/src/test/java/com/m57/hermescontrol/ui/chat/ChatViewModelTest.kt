@@ -1233,8 +1233,16 @@ class ChatViewModelTest {
             )
             advanceUntilIdle()
 
-            assertEquals("Pick one:", viewModel.uiState.value.clarifyRequest?.text)
-            assertEquals("q0", viewModel.uiState.value.clarifyRequest?.questionId)
+            assertEquals(
+                "Pick one:",
+                viewModel.uiState.value.clarifyRequest
+                    ?.text,
+            )
+            assertEquals(
+                "q0",
+                viewModel.uiState.value.clarifyRequest
+                    ?.questionId,
+            )
 
             viewModel.respondToClarify("Option 1")
             advanceUntilIdle()

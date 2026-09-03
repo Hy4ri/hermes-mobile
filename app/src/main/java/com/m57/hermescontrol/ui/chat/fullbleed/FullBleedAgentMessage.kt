@@ -160,10 +160,11 @@ internal fun FullBleedAgentMessage(
                     )
                 }
                 Spacer(modifier = Modifier.width(4.dp))
+                val finishTime = message.finishTimestamp ?: message.timestamp
                 Text(
                     text =
                         com.m57.hermescontrol.ui.chat.formatTimestamp(
-                            message.timestamp,
+                            finishTime,
                             DateFormat.is24HourFormat(LocalContext.current),
                         ),
                     style = MaterialTheme.typography.labelSmall,

@@ -66,6 +66,11 @@ data class ChatMessage(
      * them as centered timeline chips instead of user bubbles.
      */
     val displayKind: String? = null,
+    /**
+     * Timestamp (ms) when the assistant message finished streaming.
+     * When present, rendered at the bottom beside the copy button.
+     */
+    val finishTimestamp: Long? = null,
 )
 
 /**

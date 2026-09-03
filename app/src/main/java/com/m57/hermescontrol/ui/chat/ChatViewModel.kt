@@ -2665,7 +2665,11 @@ class ChatViewModel(
     private fun sealStreamingMessageIfAny() {
         val streaming = _streamingState.value.streamingMessage ?: return
         if (streaming.content.isBlank() && streaming.reasoningText.isBlank()) return
-        val finalized = streaming.copy(isStreaming = false)
+        val finalized =
+            streaming.copy(
+                isStreaming = false,
+                finishTimestamp = System.currentTimeMillis(),
+            )
         _uiState.update { it.copy(messages = (it.messages + finalized).dedupeById()) }
         val sid = _uiState.value.currentSessionId
         if (sid != null) {

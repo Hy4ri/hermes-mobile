@@ -1198,6 +1198,7 @@
     <string name="moa_title">Mixture of Agents</string>
     <string name="model_aux_tasks_label">Auxiliary tasks</string>
     <string name="model_aux_tasks_title">Auxiliary Tasks</string>
+    <string name="model_confirm_continue">Continue</string>
     <string name="model_expensive_title">Expensive Model</string>
     <string name="model_main_label">Main model</string>
     <string name="model_moa_label">Mixture of Agents</string>

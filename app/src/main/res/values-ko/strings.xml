@@ -387,6 +387,7 @@
     <string name="model_no_models">보고된 모델이 없거나 인증이 필요합니다.</string>
     <string name="content_desc_active_model">활성 모델</string>
     <string name="model_section_pinned">고정된 모델</string>
+    <string name="model_confirm_continue">계속</string>
     <string name="content_desc_unpin_model">모델 고정 해제</string>
     <string name="content_desc_pinned_section_toggle">고정 섹션 표시 전환</string>
 

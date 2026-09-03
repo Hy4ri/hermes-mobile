@@ -206,7 +206,11 @@ object ChatWsEventReducer {
         var orphan: ChatMessage? = null
         val preState =
             if (streamingState.streamingMessage?.content?.isNotEmpty() == true) {
-                val finalized = streamingState.streamingMessage.copy(isStreaming = false)
+                val finalized =
+                    streamingState.streamingMessage.copy(
+                        isStreaming = false,
+                        finishTimestamp = System.currentTimeMillis(),
+                    )
                 orphan = finalized
                 state.copy(
                     messages = state.messages.upsertById(finalized),
@@ -369,10 +373,12 @@ object ChatWsEventReducer {
                 content = text,
                 isStreaming = false,
                 reasoningText = reasoning,
+                finishTimestamp = System.currentTimeMillis(),
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
                 reasoningText = reasoning,
+                finishTimestamp = System.currentTimeMillis(),
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -418,7 +424,12 @@ object ChatWsEventReducer {
             } else {
                 streaming.reasoningText
             }
-        val msg = streaming.copy(isStreaming = false, reasoningText = reasoning)
+        val msg =
+            streaming.copy(
+                isStreaming = false,
+                reasoningText = reasoning,
+                finishTimestamp = System.currentTimeMillis(),
+            )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
         if (sid != null) {
@@ -481,6 +492,7 @@ object ChatWsEventReducer {
                     streamingState.streamingMessage.copy(
                         isStreaming = false,
                         reasoningText = reasoning,
+                        finishTimestamp = System.currentTimeMillis(),
                     )
                 orphanToPersist = finalized
                 state.copy(

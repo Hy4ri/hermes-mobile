@@ -140,20 +140,36 @@ internal fun FullBleedAgentMessage(
         }
 
         if (!message.isStreaming) {
-            IconButton(
-                onClick = {
-                    scope.launch {
-                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
-                    }
-                    copied = true
-                },
-                modifier = Modifier.size(28.dp).testTag("fullbleed_copy"),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                    contentDescription = stringResource(R.string.content_desc_copy),
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, message.content)))
+                        }
+                        copied = true
+                    },
+                    modifier = Modifier.size(28.dp).testTag("fullbleed_copy"),
+                ) {
+                    Icon(
+                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                        contentDescription = stringResource(R.string.content_desc_copy),
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                val finishTime = message.finishTimestamp ?: message.timestamp
+                Text(
+                    text =
+                        com.m57.hermescontrol.ui.chat.formatTimestamp(
+                            finishTime,
+                            DateFormat.is24HourFormat(LocalContext.current),
+                        ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.testTag("fullbleed_finish_time"),
                 )
             }
         }

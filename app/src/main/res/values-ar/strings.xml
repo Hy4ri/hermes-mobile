@@ -1078,7 +1078,8 @@
 <string name="moa_title">مزيج الوكلاء (Mixture of Agents)</string>
 <string name="model_aux_tasks_label">المهام المساعدة</string>
 <string name="model_aux_tasks_title">المهام المساعدة</string>
-<string name="model_expensive_title">نموذج عالي التكلفة</string>
+<string name="model_expensive_title">نموذج مرتفع التكلفة</string>
+<string name="model_confirm_continue">متابعة</string>
 <string name="model_main_label">النموذج الرئيسي</string>
 <string name="model_moa_label">مزيج الوكلاء (Mixture of Agents)</string>
 <string name="model_new_sessions">ينطبق على الجلسات الجديدة</string>

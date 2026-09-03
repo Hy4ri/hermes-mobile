@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -908,6 +909,25 @@ fun ChatScreen(
                     viewModel.sendSlashModel(provider, model)
                 },
                 onDismiss = { viewModel.closeModelPicker() },
+            )
+        }
+
+        // Expensive / Data-policy model confirmation dialog (issue #589 follow-up)
+        if (state.modelSwitchConfirmMessage != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissModelSwitchConfirm() },
+                title = { Text(stringResource(R.string.model_expensive_title)) },
+                text = { Text(state.modelSwitchConfirmMessage!!) },
+                confirmButton = {
+                    Button(onClick = { viewModel.confirmModelSwitchExpensive() }) {
+                        Text(stringResource(R.string.model_confirm_continue))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissModelSwitchConfirm() }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
             )
         }
 

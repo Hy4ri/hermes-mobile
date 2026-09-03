@@ -793,6 +793,109 @@ class ChatViewModelTest {
             assertEquals(sessionId, call.third)
         }
 
+    @Test
+    fun testModelSwitch_confirmRequired_triggersConfirmationDialogAndReSends() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            var lastReqId = ""
+            val capturedParams = mutableListOf<Map<String, Any>>()
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+                val params = arg<Map<String, Any>>(1)
+                capturedParams.add(params)
+                val id = "req-confirm-${capturedParams.size}"
+                lastReqId = id
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // User sends model switch command that triggers privacy/expensive guard
+            viewModel.sendMessage("/model muse-spark-1.3-contributor-free --provider opencode-free --session")
+            advanceUntilIdle()
+
+            assertEquals(1, capturedParams.size)
+            assertNull(capturedParams[0]["confirm_expensive_model"])
+
+            // Backend returns confirm_required = true
+            mockEvents.emit(
+                WsEvent.RpcResponse(
+                    id = lastReqId,
+                    result =
+                        mapOf(
+                            "key" to "model",
+                            "value" to "muse-spark-1.3-contributor-free",
+                            "confirm_required" to true,
+                            "confirm_message" to "Meta training warning",
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            // UI state now shows confirmation dialog message
+            assertEquals("Meta training warning", viewModel.uiState.value.modelSwitchConfirmMessage)
+
+            // User confirms
+            viewModel.confirmModelSwitchExpensive()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.modelSwitchConfirmMessage)
+            assertEquals(2, capturedParams.size)
+            assertEquals(true, capturedParams[1]["confirm_expensive_model"])
+            assertEquals(
+                "muse-spark-1.3-contributor-free --provider opencode-free --session",
+                capturedParams[1]["value"],
+            )
+            assertEquals(sessionId, capturedParams[1]["session_id"])
+        }
+
+    @Test
+    fun testModelSwitch_dismissConfirmation_revertsModel() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            var lastReqId = ""
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+                val id = "req-cfg-dismiss"
+                lastReqId = id
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // Set an initial model
+            viewModel.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+
+            // Switch to expensive model
+            viewModel.sendSlashModel("opencode-free", "muse-spark-1.3-contributor-free")
+            advanceUntilIdle()
+            assertEquals("opencode-free/muse-spark-1.3-contributor-free", viewModel.uiState.value.currentSessionModel)
+
+            // Backend requires confirmation
+            mockEvents.emit(
+                WsEvent.RpcResponse(
+                    id = lastReqId,
+                    result =
+                        mapOf(
+                            "key" to "model",
+                            "value" to "muse-spark-1.3-contributor-free",
+                            "confirm_required" to true,
+                            "confirm_message" to "Meta training warning",
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("Meta training warning", viewModel.uiState.value.modelSwitchConfirmMessage)
+
+            // User dismisses/cancels
+            viewModel.dismissModelSwitchConfirm()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.modelSwitchConfirmMessage)
+            // Reverted back to previous model
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+        }
+
     // ── Connection / init tests ──────────────────────────────────────────────
 
     @Test

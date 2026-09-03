@@ -327,6 +327,7 @@ data class ChatUiState(
     val modelPickerProviders: List<ModelProvider> = emptyList(),
     val modelPickerPinned: List<PinnedModel> = emptyList(),
     val modelPickerLoading: Boolean = false,
+    val modelSwitchConfirmMessage: String? = null,
     // Current session's active model label (provider/model), shown in the chip
     val currentSessionModel: String? = null,
     // Per-model reasoning capabilities for the current session's model
@@ -463,6 +464,15 @@ class ChatViewModel(
 
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
     private var sessionGeneration = 0L
+
+    private data class ActiveModelSwitch(
+        val spec: String,
+        val previousModel: String?,
+    )
+
+    private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
+    private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
+    private var optimisticPreviousModel: String? = null
     private var resumeRequestSequence = 0L
     private var activeResumeRequestSequence = 0L
     private var hydrationRequestSequence = 0L
@@ -1208,6 +1218,25 @@ class ChatViewModel(
                     addSystemMessage("Approval submitted")
                 }
             }
+
+            WsMethods.CONFIG_SET -> {
+                val pending = pendingModelSwitchRequests.remove(id)
+                val map = result as? Map<*, *> ?: return
+                val key = map["key"] as? String
+                if (key == "model") {
+                    val confirmRequired = map["confirm_required"] as? Boolean ?: false
+                    if (confirmRequired) {
+                        val confirmMessage =
+                            (map["confirm_message"] as? String)
+                                ?: (map["warning"] as? String)
+                                ?: "This model requires confirmation to switch. Continue?"
+                        activeModelSwitchConfirmation = pending
+                        _uiState.update {
+                            it.copy(modelSwitchConfirmMessage = confirmMessage)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1889,7 +1918,10 @@ class ChatViewModel(
      *   `<model> --provider <slug> --session`
      * (matching the TUI client's `modelValueForConfigSet`).
      */
-    private fun handleModelSwitch(command: String) {
+    private fun handleModelSwitch(
+        command: String,
+        confirmExpensive: Boolean = false,
+    ) {
         val sessionId = runtimeSessionId
         if (sessionId == null) {
             addAssistantMessage("No active session. Use `/new` to create one.")
@@ -1906,11 +1938,25 @@ class ChatViewModel(
             } else {
                 command.trim()
             }
+        val previousModel = optimisticPreviousModel ?: _uiState.value.currentSessionModel
+        optimisticPreviousModel = null
+        val params =
+            mutableMapOf<String, Any>(
+                "key" to "model",
+                "value" to spec,
+                "session_id" to sessionId,
+            )
+        if (confirmExpensive) {
+            params["confirm_expensive_model"] = true
+        }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.CONFIG_SET,
-                mapOf("key" to "model", "value" to spec, "session_id" to sessionId),
-                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
+                params,
+                onSent = { id ->
+                    trackRequest(id, WsMethods.CONFIG_SET)
+                    pendingModelSwitchRequests[id] = ActiveModelSwitch(spec, previousModel)
+                },
             )
         }
     }
@@ -2265,6 +2311,7 @@ class ChatViewModel(
         provider: String,
         model: String,
     ) {
+        optimisticPreviousModel = _uiState.value.currentSessionModel
         _uiState.update {
             it.copy(
                 showModelPicker = false,
@@ -2278,6 +2325,28 @@ class ChatViewModel(
         // Model switch changes the context-window denominator — refetch it.
         fetchContextUsage()
         handleSlashCommand("/model $model --provider $provider --session")
+    }
+
+    fun dismissModelSwitchConfirm() {
+        val pending = activeModelSwitchConfirmation
+        activeModelSwitchConfirmation = null
+        _uiState.update {
+            it.copy(
+                modelSwitchConfirmMessage = null,
+                currentSessionModel = pending?.previousModel ?: it.currentSessionModel,
+            )
+        }
+        syncCurrentModelCapabilities()
+        fetchContextUsage()
+    }
+
+    fun confirmModelSwitchExpensive() {
+        val pending = activeModelSwitchConfirmation
+        activeModelSwitchConfirmation = null
+        _uiState.update { it.copy(modelSwitchConfirmMessage = null) }
+        if (pending != null) {
+            handleModelSwitch(pending.spec, confirmExpensive = true)
+        }
     }
 
     /**
@@ -2575,6 +2644,7 @@ class ChatViewModel(
                 showSessionPicker = false,
                 showModelPicker = false,
                 modelPickerLoading = false,
+                modelSwitchConfirmMessage = null,
                 currentSessionModel = null,
                 currentModelCapabilities = null,
                 reasoningLevel = null,

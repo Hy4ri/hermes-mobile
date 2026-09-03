@@ -1069,6 +1069,7 @@
     <string name="moa_title">多 Agent 混合</string>
     <string name="model_aux_tasks_label">辅助任务</string>
     <string name="model_aux_tasks_title">辅助任务</string>
+    <string name="model_confirm_continue">继续</string>
     <string name="model_expensive_title">高成本模型</string>
     <string name="model_main_label">主模型</string>
     <string name="model_moa_label">多 Agent 混合</string>

@@ -42,6 +42,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -85,6 +87,7 @@ import com.m57.hermescontrol.theme.CodeTerminalBg
 import com.m57.hermescontrol.theme.CodeTerminalBorder
 import com.m57.hermescontrol.theme.CodeTerminalMuted
 import com.m57.hermescontrol.theme.CodeTerminalText
+import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
 import kotlinx.coroutines.delay
 
@@ -429,19 +432,27 @@ private fun copyToClipboard(
 // ── ClarifyBubble ─────────────────────────────────────────────────────────
 
 /**
- * Centered dashed-border bubble showing a clarify question with
- * selectable option chips and a dismiss button.
+ * Centered dashed-border bubble showing a clarify question (or batch of questions) with
+ * selectable option chips, multi-select toggles, open-ended input, and a dismiss button.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ClarifyBubble(
-    text: String,
-    options: List<String>,
-    onOptionSelected: (String) -> Unit,
+    clarifyRequest: ClarifyUi,
+    onRespondSingle: (String) -> Unit,
+    onRespondBatch: (Map<String, String>) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var typedText by remember { mutableStateOf("") }
+    val questions = clarifyRequest.resolvedQuestions
+    val isBatch = questions.size > 1
+
+    var selectedChoicesByQid by remember(clarifyRequest) {
+        mutableStateOf<Map<String, Set<String>>>(emptyMap())
+    }
+    var customTextByQid by remember(clarifyRequest) {
+        mutableStateOf<Map<String, String>>(emptyMap())
+    }
 
     Surface(
         modifier =
@@ -458,57 +469,170 @@ fun ClarifyBubble(
             ),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            if (options.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    options.forEach { option ->
-                        SuggestionChip(
-                            onClick = { onOptionSelected(option) },
-                            label = { Text(option) },
-                            colors =
-                                SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                ),
-                        )
+            questions.forEachIndexed { index, q ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    )
+                }
+
+                if (isBatch) {
+                    Text(
+                        text = "${index + 1}. ${q.question}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    Text(
+                        text = q.question,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                if (q.multiSelect) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Select all that apply",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                if (q.choices.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        q.choices.forEach { choice ->
+                            val selectedSet = selectedChoicesByQid[q.qid] ?: emptySet()
+                            val isSelected = selectedSet.contains(choice)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    if (q.multiSelect) {
+                                        val updated = if (isSelected) selectedSet - choice else selectedSet + choice
+                                        selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
+                                    } else {
+                                        if (!isBatch && customTextByQid[q.qid].isNullOrBlank()) {
+                                            // Fast 1-tap respond for lone single-select question when no custom text is entered
+                                            onRespondSingle(choice)
+                                        } else {
+                                            val updated = if (isSelected) emptySet() else setOf(choice)
+                                            selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
+                                        }
+                                    }
+                                },
+                                label = { Text(choice) },
+                                leadingIcon =
+                                    if (isSelected) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    } else {
+                                        null
+                                    },
+                            )
+                        }
                     }
                 }
+
+                Spacer(Modifier.height(8.dp))
+                val typed = customTextByQid[q.qid].orEmpty()
+                OutlinedTextField(
+                    value = typed,
+                    onValueChange = { newText ->
+                        customTextByQid = customTextByQid + (q.qid to newText)
+                    },
+                    label = {
+                        Text(
+                            if (q.choices.isEmpty()) {
+                                stringResource(R.string.message_your_response)
+                            } else {
+                                "Other (optional)"
+                            },
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
             }
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = typedText,
-                onValueChange = { typedText = it },
-                label = { Text(stringResource(R.string.message_your_response)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            Spacer(Modifier.height(8.dp))
+
+            Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             ) {
+                val hasAnyInput =
+                    questions.any { q ->
+                        (selectedChoicesByQid[q.qid]?.isNotEmpty() == true) ||
+                            (!customTextByQid[q.qid].isNullOrBlank())
+                    }
+
                 FilledTonalButton(
                     onClick = {
-                        if (typedText.isNotBlank()) {
-                            onOptionSelected(typedText)
-                            typedText = ""
+                        if (isBatch) {
+                            val answers =
+                                questions.associate { q ->
+                                    val selectedList = selectedChoicesByQid[q.qid]?.toList().orEmpty()
+                                    val custom = customTextByQid[q.qid]?.trim().orEmpty()
+                                    val finalAns =
+                                        when {
+                                            selectedList.isNotEmpty() && custom.isNotEmpty() -> {
+                                                (selectedList + custom).joinToString(", ")
+                                            }
+
+                                            selectedList.isNotEmpty() -> {
+                                                selectedList.joinToString(", ")
+                                            }
+
+                                            else -> {
+                                                custom
+                                            }
+                                        }
+                                    q.qid to finalAns
+                                }
+                            onRespondBatch(answers)
+                        } else {
+                            val q = questions.first()
+                            val selectedList = selectedChoicesByQid[q.qid]?.toList().orEmpty()
+                            val custom = customTextByQid[q.qid]?.trim().orEmpty()
+                            val finalAns =
+                                when {
+                                    selectedList.isNotEmpty() && custom.isNotEmpty() -> {
+                                        (selectedList + custom).joinToString(", ")
+                                    }
+
+                                    selectedList.isNotEmpty() -> {
+                                        selectedList.joinToString(", ")
+                                    }
+
+                                    else -> {
+                                        custom
+                                    }
+                                }
+                            if (finalAns.isNotBlank()) {
+                                onRespondSingle(finalAns)
+                            }
                         }
                     },
-                    enabled = typedText.isNotBlank(),
+                    enabled = hasAnyInput,
                 ) {
-                    Text("Send")
+                    Text(if (isBatch) "Submit All" else "Send")
                 }
                 TextButton(onClick = onDismiss) {
                     Text("Dismiss")
@@ -516,6 +640,28 @@ fun ClarifyBubble(
             }
         }
     }
+}
+
+/**
+ * Backward-compatible overload for legacy callers and unit tests.
+ */
+@Composable
+fun ClarifyBubble(
+    text: String,
+    options: List<String>,
+    onOptionSelected: (String) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ClarifyBubble(
+        clarifyRequest = ClarifyUi(text = text, options = options),
+        onRespondSingle = onOptionSelected,
+        onRespondBatch = { answers ->
+            answers.values.firstOrNull()?.let(onOptionSelected)
+        },
+        onDismiss = onDismiss,
+        modifier = modifier,
+    )
 }
 
 // ── SubagentCard ──────────────────────────────────────────────────────────

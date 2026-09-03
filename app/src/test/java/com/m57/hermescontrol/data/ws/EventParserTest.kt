@@ -327,6 +327,79 @@ class EventParserTest {
         assertEquals("q0", clarifyEvent.questionId)
     }
 
+    @Test
+    fun testParseClarifyRequest_withMultiSelectAndMultipleQuestions() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "clarify.request",
+                        "payload" to
+                            mapOf(
+                                "request_id" to "req-batch-2",
+                                "questions" to
+                                    listOf(
+                                        mapOf(
+                                            "qid" to "q0",
+                                            "question" to "Pick languages:",
+                                            "choices" to listOf("Python", "Go", "Rust"),
+                                            "multi_select" to true,
+                                        ),
+                                        mapOf(
+                                            "qid" to "q1",
+                                            "question" to "Any comments?",
+                                            "choices" to emptyList<String>(),
+                                            "multi_select" to false,
+                                        ),
+                                    ),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ClarifyRequest)
+        val clarifyEvent = event as WsEvent.ClarifyRequest
+        assertEquals("req-batch-2", clarifyEvent.clarifyId)
+        assertEquals(2, clarifyEvent.questions.size)
+
+        val q0 = clarifyEvent.questions[0]
+        assertEquals("q0", q0.qid)
+        assertEquals("Pick languages:", q0.question)
+        assertEquals(listOf("Python", "Go", "Rust"), q0.choices)
+        assertTrue(q0.multiSelect)
+
+        val q1 = clarifyEvent.questions[1]
+        assertEquals("q1", q1.qid)
+        assertEquals("Any comments?", q1.question)
+        assertTrue(q1.choices.isEmpty())
+        assertFalse(q1.multiSelect)
+    }
+
+    @Test
+    fun testParseClarifyExpire_parsesSuccessfully() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "clarify.expire",
+                        "payload" to mapOf("request_id" to "req-expire-1"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ClarifyExpire)
+        val expireEvent = event as WsEvent.ClarifyExpire
+        assertEquals("req-expire-1", expireEvent.clarifyId)
+    }
+
     // ── TEST-07: Untested subtypes ─────────────────────────────────────
 
     @Test

@@ -67,6 +67,7 @@ fun FullBleedChatList(
     viewModel: ChatViewModel,
     clarifyRequest: ClarifyUi? = null,
     onRespondClarify: ((String) -> Unit)? = null,
+    onRespondClarifyBatch: ((Map<String, String>) -> Unit)? = null,
     onDismissClarify: (() -> Unit)? = null,
     onSaveAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit = {},
     savingAttachmentPath: String? = null,
@@ -299,9 +300,9 @@ fun FullBleedChatList(
                 if (clarifyRequest != null) {
                     item(key = "clarify_bubble") {
                         ClarifyBubble(
-                            text = clarifyRequest.text,
-                            options = clarifyRequest.options,
-                            onOptionSelected = { option -> onRespondClarify?.invoke(option) },
+                            clarifyRequest = clarifyRequest,
+                            onRespondSingle = { option -> onRespondClarify?.invoke(option) },
+                            onRespondBatch = { answers -> onRespondClarifyBatch?.invoke(answers) },
                             onDismiss = { onDismissClarify?.invoke() },
                         )
                     }

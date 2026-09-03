@@ -1408,6 +1408,82 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testClarifyBatch_respondsToAllQuestions() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "1. Pick A\n\n2. Pick B",
+                    options = listOf("A1", "A2"),
+                    clarifyId = "clarify-batch-multi",
+                    sessionId = sessionId,
+                    questionId = "q0",
+                    questions =
+                        listOf(
+                            WsEvent.ClarifyQuestion(
+                                qid = "q0",
+                                question = "Pick A",
+                                choices = listOf("A1", "A2"),
+                                multiSelect = false,
+                            ),
+                            WsEvent.ClarifyQuestion(
+                                qid = "q1",
+                                question = "Pick B",
+                                choices = listOf("B1", "B2"),
+                                multiSelect = true,
+                            ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            val clarify = viewModel.uiState.value.clarifyRequest
+            assertNotNull(clarify)
+            assertEquals(2, clarify?.resolvedQuestions?.size)
+
+            viewModel.respondToClarifyBatch(
+                mapOf(
+                    "q0" to "A1",
+                    "q1" to "B1, B2",
+                ),
+            )
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "A1",
+                            "answer" to "A1",
+                            "question_id" to "q0",
+                            "clarify_id" to "clarify-batch-multi",
+                            "request_id" to "clarify-batch-multi",
+                        ),
+                    onSent = any(),
+                )
+            }
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "B1, B2",
+                            "answer" to "B1, B2",
+                            "question_id" to "q1",
+                            "clarify_id" to "clarify-batch-multi",
+                            "request_id" to "clarify-batch-multi",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
+    @Test
     fun testClarifyRequestCustomResponse() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()

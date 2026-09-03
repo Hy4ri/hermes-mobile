@@ -1605,11 +1605,6 @@ class ChatViewModel(
             return
         }
 
-        if (result is SlashResult.Undo) {
-            handleUndoCommand(result.count)
-            return
-        }
-
         val displayContent =
             if (result is SlashResult.QueuePrompt) result.displayContent else command
         val userMsg = ChatMessage(role = MessageRole.USER, content = displayContent)
@@ -1622,6 +1617,11 @@ class ChatViewModel(
             viewModelScope.launch(ioDispatcher) {
                 repo.persistMessage(userMsg, sessionId)
             }
+        }
+
+        if (result is SlashResult.Undo) {
+            handleUndoCommand(result.count)
+            return
         }
 
         // Block desktop/CLI-only + TUI-only commands that don't function on
@@ -2047,23 +2047,26 @@ class ChatViewModel(
         if (message.isNotBlank()) {
             _uiState.update { it.copy(pendingPrefillText = message) }
         }
+        val feedback =
+            when {
+                notice.isNotBlank() && message.isNotBlank() -> "$notice (Rewound to: \"$message\")"
+                notice.isNotBlank() -> notice
+                message.isNotBlank() -> "↶ Rewound to: \"$message\""
+                else -> "↶ Rewound"
+            }
         if (storageSessionId != null) {
-            val generation = ++sessionGeneration
+            val generation = sessionGeneration
             viewModelScope.launch {
                 withContext(ioDispatcher) {
                     repo.clearMessagesForSession(storageSessionId)
                 }
                 _uiState.update { it.copy(messages = emptyList()) }
                 loadSessionMessages(storageSessionId, generation)
-                if (notice.isNotBlank()) {
-                    addSystemMessage(notice, persist = true)
-                }
+                addSystemMessage(feedback, persist = true)
                 fetchContextUsage()
             }
         } else {
-            if (notice.isNotBlank()) {
-                addSystemMessage(notice, persist = false)
-            }
+            addSystemMessage(feedback, persist = false)
         }
     }
 

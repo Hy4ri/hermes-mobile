@@ -921,10 +921,10 @@ class ChatViewModelTest {
 
             // Prefill text is staged in UI state
             assertEquals("undone user message", viewModel.uiState.value.pendingPrefillText)
-            // Notice is displayed as system message
+            // Notice is displayed as system message with rewind target feedback
             assertTrue(
                 viewModel.uiState.value.messages
-                    .any { it.content == "↶ Undid 2 turns" },
+                    .any { it.content.contains("↶ Undid 2 turns") && it.content.contains("undone user message") },
             )
             // Verify slash usage was recorded
             assertEquals(1, viewModel.uiState.value.slashUsageCounts["/undo"])

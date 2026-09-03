@@ -633,6 +633,7 @@ object ChatWsEventReducer {
                             text = event.text.orEmpty(),
                             options = event.options.orEmpty(),
                             clarifyId = event.clarifyId,
+                            questionId = event.questionId,
                         ),
                     isAgentTyping = false,
                 ),

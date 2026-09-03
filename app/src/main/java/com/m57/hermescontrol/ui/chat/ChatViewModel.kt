@@ -312,7 +312,6 @@ data class ChatUiState(
     val typingEffectDelayMs: Int = 30,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
-    val availableBots: List<ProfileInfo> = emptyList(),
     // Per-command usage counts for the slash-autocomplete ranking (issue
     // #865). Empty until the local store loads; commands without recorded
     // usage keep their catalog order.
@@ -2205,15 +2204,6 @@ class ChatViewModel(
                 WsMethods.COMMANDS_CATALOG,
                 onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
             )
-            // Fetch available bot profiles for @ autocomplete
-            val profilesResult = safeApiCall { ApiClient.hermesApi.getProfiles() }
-            if (profilesResult is NetworkResult.Success) {
-                val profiles =
-                    profilesResult.data.profiles.orEmpty().filter {
-                        !AuthManager.isProfileHidden(it.name) && it.botMeta()?.hidden != true
-                    }
-                _uiState.update { it.copy(availableBots = profiles) }
-            }
         }
     }
 

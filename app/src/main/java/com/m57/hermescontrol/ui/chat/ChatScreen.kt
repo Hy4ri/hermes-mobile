@@ -815,7 +815,6 @@ fun ChatScreen(
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
-                availableBots = state.availableBots,
                 slashUsageCounts = state.slashUsageCounts,
                 pendingAttachments = state.pendingAttachments,
                 onCameraTap = {

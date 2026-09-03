@@ -400,6 +400,114 @@ class EventParserTest {
         assertEquals("req-expire-1", expireEvent.clarifyId)
     }
 
+    // ── Approval requests (full support) ───────────────────────────────
+
+    @Test
+    fun testParseApprovalRequest_withChoicesAndRequestId() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to
+                            mapOf(
+                                "command" to "rm -rf /tmp/x",
+                                "description" to "dangerous command",
+                                "request_id" to "req-1",
+                                "choices" to listOf("once", "session", "always", "deny"),
+                                "allow_permanent" to true,
+                                "pattern_keys" to listOf("shell:rm"),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals("rm -rf /tmp/x", approval.command)
+        assertEquals("req-1", approval.requestId)
+        assertEquals(listOf("once", "session", "always", "deny"), approval.choices)
+        assertEquals(true, approval.allowPermanent)
+        assertEquals(listOf("shell:rm"), approval.patternKeys)
+    }
+
+    @Test
+    fun testParseApprovalRequest_smartDeniedDefaultsToOnceDeny() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to
+                            mapOf(
+                                "command" to "rm -rf /",
+                                "smart_denied" to true,
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals(listOf("once", "deny"), approval.choices)
+        assertEquals(true, approval.smartDenied)
+    }
+
+    @Test
+    fun testParseApprovalRequest_legacyDefaultsToFullChoices() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to mapOf("command" to "ls"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals(listOf("once", "session", "always", "deny"), approval.choices)
+    }
+
+    @Test
+    fun testParseApprovalRequest_allowPermanentFalseStillParses() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to
+                            mapOf(
+                                "command" to "rm",
+                                "choices" to listOf("once", "session", "always", "deny"),
+                                "allow_permanent" to false,
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals(false, approval.allowPermanent)
+    }
+
     // ── TEST-07: Untested subtypes ─────────────────────────────────────
 
     @Test

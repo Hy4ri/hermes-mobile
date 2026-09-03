@@ -938,6 +938,18 @@ class ChatViewModel(
                         // chip stays hidden until the real window lands.
                         viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
                     }
+                    // Session.info can carry `pending_approval` (reconnect
+                    // reconciliation) — surface it unless already on screen.
+                    val pendingApproval = info["pending_approval"] as? Map<*, *>
+                    if (pendingApproval != null) {
+                        val rid = pendingApproval["request_id"] as? String
+                        val alreadyShown =
+                            rid != null &&
+                                _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
+                        if (!alreadyShown) {
+                            handleApprovalRequest(parseApprovalMap(pendingApproval, _uiState.value.currentSessionId))
+                        }
+                    }
                 }
             }
 
@@ -1219,6 +1231,20 @@ class ChatViewModel(
                 val generation = request?.generation ?: sessionGeneration
                 resumedGeneration = generation
                 finishResumeWhenHydrated(generation)
+                // Reconnect replay: resume payload can carry `pending_approval`
+                // (server `_session_info_payload`); surface it, then ask for
+                // the full queue in case more are parked.
+                val pendingApproval = resultMap?.get("pending_approval") as? Map<*, *>
+                if (pendingApproval != null) {
+                    val rid = pendingApproval["request_id"] as? String
+                    val alreadyShown =
+                        rid != null &&
+                            _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
+                    if (!alreadyShown) {
+                        handleApprovalRequest(parseApprovalMap(pendingApproval, sessionId))
+                    }
+                }
+                if (sessionId != null) replayPendingApproval(sessionId)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -1256,6 +1282,10 @@ class ChatViewModel(
                 if (resolved > 0) {
                     addSystemMessage("Approval submitted")
                 }
+            }
+
+            WsMethods.APPROVAL_PENDING -> {
+                handleApprovalPendingResult(result)
             }
 
             WsMethods.CONFIG_SET -> {
@@ -3603,6 +3633,10 @@ class ChatViewModel(
                         command = event.command,
                         description = event.description,
                         patternKeys = event.patternKeys,
+                        requestId = event.requestId,
+                        choices = event.choices,
+                        allowPermanent = event.allowPermanent,
+                        smartDenied = event.smartDenied,
                     ),
             )
         _uiState.update { state ->
@@ -3611,12 +3645,106 @@ class ChatViewModel(
                 isAgentTyping = false,
             )
         }
+        // Desktop parity (`prompts.ts` receiveApprovalRequest): ack the render
+        // so the backend knows this client holds the prompt. Fire-and-forget.
+        val requestId = event.requestId
+        val sessionId = event.sessionId ?: _uiState.value.currentSessionId
+        if (requestId != null && sessionId != null) {
+            viewModelScope.launch(ioDispatcher) {
+                runCatching {
+                    wsClient.send(
+                        method = WsMethods.APPROVAL_RECEIVED,
+                        params =
+                            mapOf(
+                                "session_id" to sessionId,
+                                "request_id" to requestId,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Convert a backend approval map (snake_case, from `approval.pending` or
+     * `session.info` `pending_approval`) into a typed event. Mirrors
+     * [EventParser] defaults so replay and live paths agree.
+     */
+    private fun parseApprovalMap(
+        map: Map<*, *>,
+        sessionId: String?,
+    ): WsEvent.ApprovalRequest {
+        @Suppress("UNCHECKED_CAST")
+        val patternKeys = (map["pattern_keys"] as? List<*>)?.filterIsInstance<String>()
+
+        @Suppress("UNCHECKED_CAST")
+        val rawChoices = (map["choices"] as? List<*>)?.filterIsInstance<String>()
+        val allowPermanent = map["allow_permanent"] as? Boolean
+        val allowSession = map["allow_session"] as? Boolean
+        val smartDenied = map["smart_denied"] as? Boolean
+        val choices =
+            rawChoices ?: run {
+                if (smartDenied == true) {
+                    listOf("once", "deny")
+                } else {
+                    buildList {
+                        add("once")
+                        if (allowSession != false) {
+                            add("session")
+                            if (allowPermanent != false) add("always")
+                        }
+                        add("deny")
+                    }
+                }
+            }
+        return WsEvent.ApprovalRequest(
+            command = map["command"] as? String,
+            description = map["description"] as? String,
+            patternKeys = patternKeys,
+            sessionId = sessionId,
+            requestId = map["request_id"] as? String,
+            choices = choices,
+            allowPermanent = allowPermanent,
+            smartDenied = smartDenied,
+        )
+    }
+
+    /**
+     * Reconnect replay (desktop `replayPendingApproval` parity): ask the
+     * gateway for unresolved approvals and surface the oldest one. Called
+     * after resume and after each respond (the queue can hold more).
+     */
+    private fun replayPendingApproval(sessionId: String) {
+        viewModelScope.launch(ioDispatcher) {
+            wsClient.send(
+                method = WsMethods.APPROVAL_PENDING,
+                params = mapOf("session_id" to sessionId),
+                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_PENDING) },
+            )
+        }
+    }
+
+    private fun handleApprovalPendingResult(result: Any?) {
+        @Suppress("UNCHECKED_CAST")
+        val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
+        val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
+        val requestId = first["request_id"] as? String ?: return
+        val sessionId = _uiState.value.currentSessionId
+        // Don't duplicate a prompt already on screen.
+        val alreadyShown =
+            _uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
+        if (alreadyShown) return
+        handleApprovalRequest(parseApprovalMap(first, sessionId))
     }
 
     fun respondToApproval(action: String) {
         val state = _uiState.value
         val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
         val sessionId = state.currentSessionId ?: return
+        // Desktop sends `once` for a single run; legacy mobile sent `approve`
+        // (any non-deny still unblocks, but stay on-spec going forward).
+        val choice = if (action == "approve") "once" else action
+        val requestId = approvalMsg.approvalInfo?.requestId
 
         // Clear buttons immediately
         _uiState.update { s ->
@@ -3633,16 +3761,20 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(ioDispatcher) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "choice" to choice,
+                    "all" to false,
+                )
+            if (requestId != null) params["request_id"] = requestId
             wsClient.send(
                 method = WsMethods.APPROVAL_RESPOND,
-                params =
-                    mapOf(
-                        "session_id" to sessionId,
-                        "choice" to action,
-                        "all" to false,
-                    ),
+                params = params,
                 onSent = { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) },
             )
+            // The queue can hold more pendings — surface the next one.
+            replayPendingApproval(sessionId)
         }
     }
 

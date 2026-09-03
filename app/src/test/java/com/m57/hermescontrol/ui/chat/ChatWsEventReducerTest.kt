@@ -27,6 +27,25 @@ class ChatWsEventReducerTest {
     }
 
     @Test
+    fun testClarifyExpire_clearsMatchingClarifyRequest() {
+        val state =
+            ChatUiState(
+                currentSessionId = "session-1",
+                clarifyRequest = ClarifyUi("Expiring question", emptyList(), "clarify-expire-1"),
+            )
+
+        val result =
+            ChatWsEventReducer.reduce(
+                state = state,
+                streamingState = StreamingState(),
+                event = WsEvent.ClarifyExpire(clarifyId = "clarify-expire-1", sessionId = "session-1"),
+                currentSessionId = "session-1",
+            )
+
+        assertEquals(null, result.state.clarifyRequest)
+    }
+
+    @Test
     fun testToolProgress_updatesProgressPreviewForMatchingRunningTool() {
         val initialMessage =
             ChatMessage(

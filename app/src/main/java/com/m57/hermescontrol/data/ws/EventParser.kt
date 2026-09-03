@@ -136,31 +136,88 @@ object EventParser {
                 // older client or test that still uses the legacy field names. (Issue #206)
                 // Batch clarify (issue #18450): gateway sends "questions" array of {qid, question, choices, multi_select}.
                 val rawQuestions = payload?.get("questions") as? List<*>
-                val firstQuestion = rawQuestions?.firstOrNull() as? Map<*, *>
-
-                val text =
-                    payload?.get("question") as? String
-                        ?: payload?.get("text") as? String
-                        ?: if (rawQuestions != null && rawQuestions.size > 1) {
-                            rawQuestions
-                                .mapIndexedNotNull { index, item ->
-                                    val q = (item as? Map<*, *>)?.get("question") as? String
-                                    q?.let { "${index + 1}. $it" }
-                                }.joinToString("\n\n")
-                        } else {
-                            firstQuestion?.get("question") as? String
-                        }
-
-                val rawOptions =
-                    payload?.get("choices")
-                        ?: payload?.get("options")
-                        ?: firstQuestion?.get("choices")
                 val clarifyId = payload?.get("clarify_id") as? String ?: payload?.get("request_id") as? String
-                val questionId = firstQuestion?.get("qid") as? String
+
+                val parsedQuestions =
+                    if (rawQuestions != null && rawQuestions.isNotEmpty()) {
+                        rawQuestions.mapIndexedNotNull { index, item ->
+                            val map = item as? Map<*, *> ?: return@mapIndexedNotNull null
+                            val qText = map["question"] as? String ?: return@mapIndexedNotNull null
+                            val qid = map["qid"] as? String ?: "q$index"
+
+                            @Suppress("UNCHECKED_CAST")
+                            val qChoices = (map["choices"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                            val qMulti = map["multi_select"] as? Boolean ?: false
+                            WsEvent.ClarifyQuestion(
+                                qid = qid,
+                                question = qText,
+                                choices = qChoices,
+                                multiSelect = qMulti,
+                            )
+                        }
+                    } else {
+                        val text =
+                            payload?.get("question") as? String
+                                ?: payload?.get("text") as? String
+                        val rawOptions = payload?.get("choices") ?: payload?.get("options")
+
+                        @Suppress("UNCHECKED_CAST")
+                        val options = (rawOptions as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                        val qid = payload?.get("qid") as? String ?: payload?.get("question_id") as? String
+                        val multi = payload?.get("multi_select") as? Boolean ?: false
+                        if ((!text.isNullOrBlank() || options.isNotEmpty()) && qid != null) {
+                            listOf(
+                                WsEvent.ClarifyQuestion(
+                                    qid = qid,
+                                    question = text.orEmpty(),
+                                    choices = options,
+                                    multiSelect = multi,
+                                ),
+                            )
+                        } else {
+                            emptyList()
+                        }
+                    }
+
+                val primary = parsedQuestions.firstOrNull()
+                val legacyText =
+                    if (parsedQuestions.size > 1) {
+                        parsedQuestions.mapIndexed { index, q -> "${index + 1}. ${q.question}" }.joinToString("\n\n")
+                    } else if (primary != null) {
+                        primary.question
+                    } else {
+                        payload?.get("question") as? String
+                            ?: payload?.get("text") as? String
+                    }
 
                 @Suppress("UNCHECKED_CAST")
-                val options = (rawOptions as? List<*>)?.filterIsInstance<String>()
-                WsEvent.ClarifyRequest(text, options, clarifyId, sessionId, questionId)
+                val legacyOptions =
+                    primary?.choices
+                        ?: (payload?.get("choices") ?: payload?.get("options"))
+                            .let { (it as? List<*>)?.filterIsInstance<String>() }
+                val legacyQid =
+                    primary?.qid
+                        ?: payload?.get("qid") as? String
+                        ?: payload?.get("question_id") as? String
+                val legacyMulti =
+                    primary?.multiSelect
+                        ?: payload?.get("multi_select") as? Boolean
+                        ?: false
+
+                WsEvent.ClarifyRequest(
+                    text = legacyText,
+                    options = legacyOptions,
+                    clarifyId = clarifyId,
+                    sessionId = sessionId,
+                    questionId = legacyQid,
+                    multiSelect = legacyMulti,
+                    questions = parsedQuestions,
+                )
+            }
+
+            "clarify.expire" -> {
+                val clarifyId = payload?.get("request_id") as? String ?: payload?.get("clarify_id") as? String
+                WsEvent.ClarifyExpire(clarifyId, sessionId)
             }
 
             "status.update" -> {

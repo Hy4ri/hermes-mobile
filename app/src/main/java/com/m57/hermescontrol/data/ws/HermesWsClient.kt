@@ -1226,9 +1226,7 @@ object HermesWsClient {
                     disconnectIfIdleInBackground()
                 }
 
-                else -> {
-                    Unit
-                }
+                else -> {}
             }
             // tryEmit on a DROP_OLDEST flow only returns false when the
             // buffer is full AND no subscriber is draining; with extraBuffer=512

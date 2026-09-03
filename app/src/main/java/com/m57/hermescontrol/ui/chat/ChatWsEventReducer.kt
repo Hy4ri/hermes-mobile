@@ -67,6 +67,7 @@ object ChatWsEventReducer {
                 is WsEvent.ToolComplete -> event.sessionId
                 is WsEvent.ToolOutputRisk -> event.sessionId
                 is WsEvent.ClarifyRequest -> event.sessionId
+                is WsEvent.ClarifyExpire -> event.sessionId
                 is WsEvent.ToolProgress -> event.sessionId
                 is WsEvent.ToolGenerating -> event.sessionId
                 is WsEvent.SubagentEvent -> event.sessionId
@@ -127,6 +128,8 @@ object ChatWsEventReducer {
             is WsEvent.SubagentEvent -> onSubagentEvent(state, streamingState, event)
 
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
+
+            is WsEvent.ClarifyExpire -> onClarifyExpire(state, streamingState, event)
 
             is WsEvent.ReviewSummary -> onReviewSummary(state, streamingState, event)
 
@@ -636,8 +639,29 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.ClarifyRequest,
-    ): ReducerResult =
-        ReducerResult(
+    ): ReducerResult {
+        val questions =
+            if (event.questions.isNotEmpty()) {
+                event.questions.map {
+                    ClarifyQuestionUi(
+                        qid = it.qid,
+                        question = it.question,
+                        choices = it.choices,
+                        multiSelect = it.multiSelect,
+                    )
+                }
+            } else {
+                listOf(
+                    ClarifyQuestionUi(
+                        qid = event.questionId ?: "q0",
+                        question = event.text.orEmpty(),
+                        choices = event.options.orEmpty(),
+                        multiSelect = event.multiSelect,
+                    ),
+                )
+            }
+
+        return ReducerResult(
             state =
                 state.copy(
                     clarifyRequest =
@@ -646,10 +670,27 @@ object ChatWsEventReducer {
                             options = event.options.orEmpty(),
                             clarifyId = event.clarifyId,
                             questionId = event.questionId,
+                            multiSelect = event.multiSelect,
+                            questions = questions,
                         ),
                     isAgentTyping = false,
                 ),
         )
+    }
+
+    private fun onClarifyExpire(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ClarifyExpire,
+    ): ReducerResult =
+        if (event.clarifyId == null || state.clarifyRequest?.clarifyId == event.clarifyId) {
+            ReducerResult(
+                state = state.copy(clarifyRequest = null),
+                streamingState = streamingState,
+            )
+        } else {
+            ReducerResult(state = state, streamingState = streamingState)
+        }
 
     // ── ReviewSummary (Self-improvement background review) ──────────────
 

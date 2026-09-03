@@ -71,20 +71,28 @@ class GroupChatMentionsTest {
 
     @Test
     fun groupChatMentionAutocomplete_endToEndIntegration() {
-        // 1. User types "@c"
+        // 1. User types "@cod"
         val input =
             androidx.compose.ui.text.input
                 .TextFieldValue(
-                    "hey @c",
+                    "hey @cod",
                     androidx.compose.ui.text
-                        .TextRange(6),
+                        .TextRange(8),
                 )
         val query =
             com.m57.hermescontrol.ui.chat.ChatInputPolicy
                 .extractMentionQuery(input.text, input.selection.end)
-        assertEquals("c", query)
+        assertEquals("cod", query)
 
-        // 2. Candidate filtering
+        // 2. Candidate filtering:
+        // Query "@c" matches both "coder" (starts with c) and "Scout Bot" (contains c)
+        val broadMatches =
+            members.filter {
+                it.name.startsWith("c", ignoreCase = true) || it.effectiveTitle.contains("c", ignoreCase = true)
+            }
+        assertEquals(2, broadMatches.size)
+
+        // Narrower query "@cod" matches only "coder"
         val matchingBots =
             members.filter {
                 it.name.startsWith(query!!, ignoreCase = true) || it.effectiveTitle.contains(query, ignoreCase = true)

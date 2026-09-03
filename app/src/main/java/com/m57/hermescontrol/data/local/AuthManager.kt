@@ -68,7 +68,7 @@ object AuthManager {
     private val _themePreferenceFlow = MutableStateFlow<ThemePreference>(ThemePreference.SYSTEM)
     val themePreferenceFlow: StateFlow<ThemePreference> = _themePreferenceFlow.asStateFlow()
 
-    private val _useDynamicColorsFlow = MutableStateFlow<Boolean>(true)
+    private val _useDynamicColorsFlow = MutableStateFlow<Boolean>(false)
     val useDynamicColorsFlow: StateFlow<Boolean> = _useDynamicColorsFlow.asStateFlow()
 
     private val _themePresetFlow = MutableStateFlow<ThemePreset>(ThemePreset.DEFAULT)

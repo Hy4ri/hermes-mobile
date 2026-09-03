@@ -42,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +59,7 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -65,8 +67,10 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
@@ -75,6 +79,7 @@ import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LightOnSurface
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.onColorFor
+import com.m57.hermescontrol.util.BidiUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -176,67 +181,79 @@ fun ChatBubble(
                     color = Color.Transparent,
                     tonalElevation = 0.dp,
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                        SelectionContainer {
-                            Text(
-                                text = highlightedText,
-                                color = userBubbleTextColor,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                        // Render inline attachments
-                        if (!message.attachments.isNullOrEmpty()) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            message.attachments.forEach { attachment ->
-                                InlineAttachment(
-                                    attachment = attachment,
-                                    textColor = userBubbleTextColor,
-                                    onOpen = { onOpenAttachment(it) },
-                                    onSave = { onSaveAttachment(it) },
-                                    savingPath = savingAttachmentPath,
-                                    openingPath = openingAttachmentPath,
-                                    canSave = canSaveAttachment,
-                                    onImageClick = onImageClick,
+                    val isRtl = remember(message.content) { BidiUtils.isRtlText(message.content) }
+                    val bubbleDirection = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
+                    CompositionLocalProvider(LocalLayoutDirection provides bubbleDirection) {
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                            SelectionContainer {
+                                Text(
+                                    text = highlightedText,
+                                    color = userBubbleTextColor,
+                                    style =
+                                        MaterialTheme.typography.bodyMedium.copy(
+                                            textDirection =
+                                                if (isRtl) {
+                                                    TextDirection.ContentOrRtl
+                                                } else {
+                                                    TextDirection.ContentOrLtr
+                                                },
+                                        ),
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
                             }
-                        }
-                        if (!message.isStreaming) {
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .align(Alignment.End)
-                                        .padding(top = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        scope.launch {
-                                            clipboard.setClipEntry(
-                                                ClipEntry(ClipData.newPlainText(null, message.content)),
-                                            )
-                                        }
-                                        copied = true
-                                    },
-                                    modifier = Modifier.size(20.dp),
+                            // Render inline attachments
+                            if (!message.attachments.isNullOrEmpty()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                message.attachments.forEach { attachment ->
+                                    InlineAttachment(
+                                        attachment = attachment,
+                                        textColor = userBubbleTextColor,
+                                        onOpen = { onOpenAttachment(it) },
+                                        onSave = { onSaveAttachment(it) },
+                                        savingPath = savingAttachmentPath,
+                                        openingPath = openingAttachmentPath,
+                                        canSave = canSaveAttachment,
+                                        onImageClick = onImageClick,
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                            }
+                            if (!message.isStreaming) {
+                                Row(
+                                    modifier =
+                                        Modifier
+                                            .align(Alignment.End)
+                                            .padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Icon(
-                                        imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                                        contentDescription = stringResource(R.string.content_desc_copy),
-                                        modifier = Modifier.size(12.dp),
-                                        tint = userBubbleTextColor.copy(alpha = 0.7f),
+                                    IconButton(
+                                        onClick = {
+                                            scope.launch {
+                                                clipboard.setClipEntry(
+                                                    ClipEntry(ClipData.newPlainText(null, message.content)),
+                                                )
+                                            }
+                                            copied = true
+                                        },
+                                        modifier = Modifier.size(20.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                            contentDescription = stringResource(R.string.content_desc_copy),
+                                            modifier = Modifier.size(12.dp),
+                                            tint = userBubbleTextColor.copy(alpha = 0.7f),
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text(
+                                        text =
+                                            formatTimestamp(
+                                                message.timestamp,
+                                                DateFormat.is24HourFormat(LocalContext.current),
+                                            ),
+                                        color = userBubbleTextColor.copy(alpha = 0.6f),
+                                        style = MaterialTheme.typography.labelSmall,
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(
-                                    text =
-                                        formatTimestamp(
-                                            message.timestamp,
-                                            DateFormat.is24HourFormat(LocalContext.current),
-                                        ),
-                                    color = userBubbleTextColor.copy(alpha = 0.6f),
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
                             }
                         }
                     }

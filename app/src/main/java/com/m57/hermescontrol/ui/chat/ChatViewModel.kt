@@ -789,9 +789,7 @@ class ChatViewModel(
                 streamingController.flushPendingTokens()
             }
 
-            else -> {
-                Unit
-            }
+            else -> {}
         }
 
         // First, let the reducer compute the new state and any effects

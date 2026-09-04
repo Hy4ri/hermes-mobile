@@ -194,6 +194,7 @@ interface HermesApiService {
         // legacy backends that don't know the param — they ignore it.
         @Query("order") order: String? = null,
         @Query("include_compacted") includeCompacted: Boolean? = true,
+        @Query("profile") profile: String? = null,
     ): Response<SessionMessagesResponse>
 
     @GET("api/sessions/stats")

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -845,21 +846,53 @@ private fun GroupMessageCard(
     }
 
     if (message.isSystem) {
+        val displayText =
+            when {
+                message.isPass -> {
+                    val name = message.senderDisplayName.ifBlank { message.senderName }
+                    stringResource(R.string.group_chat_bot_passed, name)
+                }
+
+                message.text == STOPPED_SYSTEM_TEXT -> {
+                    stringResource(R.string.group_chat_stopped_by_user)
+                }
+
+                message.text == CAPPED_SYSTEM_TEXT -> {
+                    stringResource(R.string.group_chat_capped_limit)
+                }
+
+                else -> {
+                    message.text
+                }
+            }
         Box(
             modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (message.isPass) 0.5f else 0.6f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
             ) {
-                Text(
-                    text = message.text,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (message.isPass) {
+                        Icon(
+                            imageVector = Icons.Filled.FastForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        )
+                    }
+                    Text(
+                        text = displayText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     } else if (message.isUser) {

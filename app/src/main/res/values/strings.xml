@@ -1283,6 +1283,7 @@
     <string name="group_chat_empty_title">No Messages Yet</string>
     <string name="group_chat_empty_subtitle">Mention a bot or use @all to kick off collaboration.</string>
     <string name="group_chat_thinking">%1$s is thinking…</string>
+    <string name="group_chat_bot_passed">%1$s passed</string>
     <string name="group_chat_typing">Typing…</string>
     <string name="group_chat_tool_running">Running…</string>
     <string name="group_chat_tool_no_output">No output</string>

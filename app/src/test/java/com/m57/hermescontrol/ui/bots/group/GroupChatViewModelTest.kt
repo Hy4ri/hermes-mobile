@@ -266,9 +266,17 @@ class GroupChatViewModelTest {
             testScheduler.runCurrent()
 
             val finalState = viewModel.uiState.value
-            // Only the user message should remain; (pass) is filtered out
-            assertEquals(1, finalState.messages.size)
+            // User message plus the visual pass indicator
+            assertEquals(2, finalState.messages.size)
             assertTrue(finalState.messages.first().isUser)
+            val passMsg = finalState.messages.last()
+            assertTrue(passMsg.isSystem)
+            assertTrue(passMsg.isPass)
+            assertEquals("Scout Bot", passMsg.senderDisplayName)
+            assertEquals("Scout Bot passed", passMsg.text)
+
+            // LLM prompt history only considers non-system messages
+            assertEquals(1, finalState.messages.filter { !it.isSystem }.size)
         }
 
     @Test

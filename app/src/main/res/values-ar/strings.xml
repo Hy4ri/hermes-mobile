@@ -1168,6 +1168,7 @@
 <string name="group_chat_empty_title">لا توجد رسائل بعد</string>
 <string name="group_chat_empty_subtitle">أشر إلى بوت أو استخدم @all لبدء التعاون.</string>
 <string name="group_chat_thinking">%1$s يفكّر الآن…</string>
+<string name="group_chat_bot_passed">تخطى %1$s دوره</string>
 <string name="group_chat_typing">جارٍ الكتابة…</string>
 <string name="group_chat_tool_running">جارٍ التشغيل…</string>
 <string name="group_chat_tool_no_output">لا يوجد مخرجات</string>

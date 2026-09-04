@@ -59,8 +59,6 @@ const val WARN_MAX_CONTINUATION_PASSES = 6
 private const val LEASE_STEP_TTL_MS = 45_000L
 private const val TURN_TIMEOUT_MS = 45_000L
 private const val HISTORY_LIMIT = 10
-private const val CAPPED_SYSTEM_TEXT = "Discussion paused (turn limit reached) — reply to continue"
-private const val STOPPED_SYSTEM_TEXT = "Discussion stopped"
 
 class GroupChatViewModel(
     private var groupName: String = "",
@@ -791,6 +789,28 @@ class GroupChatViewModel(
                     state.copy(messages = updatedList)
                 }
                 return replyText.trim()
+            } else if (replyText != null && isPass(replyText)) {
+                _uiState.update { state ->
+                    val existing = state.messages.find { it.id == streamMsgId }
+                    val passMsg =
+                        GroupChatMessage(
+                            id = streamMsgId,
+                            senderName = bot.name,
+                            senderDisplayName = bot.effectiveTitle,
+                            isUser = false,
+                            isSystem = true,
+                            isPass = true,
+                            text = "${bot.effectiveTitle} passed",
+                        )
+                    val updatedList =
+                        if (existing != null) {
+                            state.messages.map { if (it.id == streamMsgId) passMsg else it }
+                        } else {
+                            state.messages + passMsg
+                        }
+                    state.copy(messages = updatedList)
+                }
+                return null
             } else {
                 _uiState.update { state ->
                     state.copy(messages = state.messages.filter { it.id != streamMsgId })

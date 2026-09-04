@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,8 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -78,6 +81,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -1021,49 +1025,149 @@ private fun GroupChatToolChip(
     tool: GroupChatToolCall,
     modifier: Modifier = Modifier,
 ) {
+    var expanded by rememberSaveable(tool.id) { mutableStateOf(false) }
+    val isTerminal =
+        tool.name.equals("terminal", ignoreCase = true) ||
+            tool.name.equals("execute_code", ignoreCase = true)
+
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-        modifier = modifier,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            val icon =
-                when (tool.name.lowercase()) {
-                    "terminal" -> Icons.Filled.Terminal
-                    "web_search", "search_files" -> Icons.Filled.Search
-                    "read_file", "write_file", "patch" -> Icons.Filled.Description
-                    else -> Icons.Filled.Build
-                }
-            Icon(
-                imageVector = icon,
-                contentDescription = tool.name,
-                modifier = Modifier.size(13.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            val label =
-                if (!tool.summary.isNullOrBlank()) {
-                    "${tool.name}: ${tool.summary}"
+        border =
+            BorderStroke(
+                1.dp,
+                if (tool.isError) {
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
                 } else {
-                    tool.name
-                }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (tool.isRunning) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(10.dp),
-                    strokeWidth = 1.5.dp,
-                    color = MaterialTheme.colorScheme.primary,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                },
+            ),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                val icon =
+                    when (tool.name.lowercase()) {
+                        "terminal", "execute_code" -> Icons.Filled.Terminal
+                        "web_search", "search_files" -> Icons.Filled.Search
+                        "read_file", "write_file", "patch" -> Icons.Filled.Description
+                        else -> Icons.Filled.Build
+                    }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = tool.name,
+                    modifier = Modifier.size(13.dp),
+                    tint =
+                        if (tool.isError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                 )
+                val label =
+                    if (!tool.summary.isNullOrBlank()) {
+                        "${tool.name}: ${tool.summary}"
+                    } else {
+                        tool.name
+                    }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (tool.isRunning) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(10.dp),
+                        strokeWidth = 1.5.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (!tool.command.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            SelectionContainer {
+                                Text(
+                                    text = if (isTerminal) "$ ${tool.command}" else tool.command,
+                                    style =
+                                        MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                        ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    val outputText =
+                        when {
+                            tool.isRunning -> stringResource(R.string.group_chat_tool_running)
+                            !tool.output.isNullOrBlank() -> tool.output.trim()
+                            tool.exitCode == 0 -> stringResource(R.string.group_chat_tool_no_output_success)
+                            else -> stringResource(R.string.group_chat_tool_no_output)
+                        }
+
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        SelectionContainer {
+                            Text(
+                                text = outputText,
+                                style =
+                                    MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                    ),
+                                color =
+                                    if (tool.isError) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                maxLines = 15,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
     }

@@ -12,6 +12,10 @@ data class GroupChatToolCall(
     val name: String,
     val summary: String? = null,
     val isRunning: Boolean = false,
+    val command: String? = null,
+    val output: String? = null,
+    val exitCode: Int? = null,
+    val isError: Boolean = false,
 )
 
 /**

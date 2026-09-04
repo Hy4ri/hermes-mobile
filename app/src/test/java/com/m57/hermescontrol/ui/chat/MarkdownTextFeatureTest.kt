@@ -563,4 +563,12 @@ class MarkdownTextFeatureTest {
         val parsed = parseInline(input, Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
         assertEquals("Run val x = 1 here", parsed.toString())
     }
+
+    @Test
+    fun testArabicStartingWithEnglishWord_wrapsEnglishInLtrIsolate() {
+        val input = "Okay سكرت كلشي وصار كامل عربي متل ما بدك يا بوبو"
+        val parsed = parseInline(input, Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+        val expected = "${BidiUtils.LRI}Okay${BidiUtils.PDI} سكرت كلشي وصار كامل عربي متل ما بدك يا بوبو"
+        assertEquals(expected, parsed.toString())
+    }
 }

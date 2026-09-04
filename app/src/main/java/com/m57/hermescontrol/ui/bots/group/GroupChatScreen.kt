@@ -87,6 +87,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -274,6 +275,8 @@ fun GroupChatScreen(
 
                                 state.activeSpeaker?.let { speaker ->
                                     item(key = "active_speaker") {
+                                        val thinkingText = stringResource(R.string.group_chat_thinking, speaker)
+                                        val isThinkingRtl = remember(thinkingText) { BidiUtils.isRtlText(thinkingText) }
                                         Row(
                                             modifier = Modifier.padding(start = 8.dp, top = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically,
@@ -284,8 +287,16 @@ fun GroupChatScreen(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
-                                                text = stringResource(R.string.group_chat_thinking, speaker),
-                                                style = MaterialTheme.typography.bodySmall,
+                                                text = thinkingText,
+                                                style =
+                                                    MaterialTheme.typography.bodySmall.copy(
+                                                        textDirection =
+                                                            if (isThinkingRtl) {
+                                                                TextDirection.ContentOrRtl
+                                                            } else {
+                                                                TextDirection.ContentOrLtr
+                                                            },
+                                                    ),
                                                 color = MaterialTheme.colorScheme.primary,
                                             )
                                         }
@@ -409,124 +420,131 @@ fun GroupChatScreen(
             }
 
             // ── COMPOSER (uses TextFieldValue + embedded Send button matching ChatComposer) ──
-            Surface(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(20.dp),
-                border =
-                    BorderStroke(
-                        width = if (isFocused) 2.dp else 1.dp,
-                        color =
-                            if (isFocused) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                            },
-                    ),
-                color = MaterialTheme.colorScheme.surface,
-            ) {
-                Row(
+            val ambientLayoutDirection = LocalLayoutDirection.current
+            val inputLayoutDirection =
+                remember(inputFieldValue.text, ambientLayoutDirection) {
+                    BidiUtils.resolveLayoutDirection(inputFieldValue.text, fallback = ambientLayoutDirection)
+                }
+            val isInputRtl = inputLayoutDirection == LayoutDirection.Rtl
+
+            CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                BasicTextField(
+                    value = inputFieldValue,
+                    onValueChange = { inputFieldValue = it },
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val isInputRtl = remember(inputFieldValue.text) { BidiUtils.isRtlText(inputFieldValue.text) }
-                    val ambientLayoutDirection = LocalLayoutDirection.current
-                    val inputLayoutDirection =
-                        remember(inputFieldValue.text, ambientLayoutDirection) {
-                            if (inputFieldValue.text.isBlank()) {
-                                ambientLayoutDirection
-                            } else if (isInputRtl) {
-                                LayoutDirection.Rtl
-                            } else {
-                                LayoutDirection.Ltr
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .onFocusChanged { isFocused = it.isFocused }
+                            .testTag("group_chat_input"),
+                    textStyle =
+                        MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                            textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
+                        ),
+                    singleLine = false,
+                    maxLines = 4,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { handleSend() }),
+                    decorationBox = { innerTextField ->
+                        CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                border =
+                                    BorderStroke(
+                                        width = if (isFocused) 2.dp else 1.dp,
+                                        color =
+                                            if (isFocused) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                            },
+                                    ),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier.weight(1f),
+                                        contentAlignment =
+                                            if (isInputRtl) {
+                                                Alignment.CenterEnd
+                                            } else {
+                                                Alignment.CenterStart
+                                            },
+                                    ) {
+                                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                                            if (inputFieldValue.text.isEmpty()) {
+                                                Text(
+                                                    text =
+                                                        stringResource(
+                                                            R.string.group_chat_composer_hint,
+                                                            state.groupName.ifBlank { groupName },
+                                                        ),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color =
+                                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.6f,
+                                                        ),
+                                                    textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                )
+                                            }
+                                            innerTextField()
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(4.dp))
+
+                                    if (state.activeSpeaker != null) {
+                                        IconButton(
+                                            onClick = { viewModel.stopGeneration() },
+                                            colors =
+                                                IconButtonDefaults.filledTonalIconButtonColors(
+                                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                                ),
+                                            modifier =
+                                                Modifier
+                                                    .size(36.dp)
+                                                    .testTag("group_chat_stop_button"),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Stop,
+                                                contentDescription = stringResource(R.string.group_chat_action_stop),
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    } else {
+                                        IconButton(
+                                            onClick = handleSend,
+                                            enabled = inputFieldValue.text.isNotBlank(),
+                                            colors = IconButtonDefaults.filledTonalIconButtonColors(),
+                                            modifier =
+                                                Modifier
+                                                    .size(36.dp)
+                                                    .testTag("group_chat_send_button"),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                                contentDescription = "Send",
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
-
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = if (isInputRtl) Alignment.CenterEnd else Alignment.CenterStart,
-                    ) {
-                        if (inputFieldValue.text.isEmpty()) {
-                            Text(
-                                text =
-                                    stringResource(
-                                        R.string.group_chat_composer_hint,
-                                        state.groupName.ifBlank { groupName },
-                                    ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
-                            BasicTextField(
-                                value = inputFieldValue,
-                                onValueChange = { inputFieldValue = it },
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 24.dp, max = 120.dp)
-                                        .onFocusChanged { isFocused = it.isFocused }
-                                        .testTag("group_chat_input"),
-                                textStyle =
-                                    MaterialTheme.typography.bodyMedium.copy(
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
-                                    ),
-                                singleLine = false,
-                                maxLines = 4,
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                keyboardActions = KeyboardActions(onSend = { handleSend() }),
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    if (state.activeSpeaker != null) {
-                        IconButton(
-                            onClick = { viewModel.stopGeneration() },
-                            colors =
-                                IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                ),
-                            modifier =
-                                Modifier
-                                    .size(36.dp)
-                                    .testTag("group_chat_stop_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Stop,
-                                contentDescription = stringResource(R.string.group_chat_action_stop),
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    } else {
-                        IconButton(
-                            onClick = handleSend,
-                            enabled = inputFieldValue.text.isNotBlank(),
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(),
-                            modifier =
-                                Modifier
-                                    .size(36.dp)
-                                    .testTag("group_chat_send_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Send",
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-                }
+                    },
+                )
             }
         }
     }
@@ -865,6 +883,8 @@ private fun GroupMessageCard(
                     message.text
                 }
             }
+        val isSystemRtl = remember(displayText) { BidiUtils.isRtlText(displayText) }
+        val systemDirection = if (isSystemRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
         Box(
             modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
             contentAlignment = Alignment.Center,
@@ -874,28 +894,40 @@ private fun GroupMessageCard(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (message.isPass) 0.5f else 0.6f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    if (message.isPass) {
-                        Icon(
-                            imageVector = Icons.Filled.FastForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(12.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                CompositionLocalProvider(LocalLayoutDirection provides systemDirection) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        if (message.isPass) {
+                            Icon(
+                                imageVector = Icons.Filled.FastForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            )
+                        }
+                        Text(
+                            text = displayText,
+                            style =
+                                MaterialTheme.typography.labelSmall.copy(
+                                    textDirection =
+                                        if (isSystemRtl) {
+                                            TextDirection.ContentOrRtl
+                                        } else {
+                                            TextDirection.ContentOrLtr
+                                        },
+                                ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Text(
-                        text = displayText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
     } else if (message.isUser) {
+        val isUserRtl = remember(message.text) { BidiUtils.isRtlText(message.text) }
+        val userBubbleDirection = if (isUserRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
         Row(
             modifier = modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
@@ -905,52 +937,63 @@ private fun GroupMessageCard(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.fillMaxWidth(0.85f),
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    SelectionContainer {
-                        Text(
-                            text = message.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.align(Alignment.End),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    clipboard.setClipEntry(
-                                        ClipEntry(ClipData.newPlainText(null, message.text)),
-                                    )
-                                }
-                                copied = true
-                            },
-                            modifier = Modifier.size(20.dp),
-                        ) {
-                            Icon(
-                                imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                                contentDescription = stringResource(R.string.content_desc_copy),
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                CompositionLocalProvider(LocalLayoutDirection provides userBubbleDirection) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        SelectionContainer {
+                            Text(
+                                text = message.text,
+                                style =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        textDirection =
+                                            if (isUserRtl) {
+                                                TextDirection.ContentOrRtl
+                                            } else {
+                                                TextDirection.ContentOrLtr
+                                            },
+                                    ),
+                                color = MaterialTheme.colorScheme.onPrimary,
                             )
                         }
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text =
-                                formatTimestamp(
-                                    message.timestamp,
-                                    DateFormat.is24HourFormat(LocalContext.current),
-                                ),
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.align(Alignment.End),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    scope.launch {
+                                        clipboard.setClipEntry(
+                                            ClipEntry(ClipData.newPlainText(null, message.text)),
+                                        )
+                                    }
+                                    copied = true
+                                },
+                                modifier = Modifier.size(20.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                    contentDescription = stringResource(R.string.content_desc_copy),
+                                    modifier = Modifier.size(12.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text =
+                                    formatTimestamp(
+                                        message.timestamp,
+                                        DateFormat.is24HourFormat(LocalContext.current),
+                                    ),
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
                     }
                 }
             }
         }
     } else {
+        val isBotNameRtl = remember(message.senderDisplayName) { BidiUtils.isRtlText(message.senderDisplayName) }
         Row(
             modifier = modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,
@@ -970,7 +1013,15 @@ private fun GroupMessageCard(
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = message.senderDisplayName,
-                        style = MaterialTheme.typography.labelMedium,
+                        style =
+                            MaterialTheme.typography.labelMedium.copy(
+                                textDirection =
+                                    if (isBotNameRtl) {
+                                        TextDirection.ContentOrRtl
+                                    } else {
+                                        TextDirection.ContentOrLtr
+                                    },
+                            ),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -1112,9 +1163,13 @@ private fun GroupChatToolChip(
                     } else {
                         tool.name
                     }
+                val isLabelRtl = remember(label) { BidiUtils.isRtlText(label) }
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelSmall,
+                    style =
+                        MaterialTheme.typography.labelSmall.copy(
+                            textDirection = if (isLabelRtl) TextDirection.ContentOrRtl else TextDirection.ContentOrLtr,
+                        ),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1160,6 +1215,7 @@ private fun GroupChatToolChip(
                                     style =
                                         MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
+                                            textDirection = TextDirection.Ltr,
                                         ),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
@@ -1175,6 +1231,7 @@ private fun GroupChatToolChip(
                             tool.exitCode == 0 -> stringResource(R.string.group_chat_tool_no_output_success)
                             else -> stringResource(R.string.group_chat_tool_no_output)
                         }
+                    val isOutputRtl = remember(outputText) { BidiUtils.isRtlText(outputText) }
 
                     Surface(
                         shape = RoundedCornerShape(4.dp),
@@ -1187,6 +1244,12 @@ private fun GroupChatToolChip(
                                 style =
                                     MaterialTheme.typography.bodySmall.copy(
                                         fontFamily = FontFamily.Monospace,
+                                        textDirection =
+                                            if (isOutputRtl) {
+                                                TextDirection.ContentOrRtl
+                                            } else {
+                                                TextDirection.Ltr
+                                            },
                                     ),
                                 color =
                                     if (tool.isError) {

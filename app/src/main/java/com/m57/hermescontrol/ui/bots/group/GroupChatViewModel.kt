@@ -18,6 +18,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.ui.chat.tool.ToolResultSummary
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -143,6 +144,21 @@ class GroupChatViewModel(
         return null
     }
 
+    private fun extractToolOutput(data: Map<String, Any?>?): String? {
+        if (data == null) return null
+        val rawStr =
+            (data["output"] as? String)
+                ?: (data["stdout"] as? String)
+                ?: (data["result"] as? String)
+        if (!rawStr.isNullOrBlank()) {
+            return rawStr
+        }
+
+        val resultElement = data["result"]?.toJsonElement() ?: data["output"]?.toJsonElement() ?: data.toJsonElement()
+        val summary = ToolResultSummary.formatToolResultSummary(resultElement)
+        return summary.ifBlank { null }
+    }
+
     private fun observeWsEvents() {
         viewModelScope.launch(ioDispatcher) {
             HermesWsClient.events.collect { event ->
@@ -241,10 +257,7 @@ class GroupChatViewModel(
                             val streamId = activeStreamMsgId[sid]
                             val toolId = event.data?.get("tool_id") as? String
                             val toolName = event.name
-                            val output =
-                                (event.data?.get("output") as? String)
-                                    ?: (event.data?.get("stdout") as? String)
-                                    ?: (event.data?.get("result") as? String)
+                            val output = extractToolOutput(event.data)
                             val exitCode =
                                 when (val rawCode = event.data?.get("exit_code")) {
                                     is Number -> rawCode.toInt()

@@ -292,9 +292,9 @@ fun GroupChatScreen(
                                                     MaterialTheme.typography.bodySmall.copy(
                                                         textDirection =
                                                             if (isThinkingRtl) {
-                                                                TextDirection.ContentOrRtl
+                                                                TextDirection.Rtl
                                                             } else {
-                                                                TextDirection.ContentOrLtr
+                                                                TextDirection.Ltr
                                                             },
                                                     ),
                                                 color = MaterialTheme.colorScheme.primary,
@@ -914,9 +914,9 @@ private fun GroupMessageCard(
                                 MaterialTheme.typography.labelSmall.copy(
                                     textDirection =
                                         if (isSystemRtl) {
-                                            TextDirection.ContentOrRtl
+                                            TextDirection.Rtl
                                         } else {
-                                            TextDirection.ContentOrLtr
+                                            TextDirection.Ltr
                                         },
                                 ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -946,9 +946,9 @@ private fun GroupMessageCard(
                                     MaterialTheme.typography.bodyMedium.copy(
                                         textDirection =
                                             if (isUserRtl) {
-                                                TextDirection.ContentOrRtl
+                                                TextDirection.Rtl
                                             } else {
-                                                TextDirection.ContentOrLtr
+                                                TextDirection.Ltr
                                             },
                                     ),
                                 color = MaterialTheme.colorScheme.onPrimary,
@@ -1017,9 +1017,9 @@ private fun GroupMessageCard(
                             MaterialTheme.typography.labelMedium.copy(
                                 textDirection =
                                     if (isBotNameRtl) {
-                                        TextDirection.ContentOrRtl
+                                        TextDirection.Rtl
                                     } else {
-                                        TextDirection.ContentOrLtr
+                                        TextDirection.Ltr
                                     },
                             ),
                         fontWeight = FontWeight.Bold,
@@ -1168,7 +1168,7 @@ private fun GroupChatToolChip(
                     text = label,
                     style =
                         MaterialTheme.typography.labelSmall.copy(
-                            textDirection = if (isLabelRtl) TextDirection.ContentOrRtl else TextDirection.ContentOrLtr,
+                            textDirection = if (isLabelRtl) TextDirection.Rtl else TextDirection.Ltr,
                         ),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
@@ -1246,7 +1246,7 @@ private fun GroupChatToolChip(
                                         fontFamily = FontFamily.Monospace,
                                         textDirection =
                                             if (isOutputRtl) {
-                                                TextDirection.ContentOrRtl
+                                                TextDirection.Rtl
                                             } else {
                                                 TextDirection.Ltr
                                             },

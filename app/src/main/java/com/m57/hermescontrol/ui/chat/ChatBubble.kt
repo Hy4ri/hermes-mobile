@@ -197,9 +197,9 @@ fun ChatBubble(
                                         MaterialTheme.typography.bodyMedium.copy(
                                             textDirection =
                                                 if (isRtl) {
-                                                    TextDirection.ContentOrRtl
+                                                    TextDirection.Rtl
                                                 } else {
-                                                    TextDirection.ContentOrLtr
+                                                    TextDirection.Ltr
                                                 },
                                         ),
                                 )

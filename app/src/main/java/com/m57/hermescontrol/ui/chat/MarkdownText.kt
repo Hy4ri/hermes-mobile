@@ -71,8 +71,7 @@ private val BULLET_LINE_RE = Regex("""^(\s*)[-*+]\s+(.*)$""")
 private val ORDERED_LINE_RE = Regex("""^(\s*)(\d+)\.\s+(.*)$""")
 private val LIST_ITEM_LINE_RE = Regex("""^(\s*)(?:[-*+]\s+(?:\[([ xX])\]\s+)?|(\d+)\.\s+)(.*)$""")
 
-private fun bidiTextDirection(isRtl: Boolean): TextDirection =
-    if (isRtl) TextDirection.ContentOrRtl else TextDirection.ContentOrLtr
+private fun bidiTextDirection(isRtl: Boolean): TextDirection = if (isRtl) TextDirection.Rtl else TextDirection.Ltr
 
 /**
  * Renders chat assistant text as Markdown — but ONLY once the message has finished streaming.
@@ -551,7 +550,7 @@ private fun MarkdownInlineText(
     val direction = if (isRtl) LayoutDirection.Rtl else LocalLayoutDirection.current
     val resolvedStyle =
         style.copy(
-            textDirection = if (isRtl) TextDirection.ContentOrRtl else TextDirection.ContentOrLtr,
+            textDirection = if (isRtl) TextDirection.Rtl else TextDirection.Ltr,
         )
     val processedText =
         remember(text, isRtl) {
@@ -1497,6 +1496,34 @@ private fun parseInlineSource(
                     }
                     pop()
                     i = match.range.last + 1
+                }
+
+                // Plain text / words: when inside RTL text, wrap sequences of Latin/LTR words in LTR isolate
+                // so an English word at the start/middle of an Arabic line doesn't flip the layout direction.
+                isRtl && Character.isLetterOrDigit(src.codePointAt(i)) &&
+                    Character.getDirectionality(src.codePointAt(i)) == Character.DIRECTIONALITY_LEFT_TO_RIGHT -> {
+                    var end = i + Character.charCount(src.codePointAt(i))
+                    while (end < src.length) {
+                        val cp = src.codePointAt(end)
+                        val dir = Character.getDirectionality(cp)
+                        if (dir == Character.DIRECTIONALITY_LEFT_TO_RIGHT ||
+                            dir == Character.DIRECTIONALITY_EUROPEAN_NUMBER ||
+                            dir == Character.DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR ||
+                            dir == Character.DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR ||
+                            (
+                                dir == Character.DIRECTIONALITY_WHITESPACE && end + 1 < src.length &&
+                                    Character.getDirectionality(src.codePointAt(end + 1)) ==
+                                    Character.DIRECTIONALITY_LEFT_TO_RIGHT
+                            )
+                        ) {
+                            end += Character.charCount(cp)
+                        } else {
+                            break
+                        }
+                    }
+                    val ltrSnippet = src.substring(i, end)
+                    append(BidiUtils.wrapLtrIsolate(ltrSnippet))
+                    i = end
                 }
 
                 // search highlight

@@ -500,13 +500,19 @@ class GroupChatViewModelTest {
             val toolCall = msgWithTool.toolCalls.first()
             assertEquals("terminal", toolCall.name)
             assertEquals("date", toolCall.summary)
+            assertEquals("date", toolCall.command)
             assertTrue(toolCall.isRunning)
 
             // Emit ToolComplete
             eventsFlow.emit(
                 WsEvent.ToolComplete(
                     name = "terminal",
-                    data = mapOf("tool_id" to "tool-123"),
+                    data =
+                        mapOf(
+                            "tool_id" to "tool-123",
+                            "output" to "Sat Aug 29 03:30:00 UTC 2026",
+                            "exit_code" to 0,
+                        ),
                     sessionId = "session-scout-1",
                 ),
             )
@@ -515,7 +521,11 @@ class GroupChatViewModelTest {
             val msgAfterToolDone =
                 viewModel.uiState.value.messages
                     .last()
-            assertFalse(msgAfterToolDone.toolCalls.first().isRunning)
+            val completedTool = msgAfterToolDone.toolCalls.first()
+            assertFalse(completedTool.isRunning)
+            assertEquals("Sat Aug 29 03:30:00 UTC 2026", completedTool.output)
+            assertEquals(0, completedTool.exitCode)
+            assertFalse(completedTool.isError)
 
             // Complete message
             eventsFlow.emit(

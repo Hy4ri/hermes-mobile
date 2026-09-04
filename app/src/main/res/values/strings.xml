@@ -1284,6 +1284,9 @@
     <string name="group_chat_empty_subtitle">Mention a bot or use @all to kick off collaboration.</string>
     <string name="group_chat_thinking">%1$s is thinking…</string>
     <string name="group_chat_typing">Typing…</string>
+    <string name="group_chat_tool_running">Running…</string>
+    <string name="group_chat_tool_no_output">No output</string>
+    <string name="group_chat_tool_no_output_success">Exit code 0 (no output)</string>
     <string name="group_chat_members_count">%1$d members</string>
     <string name="group_chat_mention_all">@all</string>
     <string name="group_chat_capped_limit">Discussion paused (turn limit reached) — reply to continue</string>

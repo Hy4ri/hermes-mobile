@@ -112,6 +112,21 @@ class GroupChatViewModel(
         loadGroup()
     }
 
+    private fun extractToolCommand(data: Map<String, Any?>?): String? {
+        if (data == null) return null
+        val cmd = (data["command"] as? String)?.trim()
+        if (!cmd.isNullOrBlank()) return cmd
+        val code = (data["code"] as? String)?.trim()
+        if (!code.isNullOrBlank()) return code
+        val query = (data["query"] as? String)?.trim()
+        if (!query.isNullOrBlank()) return query
+        val path = (data["path"] as? String)?.trim()
+        if (!path.isNullOrBlank()) return path
+        val pattern = (data["pattern"] as? String)?.trim()
+        if (!pattern.isNullOrBlank()) return pattern
+        return null
+    }
+
     private fun extractToolSummary(data: Map<String, Any?>?): String? {
         if (data == null) return null
         val cmd = (data["command"] as? String)?.trim()
@@ -174,11 +189,13 @@ class GroupChatViewModel(
                                 (event.data?.get("tool_id") as? String)?.ifBlank { null }
                                     ?: UUID.randomUUID().toString()
                             val summary = extractToolSummary(event.data)
+                            val command = extractToolCommand(event.data)
                             val toolCall =
                                 GroupChatToolCall(
                                     id = toolId,
                                     name = toolName,
                                     summary = summary,
+                                    command = command,
                                     isRunning = true,
                                 )
                             if (streamId != null && bot != null) {
@@ -218,6 +235,20 @@ class GroupChatViewModel(
                             val streamId = activeStreamMsgId[sid]
                             val toolId = event.data?.get("tool_id") as? String
                             val toolName = event.name
+                            val output =
+                                (event.data?.get("output") as? String)
+                                    ?: (event.data?.get("stdout") as? String)
+                                    ?: (event.data?.get("result") as? String)
+                            val exitCode =
+                                when (val rawCode = event.data?.get("exit_code")) {
+                                    is Number -> rawCode.toInt()
+                                    is String -> rawCode.toIntOrNull()
+                                    else -> null
+                                }
+                            val isError =
+                                (exitCode != null && exitCode != 0) ||
+                                    (event.data?.get("is_error") as? Boolean == true) ||
+                                    (event.data?.get("error") != null)
                             if (streamId != null) {
                                 _uiState.update { state ->
                                     val existing = state.messages.find { it.id == streamId }
@@ -228,7 +259,12 @@ class GroupChatViewModel(
                                                     (toolId == null && tool.name == toolName && tool.isRunning) ||
                                                     (toolId == null && toolName == null && tool.isRunning)
                                                 ) {
-                                                    tool.copy(isRunning = false)
+                                                    tool.copy(
+                                                        isRunning = false,
+                                                        output = output ?: tool.output,
+                                                        exitCode = exitCode ?: tool.exitCode,
+                                                        isError = isError || tool.isError,
+                                                    )
                                                 } else {
                                                     tool
                                                 }

@@ -1169,6 +1169,9 @@
 <string name="group_chat_empty_subtitle">أشر إلى بوت أو استخدم @all لبدء التعاون.</string>
 <string name="group_chat_thinking">%1$s يفكّر الآن…</string>
 <string name="group_chat_typing">جارٍ الكتابة…</string>
+<string name="group_chat_tool_running">جارٍ التشغيل…</string>
+<string name="group_chat_tool_no_output">لا يوجد مخرجات</string>
+<string name="group_chat_tool_no_output_success">رمز الخروج 0 (لا يوجد مخرجات)</string>
 <string name="group_chat_members_count">%1$d أعضاء</string>
 <string name="group_chat_mention_all">@all</string>
 <string name="group_chat_capped_limit">المحادثة متوقفة مؤقتًا (تم الوصول إلى الحد الأقصى لعدد الردود) — أرسل ردًا للمتابعة</string>

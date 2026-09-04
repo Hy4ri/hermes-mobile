@@ -56,8 +56,9 @@ const val MAX_ALLOWED_BOT_MESSAGES = 50
 const val MAX_ALLOWED_CONTINUATION_PASSES = 20
 const val WARN_MAX_BOT_MESSAGES = 20
 const val WARN_MAX_CONTINUATION_PASSES = 6
-private const val LEASE_STEP_TTL_MS = 45_000L
-private const val TURN_TIMEOUT_MS = 45_000L
+private const val LEASE_STEP_TTL_MS = 180_000L
+private const val GROUP_TURN_TIMEOUT_MS = 180_000L
+private const val GROUP_TURN_HARD_CAP_MS = 20 * 60_000L
 private const val HISTORY_LIMIT = 10
 
 class GroupChatViewModel(
@@ -86,6 +87,9 @@ class GroupChatViewModel(
     // Map of session_id -> bot profile
     private val sessionToBot = mutableMapOf<String, ProfileInfo>()
 
+    // Map of session_id -> last activity epoch ms (streaming token, tool call, thinking)
+    private val sessionLastActivity = mutableMapOf<String, Long>()
+
     init {
         if (groupName.isNotBlank()) {
             loadGroup()
@@ -106,6 +110,7 @@ class GroupChatViewModel(
         inFlightTurns.clear()
         activeStreamMsgId.clear()
         sessionToBot.clear()
+        sessionLastActivity.clear()
         _uiState.value = GroupChatUiState(groupName = name)
         loadGroup()
     }
@@ -145,6 +150,7 @@ class GroupChatViewModel(
                     is WsEvent.MessageToken -> {
                         val sid = event.sessionId?.trim('\"', ' ')
                         if (sid != null) {
+                            sessionLastActivity[sid] = System.currentTimeMillis()
                             val streamId = activeStreamMsgId[sid]
                             val bot = sessionToBot[sid]
                             if (streamId != null && bot != null && event.token.isNotEmpty()) {
@@ -180,6 +186,7 @@ class GroupChatViewModel(
                     is WsEvent.ToolStart -> {
                         val sid = event.sessionId?.trim('\"', ' ')
                         if (sid != null) {
+                            sessionLastActivity[sid] = System.currentTimeMillis()
                             val streamId = activeStreamMsgId[sid]
                             val bot = sessionToBot[sid]
                             val toolName = event.name ?: "tool"
@@ -230,6 +237,7 @@ class GroupChatViewModel(
                     is WsEvent.ToolComplete -> {
                         val sid = event.sessionId?.trim('\"', ' ')
                         if (sid != null) {
+                            sessionLastActivity[sid] = System.currentTimeMillis()
                             val streamId = activeStreamMsgId[sid]
                             val toolId = event.data?.get("tool_id") as? String
                             val toolName = event.name
@@ -719,10 +727,34 @@ class GroupChatViewModel(
                 }
             }
 
-            var replyText =
-                withTimeoutOrNull(TURN_TIMEOUT_MS) {
-                    turnDeferred.await()
+            var replyText: String? = null
+            var deadline = turnStartTime + GROUP_TURN_TIMEOUT_MS
+            val hardCapDeadline = turnStartTime + GROUP_TURN_HARD_CAP_MS
+
+            while (System.currentTimeMillis() < deadline) {
+                val pollResult =
+                    withTimeoutOrNull(2000L) {
+                        turnDeferred.await()
+                    }
+                if (pollResult != null) {
+                    replyText = pollResult
+                    break
                 }
+                if (activeEpoch != epoch) break
+
+                // Adaptive extension: if bot is actively working (tokens/tools streamed in last 60s), extend deadline
+                val lastActivity =
+                    listOfNotNull(
+                        activeRuntimeId?.let { sessionLastActivity[it] },
+                        activeStoredId?.let { sessionLastActivity[it] },
+                    ).maxOrNull() ?: turnStartTime
+
+                val isBusy = (System.currentTimeMillis() - lastActivity) < 60_000L
+                if (isBusy) {
+                    deadline =
+                        minOf(hardCapDeadline, maxOf(deadline, System.currentTimeMillis() + GROUP_TURN_TIMEOUT_MS))
+                }
+            }
             inFlightTurns.remove(runtimeId)
             storedId?.let { inFlightTurns.remove(it) }
 
@@ -736,6 +768,7 @@ class GroupChatViewModel(
                                     sessionId = tid,
                                     limit = 10,
                                     order = "latest",
+                                    profile = bot.name,
                                 )
                             }
                         if (res is NetworkResult.Success) {
@@ -828,11 +861,13 @@ class GroupChatViewModel(
                 activeStreamMsgId.remove(it)
                 sessionToBot.remove(it)
                 inFlightTurns.remove(it)
+                sessionLastActivity.remove(it)
             }
             activeStoredId?.let {
                 activeStreamMsgId.remove(it)
                 sessionToBot.remove(it)
                 inFlightTurns.remove(it)
+                sessionLastActivity.remove(it)
             }
         }
     }

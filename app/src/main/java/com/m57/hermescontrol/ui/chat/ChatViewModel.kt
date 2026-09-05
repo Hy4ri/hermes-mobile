@@ -962,7 +962,12 @@ class ChatViewModel(
                             rid != null &&
                                 _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
                         if (!alreadyShown) {
-                            handleApprovalRequest(parseApprovalMap(pendingApproval, _uiState.value.currentSessionId))
+                            handleApprovalRequest(
+                                parseApprovalMap(
+                                    pendingApproval,
+                                    runtimeSessionId ?: _uiState.value.currentSessionId,
+                                ),
+                            )
                         }
                     }
                 }
@@ -1257,10 +1262,16 @@ class ChatViewModel(
                         rid != null &&
                             _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
                     if (!alreadyShown) {
-                        handleApprovalRequest(parseApprovalMap(pendingApproval, sessionId))
+                        handleApprovalRequest(
+                            parseApprovalMap(
+                                pendingApproval,
+                                runtimeSessionId ?: sessionId,
+                            ),
+                        )
                     }
                 }
-                if (sessionId != null) replayPendingApproval(sessionId)
+                val activeSessionId = runtimeSessionId ?: sessionId
+                if (activeSessionId != null) replayPendingApproval(activeSessionId)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -3778,7 +3789,7 @@ class ChatViewModel(
         // Desktop parity (`prompts.ts` receiveApprovalRequest): ack the render
         // so the backend knows this client holds the prompt. Fire-and-forget.
         val requestId = event.requestId
-        val sessionId = event.sessionId ?: _uiState.value.currentSessionId
+        val sessionId = runtimeSessionId ?: event.sessionId ?: _uiState.value.currentSessionId
         if (requestId != null && sessionId != null) {
             viewModelScope.launch(ioDispatcher) {
                 runCatching {
@@ -3845,10 +3856,11 @@ class ChatViewModel(
      * after resume and after each respond (the queue can hold more).
      */
     private fun replayPendingApproval(sessionId: String) {
+        val targetSessionId = runtimeSessionId ?: sessionId
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 method = WsMethods.APPROVAL_PENDING,
-                params = mapOf("session_id" to sessionId),
+                params = mapOf("session_id" to targetSessionId),
                 onSent = { id -> trackRequest(id, WsMethods.APPROVAL_PENDING) },
             )
         }
@@ -3859,7 +3871,7 @@ class ChatViewModel(
         val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
         val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
         val requestId = first["request_id"] as? String ?: return
-        val sessionId = _uiState.value.currentSessionId
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
         // Don't duplicate a prompt already on screen.
         val alreadyShown =
             _uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
@@ -3870,7 +3882,7 @@ class ChatViewModel(
     fun respondToApproval(action: String) {
         val state = _uiState.value
         val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
-        val sessionId = state.currentSessionId ?: return
+        val sessionId = runtimeSessionId ?: state.currentSessionId ?: return
         // Desktop sends `once` for a single run; legacy mobile sent `approve`
         // (any non-deny still unblocks, but stay on-spec going forward).
         val choice = if (action == "approve") "once" else action

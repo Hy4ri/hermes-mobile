@@ -3196,6 +3196,75 @@ class ChatViewModelTest {
             }
         }
 
+    @Test
+    fun testApprovalFlow_prefersRuntimeSessionIdOverStorageId() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-id-3",
+                    mapOf(
+                        "session_id" to "runtime-sid-999",
+                        "stored_session_id" to "storage-uuid-111",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("storage-uuid-111", viewModel.uiState.value.currentSessionId)
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm -rf /data",
+                    description = "Dangerous operation",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-runtime-test",
+                    choices = listOf("once", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RECEIVED,
+                    withArg { params ->
+                        assertEquals("runtime-sid-999", params["session_id"])
+                        assertEquals("req-runtime-test", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+
+            viewModel.respondToApproval("once")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals("runtime-sid-999", params["session_id"])
+                        assertEquals("once", params["choice"])
+                        assertEquals("req-runtime-test", params["request_id"])
+                    },
+                    any(),
+                )
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_PENDING,
+                    withArg { params ->
+                        assertEquals("runtime-sid-999", params["session_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
     // ── Sudo / secret prompt flow (issue #524) ───────────────────────────
 
     @Test

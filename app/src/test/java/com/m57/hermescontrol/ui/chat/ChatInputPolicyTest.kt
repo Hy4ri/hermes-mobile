@@ -110,6 +110,18 @@ class ChatInputPolicyTest {
         assertTrue("cursor must be past the shared /h prefix", value.selection.start > 2)
     }
 
+    @Test
+    fun restoreRejectedText_preservesNewerDraft() {
+        val value =
+            ChatInputPolicy.restoreRejectedText(
+                rejectedText = "rejected prompt",
+                current = TextFieldValue("new draft"),
+            )
+
+        assertEquals("rejected prompt\nnew draft", value.text)
+        assertEquals(value.text.length, value.selection.end)
+    }
+
     // ── Slash suggestion ranking (issue #865) ───────────────────────────────
 
     @Test

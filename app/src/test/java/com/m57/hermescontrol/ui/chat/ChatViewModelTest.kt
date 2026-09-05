@@ -69,6 +69,7 @@ class ChatViewModelTest {
     private lateinit var app: Application
     private lateinit var fakeRepo: FakeChatPersistenceRepository
     private lateinit var fakeSlashUsageStore: FakeSlashUsageStore
+    private lateinit var attachmentCacheDir: java.io.File
 
     /** Counter used to generate unique WS request IDs. */
     private var reqCount = 0
@@ -143,6 +144,11 @@ class ChatViewModelTest {
         mockkObject(HermesDatabase)
 
         app = mockk(relaxed = true)
+        attachmentCacheDir =
+            java.nio.file.Files
+                .createTempDirectory("chat-attachments-test")
+                .toFile()
+        every { app.cacheDir } returns attachmentCacheDir
         fakeRepo = FakeChatPersistenceRepository()
         fakeSlashUsageStore = FakeSlashUsageStore()
         ActiveSessionHolder.set(null)
@@ -207,6 +213,7 @@ class ChatViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        attachmentCacheDir.deleteRecursively()
         unmockkAll()
     }
 
@@ -1678,6 +1685,325 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertEquals(selected, viewModel.uiState.value.pendingAttachments)
+        }
+
+    @Test
+    fun sendMessage_mixedAttachmentsWithOversizedFileAreRejectedBeforeReading() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val contentResolver = mockk<ContentResolver>()
+            every { app.contentResolver } returns contentResolver
+
+            viewModel.addAttachment(
+                uri = "content://image/photo",
+                name = "photo.jpg",
+                mimeType = "image/jpeg",
+                size = 1024,
+            )
+            viewModel.addAttachment(
+                uri = "content://oversized/archive",
+                name = "archive.zip",
+                mimeType = "application/zip",
+                size = MAX_CHAT_ATTACHMENT_BYTES + 1,
+            )
+
+            viewModel.sendMessage("Inspect this archive")
+            advanceUntilIdle()
+
+            assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
+            assertEquals("Inspect this archive", viewModel.uiState.value.composerTextToRestore)
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("too large") == true,
+            )
+            verify(exactly = 0) { contentResolver.openInputStream(any()) }
+
+            viewModel.consumeComposerTextRestore()
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.composerTextToRestore)
+        }
+
+    @Test
+    fun sendMessage_unknownSizeOversizedAttachmentRestoresComposerWithoutGhostMessage() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val uriString = "content://unknown/large-file"
+            val mockUri = mockk<Uri>()
+            val contentResolver = mockk<ContentResolver>()
+            val oversizedStream =
+                object : java.io.InputStream() {
+                    private var remaining = MAX_CHAT_ATTACHMENT_BYTES + 1
+
+                    override fun read(): Int = if (remaining-- > 0) 0 else -1
+
+                    override fun read(
+                        buffer: ByteArray,
+                        offset: Int,
+                        length: Int,
+                    ): Int {
+                        if (remaining <= 0) return -1
+                        val count = minOf(length.toLong(), remaining).toInt()
+                        remaining -= count
+                        return count
+                    }
+                }
+            mockkStatic(Uri::class)
+            every { Uri.parse(uriString) } returns mockUri
+            every { app.contentResolver } returns contentResolver
+            every { contentResolver.openInputStream(mockUri) } returns oversizedStream
+
+            viewModel.addAttachment(
+                uri = uriString,
+                name = "unknown-size.bin",
+                mimeType = "application/octet-stream",
+                size = 0,
+            )
+
+            viewModel.sendMessage("Inspect this file")
+            advanceUntilIdle()
+
+            assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
+            assertEquals("Inspect this file", viewModel.uiState.value.composerTextToRestore)
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Inspect this file" },
+            )
+            assertTrue(
+                viewModel.uiState.value.errorMessage
+                    ?.contains("too large") == true,
+            )
+        }
+
+    @Test
+    fun sendMessage_oversizedDuringSnapshotLeavesNoPersistedGhostMessage() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val persistedBeforeSend = fakeRepo.dao.count()
+            val uriString = "content://unknown/growing-file"
+            val mockUri = mockk<Uri>()
+            val contentResolver = mockk<ContentResolver>()
+            val oversizedStream =
+                object : java.io.InputStream() {
+                    private var remaining = MAX_CHAT_ATTACHMENT_BYTES + 1
+
+                    override fun read(): Int = if (remaining-- > 0) 0 else -1
+
+                    override fun read(
+                        buffer: ByteArray,
+                        offset: Int,
+                        length: Int,
+                    ): Int {
+                        if (remaining <= 0) return -1
+                        val count = minOf(length.toLong(), remaining).toInt()
+                        remaining -= count
+                        return count
+                    }
+                }
+            mockkStatic(Uri::class)
+            every { Uri.parse(uriString) } returns mockUri
+            every { app.contentResolver } returns contentResolver
+            every { contentResolver.openInputStream(mockUri) } returns oversizedStream
+
+            viewModel.addAttachment(
+                uri = uriString,
+                name = "growing-file.bin",
+                mimeType = "application/octet-stream",
+                size = 0,
+            )
+
+            viewModel.sendMessage("Inspect changing file")
+            advanceUntilIdle()
+
+            assertEquals(persistedBeforeSend, fakeRepo.dao.count())
+            assertFalse(
+                fakeRepo.dao
+                    .getMessagesForSession("session-123")
+                    .any { it.content == "Inspect changing file" },
+            )
+            assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
+            assertFalse(
+                viewModel.uiState.value.messages
+                    .any { it.content == "Inspect changing file" },
+            )
+        }
+
+    @Test
+    fun sendMessage_persistenceFailureRestoresComposerAndDoesNotDispatch() =
+        runTest {
+            fakeRepo = spyk(fakeRepo)
+            coEvery {
+                fakeRepo.persistMessage(match { it.content == "keep this prompt" }, any())
+            } throws IllegalStateException("disk full")
+            val (viewModel, _) = createViewModelWithSession()
+
+            viewModel.sendMessage("keep this prompt")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertFalse(state.messages.any { it.content == "keep this prompt" })
+            assertEquals("keep this prompt", state.composerTextToRestore)
+            assertTrue(state.errorMessage?.contains("save") == true)
+            assertFalse(state.isAgentTyping)
+            verify(exactly = 0) { HermesWsClient.sendMessage(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun sendMessage_laterGrowingAttachmentDoesNotPartiallyUploadEarlierAttachments() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            val imageUriString = "content://image/valid"
+            val growingUriString = "content://unknown/growing-file"
+            val imageUri = mockk<Uri>()
+            val growingUri = mockk<Uri>()
+            val contentResolver = mockk<ContentResolver>()
+            val oversizedStream =
+                object : java.io.InputStream() {
+                    private var remaining = MAX_CHAT_ATTACHMENT_BYTES + 1
+
+                    override fun read(): Int = if (remaining-- > 0) 0 else -1
+
+                    override fun read(
+                        buffer: ByteArray,
+                        offset: Int,
+                        length: Int,
+                    ): Int {
+                        if (remaining <= 0) return -1
+                        val count = minOf(length.toLong(), remaining).toInt()
+                        remaining -= count
+                        return count
+                    }
+                }
+            mockkStatic(Uri::class)
+            every { Uri.parse(imageUriString) } returns imageUri
+            every { Uri.parse(growingUriString) } returns growingUri
+            every { app.contentResolver } returns contentResolver
+            every { contentResolver.openInputStream(imageUri) } returns
+                java.io.ByteArrayInputStream(byteArrayOf(1, 2, 3, 4))
+            every { contentResolver.openInputStream(growingUri) } returns oversizedStream
+
+            viewModel.addAttachments(
+                listOf(
+                    Attachment(imageUriString, "photo.jpg", "image/jpeg", 4),
+                    Attachment(growingUriString, "growing.bin", "application/octet-stream", 0),
+                ),
+            )
+
+            viewModel.sendMessage("Inspect both")
+            advanceUntilIdle()
+
+            verify(exactly = 0) {
+                HermesWsClient.request(
+                    match { it == WsMethods.IMAGE_ATTACH_BYTES || it == WsMethods.FILE_ATTACH },
+                    any(),
+                    any(),
+                )
+            }
+            assertEquals(2, viewModel.uiState.value.pendingAttachments.size)
+        }
+
+    @Test
+    fun sendMessage_oversizeResultAfterSessionSwitchDoesNotMutateNewSession() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, _) = createViewModelWithSession()
+            val uriString = "content://unknown/session-switch-large-file"
+            val mockUri = mockk<Uri>()
+            val contentResolver = mockk<ContentResolver>()
+            val oversizedStream =
+                object : java.io.InputStream() {
+                    private var remaining = MAX_CHAT_ATTACHMENT_BYTES + 1
+
+                    override fun read(): Int = if (remaining-- > 0) 0 else -1
+
+                    override fun read(
+                        buffer: ByteArray,
+                        offset: Int,
+                        length: Int,
+                    ): Int {
+                        if (remaining <= 0) return -1
+                        val count = minOf(length.toLong(), remaining).toInt()
+                        java.util.Arrays.fill(buffer, offset, offset + count, 0.toByte())
+                        remaining -= count
+                        return count
+                    }
+                }
+
+            mockkStatic(Uri::class)
+            every { Uri.parse(uriString) } returns mockUri
+            every { app.contentResolver } returns contentResolver
+            every { contentResolver.openInputStream(mockUri) } answers {
+                viewModel.switchSession("session-456")
+                oversizedStream
+            }
+
+            viewModel.addAttachment(
+                uri = uriString,
+                name = "large.bin",
+                mimeType = "application/octet-stream",
+                size = 0,
+            )
+
+            viewModel.sendMessage("Inspect in the old session")
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("session-456", state.currentSessionId)
+            assertTrue(state.pendingAttachments.isEmpty())
+            assertNull(state.composerTextToRestore)
+            assertNull(state.errorMessage)
+        }
+
+    @Test
+    fun sendMessage_promptErrorAfterSessionSwitchDoesNotMutateNewSession() =
+        runTest {
+            stubSession456Rests(success = true)
+            val (viewModel, oldSessionId) = createViewModelWithSession()
+            val uriString = "content://file/session-switch-valid-file"
+            val mockUri = mockk<Uri>()
+            val contentResolver = mockk<ContentResolver>()
+            val promptRequestId = "old-session-prompt"
+
+            mockkStatic(Uri::class)
+            every { Uri.parse(uriString) } returns mockUri
+            every { app.contentResolver } returns contentResolver
+            every { contentResolver.openInputStream(mockUri) } answers {
+                viewModel.switchSession("session-456")
+                java.io.ByteArrayInputStream(byteArrayOf(1, 2, 3, 4))
+            }
+            every { HermesWsClient.sendMessage(any(), any(), any(), any()) } answers {
+                arg<((String) -> Unit)?>(2)?.invoke(promptRequestId)
+                promptRequestId
+            }
+
+            viewModel.addAttachment(
+                uri = uriString,
+                name = "valid.bin",
+                mimeType = "application/octet-stream",
+                size = 4,
+            )
+
+            viewModel.sendMessage("Send in the old session")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.sendMessage(
+                    oldSessionId,
+                    match { it.contains("Send in the old session") },
+                    any(),
+                    any(),
+                )
+            }
+            mockEventsFlow.emit(
+                WsEvent.RpcError(
+                    promptRequestId,
+                    JsonRpcError(code = 4001, message = "old session rejected prompt"),
+                ),
+            )
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("session-456", state.currentSessionId)
+            assertNull(state.errorMessage)
         }
 
     @Test
@@ -3597,6 +3923,7 @@ class ChatViewModelTest {
                 sessionId,
                 paramsSlot.captured["session_id"],
             )
+            assertTrue("encoded attachment cache must be cleaned", attachmentCacheDir.listFiles().isNullOrEmpty())
         }
 
     // ── Pending request timeout + rejectAllPending (issue #526) ───────────

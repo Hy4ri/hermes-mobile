@@ -1069,6 +1069,7 @@
     <string name="moa_title">多 Agent 混合</string>
     <string name="model_aux_tasks_label">辅助任务</string>
     <string name="model_aux_tasks_title">辅助任务</string>
+    <string name="model_confirm_continue">继续</string>
     <string name="model_expensive_title">高成本模型</string>
     <string name="model_main_label">主模型</string>
     <string name="model_moa_label">多 Agent 混合</string>
@@ -1164,5 +1165,9 @@
     <string name="group_chat_settings_system_prompt">房间指令 / 提示词</string>
     <string name="group_chat_settings_system_prompt_hint">此群聊的自定义规则、语气或上下文（可选）…</string>
     <string name="group_chat_settings_system_prompt_desc">适用于此房间内所有 Bot 的自定义准则</string>
+    <string name="group_chat_settings_high_limits_warning_title">高上限警告</string>
+    <string name="group_chat_settings_high_limits_warning_desc">设置较高的消息数 (%1$d) 或交接次数 (%2$d) 可能会消耗大量 API 令牌，并导致机器人之间产生长时间的连续讨论循环。</string>
+    <string name="group_chat_settings_high_limits_confirm">仍要保存</string>
+    <string name="group_chat_settings_high_limits_adjust">调整限制</string>
     <string name="group_chat_action_settings">设置</string>
 </resources>

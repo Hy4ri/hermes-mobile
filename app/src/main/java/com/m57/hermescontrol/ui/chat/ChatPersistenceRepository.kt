@@ -33,4 +33,9 @@ open class ChatPersistenceRepository(
     /** Load cached messages for a session from Room. */
     suspend fun loadMessages(sessionId: String): List<ChatMessage> =
         dao.getMessagesForSession(sessionId).map { it.toUiModel() }
+
+    /** Clear all cached messages for a session (e.g. after /undo rewind). */
+    suspend fun clearMessagesForSession(sessionId: String) {
+        dao.deleteMessagesForSession(sessionId)
+    }
 }

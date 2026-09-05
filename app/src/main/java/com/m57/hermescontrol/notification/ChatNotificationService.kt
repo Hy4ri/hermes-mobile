@@ -119,6 +119,26 @@ class ChatNotificationService : Service() {
                                         showReplyNotification(getString(R.string.notif_clarification_needed), null)
                                     }
 
+                                    is WsEvent.SudoRequest -> {
+                                        showReplyNotification(getString(R.string.notif_input_needed), null)
+                                    }
+
+                                    is WsEvent.SecretRequest -> {
+                                        val body =
+                                            event.prompt?.takeIf { it.isNotBlank() }
+                                                ?: event.envVar?.takeIf { it.isNotBlank() }
+                                                ?: getString(R.string.notif_input_needed)
+                                        showReplyNotification(body, null)
+                                    }
+
+                                    is WsEvent.ApprovalRequest -> {
+                                        val preview =
+                                            event.description?.takeIf { it.isNotBlank() }
+                                                ?: event.command?.takeIf { it.isNotBlank() }
+                                                ?: getString(R.string.notif_input_needed)
+                                        showReplyNotification(preview.take(100), null)
+                                    }
+
                                     else -> {}
                                 }
                             }

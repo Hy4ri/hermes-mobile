@@ -387,6 +387,7 @@
     <string name="model_no_models">보고된 모델이 없거나 인증이 필요합니다.</string>
     <string name="content_desc_active_model">활성 모델</string>
     <string name="model_section_pinned">고정된 모델</string>
+    <string name="model_confirm_continue">계속</string>
     <string name="content_desc_unpin_model">모델 고정 해제</string>
     <string name="content_desc_pinned_section_toggle">고정 섹션 표시 전환</string>
 
@@ -863,6 +864,10 @@
     <string name="group_chat_settings_system_prompt">방 지침 / 프롬프트</string>
     <string name="group_chat_settings_system_prompt_hint">이 그룹을 위한 사용자 지정 규칙, 어조 또는 컨텍스트 (선택사항)…</string>
     <string name="group_chat_settings_system_prompt_desc">이 방의 모든 봇에 적용되는 사용자 지정 가이드라인</string>
+    <string name="group_chat_settings_high_limits_warning_title">높은 제한 경고</string>
+    <string name="group_chat_settings_high_limits_warning_desc">메시지 수(%1$d) 또는 전달 횟수(%2$d)를 높게 설정하면 API 토큰이 대량 소비되고 봇 간의 긴 토론 루프가 발생할 수 있습니다.</string>
+    <string name="group_chat_settings_high_limits_confirm">그래도 저장</string>
+    <string name="group_chat_settings_high_limits_adjust">제한 조정</string>
     <string name="group_chat_action_settings">설정</string>
     <string name="subagent_agent_plan">에이전트 계획</string>
     <string name="subagent_live_transcript">실시간 기록</string>

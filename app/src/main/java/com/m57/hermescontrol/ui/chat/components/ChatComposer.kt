@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,11 +54,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -68,6 +73,7 @@ import com.m57.hermescontrol.data.ws.CommandBlocklist
 import com.m57.hermescontrol.data.ws.CommandCatalog
 import com.m57.hermescontrol.ui.chat.ChatInputPolicy
 import com.m57.hermescontrol.ui.common.BotAvatar
+import com.m57.hermescontrol.util.BidiUtils
 
 /**
  * The chat input bar with a two-row layout: input+send on top,
@@ -85,7 +91,6 @@ fun ChatInputBar(
     commandCatalog: CommandCatalog,
     slashUsageCounts: Map<String, Int> = emptyMap(),
     pendingAttachments: List<Attachment> = emptyList(),
-    availableBots: List<ProfileInfo> = emptyList(),
     onCameraTap: () -> Unit = {},
     onImageTap: () -> Unit = {},
     onFileTap: () -> Unit = {},
@@ -184,90 +189,6 @@ fun ChatInputBar(
                     }
                 }
 
-                // Bot mention @ suggestions
-                val mentionQuery =
-                    remember(inputFieldValue.text, inputFieldValue.selection.end) {
-                        ChatInputPolicy.extractMentionQuery(
-                            inputFieldValue.text,
-                            inputFieldValue.selection.end,
-                        )
-                    }
-
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = mentionQuery != null && availableBots.isNotEmpty(),
-                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
-                ) {
-                    val filteredBots =
-                        remember(mentionQuery, availableBots) {
-                            if (mentionQuery == null) {
-                                emptyList()
-                            } else {
-                                availableBots.filter { bot ->
-                                    bot.name.startsWith(mentionQuery, ignoreCase = true) ||
-                                        bot.effectiveTitle.contains(mentionQuery, ignoreCase = true)
-                                }
-                            }
-                        }
-
-                    if (filteredBots.isNotEmpty()) {
-                        Surface(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border =
-                                BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                ),
-                        ) {
-                            LazyColumn(
-                                modifier = Modifier.heightIn(max = 200.dp),
-                            ) {
-                                items(filteredBots, key = { it.name }) { bot ->
-                                    Row(
-                                        modifier =
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    onInputChange(
-                                                        ChatInputPolicy.applyMention(inputFieldValue, bot.name),
-                                                    )
-                                                }.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        BotAvatar(
-                                            name = bot.name,
-                                            avatar = bot.botMeta()?.avatar,
-                                            size = 28.dp,
-                                            showPresence = false,
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = "@${bot.name}",
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                            if (bot.effectiveTitle != bot.name) {
-                                                Text(
-                                                    text = bot.effectiveTitle,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 // Attachment preview chips
                 AnimatedVisibility(
                     visible = pendingAttachments.isNotEmpty(),
@@ -318,91 +239,129 @@ fun ChatInputBar(
                             }
                         }
 
-                    BasicTextField(
-                        value = inputFieldValue,
-                        onValueChange = onInputChange,
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .heightIn(min = 42.dp, max = 120.dp)
-                                .padding(vertical = 4.dp)
-                                .onFocusChanged { isFocused = it.isFocused }
-                                .testTag("chat_input"),
-                        enabled = isConnected,
-                        textStyle =
-                            MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.colorScheme.onSurface,
-                            ),
-                        singleLine = false,
-                        maxLines = 4,
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        decorationBox = { innerTextField ->
-                            Surface(
-                                shape = RoundedCornerShape(18.dp),
-                                border =
-                                    BorderStroke(
-                                        width = if (isFocused) 2.dp else 1.dp,
-                                        color =
-                                            if (isFocused) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                            },
-                                    ),
-                                color = MaterialTheme.colorScheme.surface,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Row(
-                                    modifier =
-                                        Modifier
-                                            .padding(start = 12.dp, end = 4.dp, top = 9.dp, bottom = 9.dp)
-                                            .fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        if (inputFieldValue.text.isEmpty()) {
-                                            Text(
-                                                text = placeholderText,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
+                    val ambientLayoutDirection = LocalLayoutDirection.current
+                    val inputLayoutDirection =
+                        remember(inputFieldValue.text, ambientLayoutDirection) {
+                            BidiUtils.resolveLayoutDirection(inputFieldValue.text, fallback = ambientLayoutDirection)
+                        }
+                    val isInputRtl = inputLayoutDirection == LayoutDirection.Rtl
 
-                                    // Send button INSIDE the field. Shown whenever a send is
-                                    // possible — text typed OR an attachment pending (issue
-                                    // #956): the old text-only gate hid the button entirely
-                                    // for attachment-only sends.
-                                    AnimatedContent(
-                                        targetState = canSend,
-                                        transitionSpec = {
-                                            (scaleIn(initialScale = 0.8f) + fadeIn())
-                                                .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())
-                                        },
-                                        label = "send_toggle",
-                                    ) { showSend ->
-                                        if (showSend) {
-                                            IconButton(
-                                                onClick = onSend,
-                                                enabled = canSend,
-                                                colors = IconButtonDefaults.filledTonalIconButtonColors(),
-                                                modifier =
-                                                    Modifier
-                                                        .size(36.dp)
-                                                        .testTag("send_button"),
+                    CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                        BasicTextField(
+                            value = inputFieldValue,
+                            onValueChange = onInputChange,
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 42.dp, max = 120.dp)
+                                    .padding(vertical = 4.dp)
+                                    .onFocusChanged { isFocused = it.isFocused }
+                                    .testTag("chat_input"),
+                            enabled = isConnected,
+                            textStyle =
+                                MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                    textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
+                                ),
+                            singleLine = false,
+                            maxLines = 4,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { innerTextField ->
+                                CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
+                                    Surface(
+                                        shape = RoundedCornerShape(18.dp),
+                                        border =
+                                            BorderStroke(
+                                                width = if (isFocused) 2.dp else 1.dp,
+                                                color =
+                                                    if (isFocused) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                                    },
+                                            ),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Row(
+                                            modifier =
+                                                Modifier
+                                                    .padding(start = 12.dp, end = 4.dp, top = 9.dp, bottom = 9.dp)
+                                                    .fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.weight(1f),
+                                                contentAlignment =
+                                                    if (isInputRtl) {
+                                                        Alignment.CenterEnd
+                                                    } else {
+                                                        Alignment.CenterStart
+                                                    },
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                                    contentDescription = stringResource(R.string.chat_send_desc),
-                                                )
+                                                CompositionLocalProvider(
+                                                    LocalLayoutDirection provides inputLayoutDirection,
+                                                ) {
+                                                    if (inputFieldValue.text.isEmpty()) {
+                                                        Text(
+                                                            text = placeholderText,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            textAlign =
+                                                                if (isInputRtl) {
+                                                                    TextAlign.Right
+                                                                } else {
+                                                                    TextAlign.Left
+                                                                },
+                                                            color =
+                                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                                    alpha = 0.6f,
+                                                                ),
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                        )
+                                                    }
+                                                    innerTextField()
+                                                }
+                                            }
+
+                                            // Send button INSIDE the field. Shown whenever a send is
+                                            // possible — text typed OR an attachment pending (issue
+                                            // #956): the old text-only gate hid the button entirely
+                                            // for attachment-only sends.
+                                            AnimatedContent(
+                                                targetState = canSend,
+                                                transitionSpec = {
+                                                    (scaleIn(initialScale = 0.8f) + fadeIn())
+                                                        .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())
+                                                },
+                                                label = "send_toggle",
+                                            ) { showSend ->
+                                                if (showSend) {
+                                                    IconButton(
+                                                        onClick = onSend,
+                                                        enabled = canSend,
+                                                        colors = IconButtonDefaults.filledTonalIconButtonColors(),
+                                                        modifier =
+                                                            Modifier
+                                                                .size(36.dp)
+                                                                .testTag("send_button"),
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.AutoMirrored.Filled.Send,
+                                                            contentDescription =
+                                                                stringResource(
+                                                                    R.string.chat_send_desc,
+                                                                ),
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 }
 
                 // ── BOTTOM ROW: Toolbar ──

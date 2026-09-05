@@ -135,9 +135,24 @@ sealed class WsEvent {
 
     // ── Interactive ──────────────────────────────────────────────────────
 
+    data class ClarifyQuestion(
+        val qid: String = "q0",
+        val question: String = "",
+        val choices: List<String> = emptyList(),
+        val multiSelect: Boolean = false,
+    )
+
     data class ClarifyRequest(
         val text: String?,
         val options: List<String>?,
+        val clarifyId: String? = null,
+        val sessionId: String? = null,
+        val questionId: String? = null,
+        val multiSelect: Boolean = false,
+        val questions: List<ClarifyQuestion> = emptyList(),
+    ) : WsEvent()
+
+    data class ClarifyExpire(
         val clarifyId: String? = null,
         val sessionId: String? = null,
     ) : WsEvent()
@@ -215,6 +230,30 @@ sealed class WsEvent {
         val description: String?,
         val patternKeys: List<String>?,
         val sessionId: String?,
+        /**
+         * Backend `request_id` — unique across sessions. Sent back as
+         * `request_id` in `approval.respond` so the gateway resolves the
+         * EXACT pending instead of FIFO-oldest (desktop parity:
+         * `prompts.ts` `receiveApprovalRequest` + `approval.tsx` respond).
+         * Null on legacy payloads → omit, FIFO-compatible.
+         */
+        val requestId: String? = null,
+        /**
+         * Backend-advertised choices (e.g. `["once","session","always","deny"]`,
+         * smart-denied → `["once","deny"]`). Null = legacy → UI falls back
+         * to Run/Deny.
+         */
+        val choices: List<String>? = null,
+        /**
+         * False when the backend won't honor a permanent allow (tirith
+         * warning) → hide "Always allow" (desktop `allowPermanent` parity).
+         */
+        val allowPermanent: Boolean? = null,
+        /**
+         * True when this is an owner override of a Smart DENY — backend
+         * restricts to once/deny only (desktop `smartDenied` parity).
+         */
+        val smartDenied: Boolean? = null,
     ) : WsEvent()
 
     // ── Sudo / secret requests ─────────────────────────────────────────
@@ -230,11 +269,34 @@ sealed class WsEvent {
     ) : WsEvent()
 
     /**
+     * Backend sudo timeout (120s `_block`) — clears the matching dialog.
+     * Payload: `{ request_id }`. Only clears when ids match so a late
+     * expire for an old prompt never kills the current one (desktop parity).
+     */
+    data class SudoExpire(
+        val requestId: String?,
+        val sessionId: String?,
+    ) : WsEvent()
+
+    /**
      * Backend needs a secret value (password / token) to continue a turn
      * (desktop: `secret.request` → `secret.respond {request_id, value}`).
      * Mobile previously dropped this and the agent hung forever.
+     * `envVar`/`prompt` mirror desktop: title = envVar ?: secretTitle,
+     * body = prompt ?: secretDesc.
      */
     data class SecretRequest(
+        val requestId: String?,
+        val sessionId: String?,
+        val envVar: String? = null,
+        val prompt: String? = null,
+    ) : WsEvent()
+
+    /**
+     * Backend secret timeout — clears the matching dialog.
+     * Payload: `{ request_id }`. Match-only clear like [SudoExpire].
+     */
+    data class SecretExpire(
         val requestId: String?,
         val sessionId: String?,
     ) : WsEvent()

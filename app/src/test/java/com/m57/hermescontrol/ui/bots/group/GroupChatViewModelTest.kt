@@ -266,9 +266,17 @@ class GroupChatViewModelTest {
             testScheduler.runCurrent()
 
             val finalState = viewModel.uiState.value
-            // Only the user message should remain; (pass) is filtered out
-            assertEquals(1, finalState.messages.size)
+            // User message plus the visual pass indicator
+            assertEquals(2, finalState.messages.size)
             assertTrue(finalState.messages.first().isUser)
+            val passMsg = finalState.messages.last()
+            assertTrue(passMsg.isSystem)
+            assertTrue(passMsg.isPass)
+            assertEquals("Scout Bot", passMsg.senderDisplayName)
+            assertEquals("Scout Bot passed", passMsg.text)
+
+            // LLM prompt history only considers non-system messages
+            assertEquals(1, finalState.messages.filter { !it.isSystem }.size)
         }
 
     @Test
@@ -420,6 +428,33 @@ class GroupChatViewModelTest {
             assertEquals(15, viewModel.uiState.value.maxBotMessages)
             assertEquals(4, viewModel.uiState.value.maxContinuationPasses)
             assertEquals("Custom instructions for this group", viewModel.uiState.value.systemPrompt)
+
+            // Extended limits within new range
+            viewModel.updateGroupLimits(
+                maxMessages = 45,
+                maxPasses = 18,
+            )
+            testScheduler.runCurrent()
+            assertEquals(45, viewModel.uiState.value.maxBotMessages)
+            assertEquals(18, viewModel.uiState.value.maxContinuationPasses)
+
+            // Exceeding ceiling clamps to MAX_ALLOWED_BOT_MESSAGES (50) and MAX_ALLOWED_CONTINUATION_PASSES (20)
+            viewModel.updateGroupLimits(
+                maxMessages = 999,
+                maxPasses = 999,
+            )
+            testScheduler.runCurrent()
+            assertEquals(MAX_ALLOWED_BOT_MESSAGES, viewModel.uiState.value.maxBotMessages)
+            assertEquals(MAX_ALLOWED_CONTINUATION_PASSES, viewModel.uiState.value.maxContinuationPasses)
+
+            // Under floor clamps to 1 and 0
+            viewModel.updateGroupLimits(
+                maxMessages = -10,
+                maxPasses = -5,
+            )
+            testScheduler.runCurrent()
+            assertEquals(1, viewModel.uiState.value.maxBotMessages)
+            assertEquals(0, viewModel.uiState.value.maxContinuationPasses)
         }
 
     @Test
@@ -473,13 +508,19 @@ class GroupChatViewModelTest {
             val toolCall = msgWithTool.toolCalls.first()
             assertEquals("terminal", toolCall.name)
             assertEquals("date", toolCall.summary)
+            assertEquals("date", toolCall.command)
             assertTrue(toolCall.isRunning)
 
             // Emit ToolComplete
             eventsFlow.emit(
                 WsEvent.ToolComplete(
                     name = "terminal",
-                    data = mapOf("tool_id" to "tool-123"),
+                    data =
+                        mapOf(
+                            "tool_id" to "tool-123",
+                            "output" to "Sat Aug 29 03:30:00 UTC 2026",
+                            "exit_code" to 0,
+                        ),
                     sessionId = "session-scout-1",
                 ),
             )
@@ -488,7 +529,11 @@ class GroupChatViewModelTest {
             val msgAfterToolDone =
                 viewModel.uiState.value.messages
                     .last()
-            assertFalse(msgAfterToolDone.toolCalls.first().isRunning)
+            val completedTool = msgAfterToolDone.toolCalls.first()
+            assertFalse(completedTool.isRunning)
+            assertEquals("Sat Aug 29 03:30:00 UTC 2026", completedTool.output)
+            assertEquals(0, completedTool.exitCode)
+            assertFalse(completedTool.isError)
 
             // Complete message
             eventsFlow.emit(

@@ -34,6 +34,12 @@ object WsMethods {
     const val PROMPT_BTW = "prompt.btw"
     const val CLARIFY_RESPOND = "clarify.respond"
     const val APPROVAL_RESPOND = "approval.respond"
+
+    /** Ack that the client rendered a pending approval (desktop parity). */
+    const val APPROVAL_RECEIVED = "approval.received"
+
+    /** List unresolved approvals for a session (reconnect replay). */
+    const val APPROVAL_PENDING = "approval.pending"
     const val SUDO_RESPOND = "sudo.respond"
     const val SECRET_RESPOND = "secret.respond"
 

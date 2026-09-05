@@ -66,6 +66,11 @@ class SlashCommandDispatcher {
                 SlashResult.SideQuestion(question = arg)
             }
 
+            "/undo" -> {
+                val arg = command.split(" ", limit = 2).getOrElse(1) { "" }.trim()
+                SlashResult.Undo(count = arg)
+            }
+
             else -> {
                 SlashResult.RpcDispatch
             }
@@ -142,5 +147,13 @@ sealed class SlashResult {
      */
     data class SideQuestion(
         val question: String,
+    ) : SlashResult()
+
+    /**
+     * Rewind conversation turns via the `undo` command.dispatch RPC.
+     * Rewinds server transcript, reloads active messages, and prefills the composer.
+     */
+    data class Undo(
+        val count: String,
     ) : SlashResult()
 }

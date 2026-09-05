@@ -18,6 +18,7 @@ import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
+import com.m57.hermescontrol.ui.chat.tool.ToolResultSummary
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -52,11 +53,14 @@ data class MemberSession(
 
 const val DEFAULT_MAX_BOT_MESSAGES = 6
 const val DEFAULT_MAX_CONTINUATION_PASSES = 2
-private const val LEASE_STEP_TTL_MS = 45_000L
-private const val TURN_TIMEOUT_MS = 45_000L
+const val MAX_ALLOWED_BOT_MESSAGES = 50
+const val MAX_ALLOWED_CONTINUATION_PASSES = 20
+const val WARN_MAX_BOT_MESSAGES = 20
+const val WARN_MAX_CONTINUATION_PASSES = 6
+private const val LEASE_STEP_TTL_MS = 180_000L
+private const val GROUP_TURN_TIMEOUT_MS = 180_000L
+private const val GROUP_TURN_HARD_CAP_MS = 20 * 60_000L
 private const val HISTORY_LIMIT = 10
-private const val CAPPED_SYSTEM_TEXT = "Discussion paused (turn limit reached) — reply to continue"
-private const val STOPPED_SYSTEM_TEXT = "Discussion stopped"
 
 class GroupChatViewModel(
     private var groupName: String = "",
@@ -84,6 +88,9 @@ class GroupChatViewModel(
     // Map of session_id -> bot profile
     private val sessionToBot = mutableMapOf<String, ProfileInfo>()
 
+    // Map of session_id -> last activity epoch ms (streaming token, tool call, thinking)
+    private val sessionLastActivity = mutableMapOf<String, Long>()
+
     init {
         if (groupName.isNotBlank()) {
             loadGroup()
@@ -104,8 +111,24 @@ class GroupChatViewModel(
         inFlightTurns.clear()
         activeStreamMsgId.clear()
         sessionToBot.clear()
+        sessionLastActivity.clear()
         _uiState.value = GroupChatUiState(groupName = name)
         loadGroup()
+    }
+
+    private fun extractToolCommand(data: Map<String, Any?>?): String? {
+        if (data == null) return null
+        val cmd = (data["command"] as? String)?.trim()
+        if (!cmd.isNullOrBlank()) return cmd
+        val code = (data["code"] as? String)?.trim()
+        if (!code.isNullOrBlank()) return code
+        val query = (data["query"] as? String)?.trim()
+        if (!query.isNullOrBlank()) return query
+        val path = (data["path"] as? String)?.trim()
+        if (!path.isNullOrBlank()) return path
+        val pattern = (data["pattern"] as? String)?.trim()
+        if (!pattern.isNullOrBlank()) return pattern
+        return null
     }
 
     private fun extractToolSummary(data: Map<String, Any?>?): String? {
@@ -121,6 +144,21 @@ class GroupChatViewModel(
         return null
     }
 
+    private fun extractToolOutput(data: Map<String, Any?>?): String? {
+        if (data == null) return null
+        val rawStr =
+            (data["output"] as? String)
+                ?: (data["stdout"] as? String)
+                ?: (data["result"] as? String)
+        if (!rawStr.isNullOrBlank()) {
+            return rawStr
+        }
+
+        val resultElement = data["result"]?.toJsonElement() ?: data["output"]?.toJsonElement() ?: data.toJsonElement()
+        val summary = ToolResultSummary.formatToolResultSummary(resultElement)
+        return summary.ifBlank { null }
+    }
+
     private fun observeWsEvents() {
         viewModelScope.launch(ioDispatcher) {
             HermesWsClient.events.collect { event ->
@@ -128,6 +166,7 @@ class GroupChatViewModel(
                     is WsEvent.MessageToken -> {
                         val sid = event.sessionId?.trim('\"', ' ')
                         if (sid != null) {
+                            sessionLastActivity[sid] = System.currentTimeMillis()
                             val streamId = activeStreamMsgId[sid]
                             val bot = sessionToBot[sid]
                             if (streamId != null && bot != null && event.token.isNotEmpty()) {
@@ -163,6 +202,7 @@ class GroupChatViewModel(
                     is WsEvent.ToolStart -> {
                         val sid = event.sessionId?.trim('\"', ' ')
                         if (sid != null) {
+                            sessionLastActivity[sid] = System.currentTimeMillis()
                             val streamId = activeStreamMsgId[sid]
                             val bot = sessionToBot[sid]
                             val toolName = event.name ?: "tool"
@@ -170,11 +210,13 @@ class GroupChatViewModel(
                                 (event.data?.get("tool_id") as? String)?.ifBlank { null }
                                     ?: UUID.randomUUID().toString()
                             val summary = extractToolSummary(event.data)
+                            val command = extractToolCommand(event.data)
                             val toolCall =
                                 GroupChatToolCall(
                                     id = toolId,
                                     name = toolName,
                                     summary = summary,
+                                    command = command,
                                     isRunning = true,
                                 )
                             if (streamId != null && bot != null) {
@@ -211,9 +253,21 @@ class GroupChatViewModel(
                     is WsEvent.ToolComplete -> {
                         val sid = event.sessionId?.trim('\"', ' ')
                         if (sid != null) {
+                            sessionLastActivity[sid] = System.currentTimeMillis()
                             val streamId = activeStreamMsgId[sid]
                             val toolId = event.data?.get("tool_id") as? String
                             val toolName = event.name
+                            val output = extractToolOutput(event.data)
+                            val exitCode =
+                                when (val rawCode = event.data?.get("exit_code")) {
+                                    is Number -> rawCode.toInt()
+                                    is String -> rawCode.toIntOrNull()
+                                    else -> null
+                                }
+                            val isError =
+                                (exitCode != null && exitCode != 0) ||
+                                    (event.data?.get("is_error") as? Boolean == true) ||
+                                    (event.data?.get("error") != null)
                             if (streamId != null) {
                                 _uiState.update { state ->
                                     val existing = state.messages.find { it.id == streamId }
@@ -224,7 +278,12 @@ class GroupChatViewModel(
                                                     (toolId == null && tool.name == toolName && tool.isRunning) ||
                                                     (toolId == null && toolName == null && tool.isRunning)
                                                 ) {
-                                                    tool.copy(isRunning = false)
+                                                    tool.copy(
+                                                        isRunning = false,
+                                                        output = output ?: tool.output,
+                                                        exitCode = exitCode ?: tool.exitCode,
+                                                        isError = isError || tool.isError,
+                                                    )
                                                 } else {
                                                     tool
                                                 }
@@ -424,8 +483,8 @@ class GroupChatViewModel(
         maxPasses: Int,
         systemPrompt: String? = null,
     ) {
-        val clampedMessages = maxMessages.coerceIn(1, 20)
-        val clampedPasses = maxPasses.coerceIn(0, 10)
+        val clampedMessages = maxMessages.coerceIn(1, MAX_ALLOWED_BOT_MESSAGES)
+        val clampedPasses = maxPasses.coerceIn(0, MAX_ALLOWED_CONTINUATION_PASSES)
         val cleanPrompt = systemPrompt?.trim()?.ifBlank { null }
 
         _uiState.update {
@@ -681,10 +740,34 @@ class GroupChatViewModel(
                 }
             }
 
-            var replyText =
-                withTimeoutOrNull(TURN_TIMEOUT_MS) {
-                    turnDeferred.await()
+            var replyText: String? = null
+            var deadline = turnStartTime + GROUP_TURN_TIMEOUT_MS
+            val hardCapDeadline = turnStartTime + GROUP_TURN_HARD_CAP_MS
+
+            while (System.currentTimeMillis() < deadline) {
+                val pollResult =
+                    withTimeoutOrNull(2000L) {
+                        turnDeferred.await()
+                    }
+                if (pollResult != null) {
+                    replyText = pollResult
+                    break
                 }
+                if (activeEpoch != epoch) break
+
+                // Adaptive extension: if bot is actively working (tokens/tools streamed in last 60s), extend deadline
+                val lastActivity =
+                    listOfNotNull(
+                        activeRuntimeId?.let { sessionLastActivity[it] },
+                        activeStoredId?.let { sessionLastActivity[it] },
+                    ).maxOrNull() ?: turnStartTime
+
+                val isBusy = (System.currentTimeMillis() - lastActivity) < 60_000L
+                if (isBusy) {
+                    deadline =
+                        minOf(hardCapDeadline, maxOf(deadline, System.currentTimeMillis() + GROUP_TURN_TIMEOUT_MS))
+                }
+            }
             inFlightTurns.remove(runtimeId)
             storedId?.let { inFlightTurns.remove(it) }
 
@@ -698,6 +781,7 @@ class GroupChatViewModel(
                                     sessionId = tid,
                                     limit = 10,
                                     order = "latest",
+                                    profile = bot.name,
                                 )
                             }
                         if (res is NetworkResult.Success) {
@@ -751,6 +835,28 @@ class GroupChatViewModel(
                     state.copy(messages = updatedList)
                 }
                 return replyText.trim()
+            } else if (replyText != null && isPass(replyText)) {
+                _uiState.update { state ->
+                    val existing = state.messages.find { it.id == streamMsgId }
+                    val passMsg =
+                        GroupChatMessage(
+                            id = streamMsgId,
+                            senderName = bot.name,
+                            senderDisplayName = bot.effectiveTitle,
+                            isUser = false,
+                            isSystem = true,
+                            isPass = true,
+                            text = "${bot.effectiveTitle} passed",
+                        )
+                    val updatedList =
+                        if (existing != null) {
+                            state.messages.map { if (it.id == streamMsgId) passMsg else it }
+                        } else {
+                            state.messages + passMsg
+                        }
+                    state.copy(messages = updatedList)
+                }
+                return null
             } else {
                 _uiState.update { state ->
                     state.copy(messages = state.messages.filter { it.id != streamMsgId })
@@ -768,11 +874,13 @@ class GroupChatViewModel(
                 activeStreamMsgId.remove(it)
                 sessionToBot.remove(it)
                 inFlightTurns.remove(it)
+                sessionLastActivity.remove(it)
             }
             activeStoredId?.let {
                 activeStreamMsgId.remove(it)
                 sessionToBot.remove(it)
                 inFlightTurns.remove(it)
+                sessionLastActivity.remove(it)
             }
         }
     }

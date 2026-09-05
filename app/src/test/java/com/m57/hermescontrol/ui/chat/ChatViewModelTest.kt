@@ -793,6 +793,148 @@ class ChatViewModelTest {
             assertEquals(sessionId, call.third)
         }
 
+    @Test
+    fun testModelSwitch_confirmRequired_triggersConfirmationDialogAndReSends() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            var lastReqId = ""
+            val capturedParams = mutableListOf<Map<String, Any>>()
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+                val params = arg<Map<String, Any>>(1)
+                capturedParams.add(params)
+                val id = "req-confirm-${capturedParams.size}"
+                lastReqId = id
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // User sends model switch command that triggers privacy/expensive guard
+            viewModel.sendMessage("/model muse-spark-1.3-contributor-free --provider opencode-free --session")
+            advanceUntilIdle()
+
+            assertEquals(1, capturedParams.size)
+            assertNull(capturedParams[0]["confirm_expensive_model"])
+
+            // Backend returns confirm_required = true
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    id = lastReqId,
+                    result =
+                        mapOf(
+                            "key" to "model",
+                            "value" to "muse-spark-1.3-contributor-free",
+                            "confirm_required" to true,
+                            "confirm_message" to "Meta training warning",
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            // UI state now shows confirmation dialog message
+            assertEquals("Meta training warning", viewModel.uiState.value.modelSwitchConfirmMessage)
+
+            // User confirms
+            viewModel.confirmModelSwitchExpensive()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.modelSwitchConfirmMessage)
+            assertEquals(2, capturedParams.size)
+            assertEquals(true, capturedParams[1]["confirm_expensive_model"])
+            assertEquals(
+                "muse-spark-1.3-contributor-free --provider opencode-free --session",
+                capturedParams[1]["value"],
+            )
+            assertEquals(sessionId, capturedParams[1]["session_id"])
+        }
+
+    @Test
+    fun testModelSwitch_dismissConfirmation_revertsModel() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+
+            var lastReqId = ""
+            every { HermesWsClient.send(WsMethods.CONFIG_SET, any(), any()) } answers {
+                val id = "req-cfg-dismiss"
+                lastReqId = id
+                arg<((String) -> Unit)?>(2)?.invoke(id)
+                id
+            }
+
+            // Set an initial model
+            viewModel.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+
+            // Switch to expensive model
+            viewModel.sendSlashModel("opencode-free", "muse-spark-1.3-contributor-free")
+            advanceUntilIdle()
+            assertEquals("opencode-free/muse-spark-1.3-contributor-free", viewModel.uiState.value.currentSessionModel)
+
+            // Backend requires confirmation
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    id = lastReqId,
+                    result =
+                        mapOf(
+                            "key" to "model",
+                            "value" to "muse-spark-1.3-contributor-free",
+                            "confirm_required" to true,
+                            "confirm_message" to "Meta training warning",
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("Meta training warning", viewModel.uiState.value.modelSwitchConfirmMessage)
+
+            // User dismisses/cancels
+            viewModel.dismissModelSwitchConfirm()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.modelSwitchConfirmMessage)
+            // Reverted back to previous model
+            assertEquals("openai/gpt-4o", viewModel.uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun testUndoCommand_dispatchesAndPrefillsComposer() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            every {
+                HermesWsClient.request(
+                    WsMethods.COMMAND_DISPATCH,
+                    mapOf("name" to "undo", "arg" to "2", "session_id" to sessionId),
+                    any(),
+                )
+            } returns
+                CompletableDeferred(
+                    mapOf(
+                        "type" to "prefill",
+                        "message" to "undone user message",
+                        "notice" to "↶ Undid 2 turns",
+                    ),
+                )
+
+            viewModel.sendMessage("/undo 2")
+            advanceUntilIdle()
+
+            // Prefill text is staged in UI state
+            assertEquals("undone user message", viewModel.uiState.value.pendingPrefillText)
+            // Notice is displayed as system message with rewind target feedback
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .any { it.content.contains("↶ Undid 2 turns") && it.content.contains("undone user message") },
+            )
+            // Verify slash usage was recorded
+            assertEquals(1, viewModel.uiState.value.slashUsageCounts["/undo"])
+
+            // Consume prefill text
+            viewModel.consumePendingPrefill()
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.pendingPrefillText)
+        }
+
     // ── Connection / init tests ──────────────────────────────────────────────
 
     @Test
@@ -1218,6 +1360,130 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testClarifyRequestWithQuestionIdAndRespond() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "Pick one:",
+                    options = listOf("Option 1"),
+                    clarifyId = "clarify-batch-1",
+                    sessionId = sessionId,
+                    questionId = "q0",
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(
+                "Pick one:",
+                viewModel.uiState.value.clarifyRequest
+                    ?.text,
+            )
+            assertEquals(
+                "q0",
+                viewModel.uiState.value.clarifyRequest
+                    ?.questionId,
+            )
+
+            viewModel.respondToClarify("Option 1")
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "Option 1",
+                            "answer" to "Option 1",
+                            "clarify_id" to "clarify-batch-1",
+                            "request_id" to "clarify-batch-1",
+                            "question_id" to "q0",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
+    @Test
+    fun testClarifyBatch_respondsToAllQuestions() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    text = "1. Pick A\n\n2. Pick B",
+                    options = listOf("A1", "A2"),
+                    clarifyId = "clarify-batch-multi",
+                    sessionId = sessionId,
+                    questionId = "q0",
+                    questions =
+                        listOf(
+                            WsEvent.ClarifyQuestion(
+                                qid = "q0",
+                                question = "Pick A",
+                                choices = listOf("A1", "A2"),
+                                multiSelect = false,
+                            ),
+                            WsEvent.ClarifyQuestion(
+                                qid = "q1",
+                                question = "Pick B",
+                                choices = listOf("B1", "B2"),
+                                multiSelect = true,
+                            ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            val clarify = viewModel.uiState.value.clarifyRequest
+            assertNotNull(clarify)
+            assertEquals(2, clarify?.resolvedQuestions?.size)
+
+            viewModel.respondToClarifyBatch(
+                mapOf(
+                    "q0" to "A1",
+                    "q1" to "B1, B2",
+                ),
+            )
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "A1",
+                            "answer" to "A1",
+                            "question_id" to "q0",
+                            "clarify_id" to "clarify-batch-multi",
+                            "request_id" to "clarify-batch-multi",
+                        ),
+                    onSent = any(),
+                )
+            }
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "B1, B2",
+                            "answer" to "B1, B2",
+                            "question_id" to "q1",
+                            "clarify_id" to "clarify-batch-multi",
+                            "request_id" to "clarify-batch-multi",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
+    @Test
     fun testClarifyRequestCustomResponse() =
         runTest {
             val (viewModel, sessionId) = createViewModelWithSession()
@@ -1310,6 +1576,53 @@ class ChatViewModelTest {
                             "answer" to "The user cancelled — no answer provided.",
                             "clarify_id" to "clarify-789",
                             "request_id" to "clarify-789",
+                        ),
+                    onSent = any(),
+                )
+            }
+        }
+
+    @Test
+    fun testClarifyDismissWithQuestionIdInformsAgent() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ClarifyRequest(
+                    "Please choose:",
+                    listOf("Yes", "No"),
+                    "clarify-789",
+                    sessionId,
+                    questionId = "q0",
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "clarify-789",
+                viewModel.uiState.value.clarifyRequest
+                    ?.clarifyId,
+            )
+            assertEquals(
+                "q0",
+                viewModel.uiState.value.clarifyRequest
+                    ?.questionId,
+            )
+
+            viewModel.dismissClarify()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.clarifyRequest)
+            verify {
+                HermesWsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "response" to "The user cancelled — no answer provided.",
+                            "answer" to "The user cancelled — no answer provided.",
+                            "clarify_id" to "clarify-789",
+                            "request_id" to "clarify-789",
+                            "question_id" to "q0",
                         ),
                     onSent = any(),
                 )
@@ -2722,6 +3035,236 @@ class ChatViewModelTest {
             assertNull(msgAfter!!.approvalInfo)
         }
 
+    @Test
+    fun testApprovalRequest_storesRequestIdAndChoices() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm -rf /tmp/x",
+                    description = "dangerous command",
+                    patternKeys = listOf("shell:rm"),
+                    sessionId = null,
+                    requestId = "req-1",
+                    choices = listOf("once", "session", "always", "deny"),
+                    allowPermanent = true,
+                    smartDenied = false,
+                ),
+            )
+            advanceUntilIdle()
+
+            val msg =
+                viewModel.uiState.value.messages
+                    .first { it.content.contains("Approval Required") }
+            assertEquals("req-1", msg.approvalInfo?.requestId)
+            assertEquals(
+                listOf("once", "session", "always", "deny"),
+                msg.approvalInfo?.choices,
+            )
+            assertEquals(true, msg.approvalInfo?.allowPermanent)
+        }
+
+    @Test
+    fun testRespondToApproval_mapsApproveToOnceAndSendsRequestId() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-42",
+                    choices = listOf("once", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("approve")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("once", params["choice"])
+                        assertEquals("req-42", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToApproval_sessionChoice() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-7",
+                    choices = listOf("once", "session", "always", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("session")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals("session", params["choice"])
+                        assertEquals("req-7", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToApproval_omitsRequestIdWhenAbsent() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "ls",
+                    description = "Safe",
+                    patternKeys = null,
+                    sessionId = null,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("deny")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals("deny", params["choice"])
+                        assertFalse(params.containsKey("request_id"))
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testRespondToApproval_triggersPendingReplay() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm",
+                    description = "Dangerous",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-9",
+                    choices = listOf("once", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.respondToApproval("once")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_PENDING,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testApprovalFlow_prefersRuntimeSessionIdOverStorageId() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    "req-id-3",
+                    mapOf(
+                        "session_id" to "runtime-sid-999",
+                        "stored_session_id" to "storage-uuid-111",
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals("storage-uuid-111", viewModel.uiState.value.currentSessionId)
+
+            mockEventsFlow.emit(
+                WsEvent.ApprovalRequest(
+                    command = "rm -rf /data",
+                    description = "Dangerous operation",
+                    patternKeys = null,
+                    sessionId = null,
+                    requestId = "req-runtime-test",
+                    choices = listOf("once", "deny"),
+                ),
+            )
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RECEIVED,
+                    withArg { params ->
+                        assertEquals("runtime-sid-999", params["session_id"])
+                        assertEquals("req-runtime-test", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+
+            viewModel.respondToApproval("once")
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    withArg { params ->
+                        assertEquals("runtime-sid-999", params["session_id"])
+                        assertEquals("once", params["choice"])
+                        assertEquals("req-runtime-test", params["request_id"])
+                    },
+                    any(),
+                )
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_PENDING,
+                    withArg { params ->
+                        assertEquals("runtime-sid-999", params["session_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
     // ── Sudo / secret prompt flow (issue #524) ───────────────────────────
 
     @Test
@@ -2844,6 +3387,130 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             assertNull(viewModel.uiState.value.secretPrompt)
+        }
+
+    @Test
+    fun testSudoExpire_clearsMatchingPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SudoRequest(requestId = "sudo-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+
+            mockEventsFlow.emit(WsEvent.SudoExpire(requestId = "sudo-1", sessionId = null))
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.sudoPrompt)
+        }
+
+    @Test
+    fun testSudoExpire_ignoresNonMatchingRequestId() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SudoRequest(requestId = "sudo-2", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+
+            mockEventsFlow.emit(WsEvent.SudoExpire(requestId = "sudo-stale", sessionId = null))
+            advanceUntilIdle()
+
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+        }
+
+    @Test
+    fun testSecretExpire_clearsMatchingPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SecretRequest(requestId = "secret-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.secretPrompt)
+
+            mockEventsFlow.emit(WsEvent.SecretExpire(requestId = "secret-1", sessionId = null))
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.secretPrompt)
+        }
+
+    @Test
+    fun testSecretRequest_setsEnvVarAndPrompt() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(
+                WsEvent.SecretRequest(
+                    requestId = "secret-1",
+                    sessionId = null,
+                    envVar = "GITHUB_TOKEN",
+                    prompt = "Enter your GitHub token",
+                ),
+            )
+            advanceUntilIdle()
+
+            val prompt = viewModel.uiState.value.secretPrompt
+            assertNotNull(prompt)
+            assertEquals("GITHUB_TOKEN", prompt?.envVar)
+            assertEquals("Enter your GitHub token", prompt?.prompt)
+        }
+
+    @Test
+    fun testDismissSudo_sendsEmptyPassword() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SudoRequest(requestId = "sudo-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.sudoPrompt)
+
+            viewModel.dismissSudo()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.sudoPrompt)
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SUDO_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("", params["password"])
+                        assertEquals("sudo-1", params["request_id"])
+                    },
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testDismissSecret_sendsEmptyValue() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            mockEventsFlow.emit(WsEvent.SecretRequest(requestId = "secret-1", sessionId = null))
+            advanceUntilIdle()
+            assertNotNull(viewModel.uiState.value.secretPrompt)
+
+            viewModel.dismissSecret()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.secretPrompt)
+            verify {
+                HermesWsClient.send(
+                    WsMethods.SECRET_RESPOND,
+                    withArg { params ->
+                        assertEquals(sessionId, params["session_id"])
+                        assertEquals("", params["value"])
+                        assertEquals("secret-1", params["request_id"])
+                    },
+                    any(),
+                )
+            }
         }
 
     // ── Settings ─────────────────────────────────────────────────────────────

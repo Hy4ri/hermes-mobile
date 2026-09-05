@@ -145,6 +145,7 @@
     <string name="notif_waiting_replies">Waiting for Hermes replies</string>
     <string name="notif_new_message">New message</string>
     <string name="notif_clarification_needed">Hermes needs a clarification</string>
+    <string name="notif_input_needed">Hermes needs your input</string>
     <string name="notif_reply_placeholder">Type your reply\u2026</string>
     <string name="notif_channel_service_name">Hermes Background Service</string>
     <string name="notif_channel_service_desc">Keeps connection alive in the background</string>
@@ -1198,6 +1199,7 @@
     <string name="moa_title">Mixture of Agents</string>
     <string name="model_aux_tasks_label">Auxiliary tasks</string>
     <string name="model_aux_tasks_title">Auxiliary Tasks</string>
+    <string name="model_confirm_continue">Continue</string>
     <string name="model_expensive_title">Expensive Model</string>
     <string name="model_main_label">Main model</string>
     <string name="model_moa_label">Mixture of Agents</string>
@@ -1281,7 +1283,11 @@
     <string name="group_chat_empty_title">No Messages Yet</string>
     <string name="group_chat_empty_subtitle">Mention a bot or use @all to kick off collaboration.</string>
     <string name="group_chat_thinking">%1$s is thinking…</string>
+    <string name="group_chat_bot_passed">%1$s passed</string>
     <string name="group_chat_typing">Typing…</string>
+    <string name="group_chat_tool_running">Running…</string>
+    <string name="group_chat_tool_no_output">No output</string>
+    <string name="group_chat_tool_no_output_success">Exit code 0 (no output)</string>
     <string name="group_chat_members_count">%1$d members</string>
     <string name="group_chat_mention_all">@all</string>
     <string name="group_chat_capped_limit">Discussion paused (turn limit reached) — reply to continue</string>
@@ -1295,6 +1301,10 @@
     <string name="group_chat_settings_system_prompt">Room Instructions / Prompt</string>
     <string name="group_chat_settings_system_prompt_hint">Custom rules, tone, or context for this group (optional)…</string>
     <string name="group_chat_settings_system_prompt_desc">Custom guidelines for all bots in this room</string>
+    <string name="group_chat_settings_high_limits_warning_title">High Limits Warning</string>
+    <string name="group_chat_settings_high_limits_warning_desc">Setting high message (%1$d) or handoff (%2$d) limits can consume significant API tokens and lead to long continuous bot discussion loops.</string>
+    <string name="group_chat_settings_high_limits_confirm">Save Anyway</string>
+    <string name="group_chat_settings_high_limits_adjust">Adjust Limits</string>
     <string name="group_chat_action_settings">Settings</string>
     <string name="group_chat_stopped_by_user">Discussion stopped</string>
     <string name="group_chat_action_stop">Stop generation</string>

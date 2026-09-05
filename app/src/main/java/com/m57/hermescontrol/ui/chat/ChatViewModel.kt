@@ -312,7 +312,6 @@ data class ChatUiState(
     val typingEffectDelayMs: Int = 30,
     // Commands catalog
     val commandCatalog: CommandCatalog = CommandCatalog(),
-    val availableBots: List<ProfileInfo> = emptyList(),
     // Per-command usage counts for the slash-autocomplete ranking (issue
     // #865). Empty until the local store loads; commands without recorded
     // usage keep their catalog order.
@@ -327,6 +326,7 @@ data class ChatUiState(
     val modelPickerProviders: List<ModelProvider> = emptyList(),
     val modelPickerPinned: List<PinnedModel> = emptyList(),
     val modelPickerLoading: Boolean = false,
+    val modelSwitchConfirmMessage: String? = null,
     // Current session's active model label (provider/model), shown in the chip
     val currentSessionModel: String? = null,
     // Per-model reasoning capabilities for the current session's model
@@ -362,6 +362,8 @@ data class ChatUiState(
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
     val resumeError: String? = null,
     val isResumeRetrying: Boolean = false,
+    /** Text staged to prefill the composer (e.g. from /undo). */
+    val pendingPrefillText: String? = null,
 ) {
     /** Convenience — derived from [connectionStatus]. */
     val isConnected: Boolean get() = connectionStatus == ConnectionStatus.CONNECTED
@@ -375,11 +377,40 @@ data class SessionUi(
     val depth: Int = 0,
 )
 
+data class ClarifyQuestionUi(
+    val qid: String = "q0",
+    val question: String = "",
+    val choices: List<String> = emptyList(),
+    val multiSelect: Boolean = false,
+)
+
 data class ClarifyUi(
     val text: String,
-    val options: List<String>,
+    val options: List<String> = emptyList(),
     val clarifyId: String? = null,
-)
+    val questionId: String? = null,
+    val multiSelect: Boolean = false,
+    val questions: List<ClarifyQuestionUi> = emptyList(),
+) {
+    /**
+     * Normalized list of questions to display. Guarantees at least one question
+     * entry even for legacy single-question clarify events.
+     */
+    val resolvedQuestions: List<ClarifyQuestionUi>
+        get() =
+            if (questions.isNotEmpty()) {
+                questions
+            } else {
+                listOf(
+                    ClarifyQuestionUi(
+                        qid = questionId ?: "q0",
+                        question = text,
+                        choices = options,
+                        multiSelect = multiSelect,
+                    ),
+                )
+            }
+}
 
 /**
  * State for the context-aware side-question bottom sheet (issue #1015, `/btw`).
@@ -413,6 +444,8 @@ data class SudoPromptUi(
 data class SecretPromptUi(
     val requestId: String?,
     val sessionId: String?,
+    val envVar: String? = null,
+    val prompt: String? = null,
 )
 
 /**
@@ -462,6 +495,15 @@ class ChatViewModel(
 
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
     private var sessionGeneration = 0L
+
+    private data class ActiveModelSwitch(
+        val spec: String,
+        val previousModel: String?,
+    )
+
+    private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
+    private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
+    private var optimisticPreviousModel: String? = null
     private var resumeRequestSequence = 0L
     private var activeResumeRequestSequence = 0L
     private var hydrationRequestSequence = 0L
@@ -788,9 +830,7 @@ class ChatViewModel(
                 streamingController.flushPendingTokens()
             }
 
-            else -> {
-                Unit
-            }
+            else -> {}
         }
 
         // First, let the reducer compute the new state and any effects
@@ -898,6 +938,23 @@ class ChatViewModel(
                         // chip stays hidden until the real window lands.
                         viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
                     }
+                    // Session.info can carry `pending_approval` (reconnect
+                    // reconciliation) — surface it unless already on screen.
+                    val pendingApproval = info["pending_approval"] as? Map<*, *>
+                    if (pendingApproval != null) {
+                        val rid = pendingApproval["request_id"] as? String
+                        val alreadyShown =
+                            rid != null &&
+                                _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
+                        if (!alreadyShown) {
+                            handleApprovalRequest(
+                                parseApprovalMap(
+                                    pendingApproval,
+                                    runtimeSessionId ?: _uiState.value.currentSessionId,
+                                ),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -969,8 +1026,16 @@ class ChatViewModel(
                 handleSudoRequest(event)
             }
 
+            is WsEvent.SudoExpire -> {
+                handleSudoExpire(event)
+            }
+
             is WsEvent.SecretRequest -> {
                 handleSecretRequest(event)
+            }
+
+            is WsEvent.SecretExpire -> {
+                handleSecretExpire(event)
             }
 
             is WsEvent.GatewayError -> {
@@ -1171,6 +1236,26 @@ class ChatViewModel(
                 val generation = request?.generation ?: sessionGeneration
                 resumedGeneration = generation
                 finishResumeWhenHydrated(generation)
+                // Reconnect replay: resume payload can carry `pending_approval`
+                // (server `_session_info_payload`); surface it, then ask for
+                // the full queue in case more are parked.
+                val pendingApproval = resultMap?.get("pending_approval") as? Map<*, *>
+                if (pendingApproval != null) {
+                    val rid = pendingApproval["request_id"] as? String
+                    val alreadyShown =
+                        rid != null &&
+                            _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
+                    if (!alreadyShown) {
+                        handleApprovalRequest(
+                            parseApprovalMap(
+                                pendingApproval,
+                                runtimeSessionId ?: sessionId,
+                            ),
+                        )
+                    }
+                }
+                val activeSessionId = runtimeSessionId ?: sessionId
+                if (activeSessionId != null) replayPendingApproval(activeSessionId)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -1209,6 +1294,29 @@ class ChatViewModel(
                     addSystemMessage("Approval submitted")
                 }
             }
+
+            WsMethods.APPROVAL_PENDING -> {
+                handleApprovalPendingResult(result)
+            }
+
+            WsMethods.CONFIG_SET -> {
+                val pending = pendingModelSwitchRequests.remove(id)
+                val map = result as? Map<*, *> ?: return
+                val key = map["key"] as? String
+                if (key == "model") {
+                    val confirmRequired = map["confirm_required"] as? Boolean ?: false
+                    if (confirmRequired) {
+                        val confirmMessage =
+                            (map["confirm_message"] as? String)
+                                ?: (map["warning"] as? String)
+                                ?: "This model requires confirmation to switch. Continue?"
+                        activeModelSwitchConfirmation = pending
+                        _uiState.update {
+                            it.copy(modelSwitchConfirmMessage = confirmMessage)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1240,6 +1348,12 @@ class ChatViewModel(
             "alias" -> {
                 val target = map["target"] as? String ?: return
                 handleSlashCommand(target)
+            }
+
+            "prefill" -> {
+                val message = map["message"] as? String ?: ""
+                val notice = map["notice"] as? String ?: ""
+                handlePrefillResult(message, notice)
             }
 
             else -> {
@@ -1583,6 +1697,11 @@ class ChatViewModel(
             }
         }
 
+        if (result is SlashResult.Undo) {
+            handleUndoCommand(result.count)
+            return
+        }
+
         // Block desktop/CLI-only + TUI-only commands that don't function on
         // mobile (issue #576, deliverable #3). These are also hidden from the
         // suggestion menu, but a user can still type one — intercept it here
@@ -1652,6 +1771,10 @@ class ChatViewModel(
 
             is SlashResult.SideQuestion -> {
                 handleSideQuestionCommand(result.question)
+            }
+
+            is SlashResult.Undo -> {
+                handleUndoCommand(result.count)
             }
 
             is SlashResult.RpcDispatch -> {
@@ -1890,7 +2013,10 @@ class ChatViewModel(
      *   `<model> --provider <slug> --session`
      * (matching the TUI client's `modelValueForConfigSet`).
      */
-    private fun handleModelSwitch(command: String) {
+    private fun handleModelSwitch(
+        command: String,
+        confirmExpensive: Boolean = false,
+    ) {
         val sessionId = runtimeSessionId
         if (sessionId == null) {
             addAssistantMessage("No active session. Use `/new` to create one.")
@@ -1907,11 +2033,25 @@ class ChatViewModel(
             } else {
                 command.trim()
             }
+        val previousModel = optimisticPreviousModel ?: _uiState.value.currentSessionModel
+        optimisticPreviousModel = null
+        val params =
+            mutableMapOf<String, Any>(
+                "key" to "model",
+                "value" to spec,
+                "session_id" to sessionId,
+            )
+        if (confirmExpensive) {
+            params["confirm_expensive_model"] = true
+        }
         viewModelScope.launch(ioDispatcher) {
             wsClient.send(
                 WsMethods.CONFIG_SET,
-                mapOf("key" to "model", "value" to spec, "session_id" to sessionId),
-                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
+                params,
+                onSent = { id ->
+                    trackRequest(id, WsMethods.CONFIG_SET)
+                    pendingModelSwitchRequests[id] = ActiveModelSwitch(spec, previousModel)
+                },
             )
         }
     }
@@ -1949,6 +2089,67 @@ class ChatViewModel(
                 repo.persistMessage(msg, sessionId)
             }
         }
+    }
+
+    private fun handleUndoCommand(count: String) {
+        val sessionId = runtimeSessionId
+        if (sessionId == null) {
+            addAssistantMessage("No active session to undo.")
+            return
+        }
+        viewModelScope.launch {
+            slashUsageStore.recordUse("/undo")
+        }
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val result =
+                    wsClient
+                        .request(
+                            WsMethods.COMMAND_DISPATCH,
+                            mapOf("name" to "undo", "arg" to count, "session_id" to sessionId),
+                        ).await()
+                handleDispatchResult(result)
+            } catch (e: HermesWsClient.HermesRpcException) {
+                addAssistantMessage(e.message ?: "Failed to undo.")
+            } catch (e: Exception) {
+                addAssistantMessage(e.message ?: "Failed to undo.")
+            }
+        }
+    }
+
+    private fun handlePrefillResult(
+        message: String,
+        notice: String,
+    ) {
+        val storageSessionId = _uiState.value.currentSessionId
+        if (message.isNotBlank()) {
+            _uiState.update { it.copy(pendingPrefillText = message) }
+        }
+        val feedback =
+            when {
+                notice.isNotBlank() && message.isNotBlank() -> "$notice (Rewound to: \"$message\")"
+                notice.isNotBlank() -> notice
+                message.isNotBlank() -> "↶ Rewound to: \"$message\""
+                else -> "↶ Rewound"
+            }
+        if (storageSessionId != null) {
+            val generation = sessionGeneration
+            viewModelScope.launch {
+                withContext(ioDispatcher) {
+                    repo.clearMessagesForSession(storageSessionId)
+                }
+                _uiState.update { it.copy(messages = emptyList()) }
+                loadSessionMessages(storageSessionId, generation)
+                addSystemMessage(feedback, persist = true)
+                fetchContextUsage()
+            }
+        } else {
+            addSystemMessage(feedback, persist = false)
+        }
+    }
+
+    fun consumePendingPrefill() {
+        _uiState.update { it.copy(pendingPrefillText = null) }
     }
 
     // ── Session management ───────────────────────────────────────────────
@@ -2082,15 +2283,6 @@ class ChatViewModel(
                 WsMethods.COMMANDS_CATALOG,
                 onSent = { id -> trackRequest(id, WsMethods.COMMANDS_CATALOG) },
             )
-            // Fetch available bot profiles for @ autocomplete
-            val profilesResult = safeApiCall { ApiClient.hermesApi.getProfiles() }
-            if (profilesResult is NetworkResult.Success) {
-                val profiles =
-                    profilesResult.data.profiles.orEmpty().filter {
-                        !AuthManager.isProfileHidden(it.name) && it.botMeta()?.hidden != true
-                    }
-                _uiState.update { it.copy(availableBots = profiles) }
-            }
         }
     }
 
@@ -2266,6 +2458,7 @@ class ChatViewModel(
         provider: String,
         model: String,
     ) {
+        optimisticPreviousModel = _uiState.value.currentSessionModel
         _uiState.update {
             it.copy(
                 showModelPicker = false,
@@ -2279,6 +2472,28 @@ class ChatViewModel(
         // Model switch changes the context-window denominator — refetch it.
         fetchContextUsage()
         handleSlashCommand("/model $model --provider $provider --session")
+    }
+
+    fun dismissModelSwitchConfirm() {
+        val pending = activeModelSwitchConfirmation
+        activeModelSwitchConfirmation = null
+        _uiState.update {
+            it.copy(
+                modelSwitchConfirmMessage = null,
+                currentSessionModel = pending?.previousModel ?: it.currentSessionModel,
+            )
+        }
+        syncCurrentModelCapabilities()
+        fetchContextUsage()
+    }
+
+    fun confirmModelSwitchExpensive() {
+        val pending = activeModelSwitchConfirmation
+        activeModelSwitchConfirmation = null
+        _uiState.update { it.copy(modelSwitchConfirmMessage = null) }
+        if (pending != null) {
+            handleModelSwitch(pending.spec, confirmExpensive = true)
+        }
     }
 
     /**
@@ -2529,7 +2744,11 @@ class ChatViewModel(
     private fun sealStreamingMessageIfAny() {
         val streaming = _streamingState.value.streamingMessage ?: return
         if (streaming.content.isBlank() && streaming.reasoningText.isBlank()) return
-        val finalized = streaming.copy(isStreaming = false)
+        val finalized =
+            streaming.copy(
+                isStreaming = false,
+                finishTimestamp = System.currentTimeMillis(),
+            )
         _uiState.update { it.copy(messages = (it.messages + finalized).dedupeById()) }
         val sid = _uiState.value.currentSessionId
         if (sid != null) {
@@ -2576,6 +2795,7 @@ class ChatViewModel(
                 showSessionPicker = false,
                 showModelPicker = false,
                 modelPickerLoading = false,
+                modelSwitchConfirmMessage = null,
                 currentSessionModel = null,
                 currentModelCapabilities = null,
                 reasoningLevel = null,
@@ -2590,6 +2810,7 @@ class ChatViewModel(
                 todos = emptyList(),
                 resumeError = null,
                 isResumeRetrying = false,
+                pendingPrefillText = null,
             )
         }
         return generation
@@ -3235,39 +3456,107 @@ class ChatViewModel(
      */
     fun dismissClarify() {
         val sessionId = _uiState.value.currentSessionId ?: return
-        val clarifyId = _uiState.value.clarifyRequest?.clarifyId
+        val clarify = _uiState.value.clarifyRequest
+        val clarifyId = clarify?.clarifyId
+        // Raw batch questions (non-empty only for true batch payloads).
+        // Legacy singles keep questions empty and rely on questionId (nullable).
+        val isBatch = !clarify?.questions.isNullOrEmpty()
+        val displayQuestions = clarify?.resolvedQuestions.orEmpty()
         _uiState.update { it.copy(clarifyRequest = null) }
 
         addSystemMessage("Clarify dismissed — no answer sent", persist = true)
 
         viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "response" to CLARIFY_DISMISS_RESPONSE,
-                    "answer" to CLARIFY_DISMISS_RESPONSE,
+            if (isBatch) {
+                // Send dismissal for every question in the batch
+                for (q in displayQuestions) {
+                    val params =
+                        mutableMapOf<String, Any>(
+                            "session_id" to sessionId,
+                            "response" to CLARIFY_DISMISS_RESPONSE,
+                            "answer" to CLARIFY_DISMISS_RESPONSE,
+                            "question_id" to q.qid,
+                        )
+                    if (clarifyId != null) {
+                        params["clarify_id"] = clarifyId
+                        params["request_id"] = clarifyId
+                    }
+                    wsClient.send(
+                        method = WsMethods.CLARIFY_RESPOND,
+                        params = params,
+                        onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
+                    )
+                }
+            } else {
+                // Legacy: only send question_id when the original payload had one.
+                val questionId = clarify?.questionId
+                val params =
+                    mutableMapOf<String, Any>(
+                        "session_id" to sessionId,
+                        "response" to CLARIFY_DISMISS_RESPONSE,
+                        "answer" to CLARIFY_DISMISS_RESPONSE,
+                    )
+                if (clarifyId != null) {
+                    params["clarify_id"] = clarifyId
+                    params["request_id"] = clarifyId
+                }
+                if (questionId != null) {
+                    params["question_id"] = questionId
+                }
+                wsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params = params,
+                    onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
                 )
-            if (clarifyId != null) {
-                params["clarify_id"] = clarifyId
-                params["request_id"] = clarifyId
             }
-            wsClient.send(
-                method = WsMethods.CLARIFY_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-            )
         }
     }
 
     fun respondToClarify(option: String) {
+        val clarify = _uiState.value.clarifyRequest
+        // Only use synthesized qid when this is a true batch or legacy with explicit qid.
+        val qid =
+            if (clarify != null &&
+                (clarify.questionId != null || clarify.questions.isNotEmpty())
+            ) {
+                clarify.resolvedQuestions.firstOrNull()?.qid ?: clarify.questionId
+            } else {
+                null
+            }
+        if (qid != null && clarify?.resolvedQuestions?.size == 1) {
+            respondToClarifyBatch(mapOf(qid to option))
+        } else {
+            respondToClarifyBatch(emptyMap(), singleFallbackAnswer = option)
+        }
+    }
+
+    fun respondToClarifyBatch(
+        answers: Map<String, String>,
+        singleFallbackAnswer: String? = null,
+    ) {
         val sessionId = _uiState.value.currentSessionId ?: return
-        val clarifyId = _uiState.value.clarifyRequest?.clarifyId
+        val clarify = _uiState.value.clarifyRequest
+        val clarifyId = clarify?.clarifyId
+        val isBatch = !clarify?.questions.isNullOrEmpty()
+        val questions = clarify?.resolvedQuestions.orEmpty()
         _uiState.update { it.copy(clarifyRequest = null) }
+
+        val displayContent =
+            if (questions.size > 1) {
+                questions
+                    .mapIndexed { index, q ->
+                        val ans = answers[q.qid]?.trim().orEmpty()
+                        "${index + 1}. ${ans.ifEmpty { "(Skipped)" }}"
+                    }.joinToString("\n")
+            } else {
+                val loneAns = answers.values.firstOrNull()?.trim() ?: singleFallbackAnswer?.trim().orEmpty()
+                loneAns
+            }
 
         val userMessage =
             ChatMessage(
                 role = MessageRole.USER,
-                content = option,
+                content = displayContent,
             )
 
         _uiState.update { state ->
@@ -3282,21 +3571,49 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "response" to option,
-                    "answer" to option,
+            if (isBatch) {
+                for (q in questions) {
+                    val ans = answers[q.qid]?.trim().orEmpty()
+                    val params =
+                        mutableMapOf<String, Any>(
+                            "session_id" to sessionId,
+                            "response" to ans,
+                            "answer" to ans,
+                            "question_id" to q.qid,
+                        )
+                    if (clarifyId != null) {
+                        params["clarify_id"] = clarifyId
+                        params["request_id"] = clarifyId
+                    }
+                    wsClient.send(
+                        method = WsMethods.CLARIFY_RESPOND,
+                        params = params,
+                        onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
+                    )
+                }
+            } else {
+                // Legacy single: only include question_id when explicitly present.
+                val qid = clarify?.questionId
+                val ans = answers.values.firstOrNull() ?: singleFallbackAnswer.orEmpty()
+                val params =
+                    mutableMapOf<String, Any>(
+                        "session_id" to sessionId,
+                        "response" to ans,
+                        "answer" to ans,
+                    )
+                if (clarifyId != null) {
+                    params["clarify_id"] = clarifyId
+                    params["request_id"] = clarifyId
+                }
+                if (qid != null) {
+                    params["question_id"] = qid
+                }
+                wsClient.send(
+                    method = WsMethods.CLARIFY_RESPOND,
+                    params = params,
+                    onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
                 )
-            if (clarifyId != null) {
-                params["clarify_id"] = clarifyId
-                params["request_id"] = clarifyId
             }
-            wsClient.send(
-                method = WsMethods.CLARIFY_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-            )
         }
     }
 
@@ -3327,6 +3644,10 @@ class ChatViewModel(
                         command = event.command,
                         description = event.description,
                         patternKeys = event.patternKeys,
+                        requestId = event.requestId,
+                        choices = event.choices,
+                        allowPermanent = event.allowPermanent,
+                        smartDenied = event.smartDenied,
                     ),
             )
         _uiState.update { state ->
@@ -3335,12 +3656,107 @@ class ChatViewModel(
                 isAgentTyping = false,
             )
         }
+        // Desktop parity (`prompts.ts` receiveApprovalRequest): ack the render
+        // so the backend knows this client holds the prompt. Fire-and-forget.
+        val requestId = event.requestId
+        val sessionId = runtimeSessionId ?: event.sessionId ?: _uiState.value.currentSessionId
+        if (requestId != null && sessionId != null) {
+            viewModelScope.launch(ioDispatcher) {
+                runCatching {
+                    wsClient.send(
+                        method = WsMethods.APPROVAL_RECEIVED,
+                        params =
+                            mapOf(
+                                "session_id" to sessionId,
+                                "request_id" to requestId,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Convert a backend approval map (snake_case, from `approval.pending` or
+     * `session.info` `pending_approval`) into a typed event. Mirrors
+     * [EventParser] defaults so replay and live paths agree.
+     */
+    private fun parseApprovalMap(
+        map: Map<*, *>,
+        sessionId: String?,
+    ): WsEvent.ApprovalRequest {
+        @Suppress("UNCHECKED_CAST")
+        val patternKeys = (map["pattern_keys"] as? List<*>)?.filterIsInstance<String>()
+
+        @Suppress("UNCHECKED_CAST")
+        val rawChoices = (map["choices"] as? List<*>)?.filterIsInstance<String>()
+        val allowPermanent = map["allow_permanent"] as? Boolean
+        val allowSession = map["allow_session"] as? Boolean
+        val smartDenied = map["smart_denied"] as? Boolean
+        val choices =
+            rawChoices ?: run {
+                if (smartDenied == true) {
+                    listOf("once", "deny")
+                } else {
+                    buildList {
+                        add("once")
+                        if (allowSession != false) {
+                            add("session")
+                            if (allowPermanent != false) add("always")
+                        }
+                        add("deny")
+                    }
+                }
+            }
+        return WsEvent.ApprovalRequest(
+            command = map["command"] as? String,
+            description = map["description"] as? String,
+            patternKeys = patternKeys,
+            sessionId = sessionId,
+            requestId = map["request_id"] as? String,
+            choices = choices,
+            allowPermanent = allowPermanent,
+            smartDenied = smartDenied,
+        )
+    }
+
+    /**
+     * Reconnect replay (desktop `replayPendingApproval` parity): ask the
+     * gateway for unresolved approvals and surface the oldest one. Called
+     * after resume and after each respond (the queue can hold more).
+     */
+    private fun replayPendingApproval(sessionId: String) {
+        val targetSessionId = runtimeSessionId ?: sessionId
+        viewModelScope.launch(ioDispatcher) {
+            wsClient.send(
+                method = WsMethods.APPROVAL_PENDING,
+                params = mapOf("session_id" to targetSessionId),
+                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_PENDING) },
+            )
+        }
+    }
+
+    private fun handleApprovalPendingResult(result: Any?) {
+        @Suppress("UNCHECKED_CAST")
+        val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
+        val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
+        val requestId = first["request_id"] as? String ?: return
+        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
+        // Don't duplicate a prompt already on screen.
+        val alreadyShown =
+            _uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
+        if (alreadyShown) return
+        handleApprovalRequest(parseApprovalMap(first, sessionId))
     }
 
     fun respondToApproval(action: String) {
         val state = _uiState.value
         val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
-        val sessionId = state.currentSessionId ?: return
+        val sessionId = runtimeSessionId ?: state.currentSessionId ?: return
+        // Desktop sends `once` for a single run; legacy mobile sent `approve`
+        // (any non-deny still unblocks, but stay on-spec going forward).
+        val choice = if (action == "approve") "once" else action
+        val requestId = approvalMsg.approvalInfo?.requestId
 
         // Clear buttons immediately
         _uiState.update { s ->
@@ -3357,16 +3773,20 @@ class ChatViewModel(
         }
 
         viewModelScope.launch(ioDispatcher) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "choice" to choice,
+                    "all" to false,
+                )
+            if (requestId != null) params["request_id"] = requestId
             wsClient.send(
                 method = WsMethods.APPROVAL_RESPOND,
-                params =
-                    mapOf(
-                        "session_id" to sessionId,
-                        "choice" to action,
-                        "all" to false,
-                    ),
+                params = params,
                 onSent = { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) },
             )
+            // The queue can hold more pendings — surface the next one.
+            replayPendingApproval(sessionId)
         }
     }
 
@@ -3386,6 +3806,23 @@ class ChatViewModel(
     }
 
     /**
+     * Backend sudo timeout (120s) — clear only the matching dialog so a
+     * late expire for an old prompt never kills the current one.
+     * Desktop parity: `patchOverlayState(prev => prev.sudo?.requestId === id ? null : prev)`.
+     */
+    private fun handleSudoExpire(event: WsEvent.SudoExpire) {
+        _uiState.update { state ->
+            val current = state.sudoPrompt ?: return@update state
+            if (event.requestId != null && current.requestId != null &&
+                event.requestId != current.requestId
+            ) {
+                return@update state
+            }
+            state.copy(sudoPrompt = null)
+        }
+    }
+
+    /**
      * The agent needs a secret value (token/password). Previously dropped →
      * agent hung forever. Now we surface a secure dialog and reply via
      * secret.respond.
@@ -3393,18 +3830,82 @@ class ChatViewModel(
     private fun handleSecretRequest(event: WsEvent.SecretRequest) {
         _uiState.update {
             it.copy(
-                secretPrompt = SecretPromptUi(event.requestId, event.sessionId),
+                secretPrompt =
+                    SecretPromptUi(
+                        event.requestId,
+                        event.sessionId,
+                        event.envVar,
+                        event.prompt,
+                    ),
                 isAgentTyping = false,
             )
         }
     }
 
-    fun dismissSudo() {
-        _uiState.update { it.copy(sudoPrompt = null) }
+    /**
+     * Backend secret timeout — match-only clear like [handleSudoExpire].
+     */
+    private fun handleSecretExpire(event: WsEvent.SecretExpire) {
+        _uiState.update { state ->
+            val current = state.secretPrompt ?: return@update state
+            if (event.requestId != null && current.requestId != null &&
+                event.requestId != current.requestId
+            ) {
+                return@update state
+            }
+            state.copy(secretPrompt = null)
+        }
     }
 
+    /**
+     * Cancel → send empty password (desktop parity:
+     * `prompt-overlays.tsx` `send('')`). Backend treats empty sudo as
+     * failed sudo (no command runs), so closing the dialog is a safe
+     * refusal that unblocks the turn instantly instead of hanging 120s
+     * until `sudo.expire`.
+     */
+    fun dismissSudo() {
+        val prompt = _uiState.value.sudoPrompt ?: return
+        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
+        _uiState.update { it.copy(sudoPrompt = null) }
+        if (sessionId == null) return
+        viewModelScope.launch(ioDispatcher) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "password" to "",
+                )
+            prompt.requestId?.let { id -> params["request_id"] = id }
+            wsClient.send(
+                method = WsMethods.SUDO_RESPOND,
+                params = params,
+                onSent = { id -> trackRequest(id, WsMethods.SUDO_RESPOND) },
+            )
+        }
+    }
+
+    /**
+     * Cancel → send empty value (desktop parity). Backend `secret_cb`
+     * returns `skipped=True` on empty, unblocking the turn instantly.
+     */
     fun dismissSecret() {
+        val prompt = _uiState.value.secretPrompt ?: return
+        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
         _uiState.update { it.copy(secretPrompt = null) }
+        if (sessionId == null) return
+        viewModelScope.launch(ioDispatcher) {
+            val params =
+                mutableMapOf<String, Any>(
+                    "session_id" to sessionId,
+                    "value" to "",
+                )
+            prompt.requestId?.let { id -> params["request_id"] = id }
+            wsClient.send(
+                method = WsMethods.SECRET_RESPOND,
+                params = params,
+                onSent = { id -> trackRequest(id, WsMethods.SECRET_RESPOND) },
+            )
+        }
     }
 
     /**

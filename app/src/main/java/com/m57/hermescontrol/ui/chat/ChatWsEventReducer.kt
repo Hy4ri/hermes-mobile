@@ -67,6 +67,7 @@ object ChatWsEventReducer {
                 is WsEvent.ToolComplete -> event.sessionId
                 is WsEvent.ToolOutputRisk -> event.sessionId
                 is WsEvent.ClarifyRequest -> event.sessionId
+                is WsEvent.ClarifyExpire -> event.sessionId
                 is WsEvent.ToolProgress -> event.sessionId
                 is WsEvent.ToolGenerating -> event.sessionId
                 is WsEvent.SubagentEvent -> event.sessionId
@@ -128,6 +129,8 @@ object ChatWsEventReducer {
 
             is WsEvent.ClarifyRequest -> onClarifyRequest(state, streamingState, event)
 
+            is WsEvent.ClarifyExpire -> onClarifyExpire(state, streamingState, event)
+
             is WsEvent.ReviewSummary -> onReviewSummary(state, streamingState, event)
 
             is WsEvent.BtwComplete -> onBtwComplete(state, streamingState, event)
@@ -160,7 +163,11 @@ object ChatWsEventReducer {
             // SudoRequest / SecretRequest are handled by the ViewModel (issue #524)
             is WsEvent.SudoRequest -> ReducerResult(state = state, streamingState = streamingState)
 
+            is WsEvent.SudoExpire -> ReducerResult(state = state, streamingState = streamingState)
+
             is WsEvent.SecretRequest -> ReducerResult(state = state, streamingState = streamingState)
+
+            is WsEvent.SecretExpire -> ReducerResult(state = state, streamingState = streamingState)
 
             // ReactionEvent is handled by the ViewModel — purely cosmetic animation
             is WsEvent.ReactionEvent -> ReducerResult(state = state, streamingState = streamingState)
@@ -206,7 +213,11 @@ object ChatWsEventReducer {
         var orphan: ChatMessage? = null
         val preState =
             if (streamingState.streamingMessage?.content?.isNotEmpty() == true) {
-                val finalized = streamingState.streamingMessage.copy(isStreaming = false)
+                val finalized =
+                    streamingState.streamingMessage.copy(
+                        isStreaming = false,
+                        finishTimestamp = System.currentTimeMillis(),
+                    )
                 orphan = finalized
                 state.copy(
                     messages = state.messages.upsertById(finalized),
@@ -369,10 +380,12 @@ object ChatWsEventReducer {
                 content = text,
                 isStreaming = false,
                 reasoningText = reasoning,
+                finishTimestamp = System.currentTimeMillis(),
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
                 reasoningText = reasoning,
+                finishTimestamp = System.currentTimeMillis(),
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -418,7 +431,12 @@ object ChatWsEventReducer {
             } else {
                 streaming.reasoningText
             }
-        val msg = streaming.copy(isStreaming = false, reasoningText = reasoning)
+        val msg =
+            streaming.copy(
+                isStreaming = false,
+                reasoningText = reasoning,
+                finishTimestamp = System.currentTimeMillis(),
+            )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
         if (sid != null) {
@@ -481,6 +499,7 @@ object ChatWsEventReducer {
                     streamingState.streamingMessage.copy(
                         isStreaming = false,
                         reasoningText = reasoning,
+                        finishTimestamp = System.currentTimeMillis(),
                     )
                 orphanToPersist = finalized
                 state.copy(
@@ -624,8 +643,25 @@ object ChatWsEventReducer {
         state: ChatUiState,
         streamingState: StreamingState,
         event: WsEvent.ClarifyRequest,
-    ): ReducerResult =
-        ReducerResult(
+    ): ReducerResult {
+        val questions =
+            if (event.questions.isNotEmpty()) {
+                event.questions.map {
+                    ClarifyQuestionUi(
+                        qid = it.qid,
+                        question = it.question,
+                        choices = it.choices,
+                        multiSelect = it.multiSelect,
+                    )
+                }
+            } else {
+                // Legacy single-question payload: keep questions empty so the wire
+                // layer can tell legacy apart from a true batch. UI synthesizes
+                // via ClarifyUi.resolvedQuestions; wire uses text/options/questionId.
+                emptyList()
+            }
+
+        return ReducerResult(
             state =
                 state.copy(
                     clarifyRequest =
@@ -633,10 +669,28 @@ object ChatWsEventReducer {
                             text = event.text.orEmpty(),
                             options = event.options.orEmpty(),
                             clarifyId = event.clarifyId,
+                            questionId = event.questionId,
+                            multiSelect = event.multiSelect,
+                            questions = questions,
                         ),
                     isAgentTyping = false,
                 ),
         )
+    }
+
+    private fun onClarifyExpire(
+        state: ChatUiState,
+        streamingState: StreamingState,
+        event: WsEvent.ClarifyExpire,
+    ): ReducerResult =
+        if (event.clarifyId == null || state.clarifyRequest?.clarifyId == event.clarifyId) {
+            ReducerResult(
+                state = state.copy(clarifyRequest = null),
+                streamingState = streamingState,
+            )
+        } else {
+            ReducerResult(state = state, streamingState = streamingState)
+        }
 
     // ── ReviewSummary (Self-improvement background review) ──────────────
 

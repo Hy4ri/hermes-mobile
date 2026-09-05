@@ -291,6 +291,223 @@ class EventParserTest {
         assertEquals(listOf("staging", "production"), clarifyEvent.options)
     }
 
+    @Test
+    fun testParseClarifyRequest_withBatchQuestions_parsesSuccessfully() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "clarify.request",
+                        "payload" to
+                            mapOf(
+                                "request_id" to "req-batch-1",
+                                "questions" to
+                                    listOf(
+                                        mapOf(
+                                            "qid" to "q0",
+                                            "question" to "Which database?",
+                                            "choices" to listOf("Postgres", "SQLite"),
+                                            "multi_select" to false,
+                                        ),
+                                    ),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ClarifyRequest)
+        val clarifyEvent = event as WsEvent.ClarifyRequest
+        assertEquals("Which database?", clarifyEvent.text)
+        assertEquals(listOf("Postgres", "SQLite"), clarifyEvent.options)
+        assertEquals("req-batch-1", clarifyEvent.clarifyId)
+        assertEquals("q0", clarifyEvent.questionId)
+    }
+
+    @Test
+    fun testParseClarifyRequest_withMultiSelectAndMultipleQuestions() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "clarify.request",
+                        "payload" to
+                            mapOf(
+                                "request_id" to "req-batch-2",
+                                "questions" to
+                                    listOf(
+                                        mapOf(
+                                            "qid" to "q0",
+                                            "question" to "Pick languages:",
+                                            "choices" to listOf("Python", "Go", "Rust"),
+                                            "multi_select" to true,
+                                        ),
+                                        mapOf(
+                                            "qid" to "q1",
+                                            "question" to "Any comments?",
+                                            "choices" to emptyList<String>(),
+                                            "multi_select" to false,
+                                        ),
+                                    ),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ClarifyRequest)
+        val clarifyEvent = event as WsEvent.ClarifyRequest
+        assertEquals("req-batch-2", clarifyEvent.clarifyId)
+        assertEquals(2, clarifyEvent.questions.size)
+
+        val q0 = clarifyEvent.questions[0]
+        assertEquals("q0", q0.qid)
+        assertEquals("Pick languages:", q0.question)
+        assertEquals(listOf("Python", "Go", "Rust"), q0.choices)
+        assertTrue(q0.multiSelect)
+
+        val q1 = clarifyEvent.questions[1]
+        assertEquals("q1", q1.qid)
+        assertEquals("Any comments?", q1.question)
+        assertTrue(q1.choices.isEmpty())
+        assertFalse(q1.multiSelect)
+    }
+
+    @Test
+    fun testParseClarifyExpire_parsesSuccessfully() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "clarify.expire",
+                        "payload" to mapOf("request_id" to "req-expire-1"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ClarifyExpire)
+        val expireEvent = event as WsEvent.ClarifyExpire
+        assertEquals("req-expire-1", expireEvent.clarifyId)
+    }
+
+    // ── Approval requests (full support) ───────────────────────────────
+
+    @Test
+    fun testParseApprovalRequest_withChoicesAndRequestId() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to
+                            mapOf(
+                                "command" to "rm -rf /tmp/x",
+                                "description" to "dangerous command",
+                                "request_id" to "req-1",
+                                "choices" to listOf("once", "session", "always", "deny"),
+                                "allow_permanent" to true,
+                                "pattern_keys" to listOf("shell:rm"),
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals("rm -rf /tmp/x", approval.command)
+        assertEquals("req-1", approval.requestId)
+        assertEquals(listOf("once", "session", "always", "deny"), approval.choices)
+        assertEquals(true, approval.allowPermanent)
+        assertEquals(listOf("shell:rm"), approval.patternKeys)
+    }
+
+    @Test
+    fun testParseApprovalRequest_smartDeniedDefaultsToOnceDeny() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to
+                            mapOf(
+                                "command" to "rm -rf /",
+                                "smart_denied" to true,
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals(listOf("once", "deny"), approval.choices)
+        assertEquals(true, approval.smartDenied)
+    }
+
+    @Test
+    fun testParseApprovalRequest_legacyDefaultsToFullChoices() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to mapOf("command" to "ls"),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals(listOf("once", "session", "always", "deny"), approval.choices)
+    }
+
+    @Test
+    fun testParseApprovalRequest_allowPermanentFalseStillParses() {
+        val response =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "approval.request",
+                        "payload" to
+                            mapOf(
+                                "command" to "rm",
+                                "choices" to listOf("once", "session", "always", "deny"),
+                                "allow_permanent" to false,
+                            ),
+                    ),
+            )
+        val event = EventParser.parse(response)
+        assertTrue(event is WsEvent.ApprovalRequest)
+        val approval = event as WsEvent.ApprovalRequest
+        assertEquals(false, approval.allowPermanent)
+    }
+
     // ── TEST-07: Untested subtypes ─────────────────────────────────────
 
     @Test
@@ -745,5 +962,72 @@ class EventParserTest {
         assertEquals("Sub task", todoUpdated.todos[1].content)
         assertEquals("1", todoUpdated.todos[1].parent)
         assertTrue(todoUpdated.todos[1].isSubtask)
+    }
+
+    @Test
+    fun testParseSudoRequest_returnsSudoRequest() {
+        val params =
+            mapOf(
+                "type" to "sudo.request",
+                "session_id" to "sess-sudo-1",
+                "payload" to mapOf("request_id" to "sudo-1"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SudoRequest)
+        val sudo = event as WsEvent.SudoRequest
+        assertEquals("sudo-1", sudo.requestId)
+        assertEquals("sess-sudo-1", sudo.sessionId)
+    }
+
+    @Test
+    fun testParseSudoExpire_returnsSudoExpire() {
+        val params =
+            mapOf(
+                "type" to "sudo.expire",
+                "session_id" to "sess-sudo-1",
+                "payload" to mapOf("request_id" to "sudo-1"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SudoExpire)
+        val expire = event as WsEvent.SudoExpire
+        assertEquals("sudo-1", expire.requestId)
+        assertEquals("sess-sudo-1", expire.sessionId)
+    }
+
+    @Test
+    fun testParseSecretRequest_withEnvVarAndPrompt() {
+        val params =
+            mapOf(
+                "type" to "secret.request",
+                "session_id" to "sess-secret-1",
+                "payload" to
+                    mapOf(
+                        "request_id" to "secret-1",
+                        "env_var" to "GITHUB_TOKEN",
+                        "prompt" to "Enter your GitHub token to continue",
+                    ),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SecretRequest)
+        val secret = event as WsEvent.SecretRequest
+        assertEquals("secret-1", secret.requestId)
+        assertEquals("sess-secret-1", secret.sessionId)
+        assertEquals("GITHUB_TOKEN", secret.envVar)
+        assertEquals("Enter your GitHub token to continue", secret.prompt)
+    }
+
+    @Test
+    fun testParseSecretExpire_returnsSecretExpire() {
+        val params =
+            mapOf(
+                "type" to "secret.expire",
+                "session_id" to "sess-secret-1",
+                "payload" to mapOf("request_id" to "secret-1"),
+            )
+        val event = EventParser.parseParams(params)
+        assertTrue(event is WsEvent.SecretExpire)
+        val expire = event as WsEvent.SecretExpire
+        assertEquals("secret-1", expire.requestId)
+        assertEquals("sess-secret-1", expire.sessionId)
     }
 }

@@ -12,6 +12,10 @@ data class GroupChatToolCall(
     val name: String,
     val summary: String? = null,
     val isRunning: Boolean = false,
+    val command: String? = null,
+    val output: String? = null,
+    val exitCode: Int? = null,
+    val isError: Boolean = false,
 )
 
 /**
@@ -28,8 +32,12 @@ data class GroupChatMessage(
     val isStreaming: Boolean = false,
     val thread: String? = null,
     val isSystem: Boolean = false,
+    val isPass: Boolean = false,
     val toolCalls: List<GroupChatToolCall> = emptyList(),
 )
+
+const val STOPPED_SYSTEM_TEXT = "Discussion stopped"
+const val CAPPED_SYSTEM_TEXT = "Discussion paused (turn limit reached) — reply to continue"
 
 /**
  * Pure helper for mention extraction and responder resolution matching Desktop parity.

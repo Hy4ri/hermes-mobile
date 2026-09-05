@@ -11,6 +11,7 @@ import com.m57.hermescontrol.theme.StatusRedContainer
 import com.m57.hermescontrol.theme.StatusYellow
 import com.m57.hermescontrol.theme.StatusYellowContainer
 import com.m57.hermescontrol.theme.searchHighlightColors
+import com.m57.hermescontrol.util.BidiUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -537,5 +538,37 @@ class MarkdownTextFeatureTest {
         assertEquals(1, blocks.size)
         val codeBlock = blocks.single() as MdBlock.Code
         assertTrue(codeBlock.code.contains("```python"))
+    }
+
+    // 25. ARABIC BIDI MIXED TEXT (issue #1044)
+    @Test
+    fun testArabicMixedWithInlineCode_wrapsWithLtrIsolate() {
+        val input = "تم اختبار كود `val x = 1` بنجاح"
+        val parsed = parseInline(input, Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+        val expected = "تم اختبار كود ${BidiUtils.LRI}val x = 1${BidiUtils.PDI} بنجاح"
+        assertEquals(expected, parsed.toString())
+    }
+
+    @Test
+    fun testArabicMixedWithBoldEnglish_wrapsWithLtrIsolate() {
+        val input = "هذا النص يحتوي على **Android** داخل فقرة"
+        val parsed = parseInline(input, Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+        val expected = "هذا النص يحتوي على ${BidiUtils.LRI}Android${BidiUtils.PDI} داخل فقرة"
+        assertEquals(expected, parsed.toString())
+    }
+
+    @Test
+    fun testEnglishWithInlineCode_doesNotWrapWithIsolate() {
+        val input = "Run `val x = 1` here"
+        val parsed = parseInline(input, Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+        assertEquals("Run val x = 1 here", parsed.toString())
+    }
+
+    @Test
+    fun testArabicStartingWithEnglishWord_wrapsEnglishInLtrIsolate() {
+        val input = "Okay سكرت كلشي وصار كامل عربي متل ما بدك يا بوبو"
+        val parsed = parseInline(input, Color.Black, "", false, Color.Blue, DEFAULT_HIGHLIGHTS)
+        val expected = "${BidiUtils.LRI}Okay${BidiUtils.PDI} سكرت كلشي وصار كامل عربي متل ما بدك يا بوبو"
+        assertEquals(expected, parsed.toString())
     }
 }

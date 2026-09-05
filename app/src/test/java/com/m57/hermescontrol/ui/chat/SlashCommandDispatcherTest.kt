@@ -83,6 +83,14 @@ class SlashCommandDispatcherTest {
     }
 
     @Test
+    fun `undo routes to Undo`() {
+        assertEquals(SlashResult.Undo(""), dispatcher.dispatch("/undo"))
+        assertEquals(SlashResult.Undo("2"), dispatcher.dispatch("/undo 2"))
+        assertEquals(SlashResult.Undo("3"), dispatcher.dispatch("/UNDO 3"))
+        assertEquals(SlashResult.Undo(""), dispatcher.dispatch("/Undo"))
+    }
+
+    @Test
     fun `NEW uppercase still routes to NewSession`() {
         // Dispatcher lower-cases before matching, so case must not matter.
         assertEquals(SlashResult.NewSession, dispatcher.dispatch("/NEW"))

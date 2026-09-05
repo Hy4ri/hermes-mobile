@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -288,6 +289,14 @@ fun ChatScreen(
     }
     var inputFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
+    }
+
+    LaunchedEffect(state.pendingPrefillText) {
+        val prefill = state.pendingPrefillText
+        if (prefill != null) {
+            inputFieldValue = ChatInputPolicy.commandFieldValue(prefill)
+            viewModel.consumePendingPrefill()
+        }
     }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -711,6 +720,7 @@ fun ChatScreen(
                     viewModel = viewModel,
                     clarifyRequest = state.clarifyRequest,
                     onRespondClarify = viewModel::respondToClarify,
+                    onRespondClarifyBatch = viewModel::respondToClarifyBatch,
                     onDismissClarify = viewModel::dismissClarify,
                     onSaveAttachment = onSaveAttachment,
                     savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
@@ -806,7 +816,6 @@ fun ChatScreen(
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
-                availableBots = state.availableBots,
                 slashUsageCounts = state.slashUsageCounts,
                 pendingAttachments = state.pendingAttachments,
                 onCameraTap = {
@@ -908,6 +917,25 @@ fun ChatScreen(
                     viewModel.sendSlashModel(provider, model)
                 },
                 onDismiss = { viewModel.closeModelPicker() },
+            )
+        }
+
+        // Expensive / Data-policy model confirmation dialog (issue #589 follow-up)
+        if (state.modelSwitchConfirmMessage != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissModelSwitchConfirm() },
+                title = { Text(stringResource(R.string.model_expensive_title)) },
+                text = { Text(state.modelSwitchConfirmMessage!!) },
+                confirmButton = {
+                    Button(onClick = { viewModel.confirmModelSwitchExpensive() }) {
+                        Text(stringResource(R.string.model_confirm_continue))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissModelSwitchConfirm() }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
             )
         }
 

@@ -581,6 +581,14 @@
     <string name="sessions_search_model_label">Model</string>
     <string name="sessions_stat_total">Total</string>
     <string name="sessions_stat_messages">Messages</string>
+    <string name="sessions_stat_messages_loaded">Messages loaded</string>
+    <string name="sessions_tab_conversations">Conversations</string>
+    <string name="sessions_tab_automations">Automations</string>
+    <string name="sessions_automations_empty_title">No automation history</string>
+    <string name="sessions_automations_empty_desc">Runs started by scheduled automations will appear here.</string>
+    <string name="sessions_section_automation_job">Job %1$s</string>
+    <string name="sessions_section_automation_unknown">Automation run</string>
+    <string name="sessions_section_automation_runs">%1$d loaded run(s)</string>
     <string name="sessions_action_prune">Prune</string>
     <string name="sessions_prune_title">Prune Old Sessions</string>
     <string name="sessions_prune_desc">Delete sessions older than the specified number of days.</string>

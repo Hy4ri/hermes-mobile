@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.sessions
 
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
+import com.m57.hermescontrol.data.model.SessionSearchResponse
+import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
 import io.mockk.coEvery
@@ -98,6 +100,127 @@ class SessionsViewModelTest {
         )
     }
 
+    @Test
+    fun `sections request conversations excluding cron and automations from cron`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getSessions(50, 0, any(), null, "cron") } returns
+            Response.success(SessionListResponse(listOf(SessionInfo("conversation"))))
+        coEvery { mockApi.getSessions(50, 0, any(), "cron", null) } returns
+            Response.success(SessionListResponse(listOf(SessionInfo("automation", source = "cron"))))
+
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.toggleSelecting()
+        vm.toggleSessionSelection("conversation")
+
+        vm.selectSection(HistorySection.AUTOMATIONS)
+        assertFalse(vm.uiState.value.isSelecting)
+        assertTrue(
+            vm.uiState.value.selectedIds
+                .isEmpty(),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf("automation"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
+        coVerify(exactly = 1) { mockApi.getSessions(50, 0, any(), null, "cron") }
+        coVerify(exactly = 1) { mockApi.getSessions(50, 0, any(), "cron", null) }
+    }
+
+    @Test
+    fun `section change clears old results and repeats query in the new scope`() {
+        val vm = createViewModel()
+        coEvery { mockApi.searchSessions("deploy", null, null, "cron") } returns
+            Response.success(
+                SessionSearchResponse(listOf(SessionSearchResult(session_id = "conversation-hit"))),
+            )
+        coEvery { mockApi.searchSessions("deploy", null, "cron", null) } returns
+            Response.success(
+                SessionSearchResponse(listOf(SessionSearchResult(session_id = "automation-hit", source = "cron"))),
+            )
+
+        vm.setSearchQuery("deploy")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            "conversation-hit",
+            vm.uiState.value.searchResults
+                .single()
+                .session_id,
+        )
+        vm.selectAll(setOf("conversation-hit"))
+
+        vm.selectSection(HistorySection.AUTOMATIONS)
+        assertEquals("deploy", vm.uiState.value.searchQuery)
+        assertTrue(
+            vm.uiState.value.searchResults
+                .isEmpty(),
+        )
+        assertTrue(
+            vm.uiState.value.selectedIds
+                .isEmpty(),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            "automation-hit",
+            vm.uiState.value.searchResults
+                .single()
+                .session_id,
+        )
+        coVerify(exactly = 1) { mockApi.searchSessions("deploy", null, null, "cron") }
+        coVerify(exactly = 1) { mockApi.searchSessions("deploy", null, "cron", null) }
+    }
+
+    @Test
+    fun `automation pagination keeps the source filter and combines runs by job`() {
+        val vm = createViewModel()
+        val firstPage = (0 until 50).map { SessionInfo("cron_job-a_20260905_1800%02d".format(it), source = "cron") }
+        val lastRun = SessionInfo("cron_job-a_20260905_190000", source = "cron")
+        coEvery { mockApi.getSessions(50, 0, any(), "cron", null) } returns
+            Response.success(SessionListResponse(firstPage, total = 51, limit = 50))
+        coEvery { mockApi.getSessions(50, 50, any(), "cron", null) } returns
+            Response.success(SessionListResponse(listOf(lastRun), total = 51, limit = 50, offset = 50))
+
+        vm.selectSection(HistorySection.AUTOMATIONS)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.uiState.value.hasMore)
+        vm.loadMore()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.uiState.value.hasMore)
+        assertEquals(51, vm.uiState.value.total)
+        assertEquals(firstPage + lastRun, automationGroups(vm.uiState.value.sessions).single().sessions)
+        coVerify(exactly = 1) { mockApi.getSessions(50, 50, any(), "cron", null) }
+    }
+
+    @Test
+    fun `late load from a previous section cannot replace the current rows`() {
+        val vm = createViewModel()
+        val oldResponse = kotlinx.coroutines.CompletableDeferred<Response<SessionListResponse>>()
+        coEvery { mockApi.getSessions(50, 0, any(), null, "cron") } coAnswers {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { oldResponse.await() }
+        }
+        coEvery { mockApi.getSessions(50, 0, any(), "cron", null) } returns
+            Response.success(SessionListResponse(listOf(SessionInfo("automation", source = "cron"))))
+
+        vm.loadSessions()
+        testDispatcher.scheduler.runCurrent()
+        vm.selectSection(HistorySection.AUTOMATIONS)
+        testDispatcher.scheduler.runCurrent()
+        oldResponse.complete(Response.success(SessionListResponse(listOf(SessionInfo("old-conversation")))))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(HistorySection.AUTOMATIONS, vm.uiState.value.section)
+        assertEquals(
+            listOf("automation"),
+            vm.uiState.value.sessions
+                .map { it.id },
+        )
+    }
+
     // ── Pagination (fluid load-more) ──────────────────────────────────────
 
     @Test
@@ -106,7 +229,7 @@ class SessionsViewModelTest {
 
         // Server reports total = 10 (e.g. cross-profile count), but returns only 2 sessions (< PAGE_SIZE 50).
         // hasMore must be false and total must be capped at 2 to prevent infinite auto-load loops.
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
                 SessionListResponse(
                     sessions = listOf(SessionInfo("s-1"), SessionInfo("s-2")),
@@ -132,7 +255,15 @@ class SessionsViewModelTest {
 
         val page1Sessions = (1..50).map { SessionInfo("s-$it") }
         // Page 1: 50 sessions of 51 total — hasMore stays true.
-        coEvery { mockApi.getSessions(limit = 50, offset = 0, order = any()) } returns
+        coEvery {
+            mockApi.getSessions(
+                limit = 50,
+                offset = 0,
+                order = any(),
+                source = null,
+                excludeSources = "cron",
+            )
+        } returns
             Response.success(
                 SessionListResponse(
                     sessions = page1Sessions,
@@ -147,7 +278,15 @@ class SessionsViewModelTest {
 
         // Page 2 overlaps page 1 (offset churn: a new session landed on top
         // between loads) — the duplicate id must not double-append.
-        coEvery { mockApi.getSessions(limit = 50, offset = 50, order = any()) } returns
+        coEvery {
+            mockApi.getSessions(
+                limit = 50,
+                offset = 50,
+                order = any(),
+                source = null,
+                excludeSources = "cron",
+            )
+        } returns
             Response.success(
                 SessionListResponse(
                     sessions = listOf(SessionInfo("s-51"), SessionInfo("s-50")),
@@ -168,7 +307,15 @@ class SessionsViewModelTest {
         val vm = createViewModel()
 
         val page1Sessions = (1..50).map { SessionInfo("s-$it") }
-        coEvery { mockApi.getSessions(limit = 50, offset = 0, order = any()) } returns
+        coEvery {
+            mockApi.getSessions(
+                limit = 50,
+                offset = 0,
+                order = any(),
+                source = null,
+                excludeSources = "cron",
+            )
+        } returns
             Response.success(
                 SessionListResponse(
                     sessions = page1Sessions,
@@ -185,7 +332,7 @@ class SessionsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         // loadSessions (1) + exactly one loadMore (1) = 2 API hits total.
-        coVerify(exactly = 2) { mockApi.getSessions(any(), any(), any()) }
+        coVerify(exactly = 2) { mockApi.getSessions(any(), any(), any(), null, "cron") }
         assertFalse(vm.uiState.value.isLoadingMore)
     }
 
@@ -196,7 +343,7 @@ class SessionsViewModelTest {
         val vm = createViewModel()
         // Backend returns recency order with the pinned flag set; the client
         // must lift pins above the rest while keeping the rest's order.
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
                 SessionListResponse(
                     sessions =
@@ -220,7 +367,7 @@ class SessionsViewModelTest {
     @Test
     fun `togglePin moves the session to the top and sets the flag`() {
         val vm = createViewModel()
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
                 SessionListResponse(
                     sessions = listOf(SessionInfo("s-1"), SessionInfo("s-2")),
@@ -251,7 +398,7 @@ class SessionsViewModelTest {
     @Test
     fun `togglePin failure keeps the order and surfaces a toast`() {
         val vm = createViewModel()
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
                 SessionListResponse(
                     sessions = listOf(SessionInfo("s-1", pinned = true), SessionInfo("s-2")),
@@ -285,7 +432,7 @@ class SessionsViewModelTest {
     @Test
     fun `displaySessions filters out hidden sessions by default and shows them on toggleShowHidden`() {
         val vm = createViewModel()
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
                 SessionListResponse(
                     sessions =
@@ -328,7 +475,7 @@ class SessionsViewModelTest {
     @Test
     fun `toggleHide updates hidden status and surfaces toast`() {
         val vm = createViewModel()
-        coEvery { mockApi.getSessions(any(), any(), any()) } returns
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
                 SessionListResponse(
                     sessions = listOf(SessionInfo("s-1", hidden = false)),

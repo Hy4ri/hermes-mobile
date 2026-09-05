@@ -174,12 +174,16 @@ interface HermesApiService {
         @Query("limit") limit: Int = 20,
         @Query("offset") offset: Int = 0,
         @Query("order") order: String = "recent",
+        @Query("source") source: String? = null,
+        @Query("exclude_sources") excludeSources: String? = null,
     ): Response<SessionListResponse>
 
     @GET("api/sessions/search")
     suspend fun searchSessions(
         @Query("q") q: String,
         @Query("profile") profile: String? = null,
+        @Query("source") source: String? = null,
+        @Query("exclude_sources") excludeSources: String? = null,
     ): Response<SessionSearchResponse>
 
     @GET("api/sessions/{id}/messages")

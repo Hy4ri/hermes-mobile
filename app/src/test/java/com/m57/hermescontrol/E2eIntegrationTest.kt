@@ -629,7 +629,7 @@ class E2eIntegrationTest {
         runTest {
             val session = SessionInfo("session-123", "Session 1", "2026-06-15T15:10:00Z", 5, "active")
             coEvery {
-                mockApiService.getSessions(any(), any(), any())
+                mockApiService.getSessions(any(), any(), any(), null, "cron")
             } returns Response.success(SessionListResponse(listOf(session)))
 
             val viewModel = SessionsViewModel()
@@ -665,7 +665,7 @@ class E2eIntegrationTest {
     @Test
     fun testSessionsLoad_failure() =
         runTest {
-            coEvery { mockApiService.getSessions(any(), any(), any()) } returns createErrorResponse(500)
+            coEvery { mockApiService.getSessions(any(), any(), any(), null, "cron") } returns createErrorResponse(500)
 
             val viewModel = SessionsViewModel()
             viewModel.loadSessions()

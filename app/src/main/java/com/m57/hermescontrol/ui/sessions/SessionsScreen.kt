@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallSplit
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
@@ -60,6 +62,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -310,6 +313,7 @@ fun SessionsScreen(
     val onPrimaryContainer = MaterialTheme.colorScheme.onPrimaryContainer
 
     var pruneDays by remember { mutableStateOf("7") }
+    var expandedAutomationGroups by remember { mutableStateOf(emptySet<String>()) }
 
     val sessionsToDisplay =
         remember(
@@ -323,6 +327,9 @@ fun SessionsScreen(
         }
 
     val hasSelection = state.selectedIds.isNotEmpty()
+    val loadedMessageCount = state.sessions.sumOf { it.message_count ?: 0 }
+    val automationSessionGroups = remember(sessionsToDisplay) { automationGroups(sessionsToDisplay.map { it.session }) }
+    val sessionItemsById = remember(sessionsToDisplay) { sessionsToDisplay.associateBy { it.session.id } }
     val visibleSessionIds =
         remember(sessionsToDisplay) {
             sessionsToDisplay.mapTo(linkedSetOf()) { it.session.id }
@@ -339,7 +346,6 @@ fun SessionsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loadSessions()
-        viewModel.loadStats()
     }
 
     // Toast effect
@@ -554,6 +560,27 @@ fun SessionsScreen(
         // (The scaffold already applies top-bar padding via its inner Box, so we
         //  must NOT re-apply paddingValues here.)
         Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = spacing.md, vertical = spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+            ) {
+                FilterChip(
+                    selected = state.section == HistorySection.CONVERSATIONS,
+                    onClick = { viewModel.selectSection(HistorySection.CONVERSATIONS) },
+                    label = { Text(stringResource(R.string.sessions_tab_conversations)) },
+                    modifier = Modifier.testTag("history_tab_conversations"),
+                )
+                FilterChip(
+                    selected = state.section == HistorySection.AUTOMATIONS,
+                    onClick = { viewModel.selectSection(HistorySection.AUTOMATIONS) },
+                    label = { Text(stringResource(R.string.sessions_tab_automations)) },
+                    modifier = Modifier.testTag("history_tab_automations"),
+                )
+            }
+
             // ── Search + bulk toggle (always visible) ─────────────
             Row(
                 modifier =
@@ -569,26 +596,29 @@ fun SessionsScreen(
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(modifier = Modifier.width(spacing.sm))
-                // Empty-session cleanup (issue #787) — grey/disabled when 0.
-                BadgedBox(
-                    badge = {
-                        if (state.emptyCount > 0) {
-                            Badge { Text("${state.emptyCount}") }
-                        }
-                    },
-                ) {
-                    FilledTonalButton(
-                        onClick = { viewModel.requestEmptyCleanup() },
-                        enabled = state.emptyCount > 0,
-                        contentPadding = PaddingValues(horizontal = spacing.md, vertical = 8.dp),
+                // This API operates on all history, so do not present it as scoped
+                // to the Automations tab.
+                if (state.section == HistorySection.CONVERSATIONS) {
+                    BadgedBox(
+                        badge = {
+                            if (state.emptyCount > 0) {
+                                Badge { Text("${state.emptyCount}") }
+                            }
+                        },
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.DeleteSweep,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(spacing.xs))
-                        Text(stringResource(R.string.sessions_empty_cleanup_desc))
+                        FilledTonalButton(
+                            onClick = { viewModel.requestEmptyCleanup() },
+                            enabled = state.emptyCount > 0,
+                            contentPadding = PaddingValues(horizontal = spacing.md, vertical = 8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.DeleteSweep,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.width(spacing.xs))
+                            Text(stringResource(R.string.sessions_empty_cleanup_desc))
+                        }
                     }
                 }
             }
@@ -704,10 +734,29 @@ fun SessionsScreen(
 
                     state.sessions.isEmpty() -> {
                         EmptyState(
-                            title = stringResource(R.string.history_empty_title),
-                            subtitle = stringResource(R.string.history_empty_desc),
+                            title =
+                                stringResource(
+                                    if (state.section == HistorySection.AUTOMATIONS) {
+                                        R.string.sessions_automations_empty_title
+                                    } else {
+                                        R.string.history_empty_title
+                                    },
+                                ),
+                            subtitle =
+                                stringResource(
+                                    if (state.section == HistorySection.AUTOMATIONS) {
+                                        R.string.sessions_automations_empty_desc
+                                    } else {
+                                        R.string.history_empty_desc
+                                    },
+                                ),
                             icon = Icons.Filled.History,
-                            actionLabel = stringResource(R.string.empty_action_start_chat),
+                            actionLabel =
+                                if (state.section == HistorySection.CONVERSATIONS) {
+                                    stringResource(R.string.empty_action_start_chat)
+                                } else {
+                                    null
+                                },
                             onAction = { NavigationController.navigateTo(ChatScreen) },
                         )
                     }
@@ -735,62 +784,54 @@ fun SessionsScreen(
                             ) {
                                 StatCard(
                                     label = stringResource(R.string.sessions_stat_total),
-                                    value = if (state.isLoadingStats) "…" else formatCompactCount(state.stats.total),
+                                    value = formatCompactCount(state.total),
                                     icon = Icons.Filled.History,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                                 StatCard(
-                                    label = stringResource(R.string.sessions_stat_messages),
-                                    value = if (state.isLoadingStats) "…" else formatCompactCount(state.stats.messages),
+                                    label = stringResource(R.string.sessions_stat_messages_loaded),
+                                    value = formatCompactCount(loadedMessageCount),
                                     icon = Icons.Filled.Email,
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                                 // Prune button — compact card sized to its label, so the
                                 // stat cards keep enough width for large counts.
-                                Card(
-                                    modifier = Modifier.fillMaxHeight(),
-                                    colors =
-                                        CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                        ),
-                                    onClick = { viewModel.showPruneDialog() },
-                                ) {
-                                    Box(
-                                        // NOTE: fillMaxHeight only — never fillMaxSize here.
-                                        // An unweighted Row child with fillMaxSize expands to the
-                                        // full row width and starves the weighted stat cards.
-                                        modifier = Modifier.fillMaxHeight().padding(horizontal = spacing.md),
-                                        contentAlignment = Alignment.Center,
+                                if (state.section == HistorySection.CONVERSATIONS) {
+                                    Card(
+                                        modifier = Modifier.fillMaxHeight(),
+                                        colors =
+                                            CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                            ),
+                                        onClick = { viewModel.showPruneDialog() },
                                     ) {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                                        Box(
+                                            // NOTE: fillMaxHeight only — never fillMaxSize here.
+                                            // An unweighted Row child with fillMaxSize expands to the
+                                            // full row width and starves the weighted stat cards.
+                                            modifier = Modifier.fillMaxHeight().padding(horizontal = spacing.md),
+                                            contentAlignment = Alignment.Center,
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.DeleteSweep,
-                                                contentDescription = null,
-                                                tint = statusColors.warning,
-                                                modifier = Modifier.size(20.dp),
-                                            )
-                                            Text(
-                                                text = stringResource(R.string.sessions_action_prune),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = statusColors.warning,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.DeleteSweep,
+                                                    contentDescription = null,
+                                                    tint = statusColors.warning,
+                                                    modifier = Modifier.size(20.dp),
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.sessions_action_prune),
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = statusColors.warning,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            // Stats error snack
-                            val statsError = state.statsError
-                            if (statsError != null) {
-                                Text(
-                                    text = statsError,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = statusColors.error,
-                                    modifier = Modifier.padding(horizontal = spacing.md),
-                                )
                             }
 
                             // ── Session list ────────────────────────────────────
@@ -819,9 +860,54 @@ fun SessionsScreen(
                                 state.hasMore,
                                 state.isSearchMode,
                             ) {
-                                if (nearListEnd && !state.isLoadingMore && state.hasMore && !state.isSearchMode) {
+                                if (
+                                    state.section == HistorySection.CONVERSATIONS &&
+                                    nearListEnd &&
+                                    !state.isLoadingMore &&
+                                    state.hasMore &&
+                                    !state.isSearchMode
+                                ) {
                                     viewModel.loadMore()
                                 }
+                            }
+                            val sessionCard: @Composable (SessionTreeItem) -> Unit = { item ->
+                                val session = item.session
+                                SessionCard(
+                                    session = session,
+                                    displayTitle = item.displayTitle,
+                                    branchStem = item.branchStem,
+                                    isFork = item.isFork,
+                                    forkDepth = item.forkDepth,
+                                    query = state.searchQuery,
+                                    isSelecting = state.isSelecting,
+                                    isSelected = session.id in state.selectedIds,
+                                    isDeleting = session.id in state.deletingSessionIds,
+                                    isPinned = session.pinned == true,
+                                    isHidden = session.hidden == true,
+                                    highlightBackground = primaryContainer,
+                                    highlightForeground = onPrimaryContainer,
+                                    onCardClick = {
+                                        if (state.isSelecting) {
+                                            viewModel.toggleSessionSelection(session.id)
+                                        } else {
+                                            NavigationController.openChatSession(session.id)
+                                        }
+                                    },
+                                    onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
+                                    onSelect = {
+                                        viewModel.toggleSelecting()
+                                        viewModel.toggleSessionSelection(session.id)
+                                    },
+                                    onRename = {
+                                        viewModel.openRenameDialog(
+                                            session.id,
+                                            item.displayTitle,
+                                        )
+                                    },
+                                    onTogglePin = { viewModel.togglePin(session.id) },
+                                    onToggleHide = { viewModel.toggleHide(session.id) },
+                                    onDelete = { viewModel.requestDeleteSession(session.id) },
+                                )
                             }
                             LazyColumn(
                                 state = listState,
@@ -829,44 +915,71 @@ fun SessionsScreen(
                                 contentPadding = listPadding,
                                 verticalArrangement = listItemSpacing,
                             ) {
-                                items(sessionsToDisplay, key = { it.session.id }) { item ->
-                                    val session = item.session
-                                    SessionCard(
-                                        session = session,
-                                        displayTitle = item.displayTitle,
-                                        branchStem = item.branchStem,
-                                        isFork = item.isFork,
-                                        forkDepth = item.forkDepth,
-                                        query = state.searchQuery,
-                                        isSelecting = state.isSelecting,
-                                        isSelected = session.id in state.selectedIds,
-                                        isDeleting = session.id in state.deletingSessionIds,
-                                        isPinned = session.pinned == true,
-                                        isHidden = session.hidden == true,
-                                        highlightBackground = primaryContainer,
-                                        highlightForeground = onPrimaryContainer,
-                                        onCardClick = {
-                                            if (state.isSelecting) {
-                                                viewModel.toggleSessionSelection(session.id)
-                                            } else {
-                                                NavigationController.openChatSession(session.id)
+                                if (state.section == HistorySection.AUTOMATIONS) {
+                                    automationSessionGroups.forEach { group ->
+                                        item(key = "automation-group:${group.key}") {
+                                            val expanded = group.key in expandedAutomationGroups
+                                            Row(
+                                                modifier =
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            expandedAutomationGroups =
+                                                                if (expanded) {
+                                                                    expandedAutomationGroups - group.key
+                                                                } else {
+                                                                    expandedAutomationGroups + group.key
+                                                                }
+                                                        }.padding(horizontal = spacing.sm, vertical = spacing.md),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Icon(
+                                                    imageVector =
+                                                        if (expanded) {
+                                                            Icons.Filled.KeyboardArrowDown
+                                                        } else {
+                                                            Icons.AutoMirrored.Filled.KeyboardArrowRight
+                                                        },
+                                                    contentDescription = null,
+                                                )
+                                                Spacer(modifier = Modifier.width(spacing.sm))
+                                                Column {
+                                                    Text(
+                                                        text =
+                                                            group.title
+                                                                ?: group.jobId?.let {
+                                                                    stringResource(
+                                                                        R.string.sessions_section_automation_job,
+                                                                        it,
+                                                                    )
+                                                                } ?: stringResource(
+                                                                R.string.sessions_section_automation_unknown,
+                                                            ),
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                    )
+                                                    Text(
+                                                        text =
+                                                            stringResource(
+                                                                R.string.sessions_section_automation_runs,
+                                                                group.sessions.size,
+                                                            ),
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
                                             }
-                                        },
-                                        onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
-                                        onSelect = {
-                                            viewModel.toggleSelecting()
-                                            viewModel.toggleSessionSelection(session.id)
-                                        },
-                                        onRename = {
-                                            viewModel.openRenameDialog(
-                                                session.id,
-                                                item.displayTitle,
-                                            )
-                                        },
-                                        onTogglePin = { viewModel.togglePin(session.id) },
-                                        onToggleHide = { viewModel.toggleHide(session.id) },
-                                        onDelete = { viewModel.requestDeleteSession(session.id) },
-                                    )
+                                        }
+                                        if (group.key in expandedAutomationGroups) {
+                                            items(group.sessions, key = { it.id }) { session ->
+                                                sessionItemsById[session.id]?.let { sessionCard(it) }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(sessionsToDisplay, key = { it.session.id }) { item ->
+                                        sessionCard(item)
+                                    }
                                 }
 
                                 // Load more

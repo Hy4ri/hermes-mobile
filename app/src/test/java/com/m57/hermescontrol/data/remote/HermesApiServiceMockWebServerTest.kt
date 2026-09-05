@@ -206,6 +206,29 @@ class HermesApiServiceMockWebServerTest {
         }
 
     @Test
+    fun historyFiltersAreSentOnListAndSearch() =
+        runBlocking {
+            mockServer.enqueue(MockResponse().setBody("""{"sessions":[],"total":0}"""))
+            api.getSessions(source = "cron", offset = 50)
+            val automationRequest = mockServer.takeRequest().requestUrl!!
+            assertEquals("cron", automationRequest.queryParameter("source"))
+            assertEquals("50", automationRequest.queryParameter("offset"))
+            assertEquals(null, automationRequest.queryParameter("exclude_sources"))
+
+            mockServer.enqueue(MockResponse().setBody("""{"sessions":[],"total":0}"""))
+            api.getSessions(excludeSources = "cron")
+            assertEquals("cron", mockServer.takeRequest().requestUrl!!.queryParameter("exclude_sources"))
+
+            mockServer.enqueue(MockResponse().setBody("""{"results":[]}"""))
+            api.searchSessions(q = "test", source = "cron")
+            assertEquals("cron", mockServer.takeRequest().requestUrl!!.queryParameter("source"))
+
+            mockServer.enqueue(MockResponse().setBody("""{"results":[]}"""))
+            api.searchSessions(q = "test", excludeSources = "cron")
+            assertEquals("cron", mockServer.takeRequest().requestUrl!!.queryParameter("exclude_sources"))
+        }
+
+    @Test
     fun getSessionMessages_parsesResponse() =
         runBlocking {
             mockServer.enqueue(

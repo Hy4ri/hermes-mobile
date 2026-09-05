@@ -28,6 +28,11 @@ data class SessionStats(
     val messages: Int = 0,
 )
 
+enum class HistorySection {
+    CONVERSATIONS,
+    AUTOMATIONS,
+}
+
 /**
  * Compact count for stat cards: max 3 digits + unit letter.
  * 987 → "987", 100987 → "100k", 1234567 → "1.23m", 100000000 → "100m".
@@ -60,6 +65,7 @@ private fun String.trimZeroes(): String = dropLastWhile { it == '0' }.trimEnd('.
 private fun List<SessionInfo>.pinnedFirst(): List<SessionInfo> = sortedBy { it.pinned != true }
 
 data class SessionsUiState(
+    val section: HistorySection = HistorySection.CONVERSATIONS,
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val sessions: List<SessionInfo> = emptyList(),
@@ -107,7 +113,10 @@ class SessionsViewModel :
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+    private var pageJob: Job? = null
     private var statsJob: Job? = null
+    private var generation: Long = 0
+    private var rawPaginationOffset: Int = 0
 
     init {
         // Issue #784: gateway broadcasts sessions.changed — refresh the list
@@ -115,23 +124,36 @@ class SessionsViewModel :
         refreshOnChange(
             eventType = ChangeEvents.SESSIONS,
             apiCall = {
-                safeApiCall {
-                    ApiClient.hermesApi.getSessions(
-                        limit = PAGE_SIZE,
-                        offset = 0,
-                        order = "recent",
-                    )
+                val requestGeneration = generation
+                val section = _uiState.value.section
+                when (
+                    val result =
+                        safeApiCall {
+                            ApiClient.hermesApi.getSessions(
+                                limit = PAGE_SIZE,
+                                offset = 0,
+                                order = "recent",
+                                source = section.source,
+                                excludeSources = section.excludeSources,
+                            )
+                        }
+                ) {
+                    is NetworkResult.Success -> NetworkResult.Success(requestGeneration to result.data)
+                    is NetworkResult.Failure -> result
                 }
             },
-            onSuccess = { data ->
-                _uiState.update {
-                    val newSessions = data.sessions.orEmpty().pinnedFirst()
-                    val hasMore = data.sessions.size >= PAGE_SIZE && data.total > newSessions.size
-                    it.copy(
-                        sessions = newSessions,
-                        total = if (hasMore) data.total else newSessions.size,
-                        hasMore = hasMore,
-                    )
+            onSuccess = { (requestGeneration, data) ->
+                if (requestGeneration == generation) {
+                    rawPaginationOffset = data.nextOffset(0)
+                    _uiState.update {
+                        val newSessions = data.sessions.orEmpty().pinnedFirst()
+                        val hasMore = data.sessions.size >= PAGE_SIZE && data.total > newSessions.size
+                        it.copy(
+                            sessions = newSessions,
+                            total = if (hasMore) data.total else newSessions.size,
+                            hasMore = hasMore,
+                        )
+                    }
                 }
             },
         )
@@ -146,8 +168,47 @@ class SessionsViewModel :
         const val SEARCH_DEBOUNCE_MS = 300L
     }
 
+    private val HistorySection.source: String?
+        get() = if (this == HistorySection.AUTOMATIONS) "cron" else null
+
+    private val HistorySection.excludeSources: String?
+        get() = if (this == HistorySection.CONVERSATIONS) "cron" else null
+
+    private fun com.m57.hermescontrol.data.model.SessionListResponse.nextOffset(requestOffset: Int): Int =
+        if (limit > 0) offset + limit else requestOffset + PAGE_SIZE
+
+    fun selectSection(section: HistorySection) {
+        if (_uiState.value.section == section) return
+        generation++
+        loadJob?.cancel()
+        pageJob?.cancel()
+        searchJob?.cancel()
+        rawPaginationOffset = 0
+        val query = _uiState.value.searchQuery
+        _uiState.update {
+            it.copy(
+                section = section,
+                isLoading = false,
+                isLoadingMore = false,
+                sessions = emptyList(),
+                total = 0,
+                hasMore = false,
+                errorMessage = null,
+                isSelecting = false,
+                selectedIds = emptySet(),
+                isSearching = false,
+                searchResults = emptyList(),
+                searchError = null,
+            )
+        }
+        if (query.isBlank()) loadSessions() else setSearchQuery(query)
+    }
+
     /** Load (or reload) sessions from page 0. Used by pull-to-refresh and initial load. */
     fun loadSessions() {
+        val requestGeneration = generation
+        val section = _uiState.value.section
+        pageJob?.cancel()
         loadEmptyCount()
         loadJob =
             safeLaunchLoad(
@@ -158,11 +219,15 @@ class SessionsViewModel :
                             limit = PAGE_SIZE,
                             offset = 0,
                             order = "recent",
+                            source = section.source,
+                            excludeSources = section.excludeSources,
                         )
                     }
                 },
                 onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
                 onSuccess = { data ->
+                    if (requestGeneration != generation) return@safeLaunchLoad
+                    rawPaginationOffset = data.nextOffset(0)
                     val sessionsList = data.sessions.orEmpty().pinnedFirst()
                     val hasMore = data.sessions.size >= PAGE_SIZE && data.total > sessionsList.size
                     _uiState.update {
@@ -177,6 +242,7 @@ class SessionsViewModel :
                     }
                 },
                 onError = { errorMsg ->
+                    if (requestGeneration != generation) return@safeLaunchLoad
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -191,48 +257,55 @@ class SessionsViewModel :
     /** Load the next page and append to the existing session list. */
     fun loadMore() {
         val state = _uiState.value
-        if (state.isLoadingMore || !state.hasMore) return
+        if (state.isLoading || state.isLoadingMore || !state.hasMore || state.isSearchMode) return
+        val requestGeneration = generation
+        val offset = rawPaginationOffset
 
         _uiState.update { it.copy(isLoadingMore = true) }
-        viewModelScope.launch {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.getSessions(
-                        limit = PAGE_SIZE,
-                        offset = state.sessions.size,
-                        order = "recent",
-                    )
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    val data = result.data
-                    _uiState.update {
-                        val newSessions =
-                            (it.sessions + data.sessions)
-                                .distinctBy { s -> s.id }
-                                .pinnedFirst()
-                        val receivedFullPage = data.sessions.size >= PAGE_SIZE
-                        val addedNewItems = newSessions.size > it.sessions.size
-                        val hasMore = receivedFullPage && addedNewItems && data.total > newSessions.size
-                        it.copy(
-                            isLoadingMore = false,
-                            sessions = newSessions,
-                            total = if (hasMore) data.total else newSessions.size,
-                            hasMore = hasMore,
+        pageJob =
+            viewModelScope.launch {
+                val result =
+                    safeApiCall {
+                        ApiClient.hermesApi.getSessions(
+                            limit = PAGE_SIZE,
+                            offset = offset,
+                            order = "recent",
+                            source = state.section.source,
+                            excludeSources = state.section.excludeSources,
                         )
                     }
-                }
+                if (requestGeneration != generation) return@launch
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val data = result.data
+                        rawPaginationOffset = data.nextOffset(offset)
+                        _uiState.update {
+                            val newSessions =
+                                (it.sessions + data.sessions)
+                                    .distinctBy { s -> s.id }
+                                    .pinnedFirst()
+                            val receivedFullPage = data.sessions.size >= PAGE_SIZE
+                            val addedNewItems = newSessions.size > it.sessions.size
+                            val hasMore = receivedFullPage && addedNewItems && data.total > newSessions.size
+                            it.copy(
+                                isLoadingMore = false,
+                                sessions = newSessions,
+                                total = if (hasMore) data.total else newSessions.size,
+                                hasMore = hasMore,
+                            )
+                        }
+                    }
 
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            isLoadingMore = false,
-                            errorMessage = "Failed to load more: ${result.error.message}",
-                        )
+                    is NetworkResult.Failure -> {
+                        _uiState.update {
+                            it.copy(
+                                isLoadingMore = false,
+                                errorMessage = "Failed to load more: ${result.error.message}",
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 
     // ── Search (server-backed FTS5) ──────────────────────────────────
@@ -245,12 +318,15 @@ class SessionsViewModel :
      * paginated list mode.
      */
     fun setSearchQuery(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
+        val requestGeneration = generation
+        val section = _uiState.value.section
+        _uiState.update { it.copy(searchQuery = query, searchResults = emptyList()) }
         searchJob?.cancel()
         if (query.isBlank()) {
             _uiState.update {
                 it.copy(searchResults = emptyList(), searchError = null, isSearching = false)
             }
+            if (_uiState.value.sessions.isEmpty()) loadSessions()
             return
         }
         searchJob =
@@ -259,8 +335,14 @@ class SessionsViewModel :
                 _uiState.update { it.copy(isSearching = true, searchError = null) }
                 val result =
                     safeApiCall {
-                        ApiClient.hermesApi.searchSessions(q = query, profile = null)
+                        ApiClient.hermesApi.searchSessions(
+                            q = query,
+                            profile = null,
+                            source = section.source,
+                            excludeSources = section.excludeSources,
+                        )
                     }
+                if (requestGeneration != generation || _uiState.value.searchQuery != query) return@launch
                 when (result) {
                     is NetworkResult.Success -> {
                         _uiState.update {

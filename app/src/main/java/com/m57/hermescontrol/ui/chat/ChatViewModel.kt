@@ -1241,10 +1241,10 @@ class ChatViewModel(
                         rid != null &&
                             _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
                     if (!alreadyShown) {
-                        handleApprovalRequest(parseApprovalMap(pendingApproval, sessionId))
+                        handleApprovalRequest(parseApprovalMap(pendingApproval, runtimeSessionId))
                     }
                 }
-                if (sessionId != null) replayPendingApproval(sessionId)
+                replayPendingApproval()
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -1282,6 +1282,10 @@ class ChatViewModel(
                 if (resolved > 0) {
                     addSystemMessage("Approval submitted")
                 }
+            }
+
+            WsMethods.APPROVAL_RECEIVED -> {
+                // Render acknowledgement has no chat content.
             }
 
             WsMethods.APPROVAL_PENDING -> {
@@ -3648,20 +3652,8 @@ class ChatViewModel(
         // Desktop parity (`prompts.ts` receiveApprovalRequest): ack the render
         // so the backend knows this client holds the prompt. Fire-and-forget.
         val requestId = event.requestId
-        val sessionId = event.sessionId ?: _uiState.value.currentSessionId
-        if (requestId != null && sessionId != null) {
-            viewModelScope.launch(ioDispatcher) {
-                runCatching {
-                    wsClient.send(
-                        method = WsMethods.APPROVAL_RECEIVED,
-                        params =
-                            mapOf(
-                                "session_id" to sessionId,
-                                "request_id" to requestId,
-                            ),
-                    )
-                }
-            }
+        if (requestId != null) {
+            sendApprovalRpc(WsMethods.APPROVAL_RECEIVED, mapOf("request_id" to requestId))
         }
     }
 
@@ -3714,13 +3706,41 @@ class ChatViewModel(
      * gateway for unresolved approvals and surface the oldest one. Called
      * after resume and after each respond (the queue can hold more).
      */
-    private fun replayPendingApproval(sessionId: String) {
+    private fun replayPendingApproval() {
+        sendApprovalRpc(WsMethods.APPROVAL_PENDING)
+    }
+
+    // Approval replay regression: gateway RPCs require the runtime registry ID,
+    // not the stored transcript ID. Correlate replies across switches/reconnects.
+    private fun sendApprovalRpc(
+        method: String,
+        params: Map<String, Any> = emptyMap(),
+    ) {
+        val storageId = _uiState.value.currentSessionId ?: return
+        val runtimeId = runtimeSessionId ?: return
+        val generation = sessionGeneration
+        val resumeSequence = activeResumeRequestSequence
         viewModelScope.launch(ioDispatcher) {
+            if (!isCurrentSessionRequest(storageId, generation) ||
+                resumeSequence != activeResumeRequestSequence || runtimeId != runtimeSessionId
+            ) {
+                return@launch
+            }
             wsClient.send(
-                method = WsMethods.APPROVAL_PENDING,
-                params = mapOf("session_id" to sessionId),
-                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_PENDING) },
+                method = method,
+                params = params + ("session_id" to runtimeId),
+                onSent = { id -> trackSessionRequest(id, method, generation, resumeSequence, storageId) },
             )
+            if (method == WsMethods.APPROVAL_RESPOND) {
+                // Preserve respond-before-replay ordering on the same runtime.
+                wsClient.send(
+                    method = WsMethods.APPROVAL_PENDING,
+                    params = mapOf("session_id" to runtimeId),
+                    onSent = { id ->
+                        trackSessionRequest(id, WsMethods.APPROVAL_PENDING, generation, resumeSequence, storageId)
+                    },
+                )
+            }
         }
     }
 
@@ -3729,7 +3749,7 @@ class ChatViewModel(
         val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
         val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
         val requestId = first["request_id"] as? String ?: return
-        val sessionId = _uiState.value.currentSessionId
+        val sessionId = runtimeSessionId
         // Don't duplicate a prompt already on screen.
         val alreadyShown =
             _uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
@@ -3740,7 +3760,7 @@ class ChatViewModel(
     fun respondToApproval(action: String) {
         val state = _uiState.value
         val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
-        val sessionId = state.currentSessionId ?: return
+        if (state.currentSessionId == null || runtimeSessionId == null) return
         // Desktop sends `once` for a single run; legacy mobile sent `approve`
         // (any non-deny still unblocks, but stay on-spec going forward).
         val choice = if (action == "approve") "once" else action
@@ -3760,22 +3780,13 @@ class ChatViewModel(
             )
         }
 
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "choice" to choice,
-                    "all" to false,
-                )
-            if (requestId != null) params["request_id"] = requestId
-            wsClient.send(
-                method = WsMethods.APPROVAL_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) },
+        val params =
+            mutableMapOf<String, Any>(
+                "choice" to choice,
+                "all" to false,
             )
-            // The queue can hold more pendings — surface the next one.
-            replayPendingApproval(sessionId)
-        }
+        if (requestId != null) params["request_id"] = requestId
+        sendApprovalRpc(WsMethods.APPROVAL_RESPOND, params)
     }
 
     // ── Sudo / secret prompt flow (issue #524) ──────────────────────────

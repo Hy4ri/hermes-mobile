@@ -2961,6 +2961,125 @@ class ChatViewModelTest {
 
     // ── Approval flow ────────────────────────────────────────────────────────
 
+    private suspend fun TestScope.resumeApprovalTestSession(): ChatViewModel {
+        stubEmptySessionRests("approval-stored", "other-stored")
+        val (viewModel, _) = createViewModelWithSession()
+        var resumeId = ""
+        every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+            val id = "approval-resume-${++reqCount}"
+            resumeId = id
+            arg<((String) -> Unit)?>(2)?.invoke(id)
+            id
+        }
+        viewModel.switchSession("approval-stored")
+        advanceUntilIdle()
+        mockEventsFlow.emit(
+            WsEvent.RpcResult(
+                resumeId,
+                mapOf("session_id" to "approval-runtime", "resumed" to "approval-stored"),
+            ),
+        )
+        advanceUntilIdle()
+        assertEquals("approval-runtime", ActiveSessionHolder.activeSessionId.value)
+        return viewModel
+    }
+
+    @Test
+    fun testApprovalReplay_usesRuntimeIdForPendingReceivedAndRespond() =
+        runTest {
+            var pendingId = ""
+            every { HermesWsClient.send(WsMethods.APPROVAL_PENDING, any(), any()) } answers {
+                pendingId = "approval-pending-${++reqCount}"
+                arg<((String) -> Unit)?>(2)?.invoke(pendingId)
+                pendingId
+            }
+            val viewModel = resumeApprovalTestSession()
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_PENDING,
+                    mapOf("session_id" to "approval-runtime"),
+                    any(),
+                )
+            }
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    pendingId,
+                    mapOf("approvals" to listOf(mapOf("request_id" to "approval-1", "command" to "test"))),
+                ),
+            )
+            advanceUntilIdle()
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RECEIVED,
+                    mapOf("session_id" to "approval-runtime", "request_id" to "approval-1"),
+                    any(),
+                )
+            }
+            viewModel.respondToApproval("approve")
+            advanceUntilIdle()
+            verify {
+                HermesWsClient.send(
+                    WsMethods.APPROVAL_RESPOND,
+                    mapOf(
+                        "session_id" to "approval-runtime",
+                        "request_id" to "approval-1",
+                        "choice" to "once",
+                        "all" to false,
+                    ),
+                    any(),
+                )
+            }
+            assertEquals("approval-stored", viewModel.uiState.value.currentSessionId)
+        }
+
+    @Test
+    fun testApprovalReplay_ignoresLateResultAfterSessionSwitch() =
+        runTest {
+            var pendingId = ""
+            every { HermesWsClient.send(WsMethods.APPROVAL_PENDING, any(), any()) } answers {
+                pendingId = "approval-pending-${++reqCount}"
+                arg<((String) -> Unit)?>(2)?.invoke(pendingId)
+                pendingId
+            }
+            val viewModel = resumeApprovalTestSession()
+            viewModel.switchSession("other-stored")
+            advanceUntilIdle()
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    pendingId,
+                    mapOf("approvals" to listOf(mapOf("request_id" to "old-approval", "command" to "test"))),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("other-stored", viewModel.uiState.value.currentSessionId)
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .none { it.approvalInfo != null },
+            )
+            verify(exactly = 0) { HermesWsClient.send(WsMethods.APPROVAL_RECEIVED, any(), any()) }
+        }
+
+    @Test
+    fun testApprovalReplay_ignoresLateErrorAfterReconnect() =
+        runTest {
+            var pendingId = ""
+            every { HermesWsClient.send(WsMethods.APPROVAL_PENDING, any(), any()) } answers {
+                pendingId = "approval-pending-${++reqCount}"
+                arg<((String) -> Unit)?>(2)?.invoke(pendingId)
+                pendingId
+            }
+            val viewModel = resumeApprovalTestSession()
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+            mockEventsFlow.emit(WsEvent.RpcError(pendingId, JsonRpcError(4001, "session not found")))
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.errorMessage)
+            assertTrue(
+                viewModel.uiState.value.messages
+                    .none { it.content.contains("session not found") },
+            )
+        }
+
     @Test
     fun testApprovalRequest_addsSystemMessage() =
         runTest {

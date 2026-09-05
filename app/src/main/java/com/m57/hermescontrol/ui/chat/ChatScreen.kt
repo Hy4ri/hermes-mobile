@@ -298,6 +298,12 @@ fun ChatScreen(
             viewModel.consumePendingPrefill()
         }
     }
+    LaunchedEffect(state.composerTextToRestore) {
+        state.composerTextToRestore?.let { text ->
+            inputFieldValue = ChatInputPolicy.restoreRejectedText(text, inputFieldValue)
+            viewModel.consumeComposerTextRestore()
+        }
+    }
     var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }

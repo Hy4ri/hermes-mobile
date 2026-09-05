@@ -46,6 +46,20 @@ object ChatInputPolicy {
      */
     fun commandFieldValue(command: String): TextFieldValue = TextFieldValue(command, TextRange(command.length))
 
+    /** Restores a rejected prompt without discarding text typed since dispatch. */
+    fun restoreRejectedText(
+        rejectedText: String,
+        current: TextFieldValue,
+    ): TextFieldValue {
+        val restored =
+            when {
+                current.text.isEmpty() -> rejectedText
+                rejectedText.isEmpty() -> current.text
+                else -> "$rejectedText\n${current.text}"
+            }
+        return commandFieldValue(restored)
+    }
+
     /**
      * Rank slash-command suggestions by how often the user has dispatched them
      * (issue #865): most-used first, ties broken by the current (catalog)

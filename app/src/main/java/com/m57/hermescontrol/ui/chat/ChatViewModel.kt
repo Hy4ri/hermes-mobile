@@ -2,8 +2,6 @@ package com.m57.hermescontrol.ui.chat
 
 import android.app.Application
 import android.net.Uri
-import android.util.Base64
-import android.util.Base64OutputStream
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -43,7 +41,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.yield
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
@@ -52,11 +49,26 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "ChatViewModel"
 private const val MESSAGE_PAGE_SIZE = 150
+
+private data class PreparedAttachment(
+    val attachment: Attachment,
+    val encodedFile: File,
+)
+
+private sealed interface PrepareAttachmentResult {
+    data class Success(
+        val prepared: PreparedAttachment,
+    ) : PrepareAttachmentResult
+
+    data object TooLarge : PrepareAttachmentResult
+
+    data object Unreadable : PrepareAttachmentResult
+}
 
 /**
  * Canonical comparison key for a tool message's result payload.
@@ -349,6 +361,8 @@ data class ChatUiState(
     val compressionCount: Int? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
+    /** One-shot composer recovery after an attachment is rejected before send. */
+    val composerTextToRestore: String? = null,
     // Reaction animation — set when a reaction WS event arrives, auto-clears
     val reactionKind: String? = null,
     /** Monotonic trigger ID so consecutive same-kind reactions re-animate. */
@@ -519,6 +533,7 @@ class ChatViewModel(
         val text: String,
         val attachments: List<Attachment>,
         val wasStreaming: Boolean,
+        val userMessage: ChatMessage,
     )
 
     private var pendingInitialPrompt: PendingPrompt? = null
@@ -1137,6 +1152,7 @@ class ChatViewModel(
                         wasStreaming = pending.wasStreaming,
                         storageSessionId = storageId,
                         agentSessionId = runtimeId,
+                        userMessage = pending.userMessage,
                     )
                 }
             }
@@ -1447,6 +1463,20 @@ class ChatViewModel(
             return
         }
 
+        val oversizedAttachment =
+            _uiState.value.pendingAttachments.firstOrNull {
+                it.size > MAX_CHAT_ATTACHMENT_BYTES
+            }
+        if (oversizedAttachment != null) {
+            _uiState.update {
+                it.copy(
+                    errorMessage = attachmentTooLargeMessage(oversizedAttachment),
+                    composerTextToRestore = text,
+                )
+            }
+            return
+        }
+
         // Snapshot + clear attachments so the input bar empties immediately
         val attachments = _uiState.value.pendingAttachments.toList()
         clearAttachments()
@@ -1474,7 +1504,7 @@ class ChatViewModel(
         if (storageSessionId == null || agentSessionId == null) {
             // Issue #969: Session creation is still in-flight. Hold the prompt
             // so it is dispatched automatically the moment SESSION_CREATE lands.
-            pendingInitialPrompt = PendingPrompt(text, attachments, wasStreaming)
+            pendingInitialPrompt = PendingPrompt(text, attachments, wasStreaming, userMessage)
             return
         }
 
@@ -1496,6 +1526,7 @@ class ChatViewModel(
         agentSessionId: String,
         userMessage: ChatMessage? = null,
     ) {
+        val dispatchGeneration = sessionGeneration
         val msgToPersist =
             userMessage ?: ChatMessage(
                 role = MessageRole.USER,
@@ -1503,128 +1534,222 @@ class ChatViewModel(
                 attachments = if (attachments.isNotEmpty()) attachments else null,
             )
 
-        // Persist under the original Desktop session ID.
-        viewModelScope.launch(ioDispatcher) {
-            repo.persistMessage(msgToPersist, storageSessionId)
-        }
-
         // Upload attachments then submit prompt
         viewModelScope.launch(ioDispatcher) {
             val fileRefs = mutableListOf<String>()
+            val preparedAttachments = mutableListOf<PreparedAttachment>()
 
-            for (attachment in attachments) {
-                val b64 = readContentUriBase64(attachment.uri)
-                if (b64 == null) {
-                    Log.w(TAG, "Skipping unreadable attachment: ${attachment.name}")
-                    continue
+            try {
+                // Snapshot every attachment before the first RPC. This closes the
+                // content-URI TOCTOU window without retaining multiple Base64
+                // strings in the heap: encoded snapshots live in private cache.
+                for (attachment in attachments) {
+                    when (val result = prepareAttachment(attachment)) {
+                        is PrepareAttachmentResult.Success -> {
+                            preparedAttachments += result.prepared
+                        }
+
+                        PrepareAttachmentResult.TooLarge -> {
+                            rejectOversizedAttachment(
+                                attachment = attachment,
+                                attachments = attachments,
+                                message = msgToPersist,
+                                wasStreaming = wasStreaming,
+                                generation = dispatchGeneration,
+                            )
+                            return@launch
+                        }
+
+                        PrepareAttachmentResult.Unreadable -> {
+                            Log.w(TAG, "Skipping unreadable attachment: ${attachment.name}")
+                        }
+                    }
                 }
 
+                // Persist only after every readable attachment has a bounded,
+                // immutable snapshot and no partial server upload can occur.
                 try {
-                    if (attachment.isImage) {
-                        // Await so the backend stages the image into
-                        // session["attached_images"] BEFORE prompt.submit runs
-                        // (a fire-and-forget send raced prompt.submit and the
-                        // image was dropped). Requires session_id or the gateway
-                        // 4001s "session not found" (desktop passes it too).
-                        val result =
+                    repo.persistMessage(msgToPersist, storageSessionId)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    Log.e(TAG, "Failed to persist outgoing message", e)
+                    if (dispatchGeneration == sessionGeneration) {
+                        _uiState.update { state ->
+                            state.copy(
+                                messages = state.messages.filterNot { it.id == msgToPersist.id },
+                                pendingAttachments = attachments + state.pendingAttachments,
+                                composerTextToRestore = msgToPersist.content,
+                                errorMessage = "Failed to save message",
+                                isAgentTyping = wasStreaming,
+                            )
+                        }
+                    }
+                    return@launch
+                }
+
+                for ((attachment, encodedFile) in preparedAttachments) {
+                    try {
+                        // Materialize one bounded Base64 payload at a time. The
+                        // awaited RPC completes before the next snapshot is read.
+                        val b64 = encodedFile.readText(Charsets.US_ASCII)
+
+                        if (attachment.isImage) {
+                            // Await so the backend stages the image into
+                            // session["attached_images"] BEFORE prompt.submit runs
+                            // (a fire-and-forget send raced prompt.submit and the
+                            // image was dropped). Requires session_id or the gateway
+                            // 4001s "session not found" (desktop passes it too).
+                            val result =
+                                sendRpcAndAwait(
+                                    method = WsMethods.IMAGE_ATTACH_BYTES,
+                                    params =
+                                        mapOf(
+                                            "session_id" to agentSessionId,
+                                            "content_base64" to "data:${attachment.mimeType};base64,$b64",
+                                            "filename" to attachment.name,
+                                            "ext" to attachment.fileExtension,
+                                        ),
+                                )
+                            if (result != null) {
+                                @Suppress("UNCHECKED_CAST")
+                                val ok = (result as? Map<String, Any?>)?.get("attached") as? Boolean
+                                if (ok != true) {
+                                    Log.w(TAG, "Image attach for ${attachment.name} returned non-ok: $result")
+                                }
+                            }
+                        } else {
+                            // Await the @file: ref text so we can embed it in the prompt.
+                            // file.attach also requires session_id or the gateway 4001s
+                            // "session not found" (same resolver as image.attach_bytes).
                             sendRpcAndAwait(
-                                method = WsMethods.IMAGE_ATTACH_BYTES,
+                                method = WsMethods.FILE_ATTACH,
                                 params =
                                     mapOf(
                                         "session_id" to agentSessionId,
-                                        "content_base64" to "data:${attachment.mimeType};base64,$b64",
-                                        "filename" to attachment.name,
-                                        "ext" to attachment.fileExtension,
+                                        "data_url" to "data:${attachment.mimeType};base64,$b64",
+                                        "name" to attachment.name,
                                     ),
-                            )
-                        if (result != null) {
-                            @Suppress("UNCHECKED_CAST")
-                            val ok = (result as? Map<String, Any?>)?.get("attached") as? Boolean
-                            if (ok != true) {
-                                Log.w(TAG, "Image attach for ${attachment.name} returned non-ok: $result")
+                            )?.let { result ->
+                                @Suppress("UNCHECKED_CAST")
+                                val refText =
+                                    (result as? Map<String, Any?>)?.get("ref_text") as? String
+                                if (!refText.isNullOrBlank()) fileRefs.add(refText)
                             }
                         }
-                    } else {
-                        // Await the @file: ref text so we can embed it in the prompt.
-                        // file.attach also requires session_id or the gateway 4001s
-                        // "session not found" (same resolver as image.attach_bytes).
-                        sendRpcAndAwait(
-                            method = WsMethods.FILE_ATTACH,
-                            params =
-                                mapOf(
-                                    "session_id" to agentSessionId,
-                                    "data_url" to "data:${attachment.mimeType};base64,$b64",
-                                    "name" to attachment.name,
-                                ),
-                        )?.let { result ->
-                            @Suppress("UNCHECKED_CAST")
-                            val refText =
-                                (result as? Map<String, Any?>)?.get("ref_text") as? String
-                            if (!refText.isNullOrBlank()) fileRefs.add(refText)
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        Log.e(TAG, "Failed to upload attachment ${attachment.name}", e)
+                        if (dispatchGeneration == sessionGeneration) {
+                            _uiState.update {
+                                it.copy(errorMessage = "Upload failed: ${attachment.name}")
+                            }
                         }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to upload attachment ${attachment.name}", e)
-                    _uiState.update {
-                        it.copy(errorMessage = "Upload failed: ${attachment.name}")
+                }
+
+                // Build prompt text — prepend @file: refs for non-image files
+                val fullText =
+                    if (fileRefs.isEmpty()) {
+                        text
+                    } else {
+                        fileRefs.joinToString("\n") +
+                            if (text.isNotBlank()) "\n\n$text" else ""
                     }
-                }
-            }
 
-            // Build prompt text — prepend @file: refs for non-image files
-            val fullText =
-                if (fileRefs.isEmpty()) {
-                    text
+                // While a turn is actively streaming and this is a plain text prompt
+                // (no attachments — session.redirect carries text only), steer the
+                // in-flight turn via session.redirect instead of queueing a fresh
+                // prompt.submit. The backend rewrites the live turn when it can, or
+                // queues the correction as the next turn otherwise (issue #710).
+                if (dispatchGeneration == sessionGeneration) {
+                    ActiveSessionHolder.set(agentSessionId, storageSessionId)
+                }
+                if (wasStreaming && attachments.isEmpty()) {
+                    wsClient.sendRedirect(
+                        agentSessionId,
+                        fullText,
+                        onSent = { id ->
+                            trackSessionRequest(
+                                id = id,
+                                method = WsMethods.SESSION_REDIRECT,
+                                generation = dispatchGeneration,
+                                sessionId = storageSessionId,
+                            )
+                        },
+                    )
                 } else {
-                    fileRefs.joinToString("\n") +
-                        if (text.isNotBlank()) "\n\n$text" else ""
+                    wsClient.sendMessage(
+                        agentSessionId,
+                        fullText,
+                        onSent = { id ->
+                            trackSessionRequest(
+                                id = id,
+                                method = WsMethods.PROMPT_SUBMIT,
+                                generation = dispatchGeneration,
+                                sessionId = storageSessionId,
+                            )
+                        },
+                    )
                 }
-
-            // While a turn is actively streaming and this is a plain text prompt
-            // (no attachments — session.redirect carries text only), steer the
-            // in-flight turn via session.redirect instead of queueing a fresh
-            // prompt.submit. The backend rewrites the live turn when it can, or
-            // queues the correction as the next turn otherwise (issue #710).
-            ActiveSessionHolder.set(agentSessionId, storageSessionId)
-            if (wasStreaming && attachments.isEmpty()) {
-                wsClient.sendRedirect(
-                    agentSessionId,
-                    fullText,
-                    onSent = { id -> trackRequest(id, WsMethods.SESSION_REDIRECT) },
-                )
-            } else {
-                wsClient.sendMessage(
-                    agentSessionId,
-                    fullText,
-                    onSent = { id -> trackRequest(id, WsMethods.PROMPT_SUBMIT) },
-                )
+            } finally {
+                preparedAttachments.forEach { it.encodedFile.delete() }
             }
         }
     }
 
-    /** Read and encode a `content://` or `file://` URI to Base64 via ContentResolver, avoiding large allocations. */
-    private suspend fun readContentUriBase64(uriString: String): String? =
-        try {
+    /** Snapshot one URI to private cache while enforcing the outbound frame limit. */
+    private suspend fun prepareAttachment(attachment: Attachment): PrepareAttachmentResult {
+        var encodedFile: File? = null
+        return try {
             val context = getApplication<Application>()
-            val uri = Uri.parse(uriString)
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                val baos = ByteArrayOutputStream()
-                val b64os = Base64OutputStream(baos, Base64.NO_WRAP)
-                val buffer = ByteArray(1024 * 128) // 128KB chunk
-                var bytesRead: Int
+            val uri = Uri.parse(attachment.uri)
+            encodedFile = File.createTempFile("chat-attachment-", ".b64", context.cacheDir)
+            val result =
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    encodedFile.outputStream().buffered().use { output ->
+                        encodeAttachmentBase64(input, output)
+                    }
+                } ?: return PrepareAttachmentResult.Unreadable.also { encodedFile.delete() }
 
-                while (stream.read(buffer).also { bytesRead = it } != -1) {
-                    b64os.write(buffer, 0, bytesRead)
-                    yield() // Prevent blocking the thread during large reads
+            when (result) {
+                AttachmentSizeResult.WITHIN_LIMIT -> {
+                    PrepareAttachmentResult.Success(PreparedAttachment(attachment, encodedFile))
                 }
-                b64os.close()
-                baos.toString("UTF-8")
+
+                AttachmentSizeResult.TOO_LARGE -> {
+                    PrepareAttachmentResult.TooLarge.also { encodedFile.delete() }
+                }
             }
         } catch (e: Exception) {
+            encodedFile?.delete()
             if (e is kotlinx.coroutines.CancellationException) throw e
-            Log.e(TAG, "Failed to read and encode attachment: ${e.message}", e)
-            null
+            Log.e(TAG, "Failed to prepare attachment: ${e.message}", e)
+            PrepareAttachmentResult.Unreadable
         }
+    }
+
+    private fun rejectOversizedAttachment(
+        attachment: Attachment,
+        attachments: List<Attachment>,
+        message: ChatMessage,
+        wasStreaming: Boolean,
+        generation: Long,
+    ) {
+        Log.w(TAG, "Rejecting oversized attachment: ${attachment.name}")
+        if (generation != sessionGeneration) return
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages.filterNot { it.id == message.id },
+                pendingAttachments = attachments + state.pendingAttachments,
+                composerTextToRestore = message.content,
+                errorMessage = attachmentTooLargeMessage(attachment),
+                isAgentTyping = wasStreaming,
+            )
+        }
+    }
+
+    private fun attachmentTooLargeMessage(attachment: Attachment): String =
+        "Attachment too large: ${attachment.name} (maximum 10 MB)"
 
     /**
      * Send a JSON-RPC call and suspend until the response arrives, delegating
@@ -1665,6 +1790,10 @@ class ChatViewModel(
 
     fun clearOpenError() {
         _uiState.update { it.copy(openError = null) }
+    }
+
+    fun consumeComposerTextRestore() {
+        _uiState.update { it.copy(composerTextToRestore = null) }
     }
 
     fun gatewayPathFor(attachment: Attachment): String = mediaDelegate.gatewayPathFor(attachment)
@@ -2805,6 +2934,7 @@ class ChatViewModel(
                 contextBreakdown = null,
                 compressionCount = null,
                 pendingAttachments = emptyList(),
+                composerTextToRestore = null,
                 reactionKind = null,
                 subagentIndicators = emptyList(),
                 todos = emptyList(),

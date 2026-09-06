@@ -7,15 +7,18 @@ documentation:
   - changed-files:
       - any-glob-to-any-file:
           - "docs/**"
-          - "README.md"
-          - "CONTRIBUTING.md"
-          - "AGENTS.md"
+          - "fastlane/**"
+          - "*.md"
+          - "**/*.md"
+          - "LICENSE"
 
 # ── CI / workflows ───────────────────────────────────────────────
 ci:
   - changed-files:
       - any-glob-to-any-file:
           - ".github/**"
+          - ".weblate.json"
+          - ".envrc"
 
 # ── tests ─────────────────────────────────────────────────────────
 testing:
@@ -24,6 +27,8 @@ testing:
           - "app/src/test/**"
           - "app/src/androidTest/**"
           - "**/*Test.kt"
+          - "**/*Benchmark.kt"
+          - "**/fakes/**"
 
 # ── UI / UX ───────────────────────────────────────────────────────
 ux:
@@ -32,15 +37,22 @@ ux:
           - "app/src/main/**/ui/**"
           - "app/src/main/**/theme/**"
           - "app/src/main/res/**"
+          - "app/src/main/java/com/m57/hermescontrol/MainActivity.kt"
+          - "app/src/main/java/com/m57/hermescontrol/Navigation*.kt"
+          - "app/src/main/java/com/m57/hermescontrol/ScreenRegistry.kt"
+          - "app/src/main/java/com/m57/hermescontrol/HermesControlApp.kt"
+          - "app/src/main/java/com/m57/hermescontrol/ExternalActivityLifecycleGuard.kt"
+          - "app/src/main/java/com/m57/hermescontrol/util/**"
 
-# ── networking (WS, REST, remote) ─────────────────────────────────
+# ── networking (WS, REST, remote, updates) ────────────────────────
 networking:
   - changed-files:
       - any-glob-to-any-file:
           - "app/src/main/**/data/ws/**"
           - "app/src/main/**/data/remote/**"
+          - "app/src/main/**/data/update/**"
 
-# ── data layer (Room, models, local) ──────────────────────────────
+# ── data layer (Room, models, local, config) ──────────────────────
 data-layer:
   - changed-files:
       - any-glob-to-any-file:
@@ -55,14 +67,35 @@ security:
   - changed-files:
       - any-glob-to-any-file:
           - "app/src/main/**/authlogin/**"
+          - "app/src/main/**/pairing/**"
+          - "app/src/main/**/keys/**"
+          - "app/src/main/**/data/local/AuthManager*"
           - "app/src/main/**/data/remote/Auth*"
           - "app/src/main/**/data/remote/*Token*"
+          - "app/src/main/**/data/remote/EncryptedCookieStore*"
+          - "app/src/main/**/data/remote/PersistentCookieJar*"
+          - "app/src/main/res/xml/network_security_config.xml"
 
-# ── build system (Gradle, Nix, wrapper) ──────────────────────────
+# ── notification (foreground & push services) ─────────────────────
+notification:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/**/notification/**"
+          - "app/src/main/res/drawable/ic_notification.xml"
+
+# ── assistant (digital assistant & voice interaction) ─────────────
+assistant:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "app/src/main/**/assistant/**"
+          - "app/src/main/res/xml/voice_interaction_service.xml"
+
+# ── build system (Gradle, Nix, wrapper, manifests) ────────────────
 build:
   - changed-files:
       - any-glob-to-any-file:
           - "*.gradle.kts"
+          - "**/*.gradle.kts"
           - "gradle/**"
           - "gradle.properties"
           - "gradlew"
@@ -70,3 +103,7 @@ build:
           - "flake.nix"
           - "flake.lock"
           - ".editorconfig"
+          - ".gitignore"
+          - "**/.gitignore"
+          - "app/proguard-rules.pro"
+          - "app/src/main/AndroidManifest.xml"

@@ -89,9 +89,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         ExternalActivityLifecycleGuard.onHostPaused()
-        NotificationHelper.setAppForeground(this, false)
+        // Prepare the FGS while still eligible to start it. A pause alone does
+        // not mean background: rotation also pauses and recreates this activity.
         NotificationHelper.start(this)
         super.onPause()
+    }
+
+    override fun onStop() {
+        // isChangingConfigurations is reliable here, not during onPause.
+        // Keep the shared socket alive across recreation, but still release an
+        // idle connection when the user really leaves the app or locks the phone.
+        if (!isChangingConfigurations) NotificationHelper.setAppForeground(this, false)
+        super.onStop()
     }
 
     private fun consumeNotificationIntent(intent: Intent?) {

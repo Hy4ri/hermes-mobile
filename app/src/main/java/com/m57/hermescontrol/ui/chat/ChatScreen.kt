@@ -600,6 +600,23 @@ fun ChatScreen(
                             ?: error("Application not available")
                     AppUpdateViewModel(app)
                 }
+            val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
+
+            val updateLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
+                val observer =
+                    androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                            if (appUpdateState is AppUpdateState.NeedsUnknownSourcesPermission) {
+                                appUpdateViewModel.resumeInstallAfterPermission()
+                            }
+                        }
+                    }
+                updateLifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    updateLifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
 
             if (UpdateNoticeManager.enabled && !AppUpdateCache.dismissed) {
                 val noticeTag =
@@ -616,8 +633,14 @@ fun ChatScreen(
 
             if (AppUpdateCache.isDialogVisible) {
                 val context = androidx.compose.ui.platform.LocalContext.current
+                val dialogState =
+                    if (appUpdateState !is AppUpdateState.Idle) {
+                        appUpdateState
+                    } else {
+                        updateNotice
+                    }
                 AppUpdateDialog(
-                    state = updateNotice,
+                    state = dialogState,
                     onDismiss = { AppUpdateCache.hideDialog() },
                     onStartUpdate = { appUpdateViewModel.startUpdate() },
                     onCancelDownload = { appUpdateViewModel.cancelDownload() },

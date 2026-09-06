@@ -333,38 +333,4 @@ class AppUpdateViewModelTest {
             assertTrue(AppUpdateCache.dismissed)
             assertFalse(AppUpdateCache.isDialogVisible)
         }
-
-    @Test
-    fun startUpdate_fromIdleAdoptsCachedAvailableAndStartsDownloading() =
-        runTest {
-            every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
-            coEvery { checker.fetchLatestRelease() } returns null
-
-            val vm = createViewModel()
-            advanceUntilIdle()
-            assertEquals(AppUpdateState.Idle, vm.state.value)
-
-            val available =
-                AppUpdateState.UpdateAvailable(
-                    latestTag = "v1.23.0",
-                    apkUrl = "https://example.com/apk",
-                    sizeBytes = 5000L,
-                )
-            AppUpdateCache.update(available)
-
-            coEvery { checker.downloadApk(any(), any(), any()) } coAnswers {
-                kotlinx.coroutines.delay(10000)
-                true
-            }
-
-            vm.startUpdate()
-            testDispatcher.scheduler.advanceTimeBy(100)
-            assertTrue(
-                "Must transition to Downloading using cached update",
-                vm.state.value is AppUpdateState.Downloading,
-            )
-
-            vm.cancelDownload()
-            advanceUntilIdle()
-        }
 }

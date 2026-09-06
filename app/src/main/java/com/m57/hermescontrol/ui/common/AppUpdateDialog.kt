@@ -29,6 +29,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,14 +53,19 @@ fun AppUpdateDialog(
     onNeverAskAgain: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val tag = state.releaseTag().orEmpty()
     val available = state as? AppUpdateState.UpdateAvailable
+    var cachedAvailable by remember { mutableStateOf(available) }
+    if (available != null) {
+        cachedAvailable = available
+    }
+    val currentAvailable = available ?: cachedAvailable
+    val tag = state.releaseTag() ?: currentAvailable?.latestTag.orEmpty()
     val sizeMb =
-        available?.let {
+        currentAvailable?.let {
             val mb = it.sizeBytes / (1024 * 1024.0)
             "%.1f MB".format(mb)
         }
-    val releaseNotes = available?.releaseNotes?.trim().orEmpty()
+    val releaseNotes = currentAvailable?.releaseNotes?.trim().orEmpty()
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -156,6 +165,7 @@ fun AppUpdateDialog(
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 val progressPercent = (state.progress * 100).toInt()
                                 Text(
@@ -167,16 +177,35 @@ fun AppUpdateDialog(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                if (currentAvailable != null && currentAvailable.sizeBytes > 0) {
+                                    val downloadedMb = (state.progress * currentAvailable.sizeBytes) / (1024 * 1024.0)
+                                    val totalMb = currentAvailable.sizeBytes / (1024 * 1024.0)
+                                    Text(
+                                        text = "%.1f / %.1f MB".format(downloadedMb, totalMb),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            LinearProgressIndicator(
-                                progress = { state.progress },
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .height(8.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            if (state.progress > 0f) {
+                                LinearProgressIndicator(
+                                    progress = { state.progress },
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp)),
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp)),
+                                )
+                            }
                             Spacer(modifier = Modifier.height(12.dp))
                             OutlinedButton(
                                 onClick = onCancelDownload,
@@ -188,11 +217,21 @@ fun AppUpdateDialog(
                     }
 
                     is AppUpdateState.Installing -> {
-                        Text(
-                            text = stringResource(R.string.settings_about_update_installing, tag),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = stringResource(R.string.settings_about_update_installing, tag),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                            )
+                        }
                     }
 
                     is AppUpdateState.NeedsUnknownSourcesPermission -> {

@@ -1,5 +1,8 @@
 package com.m57.hermescontrol.notification
 
+import android.content.Context
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -17,6 +20,15 @@ import org.junit.Test
  * or through the public `setAppForeground` API.
  */
 class ChatNotificationServiceTest {
+    @Test
+    fun `stop never tears down a service awaiting foreground promotion`() {
+        val context = mockk<Context>(relaxed = true)
+
+        NotificationHelper.stop(context)
+
+        verify(exactly = 0) { context.stopService(any()) }
+    }
+
     @Test
     fun `setAppForeground true sets the flag`() {
         val field =

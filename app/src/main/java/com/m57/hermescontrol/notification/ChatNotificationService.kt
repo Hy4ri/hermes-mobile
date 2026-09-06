@@ -66,6 +66,7 @@ class ChatNotificationService : Service() {
         internal const val PENDING_NOTIFICATION_ID = 2
 
         private val isAppInForeground = AtomicBoolean(false)
+        internal val lifecycle = ForegroundServiceLifecycle()
 
         fun setAppForeground(foreground: Boolean) {
             isAppInForeground.set(foreground)
@@ -80,7 +81,6 @@ class ChatNotificationService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
-        startForeground(NOTIFICATION_ID, buildForegroundNotification(getString(R.string.notif_waiting_replies)))
         startEventCollection()
     }
 
@@ -89,6 +89,7 @@ class ChatNotificationService : Service() {
             serviceScope.launch {
                 HermesWsClient.events.collect { event ->
                     if (!isAppInForeground.get()) {
+                        val generation = lifecycle.generation
                         launch {
                             delay(500)
                             if (!isAppInForeground.get()) {
@@ -111,8 +112,8 @@ class ChatNotificationService : Service() {
                                         // HermesWsClient's own collector, so the
                                         // service is not restarted on the next
                                         // ON_STOP (issue #794).
-                                        stopForeground(STOP_FOREGROUND_REMOVE)
-                                        stopSelf()
+                                        // A delayed completion must not retire a newer turn/start.
+                                        if (!HermesWsClient.pendingReply) lifecycle.complete(generation)
                                     }
 
                                     is WsEvent.ClarifyRequest -> {
@@ -260,11 +261,23 @@ class ChatNotificationService : Service() {
         intent: Intent?,
         flags: Int,
         startId: Int,
-    ): Int = START_NOT_STICKY
+    ): Int {
+        lifecycle.onStart(
+            owner = this,
+            promote = {
+                startForeground(NOTIFICATION_ID, buildForegroundNotification(getString(R.string.notif_waiting_replies)))
+            },
+            // Do not remove foreground status before Android accepts retirement:
+            // a newer start may already be queued, but not delivered to us yet.
+            stopLatest = { stopSelfResult(startId) },
+        )
+        return START_NOT_STICKY
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        lifecycle.onDestroyed(this)
         eventCollector?.cancel()
         serviceScope.cancel()
         super.onDestroy()
@@ -283,15 +296,19 @@ object NotificationHelper {
         // when nothing is in flight.
         if (!HermesWsClient.pendingReply) return
         val intent = Intent(context, ChatNotificationService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
+        ChatNotificationService.lifecycle.start {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
     }
 
     fun stop(context: Context) {
-        context.stopService(Intent(context, ChatNotificationService::class.java))
+        // Rotation can resume the activity before the queued service is created.
+        // Direct stopService here crashes Android while foreground promotion is owed.
+        ChatNotificationService.lifecycle.stop()
     }
 
     fun setAppForeground(

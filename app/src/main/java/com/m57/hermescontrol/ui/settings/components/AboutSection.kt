@@ -178,10 +178,16 @@ private fun UpdateRow(
             }
 
             is AppUpdateState.Downloading -> {
-                LinearProgressIndicator(
-                    progress = { state.progress },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                )
+                if (state.progress > 0f) {
+                    LinearProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                }
             }
 
             is AppUpdateState.NeedsUnknownSourcesPermission -> {

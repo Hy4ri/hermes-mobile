@@ -43,10 +43,14 @@ class AppUpdateViewModel(
     val state: StateFlow<AppUpdateState> = _state.asStateFlow()
 
     private var downloadJob: kotlinx.coroutines.Job? = null
+    private var lastAvailable: AppUpdateState.UpdateAvailable? = null
 
     init {
         val cached = AppUpdateCache.state.value
-        if (cached is AppUpdateState.UpdateAvailable || cached is AppUpdateState.UpToDate) {
+        if (cached is AppUpdateState.UpdateAvailable) {
+            lastAvailable = cached
+            _state.value = cached
+        } else if (cached is AppUpdateState.UpToDate) {
             _state.value = cached
         } else {
             checkForUpdate()
@@ -83,12 +87,13 @@ class AppUpdateViewModel(
                 }
             _state.value =
                 if (isNewerVersion(info.tagName, currentVersion)) {
-                    AppUpdateState.UpdateAvailable(
-                        latestTag = info.tagName,
-                        apkUrl = apk.browserDownloadUrl,
-                        sizeBytes = apk.size,
-                        releaseNotes = info.body,
-                    )
+                    AppUpdateState
+                        .UpdateAvailable(
+                            latestTag = info.tagName,
+                            apkUrl = apk.browserDownloadUrl,
+                            sizeBytes = apk.size,
+                            releaseNotes = info.body,
+                        ).also { lastAvailable = it }
                 } else {
                     AppUpdateState.UpToDate(latestTag = info.tagName)
                 }
@@ -100,7 +105,12 @@ class AppUpdateViewModel(
 
     /** Download the release APK and launch the system installer. */
     fun startUpdate() {
-        val available = _state.value as? AppUpdateState.UpdateAvailable ?: return
+        val available =
+            (_state.value as? AppUpdateState.UpdateAvailable)
+                ?: lastAvailable
+                ?: (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)
+                ?: return
+        lastAvailable = available
         if (!canRequestInstalls()) {
             _state.value = AppUpdateState.NeedsUnknownSourcesPermission
             return
@@ -129,7 +139,9 @@ class AppUpdateViewModel(
     fun cancelDownload() {
         downloadJob?.cancel()
         downloadJob = null
-        val available = AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable
+        val available =
+            lastAvailable
+                ?: (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)
         if (available != null) {
             _state.value = available
         } else {
@@ -139,7 +151,10 @@ class AppUpdateViewModel(
 
     /** Dismiss the current update tag so it stops nagging. */
     fun dismissCurrentUpdate() {
-        val tag = _state.value.releaseTag()
+        val tag =
+            _state.value.releaseTag()
+                ?: lastAvailable?.latestTag
+                ?: AppUpdateCache.state.value.releaseTag()
         if (tag != null) {
             AuthManager.setDismissedUpdateTag(tag)
         }
@@ -152,8 +167,9 @@ class AppUpdateViewModel(
         if (canRequestInstalls()) {
             val dest = File(getApplication<Application>().cacheDir, APK_FILE_NAME)
             val available =
-                _state.value as? AppUpdateState.UpdateAvailable
-                    ?: AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable
+                (_state.value as? AppUpdateState.UpdateAvailable)
+                    ?: lastAvailable
+                    ?: (AppUpdateCache.state.value as? AppUpdateState.UpdateAvailable)
             if (dest.exists() && dest.length() > 0 && available != null) {
                 _state.value = AppUpdateState.Installing(available.latestTag)
                 launchInstaller(dest)

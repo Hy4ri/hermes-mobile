@@ -333,4 +333,53 @@ class AppUpdateViewModelTest {
             assertTrue(AppUpdateCache.dismissed)
             assertFalse(AppUpdateCache.isDialogVisible)
         }
+
+    @Test
+    fun startUpdate_transitionsToDownloadingImmediately() =
+        runTest {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            coEvery { checker.downloadApk(any(), any(), any()) } coAnswers {
+                kotlinx.coroutines.delay(5000)
+                true
+            }
+
+            vm.startUpdate()
+            // Immediately upon startUpdate call (before dispatcher advances coroutine time),
+            // state must be Downloading(0f) to give immediate visual feedback.
+            val state = vm.state.value
+            assertTrue("State must immediately be Downloading", state is AppUpdateState.Downloading)
+            assertEquals(0f, (state as AppUpdateState.Downloading).progress, 0.001f)
+        }
+
+    @Test
+    fun startUpdate_fromIdleAdoptsCachedAvailableAndStartsDownloading() =
+        runTest {
+            // Suppose VM is created when no check had run yet
+            every { AuthManager.getUpdateCheckDoneForVersion() } returns currentVersion
+            coEvery { checker.fetchLatestRelease() } returns null
+
+            val vm = createViewModel()
+            advanceUntilIdle()
+            assertEquals(AppUpdateState.Idle, vm.state.value)
+
+            // Simulate launch check finishing and posting to AppUpdateCache
+            val available =
+                AppUpdateState.UpdateAvailable(
+                    latestTag = "v1.23.0",
+                    apkUrl = "https://example.com/apk",
+                    sizeBytes = 5000L,
+                )
+            AppUpdateCache.update(available)
+
+            coEvery { checker.downloadApk(any(), any(), any()) } coAnswers {
+                kotlinx.coroutines.delay(5000)
+                true
+            }
+
+            vm.startUpdate()
+            val state = vm.state.value
+            assertTrue("Must transition to Downloading using cached update", state is AppUpdateState.Downloading)
+        }
 }

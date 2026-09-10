@@ -44,7 +44,10 @@ internal object WebSearchRenderer : ToolRenderer {
                 SearchHit(
                     title = ToolJson.cleanVisibleText(ToolJson.firstString(r, listOf("title", "name"))),
                     url = ToolJson.firstString(r, listOf("url", "href", "link")),
-                    snippet = ToolJson.cleanVisibleText(ToolJson.firstString(r, listOf("snippet", "description", "body"))),
+                    snippet =
+                        ToolJson.cleanVisibleText(
+                            ToolJson.firstString(r, listOf("snippet", "description", "body")),
+                        ),
                 )
             }.filter { it.title.isNotEmpty() || it.url.isNotEmpty() }
             .take(limit)

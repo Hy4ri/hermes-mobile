@@ -75,7 +75,9 @@ internal object TerminalRenderer : ToolRenderer {
 
         return when {
             output.isNotEmpty() -> output
+
             call.name == "execute_code" -> ToolJson.fallbackDetailText(call.rawArgs, call.rawResult)
+
             // A terminal row with no output already shows its command in the
             // title; the generic fallback would repeat it.
             else -> ""

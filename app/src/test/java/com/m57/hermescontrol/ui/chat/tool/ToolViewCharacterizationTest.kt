@@ -46,7 +46,8 @@ class ToolViewCharacterizationTest {
 
     @Test
     fun `terminal split streams keep stdout and stderr separate`() {
-        val view = build("terminal", """{"command":"make"}""", """{"stdout":"built","stderr":"warn: x","exit_code":0}""")
+        val view =
+            build("terminal", """{"command":"make"}""", """{"stdout":"built","stderr":"warn: x","exit_code":0}""")
 
         assertEquals("built", view.stdout)
         assertEquals("warn: x", view.stderr)

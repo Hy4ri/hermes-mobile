@@ -39,7 +39,12 @@ internal object FactStoreRenderer : ToolRenderer {
     override fun subtitle(call: ToolCall): String {
         val args = call.args
         val result = call.result
-        val action = ToolJson.firstString(args, listOf("action")).ifEmpty { ToolJson.firstString(result, listOf("action")) }
+        val action =
+            ToolJson
+                .firstString(
+                    args,
+                    listOf("action"),
+                ).ifEmpty { ToolJson.firstString(result, listOf("action")) }
         val entity = ToolJson.firstString(args, listOf("entity"))
         val query = ToolJson.firstString(args, listOf("query"))
         val facts = facts(call)

@@ -510,11 +510,6 @@ class ChatViewModel(
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
     private var sessionGeneration = 0L
 
-    private data class ActiveModelSwitch(
-        val spec: String,
-        val previousModel: String?,
-    )
-
     private var resumeRequestSequence = 0L
     private var activeResumeRequestSequence = 0L
     private var hydrationRequestSequence = 0L

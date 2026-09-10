@@ -81,8 +81,12 @@ class ChatApprovalsDelegate(
         @Suppress("UNCHECKED_CAST")
         val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
         val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
+        val requestId = first["request_id"] as? String ?: return
         val sessionId = runtimeSessionId() ?: uiState.value.currentSessionId
-        maybeSurfacePendingApproval(first, sessionId)
+        val alreadyShown =
+            uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
+        if (alreadyShown) return
+        handleApprovalRequest(parseApprovalMap(first, sessionId))
     }
 
     fun handleApprovalRespondResult(result: Any?) {

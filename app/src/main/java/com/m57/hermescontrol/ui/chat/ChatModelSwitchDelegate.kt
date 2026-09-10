@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Tracks an in-flight `config.set key=model` RPC and the model it would replace
  * so confirmation dialog dismiss can roll back optimistically.
  */
-data class ActiveModelSwitch(
+private data class ActiveModelSwitch(
     val spec: String,
     val previousModel: String?,
 )
@@ -47,10 +47,10 @@ class ChatModelSwitchDelegate(
     private val getPinnedModels: () -> List<PinnedModel> = { AuthManager.getPinnedModels() },
     private val savePinnedModels: (List<PinnedModel>) -> Unit = { AuthManager.savePinnedModels(it) },
 ) {
-    val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
-    var activeModelSwitchConfirmation: ActiveModelSwitch? = null
-    var optimisticPreviousModel: String? = null
-    var cachedModelOptions: List<ModelProvider> = emptyList()
+    private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
+    private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
+    private var optimisticPreviousModel: String? = null
+    private var cachedModelOptions: List<ModelProvider> = emptyList()
 
     fun isModelPickerCommand(command: String): Boolean {
         val trimmed = command.trim()

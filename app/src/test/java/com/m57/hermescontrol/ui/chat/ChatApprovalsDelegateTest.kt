@@ -162,6 +162,36 @@ class ChatApprovalsDelegateTest {
     }
 
     @Test
+    fun handleApprovalPendingResult_dropsMissingRequestId_andDedupesAlreadyShown() {
+        val initialCount = uiState.value.messages.size
+
+        // No request_id -> dropped entirely
+        delegate.handleApprovalPendingResult(
+            mapOf("approvals" to listOf(mapOf("command" to "rm -rf /"))),
+        )
+        assertEquals(initialCount, uiState.value.messages.size)
+
+        // Valid request_id -> surfaced
+        delegate.handleApprovalPendingResult(
+            mapOf("approvals" to listOf(mapOf("command" to "git pull", "request_id" to "r-valid"))),
+        )
+        assertEquals(initialCount + 1, uiState.value.messages.size)
+        assertEquals(
+            "r-valid",
+            uiState.value.messages
+                .last()
+                .approvalInfo
+                ?.requestId,
+        )
+
+        // Duplicate request_id -> ignored
+        delegate.handleApprovalPendingResult(
+            mapOf("approvals" to listOf(mapOf("command" to "git pull", "request_id" to "r-valid"))),
+        )
+        assertEquals(initialCount + 1, uiState.value.messages.size)
+    }
+
+    @Test
     fun handleApprovalRespondResult_appendsDesktopParitySystemMessage() {
         delegate.handleApprovalRespondResult(mapOf("resolved" to 1))
         assertEquals(listOf("Approval submitted"), systemMessages)

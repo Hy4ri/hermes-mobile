@@ -510,14 +510,6 @@ class ChatViewModel(
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
     private var sessionGeneration = 0L
 
-    private data class ActiveModelSwitch(
-        val spec: String,
-        val previousModel: String?,
-    )
-
-    private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
-    private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
-    private var optimisticPreviousModel: String? = null
     private var resumeRequestSequence = 0L
     private var activeResumeRequestSequence = 0L
     private var hydrationRequestSequence = 0L
@@ -615,12 +607,44 @@ class ChatViewModel(
             ioDispatcher = ioDispatcher,
         )
 
-    /**
-     * Model options cached from GET /api/model/options so the in-session model
-     * picker (issue #589) opens instantly when the user types /model or taps the
-     * top-bar chip. Preloaded at GatewayReady; refreshed on open if empty.
-     */
-    private var cachedModelOptions: List<ModelProvider> = emptyList()
+    private val reloginAuthenticator =
+        com.m57.hermescontrol.data.remote.ChatReloginAuthenticator(
+            ioDispatcher = ioDispatcher,
+            mainDispatcher = Dispatchers.Main,
+        )
+
+    private val modelSwitchDelegate =
+        ChatModelSwitchDelegate(
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            uiState = _uiState,
+            runtimeSessionId = { runtimeSessionId },
+            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            trackRequest = { id, method -> trackRequest(id, method) },
+            addAssistantMessage = { text -> addAssistantMessage(text) },
+            handleSlashCommand = { cmd -> handleSlashCommand(cmd) },
+            fetchContextUsage = { fetchContextUsage() },
+        )
+
+    private val credentialPromptsDelegate =
+        ChatCredentialPromptsDelegate(
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            uiState = _uiState,
+            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            trackRequest = { id, method -> trackRequest(id, method) },
+        )
+
+    private val approvalsDelegate =
+        ChatApprovalsDelegate(
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            uiState = _uiState,
+            runtimeSessionId = { runtimeSessionId },
+            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            trackRequest = { id, method -> trackRequest(id, method) },
+            addSystemMessage = { text -> addSystemMessage(text) },
+        )
 
     private val streamingController =
         ChatStreamingController(
@@ -796,7 +820,7 @@ class ChatViewModel(
         addSystemMessage("Connected to Hermes")
         loadSessions()
         fetchCommandCatalog()
-        preloadModelOptions()
+        modelSwitchDelegate.preloadModelOptions()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
             if (sessionHasServerPresence) {
@@ -944,7 +968,7 @@ class ChatViewModel(
                             fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
                         )
                     }
-                    syncCurrentModelCapabilities()
+                    modelSwitchDelegate.syncCurrentModelCapabilities()
                     if (modelSwapped) {
                         // Issue #817: after a swap the REST model/info window is
                         // PROFILE-scoped and may describe the old model (e.g. a
@@ -957,18 +981,10 @@ class ChatViewModel(
                     // reconciliation) — surface it unless already on screen.
                     val pendingApproval = info["pending_approval"] as? Map<*, *>
                     if (pendingApproval != null) {
-                        val rid = pendingApproval["request_id"] as? String
-                        val alreadyShown =
-                            rid != null &&
-                                _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
-                        if (!alreadyShown) {
-                            handleApprovalRequest(
-                                parseApprovalMap(
-                                    pendingApproval,
-                                    runtimeSessionId ?: _uiState.value.currentSessionId,
-                                ),
-                            )
-                        }
+                        approvalsDelegate.maybeSurfacePendingApproval(
+                            pendingApproval,
+                            runtimeSessionId ?: _uiState.value.currentSessionId,
+                        )
                     }
                 }
             }
@@ -1034,23 +1050,23 @@ class ChatViewModel(
             }
 
             is WsEvent.ApprovalRequest -> {
-                handleApprovalRequest(event)
+                approvalsDelegate.handleApprovalRequest(event)
             }
 
             is WsEvent.SudoRequest -> {
-                handleSudoRequest(event)
+                credentialPromptsDelegate.handleSudoRequest(event)
             }
 
             is WsEvent.SudoExpire -> {
-                handleSudoExpire(event)
+                credentialPromptsDelegate.handleSudoExpire(event)
             }
 
             is WsEvent.SecretRequest -> {
-                handleSecretRequest(event)
+                credentialPromptsDelegate.handleSecretRequest(event)
             }
 
             is WsEvent.SecretExpire -> {
-                handleSecretExpire(event)
+                credentialPromptsDelegate.handleSecretExpire(event)
             }
 
             is WsEvent.GatewayError -> {
@@ -1244,7 +1260,7 @@ class ChatViewModel(
                         terminalBackend = terminalBackend ?: it.terminalBackend,
                     )
                 }
-                syncCurrentModelCapabilities()
+                modelSwitchDelegate.syncCurrentModelCapabilities()
                 // Mirror the active runtime session id app-wide (issue #532).
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
                 addSystemMessage("Session resumed")
@@ -1257,21 +1273,13 @@ class ChatViewModel(
                 // the full queue in case more are parked.
                 val pendingApproval = resultMap?.get("pending_approval") as? Map<*, *>
                 if (pendingApproval != null) {
-                    val rid = pendingApproval["request_id"] as? String
-                    val alreadyShown =
-                        rid != null &&
-                            _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
-                    if (!alreadyShown) {
-                        handleApprovalRequest(
-                            parseApprovalMap(
-                                pendingApproval,
-                                runtimeSessionId ?: sessionId,
-                            ),
-                        )
-                    }
+                    approvalsDelegate.maybeSurfacePendingApproval(
+                        pendingApproval,
+                        runtimeSessionId ?: sessionId,
+                    )
                 }
                 val activeSessionId = runtimeSessionId ?: sessionId
-                if (activeSessionId != null) replayPendingApproval(activeSessionId)
+                if (activeSessionId != null) approvalsDelegate.replayPendingApproval(activeSessionId)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -1304,34 +1312,15 @@ class ChatViewModel(
             }
 
             WsMethods.APPROVAL_RESPOND -> {
-                val map = result as? Map<*, *>
-                val resolved = (map?.get("resolved") as? Number)?.toInt() ?: 0
-                if (resolved > 0) {
-                    addSystemMessage("Approval submitted")
-                }
+                approvalsDelegate.handleApprovalRespondResult(result)
             }
 
             WsMethods.APPROVAL_PENDING -> {
-                handleApprovalPendingResult(result)
+                approvalsDelegate.handleApprovalPendingResult(result)
             }
 
             WsMethods.CONFIG_SET -> {
-                val pending = pendingModelSwitchRequests.remove(id)
-                val map = result as? Map<*, *> ?: return
-                val key = map["key"] as? String
-                if (key == "model") {
-                    val confirmRequired = map["confirm_required"] as? Boolean ?: false
-                    if (confirmRequired) {
-                        val confirmMessage =
-                            (map["confirm_message"] as? String)
-                                ?: (map["warning"] as? String)
-                                ?: "This model requires confirmation to switch. Continue?"
-                        activeModelSwitchConfirmation = pending
-                        _uiState.update {
-                            it.copy(modelSwitchConfirmMessage = confirmMessage)
-                        }
-                    }
-                }
+                modelSwitchDelegate.handleConfigSetResult(id, result)
             }
         }
     }
@@ -1455,7 +1444,7 @@ class ChatViewModel(
         if (trimmed.startsWith("/", ignoreCase = true)) {
             // Issue #589: a bare "/model" (no argument) opens the picker instead
             // of requiring the user to hand-type the provider/model.
-            if (isModelPickerCommand(trimmed)) {
+            if (modelSwitchDelegate.isModelPickerCommand(trimmed)) {
                 openModelPicker()
                 return
             }
@@ -1880,7 +1869,7 @@ class ChatViewModel(
             }
 
             is SlashResult.ModelSwitch -> {
-                handleModelSwitch(command)
+                modelSwitchDelegate.handleModelSwitch(command)
             }
 
             is SlashResult.Update -> {
@@ -2120,68 +2109,6 @@ class ChatViewModel(
                     addAssistantMessage("/$name: ${e.message}")
                 }
             }
-        }
-    }
-
-    /**
-     * Hot-swap the current session's model via the backend's model-switch
-     * mechanism (issue #589).
-     *
-     * The TUI gateway's `prompt.submit` does NOT parse slash commands (it would
-     * make the LLM treat "/model ..." as a chat message), and `command.dispatch`
-     * only knows quick/plugin/bundle/skill commands (4018s on /model). The
-     * correct RPC is `config.set` with `key="model"` — the gateway (server.py
-     * `config.set`, L10253) routes `key=="model"` straight to `_apply_model_switch`
-     * using the same `_sessions.get(session_id)` lookup that the working
-     * `command.dispatch` uses.
-     *
-     * IMPORTANT: `config.set` key=model passes the value DIRECTLY to
-     * `parse_model_flags` (it does NOT strip a leading "/model" like slash.exec /
-     * prompt.submit do). So we strip the "/model" prefix here and send the bare
-     * spec `parse_model_flags` understands:
-     *   `<model> --provider <slug> --session`
-     * (matching the TUI client's `modelValueForConfigSet`).
-     */
-    private fun handleModelSwitch(
-        command: String,
-        confirmExpensive: Boolean = false,
-    ) {
-        val sessionId = runtimeSessionId
-        if (sessionId == null) {
-            addAssistantMessage("No active session. Use `/new` to create one.")
-            return
-        }
-        // Strip a leading "/model" (and any following whitespace) — config.set
-        // key=model expects the bare spec, not a slash command. Match the
-        // dispatcher's case-insensitive "/model" detection so a typed "/MODEL"
-        // (or any casing) doesn't forward the literal slash prefix to the
-        // backend, where parse_model_flags wouldn't recognize it.
-        val spec =
-            if (command.startsWith("/model", ignoreCase = true)) {
-                command.substring(6).trim()
-            } else {
-                command.trim()
-            }
-        val previousModel = optimisticPreviousModel ?: _uiState.value.currentSessionModel
-        optimisticPreviousModel = null
-        val params =
-            mutableMapOf<String, Any>(
-                "key" to "model",
-                "value" to spec,
-                "session_id" to sessionId,
-            )
-        if (confirmExpensive) {
-            params["confirm_expensive_model"] = true
-        }
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.send(
-                WsMethods.CONFIG_SET,
-                params,
-                onSent = { id ->
-                    trackRequest(id, WsMethods.CONFIG_SET)
-                    pendingModelSwitchRequests[id] = ActiveModelSwitch(spec, previousModel)
-                },
-            )
         }
     }
 
@@ -2470,220 +2397,34 @@ class ChatViewModel(
 
     // ── In-session model picker (issue #589) ─────────────────────────────
 
-    /**
-     * Whether [command] should open the in-session model picker instead of being
-     * dispatched as a normal slash command. True for a bare `/model` (with no
-     * trailing model argument) — the picker supplies the argument interactively.
-     * A fully-typed `/model provider/model` is forwarded straight to the backend.
-     */
-    private fun isModelPickerCommand(command: String): Boolean {
-        val trimmed = command.trim()
-        if (!trimmed.startsWith("/", ignoreCase = true)) return false
-        val body = trimmed.removePrefix("/").trimStart()
-        // Must be exactly "model" with no argument (or just whitespace).
-        return body.equals("model", ignoreCase = true) ||
-            (
-                body.startsWith("model ", ignoreCase = true) &&
-                    body.substringAfter("model").trim().isEmpty()
-            )
-    }
+    fun openModelPicker() = modelSwitchDelegate.openModelPicker()
 
-    /** Preload model options so the picker opens instantly (no spinner on /model). */
-    private fun preloadModelOptions() {
-        viewModelScope.launch(ioDispatcher) {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.getModelOptions(refresh = false)
-                }
-            if (result is NetworkResult.Success) {
-                cachedModelOptions = result.data.providers.orEmpty()
-                _uiState.update { it.copy(modelPickerPinned = AuthManager.getPinnedModels()) }
-                syncCurrentModelCapabilities()
-            }
-        }
-    }
+    fun refreshModelOptions() = modelSwitchDelegate.refreshModelOptions()
 
-    /**
-     * Open the in-session model picker. Uses the preloaded options if available
-     * (instant open); otherwise shows a loading state and fetches them. The
-     * `/model` slash command is the supported session hot-swap mechanism per the
-     * backend contract (issue #589).
-     */
-    fun openModelPicker() {
-        val hasCached = cachedModelOptions.isNotEmpty()
-        _uiState.update {
-            it.copy(
-                showModelPicker = true,
-                modelPickerProviders = if (hasCached) cachedModelOptions else emptyList(),
-                modelPickerPinned = AuthManager.getPinnedModels(),
-                modelPickerLoading = !hasCached,
-            )
-        }
-        if (!hasCached) {
-            refreshModelOptions()
-        }
-    }
-
-    /** Re-fetch options (pull-to-refresh style) when the picker is already open. */
-    fun refreshModelOptions() {
-        _uiState.update { it.copy(modelPickerLoading = true) }
-        viewModelScope.launch(ioDispatcher) {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.getModelOptions(refresh = true)
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    cachedModelOptions = result.data.providers.orEmpty()
-                    _uiState.update {
-                        it.copy(
-                            modelPickerProviders = cachedModelOptions,
-                            modelPickerLoading = false,
-                        )
-                    }
-                    syncCurrentModelCapabilities()
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            modelPickerLoading = false,
-                            errorMessage = "Failed to load models: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    fun closeModelPicker() {
-        _uiState.update { it.copy(showModelPicker = false, modelPickerLoading = false) }
-    }
+    fun closeModelPicker() = modelSwitchDelegate.closeModelPicker()
 
     fun togglePinModel(
         providerSlug: String,
         modelName: String,
-    ) {
-        val currentPinned = AuthManager.getPinnedModels().toMutableList()
-        val target = PinnedModel(providerSlug, modelName)
-        if (currentPinned.contains(target)) {
-            currentPinned.remove(target)
-        } else {
-            currentPinned.add(target)
-        }
-        AuthManager.savePinnedModels(currentPinned)
-        _uiState.update { it.copy(modelPickerPinned = currentPinned) }
-    }
+    ) = modelSwitchDelegate.togglePinModel(providerSlug, modelName)
 
-    /**
-     * Hot-swap the CURRENT session's model via the /model slash command.
-     *
-     * Builds the backend-valid command form `/model <model> --provider <slug>
-     * --session`. The `--session` flag keeps the switch scoped to this chat
-     * only (it writes a per-session override and never touches the global
-     * model config), per the backend model-switch contract.
-     */
     fun sendSlashModel(
         provider: String,
         model: String,
-    ) {
-        optimisticPreviousModel = _uiState.value.currentSessionModel
-        _uiState.update {
-            it.copy(
-                showModelPicker = false,
-                modelPickerLoading = false,
-                // Optimistic: reflect the chosen model in the top-bar chip until
-                // the next session sync confirms the backend hot-swap.
-                currentSessionModel = "$provider/$model",
-            )
-        }
-        syncCurrentModelCapabilities()
-        // Model switch changes the context-window denominator — refetch it.
-        fetchContextUsage()
-        handleSlashCommand("/model $model --provider $provider --session")
-    }
+    ) = modelSwitchDelegate.sendSlashModel(provider, model)
 
-    fun dismissModelSwitchConfirm() {
-        val pending = activeModelSwitchConfirmation
-        activeModelSwitchConfirmation = null
-        _uiState.update {
-            it.copy(
-                modelSwitchConfirmMessage = null,
-                currentSessionModel = pending?.previousModel ?: it.currentSessionModel,
-            )
-        }
-        syncCurrentModelCapabilities()
-        fetchContextUsage()
-    }
+    fun dismissModelSwitchConfirm() = modelSwitchDelegate.dismissModelSwitchConfirm()
 
-    fun confirmModelSwitchExpensive() {
-        val pending = activeModelSwitchConfirmation
-        activeModelSwitchConfirmation = null
-        _uiState.update { it.copy(modelSwitchConfirmMessage = null) }
-        if (pending != null) {
-            handleModelSwitch(pending.spec, confirmExpensive = true)
-        }
-    }
+    fun confirmModelSwitchExpensive() = modelSwitchDelegate.confirmModelSwitchExpensive()
 
-    /**
-     * Set the reasoning effort level for the current session.
-     *
-     * Updates the UI optimistically and sends a `config.set` RPC to the
-     * backend. The level applies per-session via the runtime session ID.
-     * If [level] is null it resets to the model's default.
-     *
-     * @param level One of "low", "medium", "high", or null for default.
-     */
-    fun setReasoningLevel(level: String?) {
-        _uiState.update { it.copy(reasoningLevel = level) }
-        val sessionId = runtimeSessionId ?: return
-        if (level == null) return // null = model default, no need to send WS
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.send(
-                WsMethods.CONFIG_SET,
-                mapOf(
-                    "key" to "reasoning",
-                    "value" to level,
-                    "session_id" to sessionId,
-                ),
-                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
-            )
-        }
-    }
+    fun setReasoningLevel(level: String?) = modelSwitchDelegate.setReasoningLevel(level)
 
     fun getModelCapabilities(
         providerSlug: String,
         modelName: String,
-    ): ModelCapabilities? = cachedModelOptions.find { it.slug == providerSlug }?.capabilities?.get(modelName)
+    ): ModelCapabilities? = modelSwitchDelegate.getModelCapabilities(providerSlug, modelName)
 
-    fun getCurrentModelCapabilities(): ModelCapabilities? {
-        val label = _uiState.value.currentSessionModel ?: return null
-        val idx = label.indexOf('/')
-        if (idx <= 0) return null
-        val provider = label.substring(0, idx)
-        val model = label.substring(idx + 1)
-        return getModelCapabilities(provider, model)
-    }
-
-    private fun syncCurrentModelCapabilities() {
-        val label = _uiState.value.currentSessionModel
-        val caps =
-            if (label == null) {
-                null
-            } else {
-                val idx = label.indexOf('/')
-                if (idx <= 0) {
-                    null
-                } else {
-                    val provider = label.substring(0, idx)
-                    val model = label.substring(idx + 1)
-                    cachedModelOptions.find { it.slug == provider }?.capabilities?.get(model)
-                }
-            }
-        _uiState.update { state ->
-            if (state.currentModelCapabilities != caps) state.copy(currentModelCapabilities = caps) else state
-        }
-    }
+    fun getCurrentModelCapabilities(): ModelCapabilities? = modelSwitchDelegate.getCurrentModelCapabilities()
 
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
@@ -3762,332 +3503,17 @@ class ChatViewModel(
 
     // ── Approval flow ───────────────────────────────────────────────────
 
-    private fun handleApprovalRequest(event: WsEvent.ApprovalRequest) {
-        val description = event.description ?: event.command ?: "Unknown command"
-        val content = "**Approval Required**\n$description"
-        val msg =
-            ChatMessage(
-                role = MessageRole.SYSTEM,
-                content = content,
-                approvalInfo =
-                    ApprovalInfo(
-                        command = event.command,
-                        description = event.description,
-                        patternKeys = event.patternKeys,
-                        requestId = event.requestId,
-                        choices = event.choices,
-                        allowPermanent = event.allowPermanent,
-                        smartDenied = event.smartDenied,
-                    ),
-            )
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages + msg,
-                isAgentTyping = false,
-            )
-        }
-        // Desktop parity (`prompts.ts` receiveApprovalRequest): ack the render
-        // so the backend knows this client holds the prompt. Fire-and-forget.
-        val requestId = event.requestId
-        val sessionId = runtimeSessionId ?: event.sessionId ?: _uiState.value.currentSessionId
-        if (requestId != null && sessionId != null) {
-            viewModelScope.launch(ioDispatcher) {
-                runCatching {
-                    wsClient.send(
-                        method = WsMethods.APPROVAL_RECEIVED,
-                        params =
-                            mapOf(
-                                "session_id" to sessionId,
-                                "request_id" to requestId,
-                            ),
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * Convert a backend approval map (snake_case, from `approval.pending` or
-     * `session.info` `pending_approval`) into a typed event. Mirrors
-     * [EventParser] defaults so replay and live paths agree.
-     */
-    private fun parseApprovalMap(
-        map: Map<*, *>,
-        sessionId: String?,
-    ): WsEvent.ApprovalRequest {
-        @Suppress("UNCHECKED_CAST")
-        val patternKeys = (map["pattern_keys"] as? List<*>)?.filterIsInstance<String>()
-
-        @Suppress("UNCHECKED_CAST")
-        val rawChoices = (map["choices"] as? List<*>)?.filterIsInstance<String>()
-        val allowPermanent = map["allow_permanent"] as? Boolean
-        val allowSession = map["allow_session"] as? Boolean
-        val smartDenied = map["smart_denied"] as? Boolean
-        val choices =
-            rawChoices ?: run {
-                if (smartDenied == true) {
-                    listOf("once", "deny")
-                } else {
-                    buildList {
-                        add("once")
-                        if (allowSession != false) {
-                            add("session")
-                            if (allowPermanent != false) add("always")
-                        }
-                        add("deny")
-                    }
-                }
-            }
-        return WsEvent.ApprovalRequest(
-            command = map["command"] as? String,
-            description = map["description"] as? String,
-            patternKeys = patternKeys,
-            sessionId = sessionId,
-            requestId = map["request_id"] as? String,
-            choices = choices,
-            allowPermanent = allowPermanent,
-            smartDenied = smartDenied,
-        )
-    }
-
-    /**
-     * Reconnect replay (desktop `replayPendingApproval` parity): ask the
-     * gateway for unresolved approvals and surface the oldest one. Called
-     * after resume and after each respond (the queue can hold more).
-     */
-    private fun replayPendingApproval(sessionId: String) {
-        val targetSessionId = runtimeSessionId ?: sessionId
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.send(
-                method = WsMethods.APPROVAL_PENDING,
-                params = mapOf("session_id" to targetSessionId),
-                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_PENDING) },
-            )
-        }
-    }
-
-    private fun handleApprovalPendingResult(result: Any?) {
-        @Suppress("UNCHECKED_CAST")
-        val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
-        val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
-        val requestId = first["request_id"] as? String ?: return
-        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
-        // Don't duplicate a prompt already on screen.
-        val alreadyShown =
-            _uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
-        if (alreadyShown) return
-        handleApprovalRequest(parseApprovalMap(first, sessionId))
-    }
-
-    fun respondToApproval(action: String) {
-        val state = _uiState.value
-        val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
-        val sessionId = runtimeSessionId ?: state.currentSessionId ?: return
-        // Desktop sends `once` for a single run; legacy mobile sent `approve`
-        // (any non-deny still unblocks, but stay on-spec going forward).
-        val choice = if (action == "approve") "once" else action
-        val requestId = approvalMsg.approvalInfo?.requestId
-
-        // Clear buttons immediately
-        _uiState.update { s ->
-            s.copy(
-                messages =
-                    s.messages.map {
-                        if (it.id == approvalMsg.id) {
-                            it.copy(approvalInfo = null)
-                        } else {
-                            it
-                        }
-                    },
-            )
-        }
-
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "choice" to choice,
-                    "all" to false,
-                )
-            if (requestId != null) params["request_id"] = requestId
-            wsClient.send(
-                method = WsMethods.APPROVAL_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) },
-            )
-            // The queue can hold more pendings — surface the next one.
-            replayPendingApproval(sessionId)
-        }
-    }
+    fun respondToApproval(action: String) = approvalsDelegate.respondToApproval(action)
 
     // ── Sudo / secret prompt flow (issue #524) ──────────────────────────
 
-    /**
-     * The agent needs the user's sudo password. Previously dropped → agent
-     * hung forever. Now we surface a secure dialog and reply via sudo.respond.
-     */
-    private fun handleSudoRequest(event: WsEvent.SudoRequest) {
-        _uiState.update {
-            it.copy(
-                sudoPrompt = SudoPromptUi(event.requestId, event.sessionId),
-                isAgentTyping = false,
-            )
-        }
-    }
+    fun dismissSudo() = credentialPromptsDelegate.dismissSudo()
 
-    /**
-     * Backend sudo timeout (120s) — clear only the matching dialog so a
-     * late expire for an old prompt never kills the current one.
-     * Desktop parity: `patchOverlayState(prev => prev.sudo?.requestId === id ? null : prev)`.
-     */
-    private fun handleSudoExpire(event: WsEvent.SudoExpire) {
-        _uiState.update { state ->
-            val current = state.sudoPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
-                return@update state
-            }
-            state.copy(sudoPrompt = null)
-        }
-    }
+    fun dismissSecret() = credentialPromptsDelegate.dismissSecret()
 
-    /**
-     * The agent needs a secret value (token/password). Previously dropped →
-     * agent hung forever. Now we surface a secure dialog and reply via
-     * secret.respond.
-     */
-    private fun handleSecretRequest(event: WsEvent.SecretRequest) {
-        _uiState.update {
-            it.copy(
-                secretPrompt =
-                    SecretPromptUi(
-                        event.requestId,
-                        event.sessionId,
-                        event.envVar,
-                        event.prompt,
-                    ),
-                isAgentTyping = false,
-            )
-        }
-    }
+    fun respondToSudo(password: String) = credentialPromptsDelegate.respondToSudo(password)
 
-    /**
-     * Backend secret timeout — match-only clear like [handleSudoExpire].
-     */
-    private fun handleSecretExpire(event: WsEvent.SecretExpire) {
-        _uiState.update { state ->
-            val current = state.secretPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
-                return@update state
-            }
-            state.copy(secretPrompt = null)
-        }
-    }
-
-    /**
-     * Cancel → send empty password (desktop parity:
-     * `prompt-overlays.tsx` `send('')`). Backend treats empty sudo as
-     * failed sudo (no command runs), so closing the dialog is a safe
-     * refusal that unblocks the turn instantly instead of hanging 120s
-     * until `sudo.expire`.
-     */
-    fun dismissSudo() {
-        val prompt = _uiState.value.sudoPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
-        _uiState.update { it.copy(sudoPrompt = null) }
-        if (sessionId == null) return
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "password" to "",
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SUDO_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SUDO_RESPOND) },
-            )
-        }
-    }
-
-    /**
-     * Cancel → send empty value (desktop parity). Backend `secret_cb`
-     * returns `skipped=True` on empty, unblocking the turn instantly.
-     */
-    fun dismissSecret() {
-        val prompt = _uiState.value.secretPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
-        _uiState.update { it.copy(secretPrompt = null) }
-        if (sessionId == null) return
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "value" to "",
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SECRET_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SECRET_RESPOND) },
-            )
-        }
-    }
-
-    /**
-     * Send the user's sudo password back to the gateway. Mirrors
-     * respondToApproval: clear the prompt immediately, then fire the RPC.
-     */
-    fun respondToSudo(password: String) {
-        val prompt = _uiState.value.sudoPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
-        if (password.isBlank()) return
-
-        _uiState.update { it.copy(sudoPrompt = null) }
-
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "password" to password,
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SUDO_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SUDO_RESPOND) },
-            )
-        }
-    }
-
-    /**
-     * Send the user's secret value back to the gateway. Mirrors respondToSudo.
-     */
-    fun respondToSecret(value: String) {
-        val prompt = _uiState.value.secretPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
-        if (value.isBlank()) return
-
-        _uiState.update { it.copy(secretPrompt = null) }
-
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "value" to value,
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SECRET_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SECRET_RESPOND) },
-            )
-        }
-    }
+    fun respondToSecret(value: String) = credentialPromptsDelegate.respondToSecret(value)
 
     fun reconnect() {
         _uiState.update {
@@ -4111,95 +3537,18 @@ class ChatViewModel(
         password: String,
         onResult: (Boolean, String?) -> Unit,
     ) {
-        viewModelScope.launch(ioDispatcher) {
-            val endpoint = AuthManager.endpointForBuild()
-            val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-            val jsonBody =
-                JSONObject()
-                    .put("provider", "basic")
-                    .put("username", username)
-                    .put("password", password)
-                    .put("next", "")
-                    .toString()
-
-            try {
-                val loginClient =
-                    com.m57.hermescontrol.data.remote.OkHttpProvider.probe
-                        .newBuilder()
-                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
-
-                val loginReq =
-                    Request
-                        .Builder()
-                        .url(endpoint.resolve("auth/password-login").toString())
-                        .header("Content-Type", "application/json")
-                        .post(jsonBody.toRequestBody(jsonMediaType))
-                        .build()
-                loginClient.newCall(loginReq).execute().use { loginResp ->
-                    if (!loginResp.isSuccessful) {
-                        val msg =
-                            when (loginResp.code) {
-                                401 -> "Invalid username or password (401)"
-                                403 -> "Forbidden (403)"
-                                else -> "HTTP error code: ${loginResp.code}"
-                            }
-                        withContext(Dispatchers.Main) {
-                            onResult(false, msg)
-                        }
-                        return@launch
-                    }
-                }
-
-                val ticketClient =
-                    com.m57.hermescontrol.data.remote.OkHttpProvider.base
-                        .newBuilder()
-                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
-
-                val ticketReq =
-                    Request
-                        .Builder()
-                        .url(endpoint.resolve("api/auth/ws-ticket").toString())
-                        .post("{}".toRequestBody(jsonMediaType))
-                        .build()
-                ticketClient.newCall(ticketReq).execute().use { ticketResp ->
-                    if (!ticketResp.isSuccessful) {
-                        withContext(Dispatchers.Main) {
-                            onResult(false, "Failed to mint WS ticket: HTTP ${ticketResp.code}")
-                        }
-                        return@launch
-                    }
-
-                    val body = ticketResp.body.string()
-                    val ticket = JSONObject(body).optString("ticket").takeIf { it.isNotBlank() }
-
-                    if (ticket.isNullOrBlank()) {
-                        withContext(Dispatchers.Main) {
-                            onResult(false, "Invalid ticket returned from server")
-                        }
-                        return@launch
-                    }
-
-                    AuthManager.setWsAuthParam("ticket")
-                    AuthManager.setToken(ticket)
-
-                    withContext(Dispatchers.Main) {
-                        onResult(true, null)
-                        reconnect()
-                    }
-                }
-            } catch (e: java.io.IOException) {
-                withContext(Dispatchers.Main) {
-                    onResult(false, "Connection failed: ${e.message}")
-                }
-            } catch (e: org.json.JSONException) {
-                withContext(Dispatchers.Main) {
-                    onResult(false, "Connection failed: ${e.message}")
-                }
-            }
+        viewModelScope.launch {
+            reloginAuthenticator.relogin(
+                username = username,
+                password = password,
+                onSuccess = {
+                    onResult(true, null)
+                    reconnect()
+                },
+                onFailure = { msg ->
+                    onResult(false, msg)
+                },
+            )
         }
     }
 

@@ -435,6 +435,16 @@ class ChatViewModel(
             addSystemMessage = { text -> addSystemMessage(text) },
         )
 
+    private val clarifyDelegate =
+        ChatClarifyDelegate(
+            uiState = _uiState,
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            persistMessage = { msg, sid -> repo.persistMessage(msg, sid) },
+            wsClient = wsClient,
+            trackRequest = { id, method -> trackRequest(id, method) },
+        )
+
     private val streamingController =
         ChatStreamingController(
             scope = viewModelScope,
@@ -3172,110 +3182,12 @@ class ChatViewModel(
         }
     }
 
-    fun respondToClarify(option: String) {
-        val clarify = _uiState.value.clarifyRequest
-        // Only use synthesized qid when this is a true batch or legacy with explicit qid.
-        val qid =
-            if (clarify != null &&
-                (clarify.questionId != null || clarify.questions.isNotEmpty())
-            ) {
-                clarify.resolvedQuestions.firstOrNull()?.qid ?: clarify.questionId
-            } else {
-                null
-            }
-        if (qid != null && clarify?.resolvedQuestions?.size == 1) {
-            respondToClarifyBatch(mapOf(qid to option))
-        } else {
-            respondToClarifyBatch(emptyMap(), singleFallbackAnswer = option)
-        }
-    }
+    fun respondToClarify(option: String) = clarifyDelegate.respondToClarify(option)
 
     fun respondToClarifyBatch(
         answers: Map<String, String>,
         singleFallbackAnswer: String? = null,
-    ) {
-        val sessionId = _uiState.value.currentSessionId ?: return
-        val clarify = _uiState.value.clarifyRequest
-        val clarifyId = clarify?.clarifyId
-        val isBatch = !clarify?.questions.isNullOrEmpty()
-        val questions = clarify?.resolvedQuestions.orEmpty()
-        _uiState.update { it.copy(clarifyRequest = null) }
-
-        val displayContent =
-            if (questions.size > 1) {
-                questions
-                    .mapIndexed { index, q ->
-                        val ans = answers[q.qid]?.trim().orEmpty()
-                        "${index + 1}. ${ans.ifEmpty { "(Skipped)" }}"
-                    }.joinToString("\n")
-            } else {
-                val loneAns = answers.values.firstOrNull()?.trim() ?: singleFallbackAnswer?.trim().orEmpty()
-                loneAns
-            }
-
-        val userMessage =
-            ChatMessage(
-                role = MessageRole.USER,
-                content = displayContent,
-            )
-
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages + userMessage,
-                isAgentTyping = true,
-            )
-        }
-
-        viewModelScope.launch(ioDispatcher) {
-            repo.persistMessage(userMessage, sessionId)
-        }
-
-        viewModelScope.launch(ioDispatcher) {
-            if (isBatch) {
-                for (q in questions) {
-                    val ans = answers[q.qid]?.trim().orEmpty()
-                    val params =
-                        mutableMapOf<String, Any>(
-                            "session_id" to sessionId,
-                            "response" to ans,
-                            "answer" to ans,
-                            "question_id" to q.qid,
-                        )
-                    if (clarifyId != null) {
-                        params["clarify_id"] = clarifyId
-                        params["request_id"] = clarifyId
-                    }
-                    wsClient.send(
-                        method = WsMethods.CLARIFY_RESPOND,
-                        params = params,
-                        onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-                    )
-                }
-            } else {
-                // Legacy single: only include question_id when explicitly present.
-                val qid = clarify?.questionId
-                val ans = answers.values.firstOrNull() ?: singleFallbackAnswer.orEmpty()
-                val params =
-                    mutableMapOf<String, Any>(
-                        "session_id" to sessionId,
-                        "response" to ans,
-                        "answer" to ans,
-                    )
-                if (clarifyId != null) {
-                    params["clarify_id"] = clarifyId
-                    params["request_id"] = clarifyId
-                }
-                if (qid != null) {
-                    params["question_id"] = qid
-                }
-                wsClient.send(
-                    method = WsMethods.CLARIFY_RESPOND,
-                    params = params,
-                    onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-                )
-            }
-        }
-    }
+    ) = clarifyDelegate.respondToClarifyBatch(answers, singleFallbackAnswer)
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }

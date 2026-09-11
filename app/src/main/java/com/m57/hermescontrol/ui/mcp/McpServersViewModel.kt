@@ -585,6 +585,7 @@ class McpServersViewModel :
         oauthPollJob =
             viewModelScope.launch {
                 var polling = true
+                var consecutiveFailures = 0
                 while (polling) {
                     kotlinx.coroutines.delay(2000)
                     val result =
@@ -629,7 +630,16 @@ class McpServersViewModel :
                         }
 
                         is NetworkResult.Failure -> {
-                            // Keep polling or stop after too many failures? Let's just log/toast n retry a few times
+                            consecutiveFailures++
+                            if (consecutiveFailures >= 10) {
+                                polling = false
+                                _uiState.update {
+                                    it.copy(
+                                        activeOAuthFlow = null,
+                                        toastMessage = "OAuth polling timed out after repeated network failures",
+                                    )
+                                }
+                            }
                         }
                     }
                 }

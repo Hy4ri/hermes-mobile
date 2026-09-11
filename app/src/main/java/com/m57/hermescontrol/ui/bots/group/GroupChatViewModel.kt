@@ -33,6 +33,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 data class GroupChatUiState(
     val groupName: String = "",
@@ -74,22 +75,22 @@ class GroupChatViewModel(
     private var activeEpoch: String = ""
 
     // Map of bot.name -> seen count of non-system messages
-    private val memberWatermarks = mutableMapOf<String, Int>()
+    private val memberWatermarks = ConcurrentHashMap<String, Int>()
 
     // Map of bot.name -> active session info in this group
-    private val memberSessions = mutableMapOf<String, MemberSession>()
+    private val memberSessions = ConcurrentHashMap<String, MemberSession>()
 
     // In-flight turn completion deferreds keyed by session_id
-    private val inFlightTurns = mutableMapOf<String, CompletableDeferred<String>>()
+    private val inFlightTurns = ConcurrentHashMap<String, CompletableDeferred<String>>()
 
     // Map of session_id -> active streaming message ID
-    private val activeStreamMsgId = mutableMapOf<String, String>()
+    private val activeStreamMsgId = ConcurrentHashMap<String, String>()
 
     // Map of session_id -> bot profile
-    private val sessionToBot = mutableMapOf<String, ProfileInfo>()
+    private val sessionToBot = ConcurrentHashMap<String, ProfileInfo>()
 
     // Map of session_id -> last activity epoch ms (streaming token, tool call, thinking)
-    private val sessionLastActivity = mutableMapOf<String, Long>()
+    private val sessionLastActivity = ConcurrentHashMap<String, Long>()
 
     init {
         if (groupName.isNotBlank()) {

@@ -256,34 +256,22 @@ private fun InstalledSkillsView(
 
     val categories =
         remember(state.skills) {
-            state.skills
-                .mapNotNull { it.category }
-                .distinct()
-                .sorted()
+            SkillListFilter.extractCategories(state.skills)
         }
     val sources =
         remember(state.skills) {
-            state.skills
-                .mapNotNull { it.source }
-                .distinct()
-                .sorted()
+            SkillListFilter.extractSources(state.skills)
         }
 
     val filteredSkills =
         remember(state.skills, query, selectedStatus, selectedCategory, sourceFilter) {
-            state.skills.filter { skill ->
-                (
-                    query.isBlank() || skill.name.contains(query, ignoreCase = true) ||
-                        skill.description?.contains(query, ignoreCase = true) == true
-                ) &&
-                    (
-                        selectedStatus == SkillFilter.ALL_STATUSES ||
-                            (selectedStatus == SkillFilter.ENABLED && skill.enabled) ||
-                            (selectedStatus == SkillFilter.DISABLED && !skill.enabled)
-                    ) &&
-                    (selectedCategory == CATEGORY_ALL || skill.category == selectedCategory) &&
-                    (sourceFilter == null || skill.source == sourceFilter)
-            }
+            SkillListFilter.filterSkills(
+                skills = state.skills,
+                query = query,
+                selectedStatus = selectedStatus,
+                selectedCategory = selectedCategory,
+                sourceFilter = sourceFilter,
+            )
         }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -891,26 +879,11 @@ private fun SkillScanSection(
 @Composable
 private fun ScanResultCard(result: SkillScanResponse) {
     val statusColors = LocalHermesStatusColors.current
-    val verdictColor =
-        when (result.verdict) {
-            "safe" -> statusColors.success
-            "dangerous" -> statusColors.error
-            else -> statusColors.warning
-        }
+    val verdictColor = SkillScanPresentation.resolveVerdictColor(result.verdict, statusColors)
     val policyLabel =
-        when (result.policy) {
-            "allow" -> stringResource(R.string.skills_hub_scan_policy_allow)
-            "ask" -> stringResource(R.string.skills_hub_scan_policy_ask)
-            "block" -> stringResource(R.string.skills_hub_scan_policy_block)
-            else -> result.policy.orEmpty()
-        }
-    val policyColor =
-        when (result.policy) {
-            "allow" -> statusColors.success
-            "ask" -> statusColors.warning
-            "block" -> statusColors.error
-            else -> statusColors.neutral
-        }
+        SkillScanPresentation.resolvePolicyLabelRes(result.policy)?.let { stringResource(it) }
+            ?: result.policy.orEmpty()
+    val policyColor = SkillScanPresentation.resolvePolicyColor(result.policy, statusColors)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -979,13 +952,6 @@ private fun ScanResultCard(result: SkillScanResponse) {
             }
 
             // ── Severity tally ──
-            val severityColors =
-                mapOf(
-                    "critical" to statusColors.error,
-                    "high" to statusColors.error,
-                    "medium" to statusColors.warning,
-                    "low" to statusColors.neutral,
-                )
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -993,7 +959,7 @@ private fun ScanResultCard(result: SkillScanResponse) {
                 listOf("critical", "high", "medium", "low").forEach { sev ->
                     val count = result.severityCounts[sev] ?: 0
                     if (count > 0) {
-                        val sevColor = severityColors[sev] ?: statusColors.neutral
+                        val sevColor = SkillScanPresentation.resolveSeverityColor(sev, statusColors)
                         Surface(
                             color = sevColor.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(50),
@@ -1039,12 +1005,7 @@ private fun ScanResultCard(result: SkillScanResponse) {
 @Composable
 private fun ScanFindingRow(finding: SkillScanFinding) {
     val statusColors = LocalHermesStatusColors.current
-    val severityColor =
-        when (finding.severity) {
-            "critical", "high" -> statusColors.error
-            "medium" -> statusColors.warning
-            else -> statusColors.neutral
-        }
+    val severityColor = SkillScanPresentation.resolveSeverityColor(finding.severity, statusColors)
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

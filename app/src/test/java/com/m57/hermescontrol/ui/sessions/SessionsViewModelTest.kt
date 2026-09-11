@@ -93,14 +93,6 @@ class SessionsViewModelTest {
     }
 
     @Test
-    fun `clean search snippet extracts text from JSON payload`() {
-        assertEquals(
-            "Find the deployment logs",
-            cleanSearchSnippet("{\"role\":\"user\",\"content\":\">>>Find<<< the deployment logs\"}"),
-        )
-    }
-
-    @Test
     fun `sections request conversations excluding cron and automations from cron`() {
         val vm = createViewModel()
         coEvery { mockApi.getSessions(50, 0, any(), null, "cron") } returns

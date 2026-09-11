@@ -39,10 +39,6 @@ enum class SkillFilter(
     DISABLED(R.string.skills_status_disabled),
 }
 
-enum class CategoryFilter {
-    ALL,
-}
-
 data class SkillsUiState(
     val isLoading: Boolean = false,
     val skills: List<Skill> = emptyList(),

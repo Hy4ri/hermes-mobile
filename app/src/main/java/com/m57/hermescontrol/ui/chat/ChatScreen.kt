@@ -1,13 +1,8 @@
 package com.m57.hermescontrol.ui.chat
 
-import android.Manifest
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.provider.OpenableColumns
-import android.speech.RecognizerIntent
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,10 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -82,13 +74,11 @@ import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.AttachmentSource
-import com.m57.hermescontrol.data.update.AppUpdateCache
-import com.m57.hermescontrol.data.update.AppUpdateState
-import com.m57.hermescontrol.data.update.UpdateNoticeManager
 import com.m57.hermescontrol.data.ws.ConnectionStatus
 import com.m57.hermescontrol.data.ws.HermesWsClient
 import com.m57.hermescontrol.notification.NotificationHelper
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.chat.components.ChatAppUpdateSection
 import com.m57.hermescontrol.ui.chat.components.ChatConnectionBanner
 import com.m57.hermescontrol.ui.chat.components.ChatInputBar
 import com.m57.hermescontrol.ui.chat.components.ChatLifecycleEffects
@@ -104,26 +94,21 @@ import com.m57.hermescontrol.ui.chat.components.SearchBarRow
 import com.m57.hermescontrol.ui.chat.components.SideQuestionSheet
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
+import com.m57.hermescontrol.ui.chat.components.rememberChatMediaLaunchers
 import com.m57.hermescontrol.ui.chat.components.rememberChatScrollController
 import com.m57.hermescontrol.ui.chat.components.shouldShowProgressChip
 import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.fullbleed.FullBleedChatList
 import com.m57.hermescontrol.ui.common.ActionProgressDialog
-import com.m57.hermescontrol.ui.common.AppUpdateDialog
 import com.m57.hermescontrol.ui.common.AutoScrollingTitleText
 import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
-import com.m57.hermescontrol.ui.settings.AppUpdateViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private const val SESSION_SYNC_INTERVAL_MS = 30_000L
 
@@ -304,7 +289,6 @@ fun ChatScreen(
             viewModel.consumeComposerTextRestore()
         }
     }
-    var isListening by rememberSaveable { mutableStateOf(false) }
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
     var showSubagentInspectionSheet by rememberSaveable { mutableStateOf(false) }
@@ -322,137 +306,24 @@ fun ChatScreen(
         )
     }
 
-    val micListeningPrompt = stringResource(R.string.chat_mic_listening)
-    val sttNotAvailableMsg = stringResource(R.string.stt_not_available)
-    val sttPermissionDeniedMsg = stringResource(R.string.stt_permission_denied)
-
-    // Speech-to-text recognition launcher (issue #194)
-    val speechLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.StartActivityForResult(),
-        ) { result ->
-            ExternalActivityLifecycleGuard.externalActivityReturned()
-            isListening = false
-            if (result.resultCode == Activity.RESULT_OK) {
-                val spokenText =
-                    result.data
-                        ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                        ?.firstOrNull()
-                        .orEmpty()
-                if (spokenText.isNotBlank()) {
-                    val merged =
-                        if (inputFieldValue.text.isBlank()) {
-                            spokenText
-                        } else {
-                            "${inputFieldValue.text} $spokenText"
-                        }
-                    inputFieldValue = ChatInputPolicy.commandFieldValue(merged)
-                }
-            }
-        }
-
-    // Mic permission launcher
-    val micPermissionLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.RequestPermission(),
-        ) { granted ->
-            ExternalActivityLifecycleGuard.externalActivityReturned()
-            if (granted) {
-                if (SpeechInputHelper.isSpeechInputAvailable(context)) {
-                    val intent = SpeechInputHelper.createSpeechIntent(micListeningPrompt)
-                    isListening = true
-                    launchExternalActivity {
-                        try {
-                            speechLauncher.launch(intent)
-                        } catch (_: ActivityNotFoundException) {
-                            isListening = false
-                            scrollScope.launch {
-                                snackbarHostState.showSnackbar(sttNotAvailableMsg)
-                            }
-                        }
-                    }
-                } else {
-                    scrollScope.launch {
-                        snackbarHostState.showSnackbar(sttNotAvailableMsg)
-                    }
-                }
-            } else {
+    val mediaLaunchers =
+        rememberChatMediaLaunchers(
+            inputFieldValue = inputFieldValue,
+            onInputFieldValueChange = { inputFieldValue = it },
+            onAddAttachment = { uri, name, mimeType, size ->
+                viewModel.addAttachment(uri, name, mimeType, size)
+            },
+            onAddAttachments = { attachments ->
+                viewModel.addAttachments(attachments)
+            },
+            onShowMessage = { msg ->
                 scrollScope.launch {
-                    snackbarHostState.showSnackbar(sttPermissionDeniedMsg)
+                    snackbarHostState.showSnackbar(msg)
                 }
-            }
-        }
-
-    // Multi-file picker for attachments (issue #195).
-    val filePickerLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.GetMultipleContents(),
-        ) { uris: List<Uri> ->
-            ExternalActivityLifecycleGuard.externalActivityReturned()
-            val attachments =
-                uris.mapNotNull { uri ->
-                    runCatching {
-                        var name = uri.lastPathSegment ?: "file"
-                        var size = 0L
-                        context.contentResolver
-                            .query(
-                                uri,
-                                arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
-                                null,
-                                null,
-                                null,
-                            )?.use { cursor ->
-                                if (cursor.moveToFirst()) {
-                                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
-                                    if (nameIdx >= 0 && !cursor.isNull(nameIdx)) name = cursor.getString(nameIdx)
-                                    if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) size = cursor.getLong(sizeIdx)
-                                }
-                            }
-                        Attachment(
-                            uri = uri.toString(),
-                            name = name,
-                            mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream",
-                            size = size,
-                        )
-                    }.onFailure { error ->
-                        Log.w("ChatScreen", "Skipping unreadable picked attachment", error)
-                    }.getOrNull()
-                }
-            viewModel.addAttachments(attachments)
-        }
-
-    // Camera photo launcher (issue #195)
-    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
-    val cameraErrorMsg = stringResource(R.string.chat_camera_error)
-    val cameraLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.TakePicture(),
-        ) { success ->
-            ExternalActivityLifecycleGuard.externalActivityReturned()
-            val uri = pendingCameraUri
-            pendingCameraUri = null
-            if (success && uri != null) {
-                try {
-                    val fileName =
-                        "photo_${
-                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(
-                                Date(),
-                            )
-                        }.jpg"
-                    val inputStream = context.contentResolver.openInputStream(uri)
-                    val size = inputStream?.use { it.available().toLong() } ?: 0L
-                    viewModel.addAttachment(uri.toString(), fileName, "image/jpeg", size)
-                } catch (e: Exception) {
-                    Log.e("ChatScreen", "Camera capture failed", e)
-                    scrollScope.launch {
-                        snackbarHostState.showSnackbar(
-                            cameraErrorMsg,
-                        )
-                    }
-                }
-            }
-        }
+            },
+            launchExternalActivity = launchExternalActivity,
+            context = context,
+        )
 
     // Lifecycle effects, permissions, session switching, auto-scroll, errors
     ChatLifecycleEffects(
@@ -592,80 +463,7 @@ fun ChatScreen(
 
             // Issue #890: launch update check — non-blocking banner when a
             // newer release exists. Tapping "Update" opens the in-place dialog.
-            val updateNotice by AppUpdateCache.state.collectAsStateWithLifecycle()
-            val appUpdateViewModel: AppUpdateViewModel =
-                viewModel {
-                    val app =
-                        this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
-                            ?: error("Application not available")
-                    AppUpdateViewModel(app)
-                }
-            val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
-
-            val updateLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-            androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
-                val observer =
-                    androidx.lifecycle.LifecycleEventObserver { _, event ->
-                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                            if (appUpdateState is AppUpdateState.NeedsUnknownSourcesPermission) {
-                                appUpdateViewModel.resumeInstallAfterPermission()
-                            }
-                        }
-                    }
-                updateLifecycleOwner.lifecycle.addObserver(observer)
-                onDispose {
-                    updateLifecycleOwner.lifecycle.removeObserver(observer)
-                }
-            }
-
-            if (UpdateNoticeManager.enabled && !AppUpdateCache.dismissed) {
-                val noticeTag =
-                    (updateNotice as? AppUpdateState.UpdateAvailable)?.latestTag
-                        ?: UpdateNoticeManager.noticeTag()
-                if (noticeTag != null) {
-                    com.m57.hermescontrol.ui.common.UpdateNoticeBanner(
-                        latestTag = noticeTag,
-                        onUpdate = { AppUpdateCache.showDialog() },
-                        onDismiss = { AppUpdateCache.dismiss() },
-                    )
-                }
-            }
-
-            if (AppUpdateCache.isDialogVisible) {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val dialogState =
-                    if (appUpdateState !is AppUpdateState.Idle) {
-                        appUpdateState
-                    } else {
-                        updateNotice
-                    }
-                AppUpdateDialog(
-                    state = dialogState,
-                    onDismiss = { AppUpdateCache.hideDialog() },
-                    onStartUpdate = { appUpdateViewModel.startUpdate() },
-                    onCancelDownload = { appUpdateViewModel.cancelDownload() },
-                    onNeverAskAgain = { appUpdateViewModel.dismissCurrentUpdate() },
-                    onOpenSettings = {
-                        val intent =
-                            android.content
-                                .Intent(
-                                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    android.net.Uri.parse("package:${context.packageName}"),
-                                ).apply {
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            context.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS).apply {
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                },
-                            )
-                        }
-                    },
-                )
-            }
+            ChatAppUpdateSection()
 
             AnimatedVisibility(
                 visible = searchState.isActive,
@@ -808,75 +606,16 @@ fun ChatScreen(
                     // Jump to bottom after send (serialized through the controller).
                     scrollController.jumpToBottom(animated = true)
                 },
-                onMicTap = {
-                    if (isListening) {
-                        isListening = false
-                    } else if (
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.RECORD_AUDIO,
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        if (SpeechInputHelper.isSpeechInputAvailable(context)) {
-                            val intent = SpeechInputHelper.createSpeechIntent(micListeningPrompt)
-                            isListening = true
-                            launchExternalActivity {
-                                try {
-                                    speechLauncher.launch(intent)
-                                } catch (_: ActivityNotFoundException) {
-                                    isListening = false
-                                    scrollScope.launch {
-                                        snackbarHostState.showSnackbar(sttNotAvailableMsg)
-                                    }
-                                }
-                            }
-                        } else {
-                            scrollScope.launch {
-                                snackbarHostState.showSnackbar(sttNotAvailableMsg)
-                            }
-                        }
-                    } else {
-                        launchExternalActivity {
-                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    }
-                },
-                isListening = isListening,
+                onMicTap = mediaLaunchers.onMicTap,
+                isListening = mediaLaunchers.isListening,
                 isAgentTyping = state.isAgentTyping,
                 isConnected = state.isConnected,
                 commandCatalog = state.commandCatalog,
                 slashUsageCounts = state.slashUsageCounts,
                 pendingAttachments = state.pendingAttachments,
-                onCameraTap = {
-                    try {
-                        val timeStamp =
-                            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                        val photoFile =
-                            File.createTempFile("camera_${timeStamp}_", ".jpg", context.cacheDir)
-                        val uri =
-                            FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                photoFile,
-                            )
-                        pendingCameraUri = uri
-                        launchExternalActivity {
-                            cameraLauncher.launch(uri)
-                        }
-                    } catch (e: Exception) {
-                        Log.e("ChatScreen", "Camera launch failed", e)
-                    }
-                },
-                onImageTap = {
-                    launchExternalActivity {
-                        filePickerLauncher.launch("image/*")
-                    }
-                },
-                onFileTap = {
-                    launchExternalActivity {
-                        filePickerLauncher.launch("*/*")
-                    }
-                },
+                onCameraTap = mediaLaunchers.onCameraTap,
+                onImageTap = mediaLaunchers.onImageTap,
+                onFileTap = mediaLaunchers.onFileTap,
                 onRemoveAttachment = viewModel::removeAttachment,
                 onPreviewAttachment = { attachment ->
                     if (attachment.isImage) {

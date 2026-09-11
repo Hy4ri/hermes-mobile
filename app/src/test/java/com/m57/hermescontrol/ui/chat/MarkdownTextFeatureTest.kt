@@ -11,6 +11,10 @@ import com.m57.hermescontrol.theme.StatusRedContainer
 import com.m57.hermescontrol.theme.StatusYellow
 import com.m57.hermescontrol.theme.StatusYellowContainer
 import com.m57.hermescontrol.theme.searchHighlightColors
+import com.m57.hermescontrol.ui.chat.markdown.FnNote
+import com.m57.hermescontrol.ui.chat.markdown.MdBlock
+import com.m57.hermescontrol.ui.chat.markdown.TableAlign
+import com.m57.hermescontrol.ui.chat.markdown.parseBlocks
 import com.m57.hermescontrol.util.BidiUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -55,3 +55,31 @@ internal object VisionAnalyzeRenderer : ToolRenderer {
         }
     }
 }
+
+/** `text_to_speech`: audio synthesis. Success payload carries file_path(s), provider, chunk_count. */
+internal object TextToSpeechRenderer : ToolRenderer {
+    override fun pendingTitle(call: ToolCall): String = "Generating speech"
+
+    override fun doneTitle(call: ToolCall): String = "Generated speech"
+
+    override fun subtitle(call: ToolCall): String {
+        val provider = ToolJson.firstString(call.result, listOf("provider"))
+        val chunks = ToolJson.intValue(call.result?.get("chunk_count"))
+        val parts =
+            listOfNotNull(
+                provider.takeIf { it.isNotEmpty() },
+                chunks?.takeIf { it > 1 }?.let { "$it chunks" },
+            )
+        return parts.joinToString(" · ")
+            .ifEmpty { ToolJson.compactPreview(ToolJson.firstString(call.args, listOf("text")), 120) }
+    }
+
+    override fun detail(call: ToolCall): String {
+        val text = ToolJson.compactPreview(ToolJson.firstString(call.args, listOf("text")), 400)
+        val path = ToolJson.firstString(call.result, listOf("file_path", "output_path"))
+        return listOfNotNull(
+            text.takeIf { it.isNotEmpty() }?.let { "“$it”" },
+            path.takeIf { it.isNotEmpty() }?.let { "Saved to $it" },
+        ).joinToString("\n\n")
+    }
+}

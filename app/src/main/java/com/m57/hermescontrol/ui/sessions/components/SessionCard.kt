@@ -39,16 +39,44 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionTreeItem
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
+
+@Composable
+fun BranchRow(
+    item: SessionTreeItem,
+    modifier: Modifier = Modifier,
+    card: @Composable (SessionTreeItem) -> Unit,
+) {
+    val indent = 12.dp * minOf(item.depth, 2)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (item.branchStem != null) {
+            Text(
+                text = item.branchStem,
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = indent, end = 4.dp),
+            )
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            card(item)
+        }
+    }
+}
 
 fun sourceIcon(source: String?): ImageVector? =
     when (source?.lowercase()) {

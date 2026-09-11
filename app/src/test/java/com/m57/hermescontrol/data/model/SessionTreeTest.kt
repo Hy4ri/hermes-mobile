@@ -1,6 +1,7 @@
 package com.m57.hermescontrol.data.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionTreeTest {
@@ -8,46 +9,79 @@ class SessionTreeTest {
     fun nestsBranchesAndUsesDesktopFallbackNames() {
         val sessions =
             listOf(
-                SessionInfo(id = "unrelated", title = "Recent root"),
-                SessionInfo(id = "branch-b", parent_session_id = "parent"),
-                SessionInfo(id = "parent", title = "Original"),
-                SessionInfo(id = "branch-a", parent_session_id = "parent", preview = "copied prompt"),
-                SessionInfo(id = "nested", parent_session_id = "branch-a", title = "Named nested branch"),
+                SessionInfo(id = "unrelated", title = "Recent root", last_active = 10.0),
+                SessionInfo(id = "parent", title = "Original", last_active = 5.0),
+                SessionInfo(id = "branch-b", parent_session_id = "parent", last_active = 6.0),
+                SessionInfo(
+                    id = "branch-a",
+                    parent_session_id = "parent",
+                    preview = "copied prompt",
+                    last_active = 7.0,
+                ),
+                SessionInfo(
+                    id = "nested",
+                    parent_session_id = "branch-a",
+                    title = "Named nested branch",
+                    last_active = 8.0,
+                ),
             )
 
-        val tree = flattenSessionTree(sessions)
+        val tree = flattenSessionsWithBranches(sessions)
 
-        assertEquals(listOf("unrelated", "parent", "branch-b", "branch-a", "nested"), tree.map { it.session.id })
-        assertEquals(listOf(0, 0, 1, 1, 2), tree.map { it.depth })
+        // groupRecency of parent is max(5.0, 6.0, 7.0, 8.0) = 8.0
+        // unrelated is 10.0 -> unrelated first, then parent family
+        assertEquals(listOf("unrelated", "parent", "branch-a", "nested", "branch-b"), tree.map { it.session.id })
+        assertEquals(listOf(0, 0, 1, 2, 1), tree.map { it.depth })
         assertEquals(
-            listOf("Recent root", "Original", "branch 1", "branch 2", "Named nested branch"),
-            tree.map {
-                it.displayTitle
-            },
+            listOf("Recent root", "Original", "branch 1", "Named nested branch", "branch 2"),
+            tree.map { it.displayTitle },
         )
-        // Fork flag + nesting depth (1 = child of root, 2 = fork of a fork).
+        // Fork flag + nesting depth
         assertEquals(listOf(false, false, true, true, true), tree.map { it.isFork })
-        assertEquals(listOf(0, 0, 1, 1, 2), tree.map { it.forkDepth })
+        assertEquals(listOf(0, 0, 1, 2, 1), tree.map { it.forkDepth })
     }
 
     @Test
-    fun deepNestingMarksEveryForkWithDepth() {
-        // root → a (child 1) → a1 (child 1) ; root → b (child 2, last)
-        // a1 is fork-depth 2 (fork of a fork), b is fork-depth 1.
+    fun activeForkLiftsEntireFamilyAboveFresherUnrelatedRoot() {
+        // Parent has old recency (1.0). Fork has fresh recency (100.0). Unrelated has recency 50.0.
         val sessions =
             listOf(
-                SessionInfo(id = "root", title = "Root"),
-                SessionInfo(id = "a", parent_session_id = "root"),
-                SessionInfo(id = "b", parent_session_id = "root"),
-                SessionInfo(id = "a1", parent_session_id = "a"),
+                SessionInfo(id = "unrelated", title = "Unrelated", last_active = 50.0),
+                SessionInfo(id = "parent", title = "Parent", last_active = 1.0),
+                SessionInfo(id = "fork", parent_session_id = "parent", title = "Active Fork", last_active = 100.0),
             )
 
-        val tree = flattenSessionTree(sessions)
+        val tree = flattenSessionsWithBranches(sessions)
 
-        assertEquals(listOf("root", "a", "a1", "b"), tree.map { it.session.id })
-        assertEquals(listOf(0, 1, 2, 1), tree.map { it.depth })
-        assertEquals(listOf(false, true, true, true), tree.map { it.isFork })
-        assertEquals(listOf(0, 1, 2, 1), tree.map { it.forkDepth })
+        assertEquals(listOf("parent", "fork", "unrelated"), tree.map { it.session.id })
+        assertEquals(listOf(0, 1, 0), tree.map { it.depth })
+    }
+
+    @Test
+    fun aliasesLineageRootIdForCompressionProjectedTips() {
+        val sessions =
+            listOf(
+                SessionInfo(id = "tip_parent", lineageRootId = "root_parent", title = "Parent Tip", last_active = 5.0),
+                SessionInfo(id = "child", parent_session_id = "root_parent", title = "Child", last_active = 6.0),
+            )
+
+        val tree = flattenSessionsWithBranches(sessions)
+
+        assertEquals(listOf("tip_parent", "child"), tree.map { it.session.id })
+        assertEquals(listOf(0, 1), tree.map { it.depth })
+    }
+
+    @Test
+    fun preservesOrderWhenRequested() {
+        val sessions =
+            listOf(
+                SessionInfo(id = "pin1", title = "Pin 1", last_active = 10.0),
+                SessionInfo(id = "pin2", title = "Pin 2", last_active = 90.0),
+            )
+
+        val tree = flattenSessionsWithBranches(sessions, preserveOrder = true)
+
+        assertEquals(listOf("pin1", "pin2"), tree.map { it.session.id })
     }
 
     @Test
@@ -59,9 +93,13 @@ class SessionTreeTest {
                 SessionInfo(id = "b", parent_session_id = "a"),
             )
 
-        val tree = flattenSessionTree(sessions)
+        val tree = flattenSessionsWithBranches(sessions)
 
         assertEquals(setOf("orphan", "a", "b"), tree.map { it.session.id }.toSet())
-        assertEquals("orphan preview", tree.first { it.session.id == "orphan" }.displayTitle)
+        val orphanItem = tree.first { it.session.id == "orphan" }
+        assertEquals("orphan preview", orphanItem.displayTitle)
+        // Orphan keeps fork identity even without parent in loaded set
+        assertTrue(orphanItem.isFork)
+        assertEquals(0, orphanItem.depth)
     }
 }

@@ -331,10 +331,8 @@ class SessionsViewModelTest {
     // ── Pin / unpin ────────────────────────────────────────────────────────
 
     @Test
-    fun `loaded list keeps pinned sessions on top`() {
+    fun `loaded list retains server order and identifies pinned sessions`() {
         val vm = createViewModel()
-        // Backend returns recency order with the pinned flag set; the client
-        // must lift pins above the rest while keeping the rest's order.
         coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
                 SessionListResponse(
@@ -349,15 +347,22 @@ class SessionsViewModelTest {
         vm.loadSessions()
         testDispatcher.scheduler.advanceUntilIdle()
 
+        // Sessions retain server order (family grouping is handled by flattenSessionsWithBranches)
         assertEquals(
-            listOf("old-pinned", "recent"),
+            listOf("recent", "old-pinned"),
             vm.uiState.value.sessions
+                .map { it.id },
+        )
+        // pinnedSessions derives the pinned items
+        assertEquals(
+            listOf("old-pinned"),
+            vm.uiState.value.pinnedSessions
                 .map { it.id },
         )
     }
 
     @Test
-    fun `togglePin moves the session to the top and sets the flag`() {
+    fun `togglePin updates the session pinned state without mangling session order`() {
         val vm = createViewModel()
         coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
             Response.success(
@@ -374,15 +379,20 @@ class SessionsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
-            listOf("s-2", "s-1"),
+            listOf("s-1", "s-2"),
             vm.uiState.value.sessions
                 .map { it.id },
         )
         assertEquals(
             true,
             vm.uiState.value.sessions
-                .first()
+                .first { it.id == "s-2" }
                 .pinned,
+        )
+        assertEquals(
+            listOf("s-2"),
+            vm.uiState.value.pinnedSessions
+                .map { it.id },
         )
         assertEquals("Session pinned", vm.uiState.value.toastMessage)
     }
@@ -499,5 +509,43 @@ class SessionsViewModelTest {
                 .hidden,
         )
         assertEquals("Session unhidden", vm.uiState.value.toastMessage)
+    }
+
+    @Test
+    fun `stitchMissingParents fetches missing parent sessions up to cap`() {
+        val vm = createViewModel()
+        coEvery { mockApi.getSessions(any(), any(), any(), null, "cron") } returns
+            Response.success(
+                SessionListResponse(
+                    sessions =
+                        listOf(
+                            SessionInfo("child", parent_session_id = "parent", title = "Child"),
+                        ),
+                    total = 1,
+                ),
+            )
+        coEvery { mockApi.getSessionInfo("parent") } returns
+            Response.success(
+                SessionInfo("parent", title = "Fetched Parent"),
+            )
+
+        vm.loadSessions()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2, vm.uiState.value.sessions.size)
+        assertTrue(
+            vm.uiState.value.sessions
+                .any { it.id == "parent" },
+        )
+    }
+
+    @Test
+    fun `togglePinnedExpanded toggles expanded state`() {
+        val vm = createViewModel()
+        assertTrue(vm.uiState.value.pinnedExpanded)
+        vm.togglePinnedExpanded()
+        assertFalse(vm.uiState.value.pinnedExpanded)
+        vm.togglePinnedExpanded()
+        assertTrue(vm.uiState.value.pinnedExpanded)
     }
 }

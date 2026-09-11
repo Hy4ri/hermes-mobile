@@ -57,13 +57,6 @@ internal fun formatCompactCount(value: Int): String {
 
 private fun String.trimZeroes(): String = dropLastWhile { it == '0' }.trimEnd('.')
 
-/**
- * Stable sort: pinned sessions first. The backend only back-fills pins into
- * page 1 (it doesn't lift them to the top), so the client owns the ordering.
- * Stability keeps recency order intact within each group.
- */
-private fun List<SessionInfo>.pinnedFirst(): List<SessionInfo> = sortedBy { it.pinned != true }
-
 data class SessionsUiState(
     val section: HistorySection = HistorySection.CONVERSATIONS,
     val isLoading: Boolean = false,
@@ -96,6 +89,7 @@ data class SessionsUiState(
     val searchResults: List<SessionSearchResult> = emptyList(),
     val searchError: String? = null,
     val showHidden: Boolean = false,
+    val pinnedExpanded: Boolean = true,
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 
@@ -104,6 +98,9 @@ data class SessionsUiState(
 
     val displaySessions: List<SessionInfo>
         get() = if (showHidden) sessions else sessions.filter { it.hidden != true }
+
+    val pinnedSessions: List<SessionInfo>
+        get() = displaySessions.filter { it.pinned == true }
 }
 
 class SessionsViewModel :
@@ -146,10 +143,10 @@ class SessionsViewModel :
                 if (requestGeneration == generation) {
                     rawPaginationOffset = data.nextOffset(0)
                     _uiState.update {
-                        val newSessions = data.sessions.orEmpty().pinnedFirst()
+                        val newSessions = data.sessions.orEmpty()
                         val paging =
                             SessionsPaging.resolveInitialPaging(
-                                receivedCount = data.sessions.size,
+                                receivedCount = minOf(data.sessions.size, PAGE_SIZE),
                                 pageSize = PAGE_SIZE,
                                 backendTotal = data.total,
                                 accumulatedCount = newSessions.size,
@@ -160,6 +157,7 @@ class SessionsViewModel :
                             hasMore = paging.hasMore,
                         )
                     }
+                    stitchMissingParents(requestGeneration)
                 }
             },
         )
@@ -172,7 +170,52 @@ class SessionsViewModel :
     private companion object {
         const val PAGE_SIZE = 50
         const val SEARCH_DEBOUNCE_MS = 300L
+        const val MAX_STITCH_PER_PAGE = 8
+        const val MAX_STITCH_ROUNDS = 3
     }
+
+    private val resolvedParentCache = mutableMapOf<String, SessionInfo>()
+
+    fun togglePinnedExpanded() {
+        _uiState.update { it.copy(pinnedExpanded = !it.pinnedExpanded) }
+    }
+
+    private fun stitchMissingParents(requestGeneration: Long) =
+        viewModelScope.launch {
+            repeat(MAX_STITCH_ROUNDS) {
+                val loaded = _uiState.value.sessions
+                val known =
+                    buildSet {
+                        loaded.forEach {
+                            add(it.id)
+                            it.lineageRootId?.let(::add)
+                        }
+                    }
+                val missing =
+                    loaded
+                        .mapNotNull { it.parent_session_id?.trim()?.takeIf(String::isNotEmpty) }
+                        .filter { it !in known }
+                        .distinct()
+                        .take(MAX_STITCH_PER_PAGE)
+                if (missing.isEmpty()) return@launch
+
+                val fetched =
+                    missing.mapNotNull { pid ->
+                        resolvedParentCache[pid] ?: when (
+                            val r =
+                                safeApiCall { ApiClient.hermesApi.getSessionInfo(pid) }
+                        ) {
+                            is NetworkResult.Success -> r.data?.also { resolvedParentCache[pid] = it }
+                            is NetworkResult.Failure -> null
+                        }
+                    }
+                if (requestGeneration != generation || fetched.isEmpty()) return@launch
+
+                _uiState.update { st ->
+                    st.copy(sessions = (st.sessions + fetched).distinctBy { it.id })
+                }
+            }
+        }
 
     private val HistorySection.source: String?
         get() = if (this == HistorySection.AUTOMATIONS) "cron" else null
@@ -234,10 +277,10 @@ class SessionsViewModel :
                 onSuccess = { data ->
                     if (requestGeneration != generation) return@safeLaunchLoad
                     rawPaginationOffset = data.nextOffset(0)
-                    val sessionsList = data.sessions.orEmpty().pinnedFirst()
+                    val sessionsList = data.sessions.orEmpty()
                     val paging =
                         SessionsPaging.resolveInitialPaging(
-                            receivedCount = data.sessions.size,
+                            receivedCount = minOf(data.sessions.size, PAGE_SIZE),
                             pageSize = PAGE_SIZE,
                             backendTotal = data.total,
                             accumulatedCount = sessionsList.size,
@@ -252,6 +295,7 @@ class SessionsViewModel :
                             selectedIds = emptySet(),
                         )
                     }
+                    stitchMissingParents(requestGeneration)
                 },
                 onError = { errorMsg ->
                     if (requestGeneration != generation) return@safeLaunchLoad
@@ -295,11 +339,10 @@ class SessionsViewModel :
                             val newSessions =
                                 (it.sessions + data.sessions)
                                     .distinctBy { s -> s.id }
-                                    .pinnedFirst()
                             val addedNewItems = newSessions.size > it.sessions.size
                             val paging =
                                 SessionsPaging.resolveLoadMorePaging(
-                                    receivedCount = data.sessions.size,
+                                    receivedCount = minOf(data.sessions.size, PAGE_SIZE),
                                     pageSize = PAGE_SIZE,
                                     addedNewItems = addedNewItems,
                                     backendTotal = data.total,
@@ -312,6 +355,7 @@ class SessionsViewModel :
                                 hasMore = paging.hasMore,
                             )
                         }
+                        stitchMissingParents(requestGeneration)
                     }
 
                     is NetworkResult.Failure -> {
@@ -540,8 +584,7 @@ class SessionsViewModel :
                         it.copy(
                             sessions =
                                 it.sessions
-                                    .map { s -> if (s.id == sessionId) s.copy(pinned = targetPinned) else s }
-                                    .pinnedFirst(),
+                                    .map { s -> if (s.id == sessionId) s.copy(pinned = targetPinned) else s },
                             toastMessage =
                                 if (targetPinned) {
                                     "Session pinned"
@@ -583,8 +626,7 @@ class SessionsViewModel :
                         it.copy(
                             sessions =
                                 it.sessions
-                                    .map { s -> if (s.id == sessionId) s.copy(hidden = targetHidden) else s }
-                                    .pinnedFirst(),
+                                    .map { s -> if (s.id == sessionId) s.copy(hidden = targetHidden) else s },
                             toastMessage =
                                 if (targetHidden) {
                                     "Session hidden"

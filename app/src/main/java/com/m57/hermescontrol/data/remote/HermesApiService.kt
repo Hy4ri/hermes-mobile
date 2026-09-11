@@ -95,6 +95,7 @@ import com.m57.hermescontrol.data.model.RenameProfileRequest
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionDetailResponse
+import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionRenameRequest
@@ -266,6 +267,12 @@ interface HermesApiService {
         @Path("id", encoded = true) sessionId: String,
         @Query("profile") profile: String? = null,
     ): Response<SessionDetailResponse>
+
+    @GET("api/sessions/{id}")
+    suspend fun getSessionInfo(
+        @Path("id", encoded = true) sessionId: String,
+        @Query("profile") profile: String? = null,
+    ): Response<SessionInfo>
 
     @GET("api/model/info")
     suspend fun getModelInfo(): Response<ModelInfoResponse>

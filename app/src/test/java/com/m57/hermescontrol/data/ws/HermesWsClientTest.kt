@@ -15,6 +15,8 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -35,6 +37,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -1576,7 +1579,8 @@ class HermesWsClientTest {
 
         // Send duplicate seq 1 -> should be dropped
         ws.send(
-            """{"method":"event","params":{"type":"message.token","session_id":"s1","seq":1,"payload":{"text":"A-dup"}}}""",
+            """{"method":"event","params":{"type":"message.token","session_id":"s1","seq":1,""" +
+                """"payload":{"text":"A-dup"}}}""",
         )
         Thread.sleep(100)
         assertEquals(1, HermesWsClient.getSeqWatermarks()["s1"])
@@ -1664,7 +1668,9 @@ class HermesWsClientTest {
                             // Extract ID from JSON-RPC request
                             val id = Regex(""""id":"([^"]+)"""").find(text)?.groupValues?.get(1) ?: "1"
                             webSocket.send(
-                                """{"jsonrpc":"2.0","id":"$id","result":{"epoch":"ep1","events":[{"type":"message.token","session_id":"s1","seq":6,"payload":{"text":"replayed"}}]}}""",
+                                """{"jsonrpc":"2.0","id":"$id","result":{"epoch":"ep1","events":""" +
+                                    """[{"type":"message.token","session_id":"s1","seq":6,""" +
+                                    """"payload":{"text":"replayed"}}]}}""",
                             )
                             requestLatch.countDown()
                         }
@@ -1690,8 +1696,91 @@ class HermesWsClientTest {
     }
 
     @Test
+    fun testTerminalCloseCode4403SetsAuthExpired() {
+        val socket = mockk<WebSocket>(relaxed = true)
+        val intentionalCloseField = HermesWsClient::class.java.getDeclaredField("intentionalClose")
+        intentionalCloseField.isAccessible = true
+        (intentionalCloseField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(false)
+
+        val generationField = HermesWsClient::class.java.getDeclaredField("connectionGeneration")
+        generationField.isAccessible = true
+        (generationField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicInteger).set(1)
+
+        val listenerClass = Class.forName("com.m57.hermescontrol.data.ws.HermesWsClient\$WsListenerImpl")
+        val constructor = listenerClass.declaredConstructors.single()
+        constructor.isAccessible = true
+        val listener = constructor.newInstance(1) as WebSocketListener
+
+        listener.onClosing(socket, 4403, "forbidden origin")
+        assertEquals(ConnectionStatus.AUTH_EXPIRED, HermesWsClient.connectionStatus.value)
+    }
+
+    @Test
+    fun testReplayTruncatedEmitsTranscriptResyncRequired() {
+        var serverWebSocket: WebSocket? = null
+        val serverLatch = CountDownLatch(1)
+        val requestLatch = CountDownLatch(1)
+        var receivedMethod: String? = null
+        val receivedEvents = Collections.synchronizedList(mutableListOf<WsEvent>())
+
+        val collectJob =
+            CoroutineScope(Dispatchers.IO).launch {
+                HermesWsClient.events.collect { receivedEvents.add(it) }
+            }
+
+        mockWebServer.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: okhttp3.Response,
+                    ) {
+                        serverWebSocket = webSocket
+                        serverLatch.countDown()
+                    }
+
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String,
+                    ) {
+                        if (text.contains(WsMethods.SESSION_EVENTS_SINCE)) {
+                            receivedMethod = WsMethods.SESSION_EVENTS_SINCE
+                            val id = Regex(""""id":"([^"]+)"""").find(text)?.groupValues?.get(1) ?: "1"
+                            webSocket.send(
+                                """{"jsonrpc":"2.0","id":"$id","result":""" +
+                                    """{"epoch":"ep1","truncated":true,"latest_seq":100,"events":[]}}""",
+                            )
+                            requestLatch.countDown()
+                        }
+                    }
+                },
+            ),
+        )
+
+        HermesWsClient.setSeqWatermark("s1", 5)
+        HermesWsClient.connect()
+        runBlocking {
+            withTimeout(5000) {
+                HermesWsClient.connectionStatus.first { it == ConnectionStatus.CONNECTED }
+            }
+        }
+        assertTrue(serverLatch.await(5, TimeUnit.SECONDS))
+        assertTrue(requestLatch.await(5, TimeUnit.SECONDS))
+        assertEquals(WsMethods.SESSION_EVENTS_SINCE, receivedMethod)
+
+        // Wait for replay processing
+        Thread.sleep(300)
+        assertEquals(100, HermesWsClient.getSeqWatermarks()["s1"])
+        val resyncEvent = receivedEvents.filterIsInstance<WsEvent.TranscriptResyncRequired>().firstOrNull()
+        assertNotNull(resyncEvent)
+        assertEquals("s1", resyncEvent?.sessionId)
+        collectJob.cancel()
+    }
+
+    @Test
     fun testPingMethodConstant() {
         assertEquals("ping", WsMethods.PING)
+        assertEquals("gateway.ping", WsMethods.GATEWAY_PING)
     }
 
     @Test
@@ -1716,7 +1805,7 @@ class HermesWsClientTest {
                         webSocket: WebSocket,
                         text: String,
                     ) {
-                        if (text.contains(""""method":"ping"""")) {
+                        if (text.contains(""""method":"ping"""") || text.contains(""""method":"gateway.ping"""")) {
                             pingReceived = true
                             val id = Regex(""""id":"([^"]+)"""").find(text)?.groupValues?.get(1) ?: "1"
                             webSocket.send(

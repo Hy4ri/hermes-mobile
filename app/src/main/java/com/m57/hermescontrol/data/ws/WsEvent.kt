@@ -355,6 +355,13 @@ sealed class WsEvent {
         val kind: String = "",
     ) : WsEvent()
 
+    // ── Replay resync (internal) ──────────────────────────────────────────
+
+    /** Internal: replay could not cover the reconnect gap (truncated or epoch change) — UI must refetch history. */
+    data class TranscriptResyncRequired(
+        val sessionId: String,
+    ) : WsEvent()
+
     // ── Fallback ─────────────────────────────────────────────────────────
 
     data class Unknown(

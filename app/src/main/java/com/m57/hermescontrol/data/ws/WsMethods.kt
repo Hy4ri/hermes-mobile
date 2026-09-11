@@ -48,6 +48,9 @@ object WsMethods {
     /** Ultra-lightweight liveness check and round-trip latency measurement. */
     const val PING = "ping"
 
+    /** Inline WebSocket read-loop ping, bypasses server thread pool dispatch. */
+    const val GATEWAY_PING = "gateway.ping"
+
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"
     const val COMMAND_DISPATCH = "command.dispatch"

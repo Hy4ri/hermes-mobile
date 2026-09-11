@@ -74,6 +74,7 @@ object ChatWsEventReducer {
                 is WsEvent.ReviewSummary -> event.sessionId
                 is WsEvent.BtwComplete -> event.sessionId
                 is WsEvent.SessionUsage -> event.sessionId
+                is WsEvent.TranscriptResyncRequired -> event.sessionId
                 else -> null
             }
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
@@ -174,6 +175,9 @@ object ChatWsEventReducer {
 
             // Change events (issue #784) are consumed by their screens' ViewModels
             is WsEvent.ChangeEvent -> ReducerResult(state = state, streamingState = streamingState)
+
+            // TranscriptResyncRequired is handled by ChatViewModel directly (refetch history on replay gap)
+            is WsEvent.TranscriptResyncRequired -> ReducerResult(state = state, streamingState = streamingState)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────

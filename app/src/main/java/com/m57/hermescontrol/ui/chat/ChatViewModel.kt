@@ -12,7 +12,6 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
-import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -45,10 +44,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -836,6 +831,14 @@ class ChatViewModel(
 
             is WsEvent.SessionUpdated -> {
                 loadSessions()
+            }
+
+            is WsEvent.TranscriptResyncRequired -> {
+                val current = runtimeSessionId ?: _uiState.value.currentSessionId
+                if (current != null && (current == event.sessionId || event.sessionId.isEmpty())) {
+                    val storageId = ActiveSessionHolder.resolveStoredSessionId(current) ?: current
+                    loadSessionMessages(storageId, sessionGeneration)
+                }
             }
 
             is WsEvent.ClarifyRequest -> {

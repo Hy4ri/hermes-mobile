@@ -100,9 +100,8 @@ import com.m57.hermescontrol.ChatScreen
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
-import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.model.SessionTreeItem
-import com.m57.hermescontrol.data.model.flattenSessionTree
+import com.m57.hermescontrol.data.model.flattenSessionsWithBranches
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.EmptyState
@@ -116,6 +115,8 @@ import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listItemSpacing
+import com.m57.hermescontrol.ui.sessions.components.BranchRow
+import com.m57.hermescontrol.ui.sessions.components.PinnedSectionHeader
 import com.m57.hermescontrol.ui.sessions.components.SearchResultCard
 import com.m57.hermescontrol.ui.sessions.components.SessionCard
 import com.m57.hermescontrol.ui.sessions.components.SessionsBulkActionBar
@@ -192,10 +193,10 @@ private fun highlightText(
         }
     }
 
-private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
+internal fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
     if (state.isSearchMode) {
-        state.searchResults.map { searchResult ->
-            val session = searchResult.toSessionInfo()
+        state.searchResults.map { result ->
+            val session = result.toSessionInfo()
             SessionTreeItem(
                 session = session,
                 depth = 0,
@@ -208,7 +209,7 @@ private fun displayedSessions(state: SessionsUiState): List<SessionTreeItem> =
             )
         }
     } else {
-        flattenSessionTree(state.displaySessions)
+        flattenSessionsWithBranches(state.displaySessions)
     }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -236,6 +237,19 @@ fun SessionsScreen(
             state.searchResults,
         ) {
             displayedSessions(state)
+        }
+
+    val pinnedItems =
+        remember(
+            state.isSearchMode,
+            state.pinnedSessions,
+            state.showHidden,
+        ) {
+            if (state.isSearchMode) {
+                emptyList()
+            } else {
+                flattenSessionsWithBranches(state.pinnedSessions, preserveOrder = true)
+            }
         }
 
     val hasSelection = state.selectedIds.isNotEmpty()
@@ -733,42 +747,44 @@ fun SessionsScreen(
                             }
                             val sessionCard: @Composable (SessionTreeItem) -> Unit = { item ->
                                 val session = item.session
-                                SessionCard(
-                                    session = session,
-                                    displayTitle = item.displayTitle,
-                                    branchStem = item.branchStem,
-                                    isFork = item.isFork,
-                                    forkDepth = item.forkDepth,
-                                    query = state.searchQuery,
-                                    isSelecting = state.isSelecting,
-                                    isSelected = session.id in state.selectedIds,
-                                    isDeleting = session.id in state.deletingSessionIds,
-                                    isPinned = session.pinned == true,
-                                    isHidden = session.hidden == true,
-                                    highlightBackground = primaryContainer,
-                                    highlightForeground = onPrimaryContainer,
-                                    onCardClick = {
-                                        if (state.isSelecting) {
+                                BranchRow(item = item) {
+                                    SessionCard(
+                                        session = session,
+                                        displayTitle = item.displayTitle,
+                                        branchStem = null,
+                                        isFork = item.isFork,
+                                        forkDepth = item.forkDepth,
+                                        query = state.searchQuery,
+                                        isSelecting = state.isSelecting,
+                                        isSelected = session.id in state.selectedIds,
+                                        isDeleting = session.id in state.deletingSessionIds,
+                                        isPinned = session.pinned == true,
+                                        isHidden = session.hidden == true,
+                                        highlightBackground = primaryContainer,
+                                        highlightForeground = onPrimaryContainer,
+                                        onCardClick = {
+                                            if (state.isSelecting) {
+                                                viewModel.toggleSessionSelection(session.id)
+                                            } else {
+                                                NavigationController.openChatSession(session.id)
+                                            }
+                                        },
+                                        onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
+                                        onSelect = {
+                                            viewModel.toggleSelecting()
                                             viewModel.toggleSessionSelection(session.id)
-                                        } else {
-                                            NavigationController.openChatSession(session.id)
-                                        }
-                                    },
-                                    onToggleSelection = { viewModel.toggleSessionSelection(session.id) },
-                                    onSelect = {
-                                        viewModel.toggleSelecting()
-                                        viewModel.toggleSessionSelection(session.id)
-                                    },
-                                    onRename = {
-                                        viewModel.openRenameDialog(
-                                            session.id,
-                                            item.displayTitle,
-                                        )
-                                    },
-                                    onTogglePin = { viewModel.togglePin(session.id) },
-                                    onToggleHide = { viewModel.toggleHide(session.id) },
-                                    onDelete = { viewModel.requestDeleteSession(session.id) },
-                                )
+                                        },
+                                        onRename = {
+                                            viewModel.openRenameDialog(
+                                                session.id,
+                                                item.displayTitle,
+                                            )
+                                        },
+                                        onTogglePin = { viewModel.togglePin(session.id) },
+                                        onToggleHide = { viewModel.toggleHide(session.id) },
+                                        onDelete = { viewModel.requestDeleteSession(session.id) },
+                                    )
+                                }
                             }
                             LazyColumn(
                                 state = listState,
@@ -793,6 +809,29 @@ fun SessionsScreen(
                                         renderSessionCard = sessionCard,
                                     )
                                 } else {
+                                    if (pinnedItems.isNotEmpty() && !state.isSearchMode) {
+                                        item(key = "pinned_header") {
+                                            PinnedSectionHeader(
+                                                count = pinnedItems.size,
+                                                expanded = state.pinnedExpanded,
+                                                onToggle = { viewModel.togglePinnedExpanded() },
+                                            )
+                                        }
+                                        if (state.pinnedExpanded) {
+                                            items(pinnedItems, key = { "pin_${it.session.id}" }) { item ->
+                                                sessionCard(item)
+                                            }
+                                        }
+                                        item(key = "history_header") {
+                                            Text(
+                                                text = "History",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(vertical = spacing.xs),
+                                            )
+                                        }
+                                    }
                                     items(sessionsToDisplay, key = { it.session.id }) { item ->
                                         sessionCard(item)
                                     }

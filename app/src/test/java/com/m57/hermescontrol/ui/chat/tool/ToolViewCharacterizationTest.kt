@@ -555,7 +555,7 @@ class ToolViewCharacterizationTest {
     // ── delegation / messaging fall back to the generic engine ───────────
 
     @Test
-    fun `delegate_task uses generic title and unwrapped response`() {
+    fun `delegate_task uses DelegateTaskRenderer`() {
         val view =
             build(
                 "delegate_task",
@@ -563,8 +563,8 @@ class ToolViewCharacterizationTest {
                 """{"response":"All done","duration_s":63}""",
             )
 
-        assertEquals("Delegate Task", view.title)
-        assertEquals("All done", view.subtitle)
+        assertEquals("Delegated 1 task", view.title)
+        assertEquals("Fix tests", view.subtitle)
         assertEquals("", view.detail)
         assertEquals("1m 3s", view.durationLabel)
     }

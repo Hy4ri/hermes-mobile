@@ -16,6 +16,18 @@ import kotlinx.serialization.json.JsonPrimitive
 internal object ToolJson {
     private val URL_PATTERN = Regex("https?://[^\\s'\"<>)\\]]+", RegexOption.IGNORE_CASE)
 
+    const val MAX_TOOL_RENDER_CHARS = 20_000
+
+    fun clampForDisplay(
+        value: String,
+        max: Int = MAX_TOOL_RENDER_CHARS,
+    ): String {
+        if (value.length <= max) return value
+        val omitted = value.length - max
+        return value.take(max) +
+            "\n… $omitted more characters truncated — use Copy for the full output."
+    }
+
     /** First non-blank string value among [keys], trimmed. */
     fun firstString(
         record: JsonObject?,
@@ -294,7 +306,11 @@ internal object ToolJson {
     }
 
     fun durationLabel(result: JsonObject?): String? {
-        val seconds = numberValue(result?.get("duration_s")) ?: return null
+        val seconds =
+            numberValue(result?.get("duration_s"))
+                ?: numberValue(result?.get("duration_seconds"))
+                ?: numberValue(result?.get("total_duration_seconds"))
+                ?: return null
 
         return formatDurationSeconds(seconds)
     }

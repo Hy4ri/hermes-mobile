@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat.tool.render
 import com.m57.hermescontrol.ui.chat.tool.ToolCall
 import com.m57.hermescontrol.ui.chat.tool.ToolJson
 import com.m57.hermescontrol.ui.chat.tool.ToolRenderer
+import kotlinx.serialization.json.JsonArray
 
 /** `browser_navigate`: hostname titles, including the failed-to-open form. */
 internal object BrowserNavigateRenderer : ToolRenderer {
@@ -102,5 +103,100 @@ internal object BrowserTypeRenderer : ToolRenderer {
         ).filterNotNull()
             .joinToString(" · ")
             .ifEmpty { "Filled page input" }
+    }
+}
+
+/** browser_scroll / browser_back / browser_press: one-line acks. */
+internal object BrowserActionRenderer : ToolRenderer {
+    override fun doneTitle(call: ToolCall): String? =
+        when (call.name) {
+            "browser_scroll" -> {
+                "Scrolled ${ToolJson.firstString(call.result, listOf("scrolled"))
+                    .ifEmpty { ToolJson.firstString(call.args, listOf("direction")) }.ifEmpty { "page" }}"
+            }
+
+            "browser_back" -> {
+                val url = ToolJson.firstString(call.result, listOf("url"))
+                if (url.isNotEmpty()) "Went back to ${ToolJson.hostnameOf(url)}" else "Went back"
+            }
+
+            "browser_press" -> {
+                "Pressed ${ToolJson.firstString(call.result, listOf("pressed"))
+                    .ifEmpty { ToolJson.firstString(call.args, listOf("key")) }}"
+            }
+
+            else -> {
+                null
+            }
+        }
+
+    override fun subtitle(call: ToolCall): String = ""
+
+    override fun detail(call: ToolCall): String = ""
+}
+
+/** browser_get_images: image inventory of the current page. */
+internal object BrowserImagesRenderer : ToolRenderer {
+    override fun doneTitle(call: ToolCall): String {
+        val n = ToolJson.intValue(call.result?.get("count")) ?: 0
+        return "Found $n image${if (n == 1) "" else "s"}"
+    }
+
+    override fun detail(call: ToolCall): String =
+        (call.result?.get("images") as? JsonArray)
+            ?.take(12)
+            ?.mapNotNull { el ->
+                val img = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
+                val src = ToolJson.firstString(img, listOf("src"))
+                val alt = ToolJson.firstString(img, listOf("alt"))
+                listOf(alt, src)
+                    .filter { it.isNotEmpty() }
+                    .joinToString(" — ")
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { "- $it" }
+            }?.joinToString("\n") ?: ""
+}
+
+/** browser_vision: screenshot Q&A — the analysis text is the payload. */
+internal object BrowserVisionRenderer : ToolRenderer {
+    override fun pendingTitle(call: ToolCall): String = "Looking at page"
+
+    override fun doneTitle(call: ToolCall): String = "Analyzed page"
+
+    override fun subtitle(call: ToolCall): String =
+        ToolJson.compactPreview(ToolJson.firstString(call.args, listOf("question")), 120)
+
+    override fun detail(call: ToolCall): String =
+        ToolJson
+            .firstString(call.result, listOf("analysis"))
+            .ifEmpty { ToolJson.firstString(call.result, listOf("note")) }
+}
+
+/** browser_console: message/error counts, or a JS eval result. */
+internal object BrowserConsoleRenderer : ToolRenderer {
+    override fun doneTitle(call: ToolCall): String? {
+        val result = call.result ?: return null
+        if (result.containsKey("result")) return "Evaluated JS"
+        val msgs = ToolJson.intValue(result["total_messages"]) ?: 0
+        val errs = ToolJson.intValue(result["total_errors"]) ?: 0
+        return "Console: $msgs message${if (msgs == 1) "" else "s"}" +
+            if (errs > 0) ", $errs error${if (errs == 1) "" else "s"}" else ""
+    }
+
+    override fun detail(call: ToolCall): String {
+        val result = call.result ?: return ""
+        result["result"]?.let { return it.toString() }
+        val lines =
+            (result["console_messages"] as? JsonArray)?.take(30)?.mapNotNull { el ->
+                val m = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
+                "[${ToolJson.firstString(m, listOf("type")).ifEmpty { "log" }}] " +
+                    ToolJson.compactPreview(ToolJson.firstString(m, listOf("text")), 200)
+            } ?: emptyList()
+        val errors =
+            (result["js_errors"] as? JsonArray)?.take(10)?.mapNotNull { el ->
+                val e = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
+                "[error] ${ToolJson.compactPreview(ToolJson.firstString(e, listOf("message")), 200)}"
+            } ?: emptyList()
+        return (errors + lines).joinToString("\n")
     }
 }

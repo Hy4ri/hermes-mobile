@@ -89,19 +89,24 @@ object ToolViewBuilder {
                 ToolCounts.countLabelFor(call)
             }
 
+        val clampedDetail = ToolJson.clampForDisplay(detail)
+        val clampedStdout = extras.stdout?.let { ToolJson.clampForDisplay(it) }
+        val clampedStderr = extras.stderr?.let { ToolJson.clampForDisplay(it) }
+        val clampedDiff = extras.inlineDiff?.ifEmpty { null }?.let { ToolJson.clampForDisplay(it) }
+
         return ToolView(
             status = status,
             title = title,
             subtitle = subtitle,
-            detail = detail,
+            detail = clampedDetail,
             detailLabel = extras.detailLabel,
             countLabel = countLabel?.let { (count, noun) -> "$count ${ToolCounts.pluralizeNoun(noun, count)}" },
             durationLabel = ToolJson.durationLabel(call.result),
-            stdout = extras.stdout,
-            stderr = extras.stderr,
+            stdout = clampedStdout,
+            stderr = clampedStderr,
             exitCode = extras.exitCode,
             terminalCommand = extras.terminalCommand,
-            inlineDiff = extras.inlineDiff?.ifEmpty { null },
+            inlineDiff = clampedDiff,
             diffPath = extras.diffPath,
             diffStats = extras.diffStats,
             imageUrl = imageUrlFor(call.args, call.result),

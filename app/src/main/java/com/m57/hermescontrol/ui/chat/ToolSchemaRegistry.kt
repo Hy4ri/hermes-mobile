@@ -131,6 +131,12 @@ object ToolSchemaRegistry {
                     summaryArgKey = null,
                     icon = Icons.Filled.Checklist,
                 ),
+            "todo_list" to
+                ToolDisplayConfig(
+                    name = "todo_list",
+                    summaryArgKey = null,
+                    icon = Icons.Filled.Checklist,
+                ),
             "fact_store" to
                 ToolDisplayConfig(
                     name = "fact_store",
@@ -147,6 +153,12 @@ object ToolSchemaRegistry {
             "cronjob" to
                 ToolDisplayConfig(
                     name = "cronjob",
+                    summaryArgKey = "action",
+                    icon = Icons.Filled.Schedule,
+                ),
+            "cronjob_manage" to
+                ToolDisplayConfig(
+                    name = "cronjob_manage",
                     summaryArgKey = "action",
                     icon = Icons.Filled.Schedule,
                 ),
@@ -168,6 +180,12 @@ object ToolSchemaRegistry {
                     summaryArgKey = "action",
                     icon = Icons.Filled.Settings,
                 ),
+            "process_manage" to
+                ToolDisplayConfig(
+                    name = "process_manage",
+                    summaryArgKey = "action",
+                    icon = Icons.Filled.Settings,
+                ),
             "skill_manage" to
                 ToolDisplayConfig(
                     name = "skill_manage",
@@ -186,6 +204,42 @@ object ToolSchemaRegistry {
                     name = "browser_type",
                     summaryArgKey = null,
                     icon = Icons.Filled.Keyboard,
+                ),
+            "browser_scroll" to
+                ToolDisplayConfig(
+                    name = "browser_scroll",
+                    summaryArgKey = "direction",
+                    icon = Icons.Filled.TouchApp,
+                ),
+            "browser_back" to
+                ToolDisplayConfig(
+                    name = "browser_back",
+                    summaryArgKey = null,
+                    icon = Icons.Filled.Language,
+                ),
+            "browser_press" to
+                ToolDisplayConfig(
+                    name = "browser_press",
+                    summaryArgKey = "key",
+                    icon = Icons.Filled.Keyboard,
+                ),
+            "browser_get_images" to
+                ToolDisplayConfig(
+                    name = "browser_get_images",
+                    summaryArgKey = null,
+                    icon = Icons.Filled.Image,
+                ),
+            "browser_vision" to
+                ToolDisplayConfig(
+                    name = "browser_vision",
+                    summaryArgKey = "question",
+                    icon = Icons.Filled.Visibility,
+                ),
+            "browser_console" to
+                ToolDisplayConfig(
+                    name = "browser_console",
+                    summaryArgKey = null,
+                    icon = Icons.Filled.Terminal,
                 ),
             "browser_cdp" to
                 ToolDisplayConfig(

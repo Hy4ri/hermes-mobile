@@ -147,11 +147,17 @@ class SessionsViewModel :
                     rawPaginationOffset = data.nextOffset(0)
                     _uiState.update {
                         val newSessions = data.sessions.orEmpty().pinnedFirst()
-                        val hasMore = data.sessions.size >= PAGE_SIZE && data.total > newSessions.size
+                        val paging =
+                            SessionsPaging.resolveInitialPaging(
+                                receivedCount = data.sessions.size,
+                                pageSize = PAGE_SIZE,
+                                backendTotal = data.total,
+                                accumulatedCount = newSessions.size,
+                            )
                         it.copy(
                             sessions = newSessions,
-                            total = if (hasMore) data.total else newSessions.size,
-                            hasMore = hasMore,
+                            total = paging.total,
+                            hasMore = paging.hasMore,
                         )
                     }
                 }
@@ -229,14 +235,20 @@ class SessionsViewModel :
                     if (requestGeneration != generation) return@safeLaunchLoad
                     rawPaginationOffset = data.nextOffset(0)
                     val sessionsList = data.sessions.orEmpty().pinnedFirst()
-                    val hasMore = data.sessions.size >= PAGE_SIZE && data.total > sessionsList.size
+                    val paging =
+                        SessionsPaging.resolveInitialPaging(
+                            receivedCount = data.sessions.size,
+                            pageSize = PAGE_SIZE,
+                            backendTotal = data.total,
+                            accumulatedCount = sessionsList.size,
+                        )
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isLoadingMore = false,
                             sessions = sessionsList,
-                            total = if (hasMore) data.total else sessionsList.size,
-                            hasMore = hasMore,
+                            total = paging.total,
+                            hasMore = paging.hasMore,
                             selectedIds = emptySet(),
                         )
                     }
@@ -284,14 +296,20 @@ class SessionsViewModel :
                                 (it.sessions + data.sessions)
                                     .distinctBy { s -> s.id }
                                     .pinnedFirst()
-                            val receivedFullPage = data.sessions.size >= PAGE_SIZE
                             val addedNewItems = newSessions.size > it.sessions.size
-                            val hasMore = receivedFullPage && addedNewItems && data.total > newSessions.size
+                            val paging =
+                                SessionsPaging.resolveLoadMorePaging(
+                                    receivedCount = data.sessions.size,
+                                    pageSize = PAGE_SIZE,
+                                    addedNewItems = addedNewItems,
+                                    backendTotal = data.total,
+                                    accumulatedCount = newSessions.size,
+                                )
                             it.copy(
                                 isLoadingMore = false,
                                 sessions = newSessions,
-                                total = if (hasMore) data.total else newSessions.size,
-                                hasMore = hasMore,
+                                total = paging.total,
+                                hasMore = paging.hasMore,
                             )
                         }
                     }

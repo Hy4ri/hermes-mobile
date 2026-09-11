@@ -297,13 +297,7 @@ class McpServersViewModel :
             }
 
             _uiState.update { state ->
-                val errSummary = errors.joinToString("; ")
-                val msg =
-                    when {
-                        errors.isEmpty() -> "Successfully imported $successCount server(s)"
-                        successCount > 0 -> "Imported $successCount server(s), ${errors.size} failed: $errSummary"
-                        else -> "Failed to import: $errSummary"
-                    }
+                val msg = McpImportSummary.formatSummary(successCount, errors)
                 state.copy(
                     isImportingJson = false,
                     showImportDialog = false,
@@ -357,38 +351,7 @@ class McpServersViewModel :
         }
         _uiState.update { it.copy(addingServer = true) }
         viewModelScope.launch {
-            val request =
-                AddMcpServerRequest(
-                    name = state.addServerName.trim(),
-                    url = if (state.addMode == AddServerMode.HTTP) state.addServerUrl.trim().ifBlank { null } else null,
-                    command =
-                        if (state.addMode == AddServerMode.Stdio) {
-                            state.addServerCommand.trim().ifBlank { null }
-                        } else {
-                            null
-                        },
-                    args =
-                        if (state.addMode == AddServerMode.Stdio && state.addServerArgs.isNotBlank()) {
-                            state.addServerArgs
-                                .trim()
-                                .split("\\s+".toRegex())
-                                .filter { it.isNotEmpty() }
-                        } else {
-                            null
-                        },
-                    auth =
-                        if (state.addMode == AddServerMode.HTTP && state.addServerAuth != "none") {
-                            state.addServerAuth
-                        } else {
-                            null
-                        },
-                    bearerToken =
-                        if (state.addMode == AddServerMode.HTTP && state.addServerAuth == "header") {
-                            state.addServerBearerToken.trim().ifBlank { null }
-                        } else {
-                            null
-                        },
-                )
+            val request = AddServerRequestBuilder.build(state)
             val result =
                 withContext(Dispatchers.IO) {
                     safeApiCall { ApiClient.hermesApi.addMcpServer(request) }

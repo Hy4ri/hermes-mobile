@@ -89,6 +89,8 @@ import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.common.toDetailRows
+import com.m57.hermescontrol.ui.skills.components.SkillEditorDialog
+import com.m57.hermescontrol.ui.skills.components.SourceBadge
 
 internal const val CATEGORY_ALL = "All"
 
@@ -513,29 +515,6 @@ private fun SkillCard(
                 }
             }
         }
-    }
-}
-// ── Source Badge ───────────────────────────────────────────────────────
-
-@Composable
-private fun SourceBadge(source: String) {
-    val (color, label) =
-        when (source) {
-            "hub" -> MaterialTheme.colorScheme.tertiary to "hub"
-            "built-in" -> MaterialTheme.colorScheme.secondary to "built-in"
-            "optional" -> MaterialTheme.colorScheme.outline to "opt"
-            else -> MaterialTheme.colorScheme.outline to source
-        }
-    Surface(
-        color = color.copy(alpha = 0.15f),
-        shape = MaterialTheme.shapes.small,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
     }
 }
 
@@ -1268,146 +1247,5 @@ fun SkillPreviewDialog(
                 }
             }
         }
-    }
-}
-
-// ── Skill Editor Dialog (existing, preserved unchanged) ────────────────
-
-@Composable
-fun SkillEditorDialog(
-    skillName: String,
-    isLoading: Boolean,
-    initialContent: String?,
-    isSaving: Boolean,
-    saveSuccess: Boolean,
-    onSave: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onClearSaveSuccess: () -> Unit,
-) {
-    var contentText by remember(initialContent) { mutableStateOf(initialContent.orEmpty()) }
-    var showDiscardConfirm by remember { mutableStateOf(false) }
-
-    val hasChanges =
-        remember(initialContent, contentText) {
-            val original = initialContent.orEmpty()
-            original != contentText
-        }
-
-    LaunchedEffect(saveSuccess) {
-        if (saveSuccess) {
-            onClearSaveSuccess()
-            onDismiss()
-        }
-    }
-
-    Dialog(
-        onDismissRequest = {
-            if (hasChanges) {
-                showDiscardConfirm = true
-            } else {
-                onDismiss()
-            }
-        },
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Card(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-        ) {
-            HermesScaffold(
-                title = { Text(stringResource(R.string.skills_edit_title, skillName)) },
-                navigationIcon =
-                    NavIcon.Back(
-                        onBack = {
-                            if (hasChanges) {
-                                showDiscardConfirm = true
-                            } else {
-                                onDismiss()
-                            }
-                        },
-                    ),
-                actions = {
-                    if (!isLoading) {
-                        IconButton(
-                            onClick = { onSave(contentText) },
-                            enabled = !isSaving,
-                        ) {
-                            if (isSaving) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.fillMaxSize(0.6f),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.Save,
-                                    contentDescription = stringResource(R.string.content_desc_save_changes),
-                                )
-                            }
-                        }
-                    }
-                },
-            ) { padding ->
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize(),
-                ) {
-                    when {
-                        isLoading -> {
-                            LoadingState()
-                        }
-
-                        else -> {
-                            OutlinedTextField(
-                                value = contentText,
-                                onValueChange = { contentText = it },
-                                modifier =
-                                    Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                textStyle =
-                                    TextStyle(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    ),
-                                placeholder = {
-                                    Text(stringResource(R.string.skills_content_placeholder))
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showDiscardConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDiscardConfirm = false },
-            title = { Text(stringResource(R.string.skills_discard_title)) },
-            text = { Text(stringResource(R.string.skills_discard_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDiscardConfirm = false
-                        onDismiss()
-                    },
-                ) {
-                    Text(stringResource(R.string.action_discard))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDiscardConfirm = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
-        )
     }
 }

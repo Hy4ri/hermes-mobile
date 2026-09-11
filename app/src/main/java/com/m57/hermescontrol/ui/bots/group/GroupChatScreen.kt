@@ -64,7 +64,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,6 +91,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalChatFontScale
@@ -103,8 +103,10 @@ import com.m57.hermescontrol.ui.chat.components.tailContentKey
 import com.m57.hermescontrol.ui.chat.formatTimestamp
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.ui.common.EmptyState
+import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.util.BidiUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -117,7 +119,7 @@ fun GroupChatScreen(
     modifier: Modifier = Modifier,
     viewModel: GroupChatViewModel = viewModel { GroupChatViewModel() },
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
     val scrollController = rememberChatScrollController(listState, scrollScope)
@@ -220,15 +222,23 @@ fun GroupChatScreen(
         ) {
             when {
                 state.isLoading -> {
-                    Box(
+                    SkeletonListState(
                         modifier =
                             Modifier
                                 .weight(1f)
                                 .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                    }
+                    )
+                }
+
+                state.errorMessage != null -> {
+                    ErrorState(
+                        message = state.errorMessage ?: "",
+                        onRetry = { viewModel.setGroup(groupName) },
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                    )
                 }
 
                 state.messages.isEmpty() -> {
@@ -515,7 +525,7 @@ fun GroupChatScreen(
                                             modifier =
                                                 Modifier
                                                     .size(36.dp)
-                                                    .testTag("group_chat_stop_button"),
+                                                    .testTag("group_chat_composer_stop_button"),
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Filled.Stop,

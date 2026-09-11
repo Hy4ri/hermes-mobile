@@ -96,30 +96,11 @@ import com.m57.hermescontrol.ui.common.StatusBadgeType
 import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.system.components.CredentialEntryRow
 import com.m57.hermescontrol.ui.system.components.HookCard
+import com.m57.hermescontrol.util.formatBytes
+import com.m57.hermescontrol.util.formatDuration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-private fun formatBytes(bytes: Long): String =
-    when {
-        bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-        bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
-        else -> "${"%.1f".format(bytes.toDouble() / (1024 * 1024 * 1024))} GB"
-    }
-
-private fun formatDuration(totalSeconds: Double): String {
-    val days = (totalSeconds / 86400).toInt()
-    val hours = ((totalSeconds % 86400) / 3600).toInt()
-    val minutes = ((totalSeconds % 3600) / 60).toInt()
-    return buildString {
-        if (days > 0) append("${days}d ")
-        if (hours > 0 || days > 0) append("${hours}h ")
-        append("${minutes}m")
-    }
-}
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable

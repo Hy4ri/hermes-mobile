@@ -70,7 +70,8 @@ internal object TextToSpeechRenderer : ToolRenderer {
                 provider.takeIf { it.isNotEmpty() },
                 chunks?.takeIf { it > 1 }?.let { "$it chunks" },
             )
-        return parts.joinToString(" · ")
+        return parts
+            .joinToString(" · ")
             .ifEmpty { ToolJson.compactPreview(ToolJson.firstString(call.args, listOf("text")), 120) }
     }
 

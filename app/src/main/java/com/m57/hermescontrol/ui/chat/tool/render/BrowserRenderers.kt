@@ -110,17 +110,24 @@ internal object BrowserTypeRenderer : ToolRenderer {
 internal object BrowserActionRenderer : ToolRenderer {
     override fun doneTitle(call: ToolCall): String? =
         when (call.name) {
-            "browser_scroll" ->
+            "browser_scroll" -> {
                 "Scrolled ${ToolJson.firstString(call.result, listOf("scrolled"))
                     .ifEmpty { ToolJson.firstString(call.args, listOf("direction")) }.ifEmpty { "page" }}"
+            }
+
             "browser_back" -> {
                 val url = ToolJson.firstString(call.result, listOf("url"))
                 if (url.isNotEmpty()) "Went back to ${ToolJson.hostnameOf(url)}" else "Went back"
             }
-            "browser_press" ->
+
+            "browser_press" -> {
                 "Pressed ${ToolJson.firstString(call.result, listOf("pressed"))
                     .ifEmpty { ToolJson.firstString(call.args, listOf("key")) }}"
-            else -> null
+            }
+
+            else -> {
+                null
+            }
         }
 
     override fun subtitle(call: ToolCall): String = ""
@@ -136,13 +143,18 @@ internal object BrowserImagesRenderer : ToolRenderer {
     }
 
     override fun detail(call: ToolCall): String =
-        (call.result?.get("images") as? JsonArray)?.take(12)?.mapNotNull { el ->
-            val img = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
-            val src = ToolJson.firstString(img, listOf("src"))
-            val alt = ToolJson.firstString(img, listOf("alt"))
-            listOf(alt, src).filter { it.isNotEmpty() }
-                .joinToString(" — ").takeIf { it.isNotEmpty() }?.let { "- $it" }
-        }?.joinToString("\n") ?: ""
+        (call.result?.get("images") as? JsonArray)
+            ?.take(12)
+            ?.mapNotNull { el ->
+                val img = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
+                val src = ToolJson.firstString(img, listOf("src"))
+                val alt = ToolJson.firstString(img, listOf("alt"))
+                listOf(alt, src)
+                    .filter { it.isNotEmpty() }
+                    .joinToString(" — ")
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { "- $it" }
+            }?.joinToString("\n") ?: ""
 }
 
 /** browser_vision: screenshot Q&A — the analysis text is the payload. */
@@ -155,7 +167,8 @@ internal object BrowserVisionRenderer : ToolRenderer {
         ToolJson.compactPreview(ToolJson.firstString(call.args, listOf("question")), 120)
 
     override fun detail(call: ToolCall): String =
-        ToolJson.firstString(call.result, listOf("analysis"))
+        ToolJson
+            .firstString(call.result, listOf("analysis"))
             .ifEmpty { ToolJson.firstString(call.result, listOf("note")) }
 }
 

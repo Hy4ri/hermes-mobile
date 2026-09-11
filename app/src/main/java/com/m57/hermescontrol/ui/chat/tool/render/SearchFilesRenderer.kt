@@ -40,16 +40,18 @@ internal object SearchFilesRenderer : ToolRenderer {
             if (dense.isNotEmpty()) {
                 dense
             } else {
-                (result["matches"] as? JsonArray)?.mapNotNull { el ->
-                    val m = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
-                    val path = ToolJson.firstString(m, listOf("path"))
-                    val line = ToolJson.intValue(m["line"])
-                    val content = ToolJson.firstString(m, listOf("content"))
-                    "$path:${line ?: "?"}: ${content.trim()}"
-                }?.joinToString("\n")
-                    ?: (result["files"] as? JsonArray)?.mapNotNull {
-                        (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content
-                    }?.joinToString("\n") ?: ""
+                (result["matches"] as? JsonArray)
+                    ?.mapNotNull { el ->
+                        val m = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
+                        val path = ToolJson.firstString(m, listOf("path"))
+                        val line = ToolJson.intValue(m["line"])
+                        val content = ToolJson.firstString(m, listOf("content"))
+                        "$path:${line ?: "?"}: ${content.trim()}"
+                    }?.joinToString("\n")
+                    ?: (result["files"] as? JsonArray)
+                        ?.mapNotNull {
+                            (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content
+                        }?.joinToString("\n") ?: ""
             }
         val hint =
             if (ToolJson.boolTrue(result["truncated"])) {

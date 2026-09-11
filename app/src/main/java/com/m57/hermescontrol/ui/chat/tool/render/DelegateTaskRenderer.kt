@@ -15,22 +15,34 @@ internal object DelegateTaskRenderer : ToolRenderer {
         val tasks = call.args?.get("tasks") as? JsonArray
         val fromTasks =
             tasks?.mapIndexedNotNull { i, el ->
-                ToolJson.parseMaybeObject(el)
+                ToolJson
+                    .parseMaybeObject(el)
                     ?.let { ToolJson.firstString(it, listOf("goal")) }
                     ?.ifEmpty { "Task ${i + 1}" }
             } ?: emptyList()
         if (fromTasks.isNotEmpty()) return fromTasks
-        return ToolJson.firstString(call.args, listOf("goal"))
-            .takeIf { it.isNotEmpty() }?.let { listOf(it) } ?: emptyList()
+        return ToolJson
+            .firstString(call.args, listOf("goal"))
+            .takeIf { it.isNotEmpty() }
+            ?.let { listOf(it) } ?: emptyList()
     }
 
     private fun action(call: ToolCall) = ToolJson.firstString(call.args, listOf("action")).ifEmpty { "spawn" }
 
     override fun pendingTitle(call: ToolCall): String =
         when (action(call)) {
-            "list" -> "Listing subagents"
-            "steer" -> "Steering subagent"
-            "stop" -> "Stopping subagent"
+            "list" -> {
+                "Listing subagents"
+            }
+
+            "steer" -> {
+                "Steering subagent"
+            }
+
+            "stop" -> {
+                "Stopping subagent"
+            }
+
             else -> {
                 val n = goals(call).size.coerceAtLeast(1)
                 "Delegating $n task${if (n == 1) "" else "s"}"
@@ -44,12 +56,20 @@ internal object DelegateTaskRenderer : ToolRenderer {
                 val n = ToolJson.intValue(result?.get("count")) ?: 0
                 "$n subagent${if (n == 1) "" else "s"}"
             }
-            action(call) == "steer" -> "Steer queued"
-            action(call) == "stop" -> "Stop requested"
+
+            action(call) == "steer" -> {
+                "Steer queued"
+            }
+
+            action(call) == "stop" -> {
+                "Stop requested"
+            }
+
             ToolJson.firstString(result, listOf("status")) == "dispatched" -> {
                 val n = ToolJson.intValue(result?.get("count")) ?: goals(call).size
                 "Dispatched $n background task${if (n == 1) "" else "s"}"
             }
+
             else -> {
                 val results = result?.get("results") as? JsonArray
                 val n = results?.size ?: goals(call).size.coerceAtLeast(1)
@@ -72,14 +92,15 @@ internal object DelegateTaskRenderer : ToolRenderer {
         val result = call.result
         // list action: one row per live subagent
         (result?.get("subagents") as? JsonArray)?.let { subs ->
-            return subs.mapNotNull { el ->
-                val s = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
-                val goal = ToolJson.compactPreview(ToolJson.firstString(s, listOf("goal")), 80)
-                val status = ToolJson.firstString(s, listOf("status"))
-                val secs = ToolJson.numberValue(s["running_seconds"])
-                val time = secs?.let { " · ${ToolJson.formatDurationSeconds(it)}" } ?: ""
-                "- [$status] $goal$time"
-            }.joinToString("\n")
+            return subs
+                .mapNotNull { el ->
+                    val s = ToolJson.parseMaybeObject(el) ?: return@mapNotNull null
+                    val goal = ToolJson.compactPreview(ToolJson.firstString(s, listOf("goal")), 80)
+                    val status = ToolJson.firstString(s, listOf("status"))
+                    val secs = ToolJson.numberValue(s["running_seconds"])
+                    val time = secs?.let { " · ${ToolJson.formatDurationSeconds(it)}" } ?: ""
+                    "- [$status] $goal$time"
+                }.joinToString("\n")
         }
         // joined spawn: per-task result rows
         val rows =
@@ -91,7 +112,8 @@ internal object DelegateTaskRenderer : ToolRenderer {
                 val goal = goals(call).getOrNull(idx) ?: "Task ${idx + 1}"
                 val model = ToolJson.firstString(r, listOf("model"))
                 val dur =
-                    ToolJson.numberValue(r["duration_seconds"])
+                    ToolJson
+                        .numberValue(r["duration_seconds"])
                         ?.let { ToolJson.formatDurationSeconds(it) } ?: ""
                 val meta = listOf(model, dur).filter { it.isNotEmpty() }.joinToString(" · ")
                 val summary =

@@ -1,5 +1,6 @@
 package com.m57.hermescontrol.ui.chat
 
+import com.m57.hermescontrol.ui.chat.markdown.parseBlocks
 import org.junit.Test
 import kotlin.system.measureTimeMillis
 

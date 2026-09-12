@@ -796,6 +796,21 @@
     <string name="plugins_orphan_heading">Orphaned Dashboard Plugins</string>
     <string name="plugins_show_in_sidebar">Show in sidebar</string>
     <string name="plugins_hide_from_sidebar">Hide from sidebar</string>
+    <string name="plugins_tab_installed">Installed</string>
+    <string name="plugins_tab_catalog">Catalog</string>
+    <string name="plugins_catalog_search_placeholder">Search catalog plugins...</string>
+    <string name="plugins_catalog_empty_title">No catalog plugins found</string>
+    <string name="plugins_catalog_empty_desc">No plugins match your filter or search query</string>
+    <string name="plugins_catalog_installing">Installing %1$s…</string>
+    <string name="plugins_catalog_installed_success">Plugin \"%1$s\" installed successfully</string>
+    <string name="plugins_catalog_update">Update</string>
+    <string name="plugins_catalog_installed_badge">Installed</string>
+    <string name="plugins_catalog_filter_all">All</string>
+    <string name="plugins_catalog_filter_official">Official</string>
+    <string name="plugins_catalog_filter_community">Community</string>
+    <string name="plugins_catalog_maintainer">by %1$s</string>
+    <string name="plugins_catalog_tier_official">Official</string>
+    <string name="plugins_catalog_tier_community">Community</string>
 
     <!-- Shared detail dialog (issue #500) -->
     <string name="detail_dialog_category">Category</string>
@@ -819,6 +834,13 @@
     <string name="detail_dialog_status_enabled">Enabled</string>
     <string name="detail_dialog_status_disabled">Disabled</string>
     <string name="detail_dialog_trust_level">Trust Level</string>
+    <string name="detail_dialog_tier">Tier</string>
+    <string name="detail_dialog_maintainer">Maintainer</string>
+    <string name="detail_dialog_repository">Repository</string>
+    <string name="detail_dialog_commit">Commit SHA</string>
+    <string name="detail_dialog_requires_hermes">Requires Hermes</string>
+    <string name="detail_dialog_docs">Documentation</string>
+    <string name="detail_dialog_capabilities">Capabilities</string>
 
     <!-- McpServers Screen -->
     <string name="mcp_servers_label_transport">Transport: %1$s</string>

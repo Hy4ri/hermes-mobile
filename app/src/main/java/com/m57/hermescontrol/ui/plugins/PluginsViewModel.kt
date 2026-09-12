@@ -2,6 +2,8 @@ package com.m57.hermescontrol.ui.plugins
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.model.AgentPluginInstallBody
+import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.ProviderOption
@@ -9,6 +11,7 @@ import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
 import com.m57.hermescontrol.ui.common.ToastHost
+import com.m57.hermescontrol.ui.common.safeLaunchAction
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +21,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class PluginsTab {
+    INSTALLED,
+    CATALOG,
+}
+
 data class PluginsUiState(
+    val selectedTab: PluginsTab = PluginsTab.INSTALLED,
     val isLoading: Boolean = false,
     val plugins: List<PluginInfo> = emptyList(),
     val orphanPlugins: List<PluginInfo> = emptyList(),
@@ -41,6 +50,13 @@ data class PluginsUiState(
     val removeConfirmPlugin: String? = null,
     // Rescan
     val rescanBusy: Boolean = false,
+    // Catalog state
+    val catalogEntries: List<PluginCatalogEntry> = emptyList(),
+    val isCatalogLoading: Boolean = false,
+    val catalogErrorMessage: String? = null,
+    val catalogInstallingName: String? = null,
+    val catalogQuery: String = "",
+    val catalogTierFilter: String? = null,
 ) {
     /** Built-in memory provider sentinel — empty string means "use config defaults" */
     val isMemoryBuiltin: Boolean
@@ -380,6 +396,93 @@ class PluginsViewModel :
 
     private fun clearRowBusy(name: String) {
         _uiState.update { if (it.rowBusy == name) it.copy(rowBusy = null) else it }
+    }
+
+    fun setTab(tab: PluginsTab) {
+        _uiState.update { it.copy(selectedTab = tab) }
+        if (tab == PluginsTab.CATALOG && _uiState.value.catalogEntries.isEmpty()) {
+            loadCatalog()
+        }
+    }
+
+    fun loadCatalog(isRefresh: Boolean = false) {
+        safeLaunchLoad(
+            apiCall = { safeApiCall { ApiClient.hermesApi.getPluginCatalog() } },
+            onStart = {
+                _uiState.update {
+                    it.copy(
+                        isCatalogLoading = true,
+                        catalogErrorMessage = if (isRefresh) it.catalogErrorMessage else null,
+                    )
+                }
+            },
+            onSuccess = { response ->
+                _uiState.update {
+                    it.copy(
+                        isCatalogLoading = false,
+                        catalogEntries = response.entries,
+                        catalogErrorMessage = null,
+                    )
+                }
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        isCatalogLoading = false,
+                        catalogErrorMessage = "Failed to load catalog: $errorMsg",
+                    )
+                }
+            },
+        )
+    }
+
+    fun setCatalogQuery(query: String) {
+        _uiState.update { it.copy(catalogQuery = query) }
+    }
+
+    fun setCatalogTierFilter(tier: String?) {
+        _uiState.update { it.copy(catalogTierFilter = tier) }
+    }
+
+    fun installCatalogPlugin(
+        entry: PluginCatalogEntry,
+        force: Boolean = false,
+    ) {
+        val catalogName = entry.name
+        safeLaunchAction(
+            onStart = { _uiState.update { it.copy(catalogInstallingName = catalogName) } },
+            apiCall = {
+                safeApiCall {
+                    ApiClient.hermesApi.installPlugin(
+                        AgentPluginInstallBody(
+                            identifier = entry.repo ?: "",
+                            catalogName = catalogName,
+                            force = force,
+                            enable = true,
+                        ),
+                    )
+                }
+            },
+            onSuccess = {
+                _uiState.update {
+                    it.copy(
+                        toastMessage = "Plugin \"${entry.displayName}\" installed successfully",
+                    )
+                }
+                loadPlugins()
+                loadCatalog(isRefresh = true)
+            },
+            onError = { errorMsg ->
+                _uiState.update {
+                    it.copy(
+                        toastMessage = "Failed to install \"${entry.displayName}\": $errorMsg",
+                    )
+                }
+            },
+            onComplete = {
+                _uiState.update { it.copy(catalogInstallingName = null) }
+            },
+        )
     }
 
     override fun clearToast() {

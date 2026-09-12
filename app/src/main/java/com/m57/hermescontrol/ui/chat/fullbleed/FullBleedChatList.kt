@@ -85,7 +85,7 @@ fun FullBleedChatList(
             )
         }
     } else {
-        val toolMilestones = toolCallMilestones(messages)
+        val toolMilestones = remember(messages) { toolCallMilestones(messages) }
         val turns =
             remember(messages, streamingMessage) {
                 groupIntoTurnsWithStreaming(messages, streamingMessage)
@@ -148,14 +148,12 @@ fun FullBleedChatList(
                     }
                 }
 
-                var entryIndex = 0
                 turns.forEach { turn ->
                     when (turn) {
                         is ChatTurn.User -> {
                             // Eager captures: item lambda reads these at
                             // composition time (lazy), so capture now.
                             val userMessage = turn.message
-                            val milestone = toolMilestones[entryIndex]
                             item(key = "user-${userMessage.id}") {
                                 Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                     renderChatBubble(
@@ -170,12 +168,8 @@ fun FullBleedChatList(
                                         openingAttachmentPath = openingAttachmentPath,
                                         onImageClick = onImageClick,
                                     )
-                                    milestone?.let { count ->
-                                        ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
-                                    }
                                 }
                             }
-                            entryIndex++
                         }
 
                         is ChatTurn.Agent -> {
@@ -210,7 +204,6 @@ fun FullBleedChatList(
                                         val hoistedReasoning =
                                             turnReasoning != null &&
                                                 proseMessage.id == turnReasoning.message.id
-                                        val milestone = toolMilestones[entryIndex]
                                         item(key = "prose-${proseMessage.id}") {
                                             Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                                 if (proseMessage.isStreaming && typingEffectEnabled) {
@@ -248,18 +241,14 @@ fun FullBleedChatList(
                                                         onImageClick = onImageClick,
                                                     )
                                                 }
-                                                milestone?.let { count ->
-                                                    ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
-                                                }
                                             }
                                         }
                                         firstProseSeen = true
-                                        entryIndex++
                                     }
 
                                     is AgentEntry.ToolRow -> {
                                         val toolMessage = entry.message
-                                        val milestone = toolMilestones[entryIndex]
+                                        val milestone = toolMilestones[toolMessage.id]
                                         item(key = "tool-${toolMessage.id}") {
                                             Column(modifier = Modifier.padding(bottom = 6.dp)) {
                                                 FullBleedToolRow(toolMessage)
@@ -268,7 +257,6 @@ fun FullBleedChatList(
                                                 }
                                             }
                                         }
-                                        entryIndex++
                                     }
 
                                     is AgentEntry.SystemEvent -> {
@@ -288,7 +276,6 @@ fun FullBleedChatList(
                                                 }
                                             }
                                         }
-                                        entryIndex++
                                     }
                                 }
                             }

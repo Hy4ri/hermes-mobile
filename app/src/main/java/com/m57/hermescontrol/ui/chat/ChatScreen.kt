@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.chat
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -292,6 +291,11 @@ fun ChatScreen(
     var lastAnimatedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showReloginDialog by rememberSaveable { mutableStateOf(false) }
     var showSubagentInspectionSheet by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(showSubagentInspectionSheet) {
+        if (showSubagentInspectionSheet) {
+            viewModel.hydrateSubagents()
+        }
+    }
     var viewingImage by rememberSaveable { mutableStateOf<ImageViewerModel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
@@ -724,9 +728,16 @@ fun ChatScreen(
             SubagentInspectionSheet(
                 indicators = state.subagentIndicators,
                 todos = state.todos,
+                inspectingSubagentId = state.inspectingSubagentId,
+                subagentTranscript = state.subagentTranscript,
+                onToggleTranscript = { subagentId -> viewModel.toggleSubagentTranscript(subagentId) },
+                onRetryTranscript = { viewModel.retrySubagentTranscript() },
                 onSteerSubagent = { indicator, msg -> viewModel.steerSubagent(indicator, msg) },
                 onStopSubagent = { indicator -> viewModel.stopSubagent(indicator) },
-                onDismiss = { showSubagentInspectionSheet = false },
+                onDismiss = {
+                    showSubagentInspectionSheet = false
+                    viewModel.closeSubagentTranscript()
+                },
             )
         }
 

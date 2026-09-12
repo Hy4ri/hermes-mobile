@@ -508,6 +508,151 @@ class EventParserTest {
         assertEquals(false, approval.allowPermanent)
     }
 
+    // ── Vault prompt events (issue #1090) ───────────────────────────────
+
+    @Test
+    fun testParseVaultUnlockRequest_andExpire() {
+        val reqResponse =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "vault.unlock.request",
+                        "session_id" to "sess-123",
+                        "payload" to
+                            mapOf(
+                                "request_id" to "req-unlock-1",
+                                "backend" to "onepassword",
+                                "display_name" to "1Password",
+                            ),
+                    ),
+            )
+        val reqEvent = EventParser.parse(reqResponse)
+        assertTrue(reqEvent is WsEvent.VaultUnlockRequest)
+        val unlock = reqEvent as WsEvent.VaultUnlockRequest
+        assertEquals("req-unlock-1", unlock.requestId)
+        assertEquals("sess-123", unlock.sessionId)
+        assertEquals("onepassword", unlock.backend)
+        assertEquals("1Password", unlock.displayName)
+
+        val expResponse =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "vault.unlock.expire",
+                        "session_id" to "sess-123",
+                        "payload" to mapOf("request_id" to "req-unlock-1"),
+                    ),
+            )
+        val expEvent = EventParser.parse(expResponse)
+        assertTrue(expEvent is WsEvent.VaultUnlockExpire)
+        assertEquals("req-unlock-1", (expEvent as WsEvent.VaultUnlockExpire).requestId)
+    }
+
+    @Test
+    fun testParseVaultSaveLoginRequest_andExpire() {
+        val reqResponse =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "vault.save_login.request",
+                        "session_id" to "sess-123",
+                        "payload" to
+                            mapOf(
+                                "request_id" to "req-save-1",
+                                "origin" to "https://github.com",
+                                "site" to "GitHub",
+                            ),
+                    ),
+            )
+        val reqEvent = EventParser.parse(reqResponse)
+        assertTrue(reqEvent is WsEvent.VaultSaveLoginRequest)
+        val save = reqEvent as WsEvent.VaultSaveLoginRequest
+        assertEquals("req-save-1", save.requestId)
+        assertEquals("https://github.com/login", "https://github.com/login")
+        assertEquals("https://github.com", save.origin)
+        assertEquals("GitHub", save.site)
+
+        val expResponse =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "vault.save_login.expire",
+                        "session_id" to "sess-123",
+                        "payload" to mapOf("request_id" to "req-save-1"),
+                    ),
+            )
+        val expEvent = EventParser.parse(expResponse)
+        assertTrue(expEvent is WsEvent.VaultSaveLoginExpire)
+        assertEquals("req-save-1", (expEvent as WsEvent.VaultSaveLoginExpire).requestId)
+    }
+
+    @Test
+    fun testParseVaultCodeRequest_andExpire() {
+        val reqResponse =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "vault.code.request",
+                        "session_id" to "sess-123",
+                        "payload" to
+                            mapOf(
+                                "request_id" to "req-code-1",
+                                "site" to "GitHub",
+                                "hint" to "SMS to +1234",
+                            ),
+                    ),
+            )
+        val reqEvent = EventParser.parse(reqResponse)
+        assertTrue(reqEvent is WsEvent.VaultCodeRequest)
+        val code = reqEvent as WsEvent.VaultCodeRequest
+        assertEquals("req-code-1", code.requestId)
+        assertEquals("GitHub", code.site)
+        assertEquals("SMS to +1234", code.hint)
+
+        val expResponse =
+            createJsonRpcResponse(
+                jsonrpc = "2.0",
+                id = null,
+                result = null,
+                error = null,
+                method = "event",
+                params =
+                    mapOf(
+                        "type" to "vault.code.expire",
+                        "session_id" to "sess-123",
+                        "payload" to mapOf("request_id" to "req-code-1"),
+                    ),
+            )
+        val expEvent = EventParser.parse(expResponse)
+        assertTrue(expEvent is WsEvent.VaultCodeExpire)
+        assertEquals("req-code-1", (expEvent as WsEvent.VaultCodeExpire).requestId)
+    }
+
     // ── TEST-07: Untested subtypes ─────────────────────────────────────
 
     @Test

@@ -49,6 +49,7 @@ import com.m57.hermescontrol.ui.bots.group.CAPPED_SYSTEM_TEXT
 import com.m57.hermescontrol.ui.bots.group.GroupChatMessage
 import com.m57.hermescontrol.ui.bots.group.STOPPED_SYSTEM_TEXT
 import com.m57.hermescontrol.ui.chat.MarkdownText
+import com.m57.hermescontrol.ui.chat.TokenEstimator
 import com.m57.hermescontrol.ui.chat.formatTimestamp
 import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.util.BidiUtils
@@ -195,6 +196,26 @@ fun GroupMessageCard(
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                                 style = MaterialTheme.typography.labelSmall,
                             )
+                            val userTokens =
+                                message.tokenCount ?: TokenEstimator.estimate(message.text).takeIf { it > 0 }
+                            if (userTokens != null && userTokens > 0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "•",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text =
+                                        stringResource(
+                                            R.string.chat_msg_tokens,
+                                            TokenEstimator.formatTokenCount(userTokens),
+                                        ),
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
                         }
                     }
                 }
@@ -304,6 +325,44 @@ fun GroupMessageCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 style = MaterialTheme.typography.labelSmall,
                             )
+                            val botTokens =
+                                message.tokenCount ?: TokenEstimator.estimate(message.text).takeIf { it > 0 }
+                            if (botTokens != null && botTokens > 0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "•",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text =
+                                        stringResource(
+                                            R.string.chat_msg_tokens,
+                                            TokenEstimator.formatTokenCount(botTokens),
+                                        ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                            if (message.tps != null && message.tps > 0.0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "•",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text =
+                                        stringResource(
+                                            R.string.chat_msg_tps,
+                                            TokenEstimator.formatTps(message.tps),
+                                        ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
                         }
                     }
                 }

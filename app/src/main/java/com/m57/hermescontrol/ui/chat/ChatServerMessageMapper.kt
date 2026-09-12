@@ -171,6 +171,7 @@ internal fun mapServerMessages(
             }
         }
 
+        val tokenCount = msg.tokenCount ?: TokenEstimator.estimate(finalContent).takeIf { it > 0 }
         mapped.add(
             ChatMessage(
                 id = restId,
@@ -182,6 +183,7 @@ internal fun mapServerMessages(
                 timestamp = timestamp,
                 isStreaming = false,
                 displayKind = msg.display_kind,
+                tokenCount = tokenCount,
             ),
         )
     }

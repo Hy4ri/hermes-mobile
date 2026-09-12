@@ -40,6 +40,7 @@ import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.InlineAttachment
 import com.m57.hermescontrol.ui.chat.MarkdownText
+import com.m57.hermescontrol.ui.chat.TokenEstimator
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -171,6 +172,44 @@ internal fun FullBleedAgentMessage(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.testTag("fullbleed_finish_time"),
                 )
+                if (message.tokenCount != null && message.tokenCount > 0) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.chat_msg_tokens,
+                                TokenEstimator.formatTokenCount(message.tokenCount),
+                            ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.testTag("fullbleed_token_count"),
+                    )
+                }
+                if (message.tps != null && message.tps > 0.0) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.chat_msg_tps,
+                                TokenEstimator.formatTps(message.tps),
+                            ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.testTag("fullbleed_tps"),
+                    )
+                }
             }
         }
     }

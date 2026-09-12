@@ -20,6 +20,8 @@ data class UsageSnapshotResponse(
     val contextMax: Long? = null,
     /** Cumulative session total tokens. */
     val totalTokens: Long? = null,
+    /** Rolling tokens-per-second generation speed. */
+    val avgTps: Double? = null,
 )
 
 /**
@@ -38,5 +40,6 @@ fun parseUsageSnapshot(result: Any?): UsageSnapshotResponse? {
         contextUsed = (usageMap["context_used"] as? Number)?.toLong(),
         contextMax = (usageMap["context_max"] as? Number)?.toLong(),
         totalTokens = (usageMap["total"] as? Number)?.toLong(),
+        avgTps = (usageMap["avg_tps"] as? Number)?.toDouble(),
     )
 }

@@ -168,6 +168,8 @@
 <string name="content_desc_scroll_to_bottom">التمرير إلى الأسفل</string>
 <string name="content_desc_copy">نسخ</string>
 <string name="content_desc_edit">تعديل</string>
+<string name="chat_msg_tokens">%1$s رمز</string>
+<string name="chat_msg_tps">%1$s رمز/ث</string>
 <string name="chat_attach_remove_desc">إزالة المرفق</string>
 <string name="chat_camera_error">تعذر التقاط الصورة</string>
 <string name="settings_sec_connection">الاتصال</string>

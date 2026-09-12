@@ -186,6 +186,8 @@
     <string name="content_desc_scroll_to_bottom">Scroll to bottom</string>
     <string name="content_desc_copy">Copy</string>
     <string name="content_desc_edit">Edit</string>
+    <string name="chat_msg_tokens">%1$s tok</string>
+    <string name="chat_msg_tps">%1$s t/s</string>
 
     <!-- Attachment / File Picker -->
     <string name="chat_attach_remove_desc">Remove attachment</string>

@@ -143,6 +143,8 @@ data class ChatUiState(
     // until the first successful session.usage fetch) — drives the
     // "compressed ×N" badge on the context chip.
     val compressionCount: Int? = null,
+    /** Rolling output tokens/sec over the last ~10 calls. */
+    val latestTps: Double? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     /** One-shot composer recovery after an attachment is rejected before send. */
@@ -1279,6 +1281,7 @@ class ChatViewModel(
                 role = MessageRole.USER,
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
+                tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
             )
 
         // Update UI immediately
@@ -1323,6 +1326,7 @@ class ChatViewModel(
                 role = MessageRole.USER,
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
+                tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
             )
 
         // Upload attachments then submit prompt
@@ -1605,7 +1609,12 @@ class ChatViewModel(
 
         val displayContent =
             if (result is SlashResult.QueuePrompt) result.displayContent else command
-        val userMsg = ChatMessage(role = MessageRole.USER, content = displayContent)
+        val userMsg =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = displayContent,
+                tokenCount = TokenEstimator.estimate(displayContent).takeIf { it > 0 },
+            )
         val sessionId = _uiState.value.currentSessionId
 
         _uiState.update { it.copy(messages = it.messages + userMsg) }

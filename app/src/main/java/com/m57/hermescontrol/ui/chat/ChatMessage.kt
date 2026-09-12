@@ -79,6 +79,10 @@ data class ChatMessage(
      * When present, rendered at the bottom beside the copy button.
      */
     val finishTimestamp: Long? = null,
+    /** Token count used by this message (persisted to SQLite). */
+    val tokenCount: Int? = null,
+    /** Tokens per second generation speed (persisted to SQLite). */
+    val tps: Double? = null,
 )
 
 /**

@@ -70,4 +70,19 @@ class HermesDatabaseMigrationsTest {
                 )
             }
         }
+
+    @Test
+    fun migration6to7_executesTokenCountAndTpsColumnAdditionOnSQLiteConnection() =
+        runBlocking {
+            val connection = mockk<SQLiteConnection>(relaxed = true)
+            HermesDatabase.MIGRATION_6_7.migrate(connection)
+            verify(exactly = 1) {
+                connection.execSQL(
+                    "ALTER TABLE `chat_messages` ADD COLUMN `token_count` INTEGER",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `chat_messages` ADD COLUMN `tps` REAL",
+                )
+            }
+        }
 }

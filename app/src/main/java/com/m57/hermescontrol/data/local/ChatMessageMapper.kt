@@ -35,6 +35,8 @@ fun ChatMessageEntity.toUiModel(): ChatMessage =
                 else -> null
             },
         displayKind = displayKind,
+        tokenCount = tokenCount,
+        tps = tps,
     )
 
 fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
@@ -50,4 +52,6 @@ fun ChatMessage.toEntity(sessionId: String): ChatMessageEntity =
         toolStatus = toolStatus?.name,
         isStreaming = isStreaming,
         displayKind = displayKind,
+        tokenCount = tokenCount,
+        tps = tps,
     )

@@ -12,7 +12,7 @@ import java.io.File
 
 @Database(
     entities = [ChatMessageEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class HermesDatabase : RoomDatabase() {
@@ -67,6 +67,18 @@ abstract class HermesDatabase : RoomDatabase() {
                 }
             }
 
+        val MIGRATION_6_7: Migration =
+            object : Migration(6, 7) {
+                override suspend fun migrate(connection: SQLiteConnection) {
+                    connection.execSQL(
+                        "ALTER TABLE `chat_messages` ADD COLUMN `token_count` INTEGER",
+                    )
+                    connection.execSQL(
+                        "ALTER TABLE `chat_messages` ADD COLUMN `tps` REAL",
+                    )
+                }
+            }
+
         fun get(context: Context): HermesDatabase =
             instance ?: synchronized(this) {
                 // SQLCipher can't open plaintext SQLite databases — if an old
@@ -97,6 +109,7 @@ abstract class HermesDatabase : RoomDatabase() {
                         MIGRATION_3_4,
                         MIGRATION_4_5,
                         MIGRATION_5_6,
+                        MIGRATION_6_7,
                     ).fallbackToDestructiveMigration(false)
                     .build()
                     .also { instance = it }

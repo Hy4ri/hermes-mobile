@@ -165,6 +165,8 @@
     <string name="content_desc_scroll_to_bottom">맨 아래로</string>
     <string name="content_desc_copy">복사</string>
     <string name="content_desc_edit">편집</string>
+    <string name="chat_msg_tokens">%1$s 토큰</string>
+    <string name="chat_msg_tps">%1$s t/s</string>
 
     <!-- Attachment / File Picker -->
     <string name="chat_attach_remove_desc">첨부 제거</string>

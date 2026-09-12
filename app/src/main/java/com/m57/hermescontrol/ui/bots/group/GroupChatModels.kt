@@ -34,6 +34,8 @@ data class GroupChatMessage(
     val isSystem: Boolean = false,
     val isPass: Boolean = false,
     val toolCalls: List<GroupChatToolCall> = emptyList(),
+    val tokenCount: Int? = null,
+    val tps: Double? = null,
 )
 
 const val STOPPED_SYSTEM_TEXT = "Discussion stopped"

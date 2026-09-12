@@ -87,7 +87,7 @@ object EventParser {
             "message.complete" -> {
                 val text = payload?.get("text") as? String ?: ""
                 val reasoning = payload?.get("reasoning") as? String
-                WsEvent.MessageComplete(text, sessionId, reasoning)
+                WsEvent.MessageComplete(text, sessionId, reasoning, rawPayload = payload)
             }
 
             "message.done" -> {

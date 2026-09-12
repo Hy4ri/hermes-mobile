@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
 @Serializable
@@ -50,9 +51,17 @@ data class SessionMessage(
     val display_kind: String? = null,
     /** Display-only metadata for the marker (e.g. delegation result counts). */
     val display_metadata: JsonElement? = null,
+    /** Token count recorded by the backend. */
+    val token_count: JsonElement? = null,
 ) {
     val timestampText: String?
         get() = (timestamp as? JsonPrimitive)?.content
+
+    val tokenCount: Int?
+        get() {
+            val prim = token_count as? JsonPrimitive ?: return null
+            return prim.intOrNull ?: prim.content.toIntOrNull()
+        }
 
     val timestampEpochMs: Long?
         get() {

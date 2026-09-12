@@ -168,6 +168,8 @@
     <string name="content_desc_scroll_to_bottom">滚动到底部</string>
     <string name="content_desc_copy">复制</string>
     <string name="content_desc_edit">编辑</string>
+    <string name="chat_msg_tokens">%1$s tok</string>
+    <string name="chat_msg_tps">%1$s t/s</string>
     <string name="chat_attach_remove_desc">移除附件</string>
     <string name="chat_camera_error">拍照失败</string>
     <string name="settings_sec_connection">连接</string>

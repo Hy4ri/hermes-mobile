@@ -221,6 +221,8 @@ object ChatWsEventReducer {
                     streamingState.streamingMessage.copy(
                         isStreaming = false,
                         finishTimestamp = System.currentTimeMillis(),
+                        tokenCount = TokenEstimator.estimate(streamingState.streamingMessage.content).takeIf { it > 0 },
+                        tps = state.latestTps?.takeIf { it > 0.0 },
                     )
                 orphan = finalized
                 state.copy(
@@ -379,17 +381,25 @@ object ChatWsEventReducer {
                 streamingState = streamingState.copy(streamingMessage = null),
             )
         }
+        val rawUsage = event.rawPayload?.get("usage") as? Map<*, *>
+        val tpsFromPayload = (rawUsage?.get("avg_tps") as? Number)?.toDouble()
+        val tps = (tpsFromPayload ?: state.latestTps)?.takeIf { it > 0.0 }
+        val tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 }
         val msg =
             streaming?.copy(
                 content = text,
                 isStreaming = false,
                 reasoningText = reasoning,
                 finishTimestamp = System.currentTimeMillis(),
+                tokenCount = tokenCount,
+                tps = tps,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
                 reasoningText = reasoning,
                 finishTimestamp = System.currentTimeMillis(),
+                tokenCount = tokenCount,
+                tps = tps,
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -435,11 +445,14 @@ object ChatWsEventReducer {
             } else {
                 streaming.reasoningText
             }
+        val tokenCount = TokenEstimator.estimate(streaming.content).takeIf { it > 0 }
         val msg =
             streaming.copy(
                 isStreaming = false,
                 reasoningText = reasoning,
                 finishTimestamp = System.currentTimeMillis(),
+                tokenCount = streaming.tokenCount ?: tokenCount,
+                tps = streaming.tps ?: state.latestTps?.takeIf { it > 0.0 },
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -504,6 +517,8 @@ object ChatWsEventReducer {
                         isStreaming = false,
                         reasoningText = reasoning,
                         finishTimestamp = System.currentTimeMillis(),
+                        tokenCount = TokenEstimator.estimate(streamingState.streamingMessage.content).takeIf { it > 0 },
+                        tps = state.latestTps?.takeIf { it > 0.0 },
                     )
                 orphanToPersist = finalized
                 state.copy(
@@ -961,6 +976,9 @@ object ChatWsEventReducer {
         }
         if (snapshot.contextMax != null && snapshot.contextMax > 0L) {
             updatedState = updatedState.copy(fullContextTokens = snapshot.contextMax)
+        }
+        if (snapshot.avgTps != null && snapshot.avgTps > 0.0) {
+            updatedState = updatedState.copy(latestTps = snapshot.avgTps)
         }
         return ReducerResult(state = updatedState, streamingState = streamingState)
     }

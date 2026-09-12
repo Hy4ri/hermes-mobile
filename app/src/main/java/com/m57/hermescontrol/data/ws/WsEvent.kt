@@ -61,6 +61,8 @@ sealed class WsEvent {
         val reasoning: String? = null,
         /** Stored session id captured before background disconnect clears the active mapping. */
         val storedSessionId: String? = null,
+        /** Full raw payload map (including usage/avg_tps) emitted with message.complete. */
+        val rawPayload: Map<String, Any?>? = null,
     ) : WsEvent()
 
     data class MessageDone(

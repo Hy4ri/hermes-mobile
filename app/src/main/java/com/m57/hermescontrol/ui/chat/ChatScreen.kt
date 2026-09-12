@@ -3,7 +3,6 @@ package com.m57.hermescontrol.ui.chat
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -549,6 +548,15 @@ fun ChatScreen(
                     onRespondClarify = viewModel::respondToClarify,
                     onRespondClarifyBatch = viewModel::respondToClarifyBatch,
                     onDismissClarify = viewModel::dismissClarify,
+                    vaultUnlockPrompt = state.vaultUnlockPrompt,
+                    onRespondVaultUnlock = viewModel::respondToVaultUnlock,
+                    onDismissVaultUnlock = viewModel::dismissVaultUnlock,
+                    vaultSaveLoginPrompt = state.vaultSaveLoginPrompt,
+                    onRespondVaultSaveLogin = viewModel::respondToVaultSaveLogin,
+                    onDismissVaultSaveLogin = viewModel::dismissVaultSaveLogin,
+                    vaultCodePrompt = state.vaultCodePrompt,
+                    onRespondVaultCode = viewModel::respondToVaultCode,
+                    onDismissVaultCode = viewModel::dismissVaultCode,
                     onSaveAttachment = onSaveAttachment,
                     savingAttachmentPath = pendingSavePath ?: state.savingAttachmentPath,
                     openingAttachmentPath = state.openingAttachmentPath,

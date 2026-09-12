@@ -87,4 +87,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object SettingsBehavior : NavKey
 
+@Serializable data object SettingsVault : NavKey
+
 @Serializable data object SettingsAbout : NavKey

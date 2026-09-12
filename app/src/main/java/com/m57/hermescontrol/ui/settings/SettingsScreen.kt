@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
@@ -41,6 +42,7 @@ import com.m57.hermescontrol.SettingsBehavior
 import com.m57.hermescontrol.SettingsChat
 import com.m57.hermescontrol.SettingsConnection
 import com.m57.hermescontrol.SettingsLanguage
+import com.m57.hermescontrol.SettingsVault
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -117,6 +119,12 @@ fun SettingsScreen(
                                     stringResource(R.string.settings_summary_off)
                                 },
                             onClick = { NavigationController.navigateTo(SettingsBehavior) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.Lock,
+                            label = stringResource(R.string.settings_sec_vault),
+                            summary = stringResource(R.string.settings_summary_vault),
+                            onClick = { NavigationController.navigateTo(SettingsVault) },
                         ),
                         SettingsRow(
                             icon = Icons.Filled.Info,

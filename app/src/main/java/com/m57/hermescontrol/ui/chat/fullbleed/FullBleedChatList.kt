@@ -28,9 +28,15 @@ import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
+import com.m57.hermescontrol.ui.chat.VaultCodePromptUi
+import com.m57.hermescontrol.ui.chat.VaultSaveLoginPromptUi
+import com.m57.hermescontrol.ui.chat.VaultUnlockPromptUi
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
+import com.m57.hermescontrol.ui.chat.components.VaultCodeCard
+import com.m57.hermescontrol.ui.chat.components.VaultSaveLoginCard
+import com.m57.hermescontrol.ui.chat.components.VaultUnlockCard
 import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
 
@@ -69,6 +75,15 @@ fun FullBleedChatList(
     onRespondClarify: ((String) -> Unit)? = null,
     onRespondClarifyBatch: ((Map<String, String>) -> Unit)? = null,
     onDismissClarify: (() -> Unit)? = null,
+    vaultUnlockPrompt: VaultUnlockPromptUi? = null,
+    onRespondVaultUnlock: ((String) -> Unit)? = null,
+    onDismissVaultUnlock: (() -> Unit)? = null,
+    vaultSaveLoginPrompt: VaultSaveLoginPromptUi? = null,
+    onRespondVaultSaveLogin: ((String, String) -> Unit)? = null,
+    onDismissVaultSaveLogin: (() -> Unit)? = null,
+    vaultCodePrompt: VaultCodePromptUi? = null,
+    onRespondVaultCode: ((String) -> Unit)? = null,
+    onDismissVaultCode: (() -> Unit)? = null,
     onSaveAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit = {},
     savingAttachmentPath: String? = null,
     openingAttachmentPath: String? = null,
@@ -291,6 +306,38 @@ fun FullBleedChatList(
                             onRespondSingle = { option -> onRespondClarify?.invoke(option) },
                             onRespondBatch = { answers -> onRespondClarifyBatch?.invoke(answers) },
                             onDismiss = { onDismissClarify?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultUnlockPrompt != null) {
+                    item(key = "vault_unlock_card") {
+                        VaultUnlockCard(
+                            prompt = vaultUnlockPrompt,
+                            onConfirm = { password -> onRespondVaultUnlock?.invoke(password) },
+                            onDismiss = { onDismissVaultUnlock?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultSaveLoginPrompt != null) {
+                    item(key = "vault_save_login_card") {
+                        VaultSaveLoginCard(
+                            prompt = vaultSaveLoginPrompt,
+                            onConfirm = { identifier, password ->
+                                onRespondVaultSaveLogin?.invoke(identifier, password)
+                            },
+                            onDismiss = { onDismissVaultSaveLogin?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultCodePrompt != null) {
+                    item(key = "vault_code_card") {
+                        VaultCodeCard(
+                            prompt = vaultCodePrompt,
+                            onConfirm = { code -> onRespondVaultCode?.invoke(code) },
+                            onDismiss = { onDismissVaultCode?.invoke() },
                         )
                     }
                 }

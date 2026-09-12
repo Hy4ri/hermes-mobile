@@ -7,11 +7,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -19,69 +21,149 @@ class ChatCredentialPromptsDelegateTest {
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
     private val uiState = MutableStateFlow(ChatUiState(currentSessionId = "sess-1"))
+
     private val sentMethods = mutableListOf<String>()
     private val sentParams = mutableListOf<Map<String, Any>>()
-    private val trackedRequests = mutableListOf<Pair<String, String>>()
 
-    private val delegate =
-        ChatCredentialPromptsDelegate(
-            scope = testScope,
-            ioDispatcher = testDispatcher,
-            uiState = uiState,
-            wsSend = { method, params, onSent ->
-                sentMethods.add(method)
-                sentParams.add(params)
-                onSent?.invoke("req-${sentMethods.size}")
-            },
-            trackRequest = { id, method -> trackedRequests.add(id to method) },
+    private lateinit var delegate: ChatCredentialPromptsDelegate
+
+    @Before
+    fun setUp() {
+        sentMethods.clear()
+        sentParams.clear()
+        uiState.value = ChatUiState(currentSessionId = "sess-1")
+        delegate =
+            ChatCredentialPromptsDelegate(
+                scope = testScope,
+                ioDispatcher = testDispatcher,
+                uiState = uiState,
+                wsSend = { method, params, _ ->
+                    sentMethods.add(method)
+                    sentParams.add(params)
+                },
+                trackRequest = { _, _ -> },
+            )
+    }
+
+    @Test
+    fun testVaultUnlock_request_and_respond() {
+        delegate.handleVaultUnlockRequest(
+            WsEvent.VaultUnlockRequest(
+                requestId = "req-1",
+                sessionId = "sess-1",
+                backend = "onepassword",
+                displayName = "1Password",
+            ),
         )
 
-    @Test
-    fun handleSudoRequest_andRespond_clearsPromptAndSendsRpc() =
-        testScope.runTest {
-            delegate.handleSudoRequest(WsEvent.SudoRequest(requestId = "r-sudo", sessionId = "s-1"))
-            assertEquals("r-sudo", uiState.value.sudoPrompt?.requestId)
-            assertFalse(uiState.value.isAgentTyping)
+        assertNotNull(uiState.value.vaultUnlockPrompt)
+        assertEquals("req-1", uiState.value.vaultUnlockPrompt?.requestId)
+        assertEquals("1Password", uiState.value.vaultUnlockPrompt?.displayName)
 
-            delegate.respondToSudo("secret-pass")
-            assertNull(uiState.value.sudoPrompt)
+        delegate.respondToVaultUnlock("master-pass")
+        testDispatcher.scheduler.advanceUntilIdle()
 
-            advanceUntilIdle()
-            assertEquals(listOf(WsMethods.SUDO_RESPOND), sentMethods)
-            assertEquals("secret-pass", sentParams.first()["password"])
-            assertEquals("r-sudo", sentParams.first()["request_id"])
-            assertEquals("s-1", sentParams.first()["session_id"])
-        }
+        assertNull(uiState.value.vaultUnlockPrompt)
+        assertEquals(listOf(WsMethods.VAULT_UNLOCK_RESPOND), sentMethods)
+        assertEquals("master-pass", sentParams.first()["password"])
+        assertEquals("req-1", sentParams.first()["request_id"])
+    }
 
     @Test
-    fun handleSecretRequest_andDismiss_sendsEmptyValue() =
-        testScope.runTest {
-            delegate.handleSecretRequest(
-                WsEvent.SecretRequest(
-                    requestId = "r-sec",
-                    sessionId = "s-1",
-                    envVar = "OPENAI_API_KEY",
-                    prompt = "Enter key",
-                ),
-            )
-            assertEquals("OPENAI_API_KEY", uiState.value.secretPrompt?.envVar)
+    fun testVaultUnlock_dismiss_sendsEmptyPassword() {
+        delegate.handleVaultUnlockRequest(
+            WsEvent.VaultUnlockRequest(
+                requestId = "req-1",
+                sessionId = "sess-1",
+            ),
+        )
 
-            delegate.dismissSecret()
-            assertNull(uiState.value.secretPrompt)
+        delegate.dismissVaultUnlock()
+        testDispatcher.scheduler.advanceUntilIdle()
 
-            advanceUntilIdle()
-            assertEquals(listOf(WsMethods.SECRET_RESPOND), sentMethods)
-            assertEquals("", sentParams.first()["value"])
-            assertEquals("r-sec", sentParams.first()["request_id"])
-        }
+        assertNull(uiState.value.vaultUnlockPrompt)
+        assertEquals(listOf(WsMethods.VAULT_UNLOCK_RESPOND), sentMethods)
+        assertEquals("", sentParams.first()["password"])
+    }
 
     @Test
-    fun expireHandlers_ignoreMismatchedRequestId() {
-        delegate.handleSudoRequest(WsEvent.SudoRequest(requestId = "keep-me", sessionId = "s-1"))
-        delegate.handleSudoExpire(WsEvent.SudoExpire(requestId = "other-req", sessionId = "s-1"))
-        assertNotNull(uiState.value.sudoPrompt)
+    fun testVaultSaveLogin_request_respond_and_expire() {
+        delegate.handleVaultSaveLoginRequest(
+            WsEvent.VaultSaveLoginRequest(
+                requestId = "req-save",
+                sessionId = "sess-1",
+                origin = "https://github.com",
+                site = "GitHub",
+            ),
+        )
 
-        delegate.handleSudoExpire(WsEvent.SudoExpire(requestId = "keep-me", sessionId = "s-1"))
-        assertNull(uiState.value.sudoPrompt)
+        assertNotNull(uiState.value.vaultSaveLoginPrompt)
+        assertEquals("GitHub", uiState.value.vaultSaveLoginPrompt?.site)
+
+        delegate.respondToVaultSaveLogin("user@example.com", "secret123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(uiState.value.vaultSaveLoginPrompt)
+        assertEquals(listOf(WsMethods.VAULT_SAVE_LOGIN_RESPOND), sentMethods)
+        val loginJsonStr = sentParams.first()["login"] as String
+        val json = Json.parseToJsonElement(loginJsonStr).jsonObject
+        assertEquals("user@example.com", json["identifier"]?.jsonPrimitive?.content)
+        assertEquals("secret123", json["password"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun testVaultSaveLogin_dismiss_sendsEmptyLogin() {
+        delegate.handleVaultSaveLoginRequest(
+            WsEvent.VaultSaveLoginRequest(
+                requestId = "req-save",
+                sessionId = "sess-1",
+            ),
+        )
+
+        delegate.dismissVaultSaveLogin()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(uiState.value.vaultSaveLoginPrompt)
+        assertEquals(listOf(WsMethods.VAULT_SAVE_LOGIN_RESPOND), sentMethods)
+        assertEquals("", sentParams.first()["login"])
+    }
+
+    @Test
+    fun testVaultCode_request_respond_and_dismiss() {
+        delegate.handleVaultCodeRequest(
+            WsEvent.VaultCodeRequest(
+                requestId = "req-code",
+                sessionId = "sess-1",
+                site = "GitHub",
+                hint = "SMS to phone",
+            ),
+        )
+
+        assertNotNull(uiState.value.vaultCodePrompt)
+        assertEquals("GitHub", uiState.value.vaultCodePrompt?.site)
+
+        delegate.respondToVaultCode("654321")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(uiState.value.vaultCodePrompt)
+        assertEquals(listOf(WsMethods.VAULT_CODE_RESPOND), sentMethods)
+        assertEquals("654321", sentParams.first()["code"])
+    }
+
+    @Test
+    fun testVaultCode_dismiss_sendsEmptyCode() {
+        delegate.handleVaultCodeRequest(
+            WsEvent.VaultCodeRequest(
+                requestId = "req-code",
+                sessionId = "sess-1",
+            ),
+        )
+
+        delegate.dismissVaultCode()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(uiState.value.vaultCodePrompt)
+        assertEquals(listOf(WsMethods.VAULT_CODE_RESPOND), sentMethods)
+        assertEquals("", sentParams.first()["code"])
     }
 }

@@ -15,8 +15,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +42,9 @@ import com.m57.hermescontrol.ui.settings.components.ConnectionSection
 import com.m57.hermescontrol.ui.settings.components.LanguageSection
 import com.m57.hermescontrol.ui.settings.components.TestConnectionButton
 import com.m57.hermescontrol.ui.settings.components.TestResultCard
+import com.m57.hermescontrol.ui.settings.components.VaultItemsSection
+import com.m57.hermescontrol.ui.settings.components.VaultSourcesSection
+import com.m57.hermescontrol.ui.settings.components.VaultUnlockDialog
 
 /**
  * Drill-down sub-pages for Settings. Each is its own NavKey destination
@@ -284,6 +290,57 @@ internal fun SettingsAboutPage(
                         ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
                 },
+            )
+        }
+    }
+}
+
+@Composable
+internal fun SettingsVaultPage(
+    onBack: () -> Unit,
+    viewModel: SettingsVaultViewModel = viewModel { SettingsVaultViewModel() },
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearToast()
+        }
+    }
+
+    HermesScaffold(
+        title = { Text(stringResource(R.string.settings_sec_vault)) },
+        navigationIcon = NavIcon.Back(onBack),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        drawerGesturesEnabled = false,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            VaultSourcesSection(
+                sources = state.sources,
+                isActionInProgress = state.isActionInProgress,
+                onToggleSource = viewModel::toggleSource,
+                onUnlockClick = viewModel::showUnlockDialog,
+                onLockClick = { source -> viewModel.lockSource(source.name) },
+                onLockAllClick = { viewModel.lockSource(null) },
+            )
+
+            VaultItemsSection(items = state.items)
+        }
+
+        state.unlockDialogSource?.let { source ->
+            VaultUnlockDialog(
+                source = source,
+                onConfirm = { password -> viewModel.unlockSource(source.name, password) },
+                onDismiss = viewModel::dismissUnlockDialog,
             )
         }
     }

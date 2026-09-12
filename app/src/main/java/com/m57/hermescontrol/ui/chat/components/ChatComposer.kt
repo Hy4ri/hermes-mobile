@@ -103,6 +103,10 @@ fun ChatInputBar(
     onReasoningTap: (String?) -> Unit = {},
     canDisableReasoning: Boolean? = null,
     supportsReasoning: Boolean? = null,
+    fastMode: Boolean = false,
+    fastSupported: Boolean = false,
+    isFastModeChanging: Boolean = false,
+    onToggleFastMode: () -> Unit = {},
 ) {
     // Allow sending while the agent is mid-turn or awaiting approval: the
     // gateway's prompt.submit busy-input policy queues it as the next turn
@@ -377,6 +381,10 @@ fun ChatInputBar(
                     modifier = Modifier.testTag("chat_composer_toolbar"),
                     canDisableReasoning = canDisableReasoning,
                     supportsReasoning = supportsReasoning,
+                    fastMode = fastMode,
+                    fastSupported = fastSupported,
+                    isFastModeChanging = isFastModeChanging,
+                    onToggleFastMode = onToggleFastMode,
                 )
 
                 // Attachment dropdown (anchored to the attach button in ComposerToolbar)

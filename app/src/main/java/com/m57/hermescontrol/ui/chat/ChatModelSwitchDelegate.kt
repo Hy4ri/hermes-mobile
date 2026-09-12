@@ -24,6 +24,10 @@ private data class ActiveModelSwitch(
     val previousModel: String?,
 )
 
+private data class ActiveFastSwitch(
+    val targetFast: Boolean,
+)
+
 /**
  * Owns model picker loading/caching, in-session model switches, model capabilities,
  * pinned model toggling, and expensive model switch confirmation dialogs.
@@ -48,6 +52,8 @@ class ChatModelSwitchDelegate(
     private val savePinnedModels: (List<PinnedModel>) -> Unit = { AuthManager.savePinnedModels(it) },
 ) {
     private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
+    private val pendingFastSwitchRequests = ConcurrentHashMap<String, ActiveFastSwitch>()
+    private val fastRejectedModels = ConcurrentHashMap.newKeySet<String>()
     private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
     private var optimisticPreviousModel: String? = null
     private var cachedModelOptions: List<ModelProvider> = emptyList()
@@ -195,6 +201,7 @@ class ChatModelSwitchDelegate(
         result: Any?,
     ) {
         val pending = pendingModelSwitchRequests.remove(id)
+        val pendingFast = pendingFastSwitchRequests.remove(id)
         val map = result as? Map<*, *> ?: return
         val key = map["key"] as? String
         if (key == "model") {
@@ -208,6 +215,20 @@ class ChatModelSwitchDelegate(
                 uiState.update {
                     it.copy(modelSwitchConfirmMessage = confirmMessage)
                 }
+            }
+        } else if (key == "fast") {
+            val rawVal = map["value"] as? String
+            val confirmedFast =
+                if (rawVal != null) {
+                    rawVal == "fast" || rawVal == "priority"
+                } else {
+                    pendingFast?.targetFast ?: uiState.value.fastMode
+                }
+            uiState.update {
+                it.copy(
+                    fastMode = confirmedFast,
+                    isFastModeChanging = false,
+                )
             }
         }
     }
@@ -231,6 +252,51 @@ class ChatModelSwitchDelegate(
         uiState.update { it.copy(modelSwitchConfirmMessage = null) }
         if (pending != null) {
             handleModelSwitch(pending.spec, confirmExpensive = true)
+        }
+    }
+
+    fun toggleFastMode() {
+        val state = uiState.value
+        val sessionId = runtimeSessionId() ?: return
+        if (state.currentModelCapabilities?.fast != true) return
+        if (state.isFastModeChanging) return
+
+        val target = !state.fastMode
+        uiState.update { it.copy(isFastModeChanging = true) }
+        scope.launch(ioDispatcher) {
+            wsSend(
+                WsMethods.CONFIG_SET,
+                mapOf(
+                    "key" to "fast",
+                    "value" to if (target) "fast" else "normal",
+                    "session_id" to sessionId,
+                ),
+            ) { id ->
+                trackRequest(id, WsMethods.CONFIG_SET)
+                pendingFastSwitchRequests[id] = ActiveFastSwitch(target)
+            }
+        }
+    }
+
+    fun handleConfigSetError(
+        id: String,
+        error: Any?,
+    ) {
+        val pendingFast = pendingFastSwitchRequests.remove(id)
+        if (pendingFast != null) {
+            val errorMsg =
+                when (error) {
+                    is Map<*, *> -> error["message"] as? String ?: error.toString()
+                    else -> error.toString()
+                }.lowercase()
+            val currentModel = uiState.value.currentSessionModel
+            if (currentModel != null &&
+                (errorMsg.contains("fast mode is not available") || errorMsg.contains("unknown fast mode"))
+            ) {
+                fastRejectedModels.add(currentModel)
+                syncCurrentModelCapabilities()
+            }
+            uiState.update { it.copy(isFastModeChanging = false) }
         }
     }
 
@@ -276,7 +342,12 @@ class ChatModelSwitchDelegate(
                 } else {
                     val provider = label.substring(0, idx)
                     val model = label.substring(idx + 1)
-                    cachedModelOptions.find { it.slug == provider }?.capabilities?.get(model)
+                    val baseCaps = cachedModelOptions.find { it.slug == provider }?.capabilities?.get(model)
+                    if (fastRejectedModels.contains(label) && baseCaps?.fast == true) {
+                        baseCaps.copy(fast = false)
+                    } else {
+                        baseCaps
+                    }
                 }
             }
         uiState.update { state ->

@@ -2952,6 +2952,92 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSessionInfo_hydratesFastModeState() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.fastMode)
+
+            // Fast = true in session.info
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("fast" to true, "service_tier" to "priority"),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.fastMode)
+            assertFalse(viewModel.uiState.value.isFastModeChanging)
+
+            // Fast = false / normal in session.info
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("fast" to false, "service_tier" to "normal"),
+                ),
+            )
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.fastMode)
+
+            // Partial session.info without fast/service_tier does NOT clear state
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("fast" to true),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.fastMode)
+
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("terminal_backend" to "tmux"),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.fastMode) // preserved!
+        }
+
+    @Test
+    fun testSessionResume_hydratesFastModeState() =
+        runTest {
+            stubEmptySessionRests("session-b")
+            val (viewModel, _) = createViewModelWithSession()
+            var resumeReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                val reqId = "resume-req-1"
+                resumeReqId = reqId
+                arg<((String) -> Unit)?>(2)?.invoke(reqId)
+                reqId
+            }
+
+            viewModel.switchSession("session-b")
+            runCurrent()
+
+            // Simulate SESSION_RESUME response with fast=true in info
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    id = resumeReqId,
+                    result =
+                        mapOf(
+                            "session_id" to "sess-runtime-1",
+                            "resumed" to "session-b",
+                            "info" to
+                                mapOf(
+                                    "model" to "gpt-4o",
+                                    "provider" to "openai",
+                                    "fast" to true,
+                                    "service_tier" to "priority",
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.fastMode)
+            assertFalse(viewModel.uiState.value.isFastModeChanging)
+        }
+
+    @Test
     fun testResumeNotFound_recoversWithNewSession() =
         runTest {
             stubSession456Rests(success = true)

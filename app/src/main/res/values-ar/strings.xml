@@ -1031,6 +1031,9 @@
 <string name="channels_expiry_format">ينتهي في: %1$s</string>
 <string name="channels_search_placeholder">البحث في القنوات…</string>
 <string name="chat_attach_file">إرفاق ملف</string>
+<string name="chat_fast_mode_label">سريع</string>
+<string name="chat_fast_mode_desc">الوضع السريع</string>
+<string name="chat_fast_mode_unavailable">الوضع السريع غير مدعوم لهذا النموذج</string>
 <string name="chat_save_attachment">حفظ %1$s</string>
 <string name="chat_switch_model_title">تبديل النموذج (لهذه المحادثة)</string>
 <string name="config_clear_value">مسح القيمة</string>

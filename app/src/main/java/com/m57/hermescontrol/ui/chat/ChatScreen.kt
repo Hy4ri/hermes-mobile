@@ -634,6 +634,10 @@ fun ChatScreen(
                 onReasoningTap = { level -> viewModel.setReasoningLevel(level) },
                 canDisableReasoning = state.currentModelCapabilities?.can_disable_reasoning,
                 supportsReasoning = state.currentModelCapabilities?.reasoning,
+                fastMode = state.fastMode,
+                fastSupported = state.currentModelCapabilities?.fast == true,
+                isFastModeChanging = state.isFastModeChanging,
+                onToggleFastMode = { viewModel.toggleFastMode() },
             )
         }
 

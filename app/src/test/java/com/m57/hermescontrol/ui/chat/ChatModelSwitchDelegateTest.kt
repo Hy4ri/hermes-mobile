@@ -40,7 +40,7 @@ class ChatModelSwitchDelegateTest {
                         slug = "openai",
                         name = "OpenAI",
                         models = listOf("gpt-4o"),
-                        capabilities = mapOf("gpt-4o" to ModelCapabilities(reasoning = true)),
+                        capabilities = mapOf("gpt-4o" to ModelCapabilities(fast = true, reasoning = true)),
                     ),
                 ),
         )
@@ -137,5 +137,74 @@ class ChatModelSwitchDelegateTest {
             delegate.dismissModelSwitchConfirm()
             assertNull(uiState.value.modelSwitchConfirmMessage)
             assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun toggleFastMode_sendsConfigSetFast_andUpdatesOnAck() =
+        testScope.runTest {
+            delegate.preloadModelOptions()
+            advanceUntilIdle()
+
+            // Switch to model with fast capability
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            sentMethods.clear()
+            sentParams.clear()
+
+            assertTrue(uiState.value.currentModelCapabilities?.fast == true)
+            assertFalse(uiState.value.fastMode)
+            assertFalse(uiState.value.isFastModeChanging)
+
+            delegate.toggleFastMode()
+            advanceUntilIdle()
+            assertTrue(uiState.value.isFastModeChanging)
+            assertFalse(uiState.value.fastMode) // Still unconfirmed!
+            assertEquals(listOf(WsMethods.CONFIG_SET), sentMethods)
+            assertEquals("fast", sentParams.first()["key"])
+            assertEquals("fast", sentParams.first()["value"])
+            assertEquals("runtime-1", sentParams.first()["session_id"])
+
+            // Backend acknowledges
+            delegate.handleConfigSetResult("req-1", mapOf("key" to "fast", "value" to "fast"))
+            assertTrue(uiState.value.fastMode)
+            assertFalse(uiState.value.isFastModeChanging)
+
+            // Toggle off
+            delegate.toggleFastMode()
+            advanceUntilIdle()
+            assertTrue(uiState.value.isFastModeChanging)
+            assertEquals("normal", sentParams.last()["value"])
+
+            delegate.handleConfigSetResult("req-2", mapOf("key" to "fast", "value" to "normal"))
+            assertFalse(uiState.value.fastMode)
+            assertFalse(uiState.value.isFastModeChanging)
+        }
+
+    @Test
+    fun toggleFastMode_whenRejectedByBackend_clearsChangingAndLatchesUnavailable() =
+        testScope.runTest {
+            delegate.preloadModelOptions()
+            advanceUntilIdle()
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            sentMethods.clear()
+            sentParams.clear()
+            assertTrue(uiState.value.currentModelCapabilities?.fast == true)
+
+            delegate.toggleFastMode()
+            advanceUntilIdle()
+            assertTrue(uiState.value.isFastModeChanging)
+
+            // Backend returns error indicating fast mode not available
+            delegate.handleConfigSetError("req-1", mapOf("message" to "fast mode is not available for this model"))
+            assertFalse(uiState.value.isFastModeChanging)
+            assertFalse(uiState.value.fastMode)
+            assertEquals(false, uiState.value.currentModelCapabilities?.fast)
+
+            // Further toggle attempts are no-ops
+            val sentCount = sentMethods.size
+            delegate.toggleFastMode()
+            advanceUntilIdle()
+            assertEquals(sentCount, sentMethods.size)
         }
 }

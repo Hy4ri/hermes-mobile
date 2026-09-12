@@ -80,9 +80,63 @@ data class PluginsHubResponse(
 
 @Serializable
 data class AgentPluginInstallBody(
-    val identifier: String,
+    val identifier: String = "",
     val force: Boolean = false,
     val enable: Boolean = true,
+    @SerialName("catalog_name") val catalogName: String? = null,
+    val ref: String? = null,
+)
+
+@Serializable
+data class PluginCatalogCapabilities(
+    @SerialName("provides_tools") val providesTools: List<String> = emptyList(),
+    @SerialName("provides_hooks") val providesHooks: List<String> = emptyList(),
+    @SerialName("provides_middleware") val providesMiddleware: List<String> = emptyList(),
+    @SerialName("requires_env") val requiresEnv: List<String> = emptyList(),
+)
+
+@Serializable
+data class PluginCatalogRemovedEntry(
+    val name: String? = null,
+    val repo: String? = null,
+    val reason: String? = null,
+    val date: String? = null,
+)
+
+@Serializable
+data class PluginCatalogEntry(
+    val name: String,
+    @SerialName("catalog_name") val catalogName: String? = null,
+    val repo: String? = null,
+    val sha: String? = null,
+    @SerialName("sha_short") val shaShort: String? = null,
+    val description: String? = null,
+    val maintainer: String? = null,
+    val tier: String? = null,
+    val category: String? = null,
+    @SerialName("requires_hermes") val requiresHermes: String? = null,
+    val subdir: String? = null,
+    @SerialName("docs_url") val docsUrl: String? = null,
+    val platforms: List<String> = emptyList(),
+    val capabilities: PluginCatalogCapabilities? = null,
+    @SerialName("capability_summary") val capabilitySummary: String? = null,
+    val installed: Boolean = false,
+    @SerialName("installed_sha") val installedSha: String? = null,
+    @SerialName("update_available") val updateAvailable: Boolean = false,
+    @SerialName("runtime_status") val runtimeStatus: String? = null,
+) {
+    val displayName: String
+        get() = catalogName?.takeIf { it.isNotBlank() } ?: name
+
+    val isOfficial: Boolean
+        get() = tier?.equals("official", ignoreCase = true) == true
+}
+
+@Serializable
+data class PluginCatalogResponse(
+    val entries: List<PluginCatalogEntry> = emptyList(),
+    val removed: List<PluginCatalogRemovedEntry> = emptyList(),
+    @SerialName("generated_at") val generatedAt: String? = null,
 )
 
 @Serializable

@@ -80,6 +80,7 @@ import com.m57.hermescontrol.data.model.OAuthSubmitResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
+import com.m57.hermescontrol.data.model.PluginCatalogResponse
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.PortalResponse
@@ -624,6 +625,9 @@ interface HermesApiService {
 
     @GET("api/dashboard/plugins/hub")
     suspend fun getPlugins(): Response<PluginsHubResponse>
+
+    @GET("api/dashboard/plugins/catalog")
+    suspend fun getPluginCatalog(): Response<PluginCatalogResponse>
 
     @POST("api/dashboard/agent-plugins/install")
     suspend fun installPlugin(

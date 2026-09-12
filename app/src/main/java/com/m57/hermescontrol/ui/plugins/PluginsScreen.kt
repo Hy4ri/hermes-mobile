@@ -29,6 +29,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.MemoryProviderDetailKey
 import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
+import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.common.DetailDialog
@@ -61,6 +65,7 @@ import com.m57.hermescontrol.ui.common.ToastEffect
 import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.common.toDetailRows
+import com.m57.hermescontrol.ui.plugins.components.CatalogPluginsView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,12 +78,36 @@ fun PluginsScreen(
 
     var query by remember { mutableStateOf("") }
     var showDetail by remember { mutableStateOf<PluginInfo?>(null) }
+    var showCatalogDetail by remember { mutableStateOf<PluginCatalogEntry?>(null) }
 
     val filteredPlugins =
         remember(query, state.plugins) {
             state.plugins.filter { plugin ->
                 plugin.name.contains(query, ignoreCase = true) ||
                     plugin.description?.contains(query, ignoreCase = true) == true
+            }
+        }
+
+    val filteredCatalogEntries =
+        remember(state.catalogEntries, state.catalogQuery, state.catalogTierFilter) {
+            state.catalogEntries.filter { entry ->
+                val matchesQuery =
+                    state.catalogQuery.isBlank() ||
+                        entry.displayName.contains(state.catalogQuery, ignoreCase = true) ||
+                        entry.description?.contains(state.catalogQuery, ignoreCase = true) == true ||
+                        entry.maintainer?.contains(state.catalogQuery, ignoreCase = true) == true ||
+                        entry.capabilities?.providesTools?.any {
+                            it.contains(
+                                state.catalogQuery,
+                                ignoreCase = true,
+                            )
+                        } == true
+
+                val matchesTier =
+                    state.catalogTierFilter == null ||
+                        entry.tier?.equals(state.catalogTierFilter, ignoreCase = true) == true
+
+                matchesQuery && matchesTier
             }
         }
 
@@ -120,84 +149,129 @@ fun PluginsScreen(
     HermesScaffold(
         title = { Text(stringResource(R.string.screen_plugins)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
-        isRefreshing = state.isLoading,
-        onRefresh = { viewModel.loadPlugins() },
-    ) { paddingValues ->
-        when {
-            state.isLoading && state.plugins.isEmpty() -> {
-                SkeletonListState(modifier = Modifier.padding(paddingValues))
+        isRefreshing = if (state.selectedTab == PluginsTab.INSTALLED) state.isLoading else state.isCatalogLoading,
+        onRefresh = {
+            if (state.selectedTab == PluginsTab.INSTALLED) {
+                viewModel.loadPlugins()
+            } else {
+                viewModel.loadCatalog(isRefresh = true)
             }
-
-            state.errorMessage != null -> {
-                ErrorState(
-                    message = state.errorMessage ?: "",
-                    onRetry = { viewModel.loadPlugins() },
-                    modifier = Modifier.padding(paddingValues),
-                )
-            }
-
-            state.plugins.isEmpty() && state.orphanPlugins.isEmpty() -> {
-                EmptyState(
-                    title = stringResource(R.string.plugins_empty_title),
-                    subtitle = stringResource(R.string.plugins_empty_desc),
-                    onAction = { viewModel.loadPlugins() },
-                    actionLabel = stringResource(R.string.content_desc_refresh),
-                    modifier = Modifier.padding(paddingValues),
-                )
-            }
-
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = listContentPadding,
-                    verticalArrangement = listItemSpacing,
+        },
+    ) { _ ->
+        Column(modifier = Modifier.fillMaxSize()) {
+            SingleChoiceSegmentedButtonRow(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                SegmentedButton(
+                    selected = state.selectedTab == PluginsTab.INSTALLED,
+                    onClick = { viewModel.setTab(PluginsTab.INSTALLED) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                 ) {
-                    // Provider selection section
-                    if (state.memoryOptions.isNotEmpty() || state.contextOptions.isNotEmpty()) {
-                        item(key = "providers") {
-                            ProviderSelectionSection(state, viewModel)
+                    Text(stringResource(R.string.plugins_tab_installed))
+                }
+                SegmentedButton(
+                    selected = state.selectedTab == PluginsTab.CATALOG,
+                    onClick = { viewModel.setTab(PluginsTab.CATALOG) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                ) {
+                    Text(stringResource(R.string.plugins_tab_catalog))
+                }
+            }
+
+            when (state.selectedTab) {
+                PluginsTab.INSTALLED -> {
+                    when {
+                        state.isLoading && state.plugins.isEmpty() -> {
+                            SkeletonListState()
                         }
-                    }
 
-                    // Install section
-                    item(key = "install") {
-                        InstallSection(state, viewModel)
-                    }
-
-                    // Search bar
-                    item(key = "search") {
-                        SearchBar(
-                            query = query,
-                            onQueryChange = { query = it },
-                            placeholder = stringResource(R.string.plugins_search_placeholder),
-                        )
-                    }
-
-                    // Plugin list
-                    items(filteredPlugins, key = { it.name }) { plugin ->
-                        PluginCard(
-                            plugin = plugin,
-                            state = state,
-                            viewModel = viewModel,
-                            onClick = { showDetail = plugin },
-                        )
-                    }
-
-                    // Orphan dashboard plugins section
-                    if (state.orphanPlugins.isNotEmpty()) {
-                        item(key = "orphan-header") {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = stringResource(R.string.plugins_orphan_heading),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp),
+                        state.errorMessage != null && state.plugins.isEmpty() -> {
+                            ErrorState(
+                                message = state.errorMessage ?: "",
+                                onRetry = { viewModel.loadPlugins() },
                             )
                         }
-                        items(state.orphanPlugins, key = { "orphan-${it.name}" }) { plugin ->
-                            OrphanPluginCard(plugin = plugin, onClick = { showDetail = plugin })
+
+                        state.plugins.isEmpty() && state.orphanPlugins.isEmpty() -> {
+                            EmptyState(
+                                title = stringResource(R.string.plugins_empty_title),
+                                subtitle = stringResource(R.string.plugins_empty_desc),
+                                onAction = { viewModel.loadPlugins() },
+                                actionLabel = stringResource(R.string.content_desc_refresh),
+                            )
+                        }
+
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = listContentPadding,
+                                verticalArrangement = listItemSpacing,
+                            ) {
+                                // Provider selection section
+                                if (state.memoryOptions.isNotEmpty() || state.contextOptions.isNotEmpty()) {
+                                    item(key = "providers") {
+                                        ProviderSelectionSection(state, viewModel)
+                                    }
+                                }
+
+                                // Install section
+                                item(key = "install") {
+                                    InstallSection(state, viewModel)
+                                }
+
+                                // Search bar
+                                item(key = "search") {
+                                    SearchBar(
+                                        query = query,
+                                        onQueryChange = { query = it },
+                                        placeholder = stringResource(R.string.plugins_search_placeholder),
+                                    )
+                                }
+
+                                // Plugin list
+                                items(filteredPlugins, key = { it.name }) { plugin ->
+                                    PluginCard(
+                                        plugin = plugin,
+                                        state = state,
+                                        viewModel = viewModel,
+                                        onClick = { showDetail = plugin },
+                                    )
+                                }
+
+                                // Orphan dashboard plugins section
+                                if (state.orphanPlugins.isNotEmpty()) {
+                                    item(key = "orphan-header") {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = stringResource(R.string.plugins_orphan_heading),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(vertical = 8.dp),
+                                        )
+                                    }
+                                    items(state.orphanPlugins, key = { "orphan-${it.name}" }) { plugin ->
+                                        OrphanPluginCard(plugin = plugin, onClick = { showDetail = plugin })
+                                    }
+                                }
+                            }
                         }
                     }
+                }
+
+                PluginsTab.CATALOG -> {
+                    CatalogPluginsView(
+                        state = state,
+                        filteredEntries = filteredCatalogEntries,
+                        onQueryChange = viewModel::setCatalogQuery,
+                        onTierFilterChange = viewModel::setCatalogTierFilter,
+                        onInstall = { viewModel.installCatalogPlugin(it) },
+                        onUpdate = { viewModel.installCatalogPlugin(it, force = true) },
+                        onShowDetail = { showCatalogDetail = it },
+                        onRetry = { viewModel.loadCatalog(isRefresh = true) },
+                    )
                 }
             }
         }
@@ -208,6 +282,14 @@ fun PluginsScreen(
             title = plugin.name,
             rows = plugin.toDetailRows(),
             onDismiss = { showDetail = null },
+        )
+    }
+
+    showCatalogDetail?.let { entry ->
+        DetailDialog(
+            title = entry.displayName,
+            rows = entry.toDetailRows(),
+            onDismiss = { showCatalogDetail = null },
         )
     }
 }

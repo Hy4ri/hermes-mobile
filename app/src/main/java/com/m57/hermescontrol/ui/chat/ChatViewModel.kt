@@ -130,6 +130,9 @@ data class ChatUiState(
     val currentModelCapabilities: ModelCapabilities? = null,
     // Reasoning effort level for the current session
     val reasoningLevel: String? = null,
+    // Fast mode / Priority processing state for the current session
+    val fastMode: Boolean = false,
+    val isFastModeChanging: Boolean = false,
     val terminalBackend: String? = null,
     // Context-window meter (issue #756): tokens currently used by the session
     // prompt (numerator) and the active model's full context window (denominator).
@@ -733,6 +736,10 @@ class ChatViewModel(
                     val provider = info["provider"] as? String
                     val reasoningEffort = info["reasoning_effort"] as? String
                     val terminalBackend = info["terminal_backend"] as? String
+                    val serviceTier = (info["service_tier"] as? String)?.trim()?.lowercase()
+                    val fastFlag =
+                        (info["fast"] as? Boolean)
+                            ?: (if (serviceTier != null) serviceTier == "priority" else null)
                     val newModelLabel =
                         if (model != null && provider != null) {
                             "$provider/$model"
@@ -758,6 +765,8 @@ class ChatViewModel(
                                 } else {
                                     reasoningEffort
                                 },
+                            fastMode = fastFlag ?: state.fastMode,
+                            isFastModeChanging = if (fastFlag != null) false else state.isFastModeChanging,
                             terminalBackend = terminalBackend ?: state.terminalBackend,
                             fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
                         )
@@ -1036,6 +1045,10 @@ class ChatViewModel(
                 val provider = infoMap?.get("provider") as? String
                 val reasoningEffort = infoMap?.get("reasoning_effort") as? String
                 val terminalBackend = infoMap?.get("terminal_backend") as? String
+                val serviceTier = (infoMap?.get("service_tier") as? String)?.trim()?.lowercase()
+                val fastFlag =
+                    (infoMap?.get("fast") as? Boolean)
+                        ?: (if (serviceTier != null) serviceTier == "priority" else null)
 
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
                 // cached messages here — switchSession() already did so before
@@ -1059,6 +1072,8 @@ class ChatViewModel(
                             } else {
                                 reasoningEffort
                             },
+                        fastMode = fastFlag ?: false,
+                        isFastModeChanging = false,
                         terminalBackend = terminalBackend ?: it.terminalBackend,
                     )
                 }
@@ -1196,6 +1211,10 @@ class ChatViewModel(
                 handleResumeFailure(sessionId, generation, errorMsg)
             }
             return
+        }
+
+        if (method == WsMethods.CONFIG_SET) {
+            modelSwitchDelegate.handleConfigSetError(id, error)
         }
 
         if (method == WsMethods.SESSION_CREATE) {
@@ -2221,6 +2240,8 @@ class ChatViewModel(
 
     fun setReasoningLevel(level: String?) = modelSwitchDelegate.setReasoningLevel(level)
 
+    fun toggleFastMode() = modelSwitchDelegate.toggleFastMode()
+
     fun getModelCapabilities(
         providerSlug: String,
         modelName: String,
@@ -2471,6 +2492,8 @@ class ChatViewModel(
                 currentSessionModel = null,
                 currentModelCapabilities = null,
                 reasoningLevel = null,
+                fastMode = false,
+                isFastModeChanging = false,
                 terminalBackend = null,
                 usedContextTokens = null,
                 fullContextTokens = null,

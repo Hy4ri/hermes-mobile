@@ -883,4 +883,7 @@
     <string name="subagent_status_cancelled">취소됨</string>
     <string name="subagent_status_failed">실패</string>
     <string name="subagent_duration">%1$.1f초</string>
+    <string name="chat_fast_mode_label">빠름</string>
+    <string name="chat_fast_mode_desc">빠른 모드</string>
+    <string name="chat_fast_mode_unavailable">이 모델에서는 빠른 모드를 사용할 수 없습니다</string>
 </resources>

@@ -3,6 +3,7 @@ package com.m57.hermescontrol.ui.chat.components
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,8 +12,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -21,6 +24,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
@@ -60,6 +68,10 @@ fun ComposerToolbar(
     modifier: Modifier = Modifier,
     canDisableReasoning: Boolean? = null,
     supportsReasoning: Boolean? = null,
+    fastMode: Boolean = false,
+    fastSupported: Boolean = false,
+    isFastModeChanging: Boolean = false,
+    onToggleFastMode: () -> Unit = {},
 ) {
     var showReasoningMenu by remember { mutableStateOf(false) }
     val reasoningDisabledForModel = supportsReasoning == false
@@ -109,24 +121,44 @@ fun ComposerToolbar(
                     .testTag("model_chip"),
         )
 
-        // Reasoning chip with dropdown menu (right side, next to mic)
+        // Reasoning & Generation controls with dropdown menu (Option 3)
         Box {
             FilterChip(
-                selected = reasoningLevel != null,
+                selected = reasoningLevel != null || fastMode,
                 onClick = { showReasoningMenu = true },
-                enabled = !reasoningDisabledForModel,
+                enabled = isConnected,
                 label = {
-                    Text(
-                        text =
-                            if (reasoningDisabledForModel) {
-                                "No reasoning"
-                            } else {
-                                buildReasoningLabel(reasoningLevel)
-                            },
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        if (fastMode) {
+                            Icon(
+                                imageVector = Icons.Filled.Bolt,
+                                contentDescription = stringResource(R.string.chat_fast_mode_label),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                        Text(
+                            text =
+                                if (reasoningDisabledForModel) {
+                                    if (fastMode) stringResource(R.string.chat_fast_mode_label) else "No reasoning"
+                                } else {
+                                    val rLabel = buildReasoningLabel(reasoningLevel)
+                                    if (fastMode) {
+                                        "${stringResource(
+                                            R.string.chat_fast_mode_label,
+                                        )} · $rLabel"
+                                    } else {
+                                        rLabel
+                                    }
+                                },
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 },
                 modifier =
                     Modifier
@@ -138,6 +170,71 @@ fun ComposerToolbar(
                 expanded = showReasoningMenu,
                 onDismissRequest = { showReasoningMenu = false },
             ) {
+                // ── Fast Mode Toggle Item ──
+                val fastAvailable = isConnected && fastSupported
+                DropdownMenuItem(
+                    text = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Bolt,
+                                    contentDescription = null,
+                                    tint =
+                                        if (fastMode) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Column {
+                                    Text(
+                                        text = stringResource(R.string.chat_fast_mode_label),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (fastMode) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                    if (!fastSupported) {
+                                        Text(
+                                            text = stringResource(R.string.chat_fast_mode_unavailable),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        )
+                                    }
+                                }
+                            }
+                            if (isFastModeChanging) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            } else {
+                                Switch(
+                                    checked = fastMode,
+                                    onCheckedChange = { onToggleFastMode() },
+                                    enabled = fastAvailable && !isFastModeChanging,
+                                    modifier = Modifier.testTag("fast_mode_switch"),
+                                )
+                            }
+                        }
+                    },
+                    onClick = {
+                        if (fastAvailable && !isFastModeChanging) {
+                            onToggleFastMode()
+                        }
+                    },
+                    enabled = fastAvailable && !isFastModeChanging,
+                )
+
+                HorizontalDivider()
+
                 Text(
                     text = "Reasoning",
                     style = MaterialTheme.typography.labelSmall,

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -169,60 +171,57 @@ fun ComposerToolbar(
             DropdownMenu(
                 expanded = showReasoningMenu,
                 onDismissRequest = { showReasoningMenu = false },
+                modifier = Modifier.widthIn(min = 220.dp),
             ) {
                 // ── Fast Mode Toggle Item ──
                 val fastAvailable = isConnected && fastSupported
                 DropdownMenuItem(
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Filled.Bolt,
+                            contentDescription = null,
+                            tint =
+                                if (fastMode) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
                     text = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Bolt,
-                                    contentDescription = null,
-                                    tint =
-                                        if (fastMode) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Column {
-                                    Text(
-                                        text = stringResource(R.string.chat_fast_mode_label),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = if (fastMode) FontWeight.Bold else FontWeight.Normal,
-                                    )
-                                    if (!fastSupported) {
-                                        Text(
-                                            text = stringResource(R.string.chat_fast_mode_unavailable),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        )
-                                    }
-                                }
-                            }
-                            if (isFastModeChanging) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            } else {
-                                Switch(
-                                    checked = fastMode,
-                                    onCheckedChange = { onToggleFastMode() },
-                                    enabled = fastAvailable && !isFastModeChanging,
-                                    modifier = Modifier.testTag("fast_mode_switch"),
+                        Column {
+                            Text(
+                                text = stringResource(R.string.chat_fast_mode_label),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (fastMode) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                            if (!fastSupported) {
+                                Text(
+                                    text = stringResource(R.string.chat_fast_mode_unavailable),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 )
                             }
+                        }
+                    },
+                    trailingIcon = {
+                        if (isFastModeChanging) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else {
+                            Switch(
+                                checked = fastMode,
+                                onCheckedChange = null, // MenuItem click owns the trigger
+                                enabled = fastAvailable && !isFastModeChanging,
+                                modifier =
+                                    Modifier
+                                        .scale(0.85f)
+                                        .testTag("fast_mode_switch"),
+                            )
                         }
                     },
                     onClick = {
@@ -236,9 +235,10 @@ fun ComposerToolbar(
                 HorizontalDivider()
 
                 Text(
-                    text = "Reasoning",
+                    text = "REASONING",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 )
                 if (canDisable == false) {
@@ -257,7 +257,6 @@ fun ComposerToolbar(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     )
                 }
-                HorizontalDivider()
                 val allLevels =
                     listOf(
                         "none" to "None",

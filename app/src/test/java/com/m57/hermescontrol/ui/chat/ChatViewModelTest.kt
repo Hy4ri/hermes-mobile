@@ -2917,6 +2917,113 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testPickerModelSwitch_blanksMeterAndResolvesNewContextWindow_issue1103() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            // Profile default model is 900k
+            coEvery { ApiClient.hermesApi.getModelInfo() } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.ModelInfoResponse(
+                        model = "gpt-5.6-luna-900k",
+                        provider = "openai-codex",
+                        effective_context_length = 900_000L,
+                    ),
+                )
+
+            // Initial session.info for default model
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "gpt-5.6-luna-900k", "provider" to "openai-codex"),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("openai-codex/gpt-5.6-luna-900k", viewModel.uiState.value.currentSessionModel)
+
+            var breakdownResult: Any =
+                mapOf("context_max" to 900_000L, "context_used" to 10_000L)
+            every { HermesWsClient.request(WsMethods.SESSION_CONTEXT_BREAKDOWN, any(), any()) } answers {
+                CompletableDeferred<Any?>(breakdownResult)
+            }
+            viewModel.fetchContextUsage()
+            advanceUntilIdle()
+            assertEquals(900_000L, viewModel.uiState.value.fullContextTokens)
+
+            // User picks Solar 200k via model picker (sendSlashModel)
+            viewModel.sendSlashModel("nous", "upstage/solar-pro4:free")
+            advanceUntilIdle()
+            assertEquals("nous/upstage/solar-pro4:free", viewModel.uiState.value.currentSessionModel)
+            assertNull("Picker model switch must immediately blank meter", viewModel.uiState.value.fullContextTokens)
+
+            // Backend replies with session.info confirming Solar
+            // Breakdown RPC returns JsonObject (from wire) with 524288 context_max
+            breakdownResult =
+                kotlinx.serialization.json.buildJsonObject {
+                    put("context_max", kotlinx.serialization.json.JsonPrimitive(524288))
+                    put("context_used", kotlinx.serialization.json.JsonPrimitive(20000))
+                }
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "upstage/solar-pro4:free", "provider" to "nous"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Verified: meter resolves to Solar's 524288 window, NOT profile's 900k
+            assertEquals(524288L, viewModel.uiState.value.fullContextTokens)
+
+            // Periodic background sync with skipRestFallback=false must NOT overwrite with profile's 900k
+            viewModel.fetchContextUsage(skipRestFallback = false)
+            advanceUntilIdle()
+            assertEquals(524288L, viewModel.uiState.value.fullContextTokens)
+        }
+
+    @Test
+    fun testIsMatchingRpcModel_namespacedAndProviderMatching() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+
+            // Current session model has provider prefix, rpc model retains internal namespace
+            assertTrue(
+                viewModel.isMatchingRpcModel(
+                    "nous/upstage/solar-pro4:free",
+                    "upstage/solar-pro4:free",
+                ),
+            )
+            // Exact match
+            assertTrue(
+                viewModel.isMatchingRpcModel(
+                    "upstage/solar-pro4:free",
+                    "upstage/solar-pro4:free",
+                ),
+            )
+            // Provider prefix with non-namespaced model
+            assertTrue(
+                viewModel.isMatchingRpcModel(
+                    "openai/gpt-4o",
+                    "gpt-4o",
+                ),
+            )
+            // Never blindly strip model's own namespace: rpcModel missing internal namespace must not match
+            assertFalse(
+                viewModel.isMatchingRpcModel(
+                    "nous/upstage/solar-pro4:free",
+                    "solar-pro4:free",
+                ),
+            )
+            // Mismatch
+            assertFalse(
+                viewModel.isMatchingRpcModel(
+                    "nous/upstage/solar-pro4:free",
+                    "claude-3",
+                ),
+            )
+        }
+
+    @Test
     fun testSessionInfoSameModel_keepsMeterUntouched() =
         runTest {
             stubEmptySessionRests("session-a")

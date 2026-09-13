@@ -46,6 +46,7 @@ import com.m57.hermescontrol.SettingsVault
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.settings.components.SupportSection
 import com.m57.hermescontrol.ui.settings.components.languageLabel
 
 @Composable
@@ -133,6 +134,7 @@ fun SettingsScreen(
                         ),
                     ),
             )
+            SupportSection()
         }
     }
 }

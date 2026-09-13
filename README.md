@@ -34,6 +34,12 @@
 
 ---
 
+## Support the project
+
+If Hermes Mobile is useful to you, consider supporting its development on [Ko-fi](https://ko-fi.com/m_5_7).
+
+---
+
 ## Screenshots
 
 <p align="center">

@@ -203,6 +203,9 @@
 <string name="settings_sec_about">حول التطبيق</string>
 <string name="settings_sec_language">اللغة</string>
 <string name="settings_about_app_name">Hermes Mobile</string>
+<string name="settings_support_title">ادعم Hermes Mobile</string>
+<string name="settings_support_message">إذا وفّر لك Hermes Mobile الوقت، يمكنك دعم تطويره.</string>
+<string name="settings_support_action">ادعمني على Ko-fi</string>
 <string name="settings_about_version">الإصدار</string>
 <string name="settings_about_build">رقم البنية</string>
     <string name="settings_about_debug">تصحيح الأخطاء (Debug)</string>

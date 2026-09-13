@@ -203,6 +203,9 @@
     <string name="settings_sec_about">关于</string>
     <string name="settings_sec_language">语言</string>
     <string name="settings_about_app_name">Hermes Mobile</string>
+    <string name="settings_support_title">支持 Hermes Mobile</string>
+    <string name="settings_support_message">如果 Hermes Mobile 为你节省了时间，欢迎支持它的开发。</string>
+    <string name="settings_support_action">在 Ko-fi 上支持我</string>
     <string name="settings_about_version">版本</string>
     <string name="settings_about_build">构建</string>
     <string name="settings_about_debug">调试版</string>

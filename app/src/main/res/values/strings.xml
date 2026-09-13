@@ -243,6 +243,9 @@
     <string name="settings_about_update_allow_sources">Allow installs from this source</string>
     <string name="settings_about_update_open_settings">Open settings</string>
     <string name="settings_about_update_retry">Retry</string>
+    <string name="settings_support_title">Support Hermes Mobile</string>
+    <string name="settings_support_message">If Hermes Mobile saves you time, you can support its development.</string>
+    <string name="settings_support_action">Support me on Ko-fi</string>
 
     <!-- Settings list summaries (drill-down) -->
     <string name="settings_summary_profiles">%1$d saved</string>

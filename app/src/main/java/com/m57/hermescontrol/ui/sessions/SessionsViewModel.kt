@@ -2,6 +2,7 @@ package com.m57.hermescontrol.ui.sessions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.SessionInfo
@@ -689,6 +690,9 @@ class SessionsViewModel(
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    if (AuthManager.getLastOpenedSessionId() == sessionId) {
+                        AuthManager.clearLastOpenedSessionId()
+                    }
                     _uiState.update {
                         val updatedSessions = it.sessions.filter { s -> s.id != sessionId }
                         val newTotal = (it.total - 1).coerceAtLeast(0)
@@ -739,6 +743,10 @@ class SessionsViewModel(
                 }
             when (result) {
                 is NetworkResult.Success -> {
+                    val lastOpened = AuthManager.getLastOpenedSessionId()
+                    if (lastOpened != null && ids.contains(lastOpened)) {
+                        AuthManager.clearLastOpenedSessionId()
+                    }
                     val deletedCount = result.data.deleted
                     val toastMsg =
                         if (deletedCount > 0) {

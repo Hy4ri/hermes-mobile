@@ -616,6 +616,47 @@ object AuthManager {
         serverStore.update { it.copy(autoReconnect = enabled) }
     }
 
+    // ── Restore last session on startup (issue #1102) ─────────────────────
+
+    private fun currentSessionScopeKey(): String {
+        val connId = getSelectedProfileId()?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        val serverProfile = activeProfileId.value?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        return "$connId:$serverProfile"
+    }
+
+    fun isRestoreLastSession(): Boolean = serverStore.getLatestState().restoreLastSession
+
+    fun setRestoreLastSession(enabled: Boolean) {
+        serverStore.update { it.copy(restoreLastSession = enabled) }
+    }
+
+    fun getLastOpenedSessionId(): String? = serverStore.getLatestState().lastOpenedSessionIds[currentSessionScopeKey()]
+
+    fun setLastOpenedSessionId(sessionId: String?) {
+        val key = currentSessionScopeKey()
+        serverStore.update { state ->
+            val updated =
+                if (sessionId != null) {
+                    state.lastOpenedSessionIds + (key to sessionId)
+                } else {
+                    state.lastOpenedSessionIds - key
+                }
+            state.copy(lastOpenedSessionIds = updated)
+        }
+    }
+
+    fun clearLastOpenedSessionId() {
+        setLastOpenedSessionId(null)
+    }
+
+    fun clearLastOpenedSessionIdsForConnection(connectionProfileId: String) {
+        serverStore.update { state ->
+            val prefix = "$connectionProfileId:"
+            val updated = state.lastOpenedSessionIds.filterKeys { !it.startsWith(prefix) }
+            state.copy(lastOpenedSessionIds = updated)
+        }
+    }
+
     // ── Theme preference ──────────────────────────────────────────────────
 
     fun getThemePreference(): ThemePreference = serverStore.getLatestState().themePreference

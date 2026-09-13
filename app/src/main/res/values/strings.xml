@@ -201,6 +201,8 @@
     <string name="settings_sec_behavior">Behavior</string>
     <string name="settings_item_auto_reconnect">Auto-Reconnect</string>
     <string name="settings_desc_auto_reconnect">Automatically reconnect on disconnect</string>
+    <string name="settings_item_restore_session">Restore Last Session</string>
+    <string name="settings_desc_restore_session">Reopen the most recent chat session on startup</string>
     <string name="settings_sec_appearance">Appearance</string>
     <string name="settings_item_theme">Theme</string>
     <string name="settings_sec_chat">Chat</string>

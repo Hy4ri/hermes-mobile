@@ -73,8 +73,14 @@ object SessionLiveStatusReducer {
         }
 
         when (running) {
-            true -> nextStatuses[targetStoredId] = SessionLiveStatus.WORKING
-            false -> nextStatuses.remove(targetStoredId)
+            true -> {
+                nextStatuses[targetStoredId] = SessionLiveStatus.WORKING
+            }
+
+            false -> {
+                nextStatuses.remove(targetStoredId)
+            }
+
             null -> {
                 // If running is not specified, leave status untouched
             }

@@ -543,6 +543,10 @@
 <string name="sessions_all_hidden_desc">جميع الجلسات مخفية حاليًا. اضغط أدناه لإظهار الجلسات المخفية.</string>
 <string name="sessions_pinned_indicator">مثبتة</string>
 <string name="sessions_fork_indicator">جلسة مفرعة</string>
+<string name="sessions_live_status_running">قيد التشغيل</string>
+<string name="sessions_live_status_waiting">بانتظار إدخال</string>
+<string name="sessions_live_status_running_desc">الجلسة قيد التشغيل</string>
+<string name="sessions_live_status_waiting_desc">الجلسة بانتظار إدخال من المستخدم</string>
 <string name="sessions_rename_title">إعادة تسمية الجلسة</string>
 <string name="sessions_rename_hint">عنوان الجلسة</string>
 <string name="toolsets_empty_title">لم يتم العثور على مجموعات أدوات</string>

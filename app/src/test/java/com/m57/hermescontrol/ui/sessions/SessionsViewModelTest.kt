@@ -618,7 +618,10 @@ class SessionsViewModelTest {
         vm.refreshLiveStatuses()
         testDispatcher.scheduler.runCurrent()
 
-        assertTrue(vm.uiState.value.liveStatuses.isEmpty())
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
         assertEquals(2, source.fetchCallCount)
         vm.stopLiveStatusTracking()
     }
@@ -672,7 +675,10 @@ class SessionsViewModelTest {
         // Disconnect
         source.connectionStatusFlow.value = ConnectionStatus.DISCONNECTED
         testDispatcher.scheduler.runCurrent()
-        assertTrue(vm.uiState.value.liveStatuses.isEmpty())
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
 
         // Reconnect
         source.snapshotToReturn =
@@ -711,7 +717,10 @@ class SessionsViewModelTest {
         testDispatcher.scheduler.runCurrent()
 
         // Must remain empty because the response was from the previous generation
-        assertTrue(vm.uiState.value.liveStatuses.isEmpty())
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
         vm.stopLiveStatusTracking()
     }
 
@@ -745,7 +754,10 @@ class SessionsViewModelTest {
 
         vm.stopLiveStatusTracking()
         testDispatcher.scheduler.runCurrent()
-        assertTrue(vm.uiState.value.liveStatuses.isEmpty())
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
 
         // Advancing time past the 30s poll interval should NOT trigger another fetch
         testDispatcher.scheduler.advanceTimeBy(60_000)

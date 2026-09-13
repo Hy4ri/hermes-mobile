@@ -19,6 +19,7 @@ import kotlinx.serialization.serializer
  */
 interface SessionLiveStatusSource {
     suspend fun fetchActiveSessionsSnapshot(): LiveSessionSnapshot?
+
     val events: Flow<WsEvent>
     val connectionStatus: StateFlow<ConnectionStatus>
 }
@@ -54,8 +55,14 @@ object SessionLiveStatusDecoder {
             }
             storedIdByRuntimeId[runtimeId] = storedId
             when (item.status?.trim()?.lowercase()) {
-                "working" -> statusByStoredId[storedId] = SessionLiveStatus.WORKING
-                "waiting" -> statusByStoredId[storedId] = SessionLiveStatus.WAITING
+                "working" -> {
+                    statusByStoredId[storedId] = SessionLiveStatus.WORKING
+                }
+
+                "waiting" -> {
+                    statusByStoredId[storedId] = SessionLiveStatus.WAITING
+                }
+
                 else -> {
                     // idle, starting, unknown -> no live indicator
                 }
@@ -71,9 +78,18 @@ object SessionLiveStatusDecoder {
     private fun decodeResponse(result: Any): ActiveSessionsResponse? {
         val element: JsonElement =
             when (result) {
-                is JsonElement -> result
-                is Map<*, *> -> anyToJsonElement(result)
-                is List<*> -> JsonArray(result.map { anyToJsonElement(it) })
+                is JsonElement -> {
+                    result
+                }
+
+                is Map<*, *> -> {
+                    anyToJsonElement(result)
+                }
+
+                is List<*> -> {
+                    JsonArray(result.map { anyToJsonElement(it) })
+                }
+
                 else -> {
                     val str = result.toString()
                     try {
@@ -92,17 +108,39 @@ object SessionLiveStatusDecoder {
     @Suppress("UNCHECKED_CAST")
     internal fun anyToJsonElement(value: Any?): JsonElement =
         when (value) {
-            null -> JsonNull
-            is JsonElement -> value
-            is Map<*, *> ->
+            null -> {
+                JsonNull
+            }
+
+            is JsonElement -> {
+                value
+            }
+
+            is Map<*, *> -> {
                 JsonObject(
                     (value as Map<String, Any?>).mapValues { (_, v) -> anyToJsonElement(v) },
                 )
-            is List<*> -> JsonArray(value.map { anyToJsonElement(it) })
-            is String -> JsonPrimitive(value)
-            is Boolean -> JsonPrimitive(value)
-            is Number -> JsonPrimitive(value)
-            else -> JsonPrimitive(value.toString())
+            }
+
+            is List<*> -> {
+                JsonArray(value.map { anyToJsonElement(it) })
+            }
+
+            is String -> {
+                JsonPrimitive(value)
+            }
+
+            is Boolean -> {
+                JsonPrimitive(value)
+            }
+
+            is Number -> {
+                JsonPrimitive(value)
+            }
+
+            else -> {
+                JsonPrimitive(value.toString())
+            }
         }
 }
 

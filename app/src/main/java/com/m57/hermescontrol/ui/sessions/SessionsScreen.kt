@@ -620,6 +620,7 @@ fun SessionsScreen(
                                                     isSelecting = state.isSelecting,
                                                     isSelected = session.id in state.selectedIds,
                                                     isDeleting = session.id in state.deletingSessionIds,
+                                                    liveStatus = state.liveStatuses[session.id],
                                                     highlightBackground = primaryContainer,
                                                     highlightForeground = onPrimaryContainer,
                                                     onCardClick = {
@@ -768,6 +769,7 @@ fun SessionsScreen(
                                         isDeleting = session.id in state.deletingSessionIds,
                                         isPinned = session.pinned == true,
                                         isHidden = session.hidden == true,
+                                        liveStatus = state.liveStatuses[session.id],
                                         highlightBackground = primaryContainer,
                                         highlightForeground = onPrimaryContainer,
                                         onCardClick = {

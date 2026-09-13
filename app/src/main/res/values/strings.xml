@@ -619,6 +619,10 @@
     <string name="sessions_all_hidden_desc">All sessions are currently hidden. Tap below to show hidden sessions.</string>
     <string name="sessions_pinned_indicator">Pinned</string>
     <string name="sessions_fork_indicator">Forked session</string>
+    <string name="sessions_live_status_running">Running</string>
+    <string name="sessions_live_status_waiting">Needs input</string>
+    <string name="sessions_live_status_running_desc">Session is running</string>
+    <string name="sessions_live_status_waiting_desc">Session needs user input</string>
     <string name="sessions_rename_title">Rename Session</string>
     <string name="sessions_rename_hint">Session title</string>
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.model.BulkDeleteRequest
 import com.m57.hermescontrol.data.model.PruneRequest
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionRenameRequest
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -90,6 +91,7 @@ data class SessionsUiState(
     val searchError: String? = null,
     val showHidden: Boolean = false,
     val pinnedExpanded: Boolean = true,
+    val liveStatuses: Map<String, SessionLiveStatus> = emptyMap(),
 ) {
     val isSearchMode: Boolean get() = searchQuery.isNotBlank()
 

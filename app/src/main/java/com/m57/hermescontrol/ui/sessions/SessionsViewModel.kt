@@ -11,7 +11,12 @@ import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.ws.ChangeEventHub
 import com.m57.hermescontrol.data.ws.ChangeEvents
+import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.data.ws.HermesSessionLiveStatusSource
+import com.m57.hermescontrol.data.ws.SessionLiveStatusSource
+import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.ui.common.ToastHost
 import com.m57.hermescontrol.ui.common.refreshOnChange
 import com.m57.hermescontrol.ui.common.safeLaunchLoad
@@ -20,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -105,8 +111,9 @@ data class SessionsUiState(
         get() = displaySessions.filter { it.pinned == true }
 }
 
-class SessionsViewModel :
-    ViewModel(),
+class SessionsViewModel(
+    private val liveStatusSource: SessionLiveStatusSource = HermesSessionLiveStatusSource(),
+) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(SessionsUiState())
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
@@ -114,6 +121,11 @@ class SessionsViewModel :
     private var loadJob: Job? = null
     private var pageJob: Job? = null
     private var statsJob: Job? = null
+    private var trackingJob: Job? = null
+    private var trackingGeneration: Long = 0
+    private var liveTrackingState = SessionLiveTrackingState()
+    private var liveStatusRefreshInFlight = false
+    private var liveStatusRefreshPending = false
     private var generation: Long = 0
     private var rawPaginationOffset: Int = 0
 
@@ -174,6 +186,7 @@ class SessionsViewModel :
         const val SEARCH_DEBOUNCE_MS = 300L
         const val MAX_STITCH_PER_PAGE = 8
         const val MAX_STITCH_ROUNDS = 3
+        const val LIVE_STATUS_POLL_INTERVAL_MS = 30_000L
     }
 
     private val resolvedParentCache = mutableMapOf<String, SessionInfo>()
@@ -261,6 +274,9 @@ class SessionsViewModel :
         val section = _uiState.value.section
         pageJob?.cancel()
         loadEmptyCount()
+        if (trackingJob?.isActive == true) {
+            refreshLiveStatuses()
+        }
         loadJob =
             safeLaunchLoad(
                 currentJob = loadJob,
@@ -864,5 +880,107 @@ class SessionsViewModel :
 
     override fun clearToast() {
         _uiState.update { it.copy(toastMessage = null) }
+    }
+
+    // ── Live Session Status Tracking (issue #1101) ───────────────────────
+
+    fun startLiveStatusTracking() {
+        if (trackingJob?.isActive == true) return
+        trackingJob =
+            viewModelScope.launch {
+                // Connection status observer: non-connected clears immediately, CONNECTED rehydrates.
+                launch {
+                    liveStatusSource.connectionStatus.collect { status ->
+                        if (status != ConnectionStatus.CONNECTED) {
+                            trackingGeneration++
+                            liveTrackingState = SessionLiveStatusReducer.clear()
+                            _uiState.update { it.copy(liveStatuses = emptyMap()) }
+                        } else {
+                            requestLiveStatusSnapshot(++trackingGeneration)
+                        }
+                    }
+                }
+
+                // Live WebSocket events observer.
+                launch {
+                    liveStatusSource.events.collect { event ->
+                        liveTrackingState = SessionLiveStatusReducer.applyWsEvent(liveTrackingState, event)
+                        _uiState.update { it.copy(liveStatuses = liveTrackingState.liveStatuses) }
+                    }
+                }
+
+                // Change events observer: sessions.changed triggers a snapshot refresh.
+                launch {
+                    ChangeEventHub.events
+                        .filter { it.type == ChangeEvents.SESSIONS }
+                        .collect {
+                            requestLiveStatusSnapshot(trackingGeneration)
+                        }
+                }
+
+                // Visible-only 30s poll backstop
+                launch {
+                    while (true) {
+                        delay(LIVE_STATUS_POLL_INTERVAL_MS)
+                        requestLiveStatusSnapshot(trackingGeneration)
+                    }
+                }
+            }
+    }
+
+    fun stopLiveStatusTracking() {
+        trackingGeneration++
+        trackingJob?.cancel()
+        trackingJob = null
+        liveStatusRefreshInFlight = false
+        liveStatusRefreshPending = false
+        liveTrackingState = SessionLiveStatusReducer.clear()
+        _uiState.update { it.copy(liveStatuses = emptyMap()) }
+    }
+
+    fun refreshLiveStatuses() {
+        requestLiveStatusSnapshot(trackingGeneration)
+    }
+
+    private fun requestLiveStatusSnapshot(gen: Long) {
+        if (trackingJob?.isActive != true ||
+            gen != trackingGeneration ||
+            liveStatusSource.connectionStatus.value != ConnectionStatus.CONNECTED
+        ) {
+            return
+        }
+        if (liveStatusRefreshInFlight) {
+            liveStatusRefreshPending = true
+            return
+        }
+        liveStatusRefreshInFlight = true
+        viewModelScope.launch {
+            try {
+                val snapshot = liveStatusSource.fetchActiveSessionsSnapshot()
+                if (trackingJob?.isActive == true &&
+                    gen == trackingGeneration &&
+                    liveStatusSource.connectionStatus.value == ConnectionStatus.CONNECTED &&
+                    snapshot != null
+                ) {
+                    liveTrackingState = SessionLiveStatusReducer.applySnapshot(liveTrackingState, snapshot)
+                    _uiState.update { it.copy(liveStatuses = liveTrackingState.liveStatuses) }
+                }
+            } finally {
+                liveStatusRefreshInFlight = false
+                if (liveStatusRefreshPending &&
+                    trackingJob?.isActive == true &&
+                    gen == trackingGeneration &&
+                    liveStatusSource.connectionStatus.value == ConnectionStatus.CONNECTED
+                ) {
+                    liveStatusRefreshPending = false
+                    requestLiveStatusSnapshot(gen)
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopLiveStatusTracking()
     }
 }

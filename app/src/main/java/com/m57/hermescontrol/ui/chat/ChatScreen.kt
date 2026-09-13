@@ -184,9 +184,7 @@ fun ChatScreen(
                         }
                     }
 
-                    else -> {
-                        Unit
-                    }
+                    else -> {}
                 }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -372,15 +370,16 @@ fun ChatScreen(
         )
     }
 
+    val invalidResponseError = stringResource(R.string.session_integrations_err_invalid_response)
+    val browserLaunchError = stringResource(R.string.session_integrations_err_browser_launch)
+
     LaunchedEffect(browserEvent) {
         if (browserEvent != null) {
             val eventId = browserEvent.eventId
             val taken = connectorsViewModel.takeBrowserEvent(eventId)
             if (taken != null) {
                 if (!ConnectorUrlValidator.isValidHttpsUrl(taken.url)) {
-                    connectorsViewModel.launchError(
-                        context.getString(R.string.session_integrations_err_invalid_response),
-                    )
+                    connectorsViewModel.launchError(invalidResponseError)
                     return@LaunchedEffect
                 }
                 try {
@@ -396,21 +395,15 @@ fun ChatScreen(
                 } catch (_: ActivityNotFoundException) {
                     browserAuthInFlight = false
                     browserAuthDeparted = false
-                    connectorsViewModel.launchError(
-                        context.getString(R.string.session_integrations_err_browser_launch),
-                    )
+                    connectorsViewModel.launchError(browserLaunchError)
                 } catch (_: SecurityException) {
                     browserAuthInFlight = false
                     browserAuthDeparted = false
-                    connectorsViewModel.launchError(
-                        context.getString(R.string.session_integrations_err_browser_launch),
-                    )
+                    connectorsViewModel.launchError(browserLaunchError)
                 } catch (_: Exception) {
                     browserAuthInFlight = false
                     browserAuthDeparted = false
-                    connectorsViewModel.launchError(
-                        context.getString(R.string.session_integrations_err_browser_launch),
-                    )
+                    connectorsViewModel.launchError(browserLaunchError)
                 }
             }
         }

@@ -341,6 +341,43 @@ object EventParser {
                 WsEvent.SecretExpire(requestId, sessionId)
             }
 
+            // ── Credential Vault prompts (issue #1090) ──────────────────
+            "vault.unlock.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                val backend = payload?.get("backend") as? String
+                val displayName = payload?.get("display_name") as? String
+                WsEvent.VaultUnlockRequest(requestId, sessionId, backend, displayName)
+            }
+
+            "vault.unlock.expire" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.VaultUnlockExpire(requestId, sessionId)
+            }
+
+            "vault.save_login.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                val origin = payload?.get("origin") as? String
+                val site = payload?.get("site") as? String
+                WsEvent.VaultSaveLoginRequest(requestId, sessionId, origin, site)
+            }
+
+            "vault.save_login.expire" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.VaultSaveLoginExpire(requestId, sessionId)
+            }
+
+            "vault.code.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                val site = payload?.get("site") as? String
+                val hint = payload?.get("hint") as? String
+                WsEvent.VaultCodeRequest(requestId, sessionId, site, hint)
+            }
+
+            "vault.code.expire" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.VaultCodeExpire(requestId, sessionId)
+            }
+
             else -> {
                 Log.w(TAG, "Unknown event type: $eventType")
                 WsEvent.Unknown(rawJson)

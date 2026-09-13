@@ -303,6 +303,44 @@ sealed class WsEvent {
         val sessionId: String?,
     ) : WsEvent()
 
+    // ── Credential Vault prompts (issue #1090) ──────────────────────────
+
+    data class VaultUnlockRequest(
+        val requestId: String?,
+        val sessionId: String? = null,
+        val backend: String? = null,
+        val displayName: String? = null,
+    ) : WsEvent()
+
+    data class VaultUnlockExpire(
+        val requestId: String?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    data class VaultSaveLoginRequest(
+        val requestId: String?,
+        val sessionId: String? = null,
+        val origin: String? = null,
+        val site: String? = null,
+    ) : WsEvent()
+
+    data class VaultSaveLoginExpire(
+        val requestId: String?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    data class VaultCodeRequest(
+        val requestId: String?,
+        val sessionId: String? = null,
+        val site: String? = null,
+        val hint: String? = null,
+    ) : WsEvent()
+
+    data class VaultCodeExpire(
+        val requestId: String?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── Gateway-level errors ───────────────────────────────────────────
 
     /**

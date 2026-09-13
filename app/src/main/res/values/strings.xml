@@ -1351,4 +1351,40 @@
     <string name="group_chat_action_settings">Settings</string>
     <string name="group_chat_stopped_by_user">Discussion stopped</string>
     <string name="group_chat_action_stop">Stop generation</string>
+
+    <!-- Credential Vault (issue #1090) -->
+    <string name="settings_sec_vault">Credential Vault</string>
+    <string name="settings_summary_vault">Password managers &amp; credentials</string>
+    <string name="vault_sources_title">Password Managers</string>
+    <string name="vault_sources_desc">External password managers provide autofill credentials to the agent.</string>
+    <string name="vault_source_installed">Installed</string>
+    <string name="vault_source_not_installed">Not installed</string>
+    <string name="vault_source_unlocked">Unlocked</string>
+    <string name="vault_source_locked">Locked</string>
+    <string name="vault_source_unlock">Unlock</string>
+    <string name="vault_source_lock">Lock</string>
+    <string name="vault_lock_all">Lock All Managers</string>
+    <string name="vault_lock_all_success">All password managers locked</string>
+    <string name="vault_items_title">Stored Items</string>
+    <string name="vault_items_empty">No vault items stored</string>
+    <string name="vault_unlock_dialog_title">Unlock %1$s</string>
+    <string name="vault_unlock_dialog_confirm">Unlock</string>
+    <string name="vault_unlock_success">%1$s unlocked successfully</string>
+    <string name="vault_unlock_failed">Failed to unlock %1$s</string>
+    <string name="vault_unlock_title">Unlock %1$s</string>
+    <string name="vault_unlock_desc">The agent needs credentials to continue. Enter your master password to unlock %1$s.</string>
+    <string name="vault_unlock_password_label">Master Password</string>
+    <string name="vault_unlock_action">Unlock</string>
+    <string name="vault_unlock_dismiss">Keep Locked</string>
+    <string name="vault_save_login_title">Save Login to Vault</string>
+    <string name="vault_save_login_desc">Save credentials for %1$s to your credential vault?</string>
+    <string name="vault_save_login_identifier">Username or Email</string>
+    <string name="vault_save_login_password">Password</string>
+    <string name="vault_save_login_action">Save &amp; Fill</string>
+    <string name="vault_save_login_dismiss">Don\'t Save</string>
+    <string name="vault_code_title">Verification Code</string>
+    <string name="vault_code_desc">Enter the 2FA or verification code for %1$s.</string>
+    <string name="vault_code_label">Verification Code</string>
+    <string name="vault_code_action">Submit</string>
+    <string name="vault_code_dismiss">Skip</string>
 </resources>

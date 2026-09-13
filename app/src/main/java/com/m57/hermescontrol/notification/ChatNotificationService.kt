@@ -140,6 +140,13 @@ class ChatNotificationService : Service() {
                                         showReplyNotification(preview.take(100), null)
                                     }
 
+                                    is WsEvent.VaultUnlockRequest,
+                                    is WsEvent.VaultSaveLoginRequest,
+                                    is WsEvent.VaultCodeRequest,
+                                    -> {
+                                        showReplyNotification(getString(R.string.notif_input_needed), null)
+                                    }
+
                                     else -> {}
                                 }
                             }

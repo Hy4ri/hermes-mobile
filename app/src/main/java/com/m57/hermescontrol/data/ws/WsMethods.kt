@@ -43,6 +43,16 @@ object WsMethods {
     const val SUDO_RESPOND = "sudo.respond"
     const val SECRET_RESPOND = "secret.respond"
 
+    // ── Credential Vault (issue #1090) ────────────────────────────────────
+    const val VAULT_UNLOCK_RESPOND = "vault.unlock.respond"
+    const val VAULT_SAVE_LOGIN_RESPOND = "vault.save_login.respond"
+    const val VAULT_CODE_RESPOND = "vault.code.respond"
+    const val VAULT_LIST = "vault.list"
+    const val VAULT_SOURCES = "vault.sources"
+    const val VAULT_SOURCE_SET = "vault.source.set"
+    const val VAULT_UNLOCK = "vault.unlock"
+    const val VAULT_LOCK = "vault.lock"
+
     // ── Heartbeat & Latency (issue #1017) ──────────────────────────────────
 
     /** Ultra-lightweight liveness check and round-trip latency measurement. */

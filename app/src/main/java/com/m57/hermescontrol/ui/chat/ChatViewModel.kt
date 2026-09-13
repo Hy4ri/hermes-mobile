@@ -98,6 +98,10 @@ data class ChatUiState(
     // Sudo / secret prompts — surfaced as dialogs (issue #524)
     val sudoPrompt: SudoPromptUi? = null,
     val secretPrompt: SecretPromptUi? = null,
+    // Credential vault prompts — interactive prompt cards (issue #1090)
+    val vaultUnlockPrompt: VaultUnlockPromptUi? = null,
+    val vaultSaveLoginPrompt: VaultSaveLoginPromptUi? = null,
+    val vaultCodePrompt: VaultCodePromptUi? = null,
     val showSessionPicker: Boolean = false,
     // /update confirm dialog (issue #862) — the command is handled client-side
     val updateConfirmOpen: Boolean = false,
@@ -253,6 +257,30 @@ data class SecretPromptUi(
     val sessionId: String?,
     val envVar: String? = null,
     val prompt: String? = null,
+)
+
+/** Transient — not persisted. Holds a pending vault unlock request (issue #1090). */
+data class VaultUnlockPromptUi(
+    val requestId: String?,
+    val sessionId: String?,
+    val backend: String? = null,
+    val displayName: String? = null,
+)
+
+/** Transient — not persisted. Holds a pending vault save login request (issue #1090). */
+data class VaultSaveLoginPromptUi(
+    val requestId: String?,
+    val sessionId: String?,
+    val origin: String? = null,
+    val site: String? = null,
+)
+
+/** Transient — not persisted. Holds a pending vault 2FA/MFA code request (issue #1090). */
+data class VaultCodePromptUi(
+    val requestId: String?,
+    val sessionId: String?,
+    val site: String? = null,
+    val hint: String? = null,
 )
 
 /**
@@ -893,6 +921,30 @@ class ChatViewModel(
 
             is WsEvent.SecretExpire -> {
                 credentialPromptsDelegate.handleSecretExpire(event)
+            }
+
+            is WsEvent.VaultUnlockRequest -> {
+                credentialPromptsDelegate.handleVaultUnlockRequest(event)
+            }
+
+            is WsEvent.VaultUnlockExpire -> {
+                credentialPromptsDelegate.handleVaultUnlockExpire(event)
+            }
+
+            is WsEvent.VaultSaveLoginRequest -> {
+                credentialPromptsDelegate.handleVaultSaveLoginRequest(event)
+            }
+
+            is WsEvent.VaultSaveLoginExpire -> {
+                credentialPromptsDelegate.handleVaultSaveLoginExpire(event)
+            }
+
+            is WsEvent.VaultCodeRequest -> {
+                credentialPromptsDelegate.handleVaultCodeRequest(event)
+            }
+
+            is WsEvent.VaultCodeExpire -> {
+                credentialPromptsDelegate.handleVaultCodeExpire(event)
             }
 
             is WsEvent.GatewayError -> {
@@ -3280,6 +3332,23 @@ class ChatViewModel(
     fun respondToSudo(password: String) = credentialPromptsDelegate.respondToSudo(password)
 
     fun respondToSecret(value: String) = credentialPromptsDelegate.respondToSecret(value)
+
+    // ── Vault prompt flow (issue #1090) ──────────────────────────────────
+
+    fun dismissVaultUnlock() = credentialPromptsDelegate.dismissVaultUnlock()
+
+    fun respondToVaultUnlock(password: String) = credentialPromptsDelegate.respondToVaultUnlock(password)
+
+    fun dismissVaultSaveLogin() = credentialPromptsDelegate.dismissVaultSaveLogin()
+
+    fun respondToVaultSaveLogin(
+        identifier: String,
+        password: String,
+    ) = credentialPromptsDelegate.respondToVaultSaveLogin(identifier, password)
+
+    fun dismissVaultCode() = credentialPromptsDelegate.dismissVaultCode()
+
+    fun respondToVaultCode(code: String) = credentialPromptsDelegate.respondToVaultCode(code)
 
     fun reconnect() {
         _uiState.update {

@@ -75,6 +75,12 @@ object ChatWsEventReducer {
                 is WsEvent.BtwComplete -> event.sessionId
                 is WsEvent.SessionUsage -> event.sessionId
                 is WsEvent.TranscriptResyncRequired -> event.sessionId
+                is WsEvent.VaultUnlockRequest -> event.sessionId
+                is WsEvent.VaultUnlockExpire -> event.sessionId
+                is WsEvent.VaultSaveLoginRequest -> event.sessionId
+                is WsEvent.VaultSaveLoginExpire -> event.sessionId
+                is WsEvent.VaultCodeRequest -> event.sessionId
+                is WsEvent.VaultCodeExpire -> event.sessionId
                 else -> null
             }
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
@@ -169,6 +175,15 @@ object ChatWsEventReducer {
             is WsEvent.SecretRequest -> ReducerResult(state = state, streamingState = streamingState)
 
             is WsEvent.SecretExpire -> ReducerResult(state = state, streamingState = streamingState)
+
+            // Vault prompts are handled by the ViewModel (issue #1090)
+            is WsEvent.VaultUnlockRequest,
+            is WsEvent.VaultUnlockExpire,
+            is WsEvent.VaultSaveLoginRequest,
+            is WsEvent.VaultSaveLoginExpire,
+            is WsEvent.VaultCodeRequest,
+            is WsEvent.VaultCodeExpire,
+            -> ReducerResult(state = state, streamingState = streamingState)
 
             // ReactionEvent is handled by the ViewModel — purely cosmetic animation
             is WsEvent.ReactionEvent -> ReducerResult(state = state, streamingState = streamingState)

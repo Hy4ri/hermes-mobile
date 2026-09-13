@@ -83,6 +83,14 @@ object WsMethods {
     /** Kill a single background process (scoped to the active session). */
     const val PROCESS_KILL = "process.kill"
 
+    // ── Subagents (issue #1089) ───────────────────────────────────────────
+
+    /** List active subagents and delegations for a session. */
+    const val SUBAGENT_LIST = "subagent.list"
+
+    /** Rolling tail snapshot of a subagent's live execution transcript. */
+    const val SUBAGENT_TAIL = "subagent.tail"
+
     // ── Billing / subscription (issue #628) ─────────────────────────────
     // Adopted from the backend release audit (hermes-agent 0bf44d557..614dc194e).
     // `credits.view` was REMOVED upstream; these replace it. `usage.bars`

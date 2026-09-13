@@ -946,6 +946,7 @@ object ChatWsEventReducer {
                 logs = trimmedLogs,
                 durationSeconds = durationSeconds ?: (if (idx >= 0) indicators[idx].durationSeconds else null),
                 model = model ?: (if (idx >= 0) indicators[idx].model else null),
+                lastEventTimestamp = System.currentTimeMillis(),
             )
 
         if (idx >= 0) {

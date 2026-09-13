@@ -1275,6 +1275,14 @@
     <string name="subagent_status_cancelled">Cancelled</string>
     <string name="subagent_status_failed">Failed</string>
     <string name="subagent_duration">%1$.1fs</string>
+    <string name="subagent_subagents_header">Subagents</string>
+    <string name="subagent_inspect_transcript">Inspect Transcript</string>
+    <string name="subagent_hide_transcript">Hide Transcript</string>
+    <string name="subagent_transcript_loading">Loading live transcript…</string>
+    <string name="subagent_transcript_empty">No transcript output available.</string>
+    <string name="subagent_transcript_error">Unable to load transcript</string>
+    <string name="subagent_transcript_retry">Retry</string>
+    <string name="subagent_transcript_truncated">Rolling 16KB tail (older output truncated)</string>
     <string name="system_auth_required">Auth required</string>
     <string name="system_checkpoint_prune">Checkpoint prune</string>
     <string name="system_config_migrate">Config migrate</string>

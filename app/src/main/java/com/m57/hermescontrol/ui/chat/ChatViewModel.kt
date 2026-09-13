@@ -164,6 +164,10 @@ data class ChatUiState(
     val btwState: BtwUiState? = null,
     /** Subagent delegation indicators (issue #538) — transient UI state. */
     val subagentIndicators: List<SubagentIndicator> = emptyList(),
+    /** Currently inspected subagent ID for live transcript tail (issue #1089). */
+    val inspectingSubagentId: String? = null,
+    /** Transient live transcript tail state for the inspected subagent (issue #1089). */
+    val subagentTranscript: SubagentTranscriptUiState? = null,
     /** Agent todo / plan items (issue #736). */
     val todos: List<TodoItem> = emptyList(),
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
@@ -473,6 +477,14 @@ class ChatViewModel(
             trackRequest = { id, method -> trackRequest(id, method) },
         )
 
+    private val subagentsDelegate =
+        ChatSubagentsDelegate(
+            uiState = _uiState,
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            runtimeSessionId = { runtimeSessionId ?: _uiState.value.currentSessionId },
+        )
+
     private val streamingController =
         ChatStreamingController(
             scope = viewModelScope,
@@ -534,6 +546,7 @@ class ChatViewModel(
                     status == ConnectionStatus.AUTH_EXPIRED
                 ) {
                     _uiState.update { it.copy(isLoading = false) }
+                    subagentsDelegate.closeSubagentTranscript()
                     // The runtime session id is only valid while the socket
                     // owns it — a dropped connection may mean the gateway
                     // closed/pruned the session (or restarted, wiping the
@@ -1139,6 +1152,7 @@ class ChatViewModel(
                 val generation = request?.generation ?: sessionGeneration
                 resumedGeneration = generation
                 finishResumeWhenHydrated(generation)
+                subagentsDelegate.hydrateSubagents(runtimeSessionId ?: sessionId)
                 // Reconnect replay: resume payload can carry `pending_approval`
                 // (server `_session_info_payload`); surface it, then ask for
                 // the full queue in case more are parked.
@@ -2180,6 +2194,22 @@ class ChatViewModel(
                 }
             current.copy(subagentIndicators = updated)
         }
+    }
+
+    fun hydrateSubagents(sessionId: String? = null) {
+        subagentsDelegate.hydrateSubagents(sessionId ?: runtimeSessionId ?: _uiState.value.currentSessionId)
+    }
+
+    fun toggleSubagentTranscript(subagentId: String) {
+        subagentsDelegate.toggleSubagentTranscript(subagentId)
+    }
+
+    fun retrySubagentTranscript() {
+        subagentsDelegate.retryTranscript()
+    }
+
+    fun closeSubagentTranscript() {
+        subagentsDelegate.closeSubagentTranscript()
     }
 
     fun createNewSession(setLoading: Boolean = true) {
@@ -3451,6 +3481,7 @@ class ChatViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        subagentsDelegate.closeSubagentTranscript()
         // PERF-16: Don't disconnect the global HermesWsClient singleton when
         // leaving the Chat screen — it's used by background notification reply.
     }

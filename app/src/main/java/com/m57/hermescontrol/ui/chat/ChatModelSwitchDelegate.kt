@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 private data class ActiveModelSwitch(
     val spec: String,
     val previousModel: String?,
+    val sequence: Long,
 )
 
 private data class ActiveFastSwitch(
@@ -44,6 +45,7 @@ class ChatModelSwitchDelegate(
     private val addAssistantMessage: (text: String) -> Unit,
     private val handleSlashCommand: (command: String) -> Unit,
     private val fetchContextUsage: () -> Unit,
+    private val onModelSwitchInitiated: () -> Unit = {},
     private val getModelOptionsCall: suspend (
         refresh: Boolean,
     ) -> NetworkResult<com.m57.hermescontrol.data.model.ModelOptionsResponse> =
@@ -56,6 +58,9 @@ class ChatModelSwitchDelegate(
     private val fastRejectedModels = ConcurrentHashMap.newKeySet<String>()
     private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
     private var optimisticPreviousModel: String? = null
+    private var lastConfirmedModel: String? = null
+    private var unconfirmedTargetModel: String? = null
+    private var modelSwitchSequence: Long = 0L
     private var cachedModelOptions: List<ModelProvider> = emptyList()
 
     fun isModelPickerCommand(command: String): Boolean {
@@ -142,20 +147,37 @@ class ChatModelSwitchDelegate(
         uiState.update { it.copy(modelPickerPinned = currentPinned) }
     }
 
+    fun consumeOptimisticPreviousModel(): String? = optimisticPreviousModel.also { optimisticPreviousModel = null }
+
     fun sendSlashModel(
         provider: String,
         model: String,
     ) {
-        optimisticPreviousModel = uiState.value.currentSessionModel
+        val targetModelLabel = "$provider/$model"
+        val isDifferent = !targetModelLabel.equals(uiState.value.currentSessionModel, ignoreCase = true)
+        if (!isDifferent) {
+            uiState.update {
+                it.copy(
+                    showModelPicker = false,
+                    modelPickerLoading = false,
+                )
+            }
+            return
+        }
+        if (optimisticPreviousModel == null) {
+            optimisticPreviousModel = uiState.value.currentSessionModel
+        }
+        unconfirmedTargetModel = targetModelLabel
         uiState.update {
             it.copy(
                 showModelPicker = false,
                 modelPickerLoading = false,
-                currentSessionModel = "$provider/$model",
+                currentSessionModel = targetModelLabel,
+                fullContextTokens = null,
             )
         }
+        onModelSwitchInitiated()
         syncCurrentModelCapabilities()
-        fetchContextUsage()
         handleSlashCommand("/model $model --provider $provider --session")
     }
 
@@ -174,8 +196,15 @@ class ChatModelSwitchDelegate(
             } else {
                 command.trim()
             }
-        val previousModel = optimisticPreviousModel ?: uiState.value.currentSessionModel
-        optimisticPreviousModel = null
+        val previousModel = lastConfirmedModel ?: optimisticPreviousModel ?: uiState.value.currentSessionModel
+        // Retain optimisticPreviousModel for consumeOptimisticPreviousModel() when SessionInfo arrives.
+        if (optimisticPreviousModel == null && !spec.equals(uiState.value.currentSessionModel, ignoreCase = true)) {
+            optimisticPreviousModel = uiState.value.currentSessionModel
+            uiState.update { it.copy(fullContextTokens = null) }
+            onModelSwitchInitiated()
+        }
+        unconfirmedTargetModel = spec
+        val switchSeq = ++modelSwitchSequence
         val params =
             mutableMapOf<String, Any>(
                 "key" to "model",
@@ -191,7 +220,7 @@ class ChatModelSwitchDelegate(
                 params,
             ) { id ->
                 trackRequest(id, WsMethods.CONFIG_SET)
-                pendingModelSwitchRequests[id] = ActiveModelSwitch(spec, previousModel)
+                pendingModelSwitchRequests[id] = ActiveModelSwitch(spec, previousModel, switchSeq)
             }
         }
     }
@@ -207,13 +236,15 @@ class ChatModelSwitchDelegate(
         if (key == "model") {
             val confirmRequired = map["confirm_required"] as? Boolean ?: false
             if (confirmRequired) {
-                val confirmMessage =
-                    (map["confirm_message"] as? String)
-                        ?: (map["warning"] as? String)
-                        ?: "This model requires confirmation to switch. Continue?"
-                activeModelSwitchConfirmation = pending
-                uiState.update {
-                    it.copy(modelSwitchConfirmMessage = confirmMessage)
+                if (pending != null && pending.sequence == modelSwitchSequence) {
+                    val confirmMessage =
+                        (map["confirm_message"] as? String)
+                            ?: (map["warning"] as? String)
+                            ?: "This model requires confirmation to switch. Continue?"
+                    activeModelSwitchConfirmation = pending
+                    uiState.update {
+                        it.copy(modelSwitchConfirmMessage = confirmMessage)
+                    }
                 }
             }
         } else if (key == "fast") {
@@ -236,13 +267,18 @@ class ChatModelSwitchDelegate(
     fun dismissModelSwitchConfirm() {
         val pending = activeModelSwitchConfirmation
         activeModelSwitchConfirmation = null
+        optimisticPreviousModel = null
+        unconfirmedTargetModel = null
+        val revertModel = lastConfirmedModel ?: pending?.previousModel
         uiState.update {
             it.copy(
                 modelSwitchConfirmMessage = null,
-                currentSessionModel = pending?.previousModel ?: it.currentSessionModel,
+                currentSessionModel = revertModel ?: it.currentSessionModel,
+                fullContextTokens = null,
             )
         }
         syncCurrentModelCapabilities()
+        onModelSwitchInitiated()
         fetchContextUsage()
     }
 
@@ -282,6 +318,33 @@ class ChatModelSwitchDelegate(
         id: String,
         error: Any?,
     ) {
+        val pendingModel = pendingModelSwitchRequests.remove(id)
+        if (pendingModel != null && pendingModel.sequence == modelSwitchSequence) {
+            val revertModel = lastConfirmedModel ?: pendingModel.previousModel
+            optimisticPreviousModel = null
+            unconfirmedTargetModel = null
+            activeModelSwitchConfirmation = null
+            if (revertModel != null) {
+                uiState.update {
+                    it.copy(
+                        currentSessionModel = revertModel,
+                        fullContextTokens = null,
+                        modelSwitchConfirmMessage = null,
+                    )
+                }
+                syncCurrentModelCapabilities()
+                onModelSwitchInitiated()
+                fetchContextUsage()
+            } else {
+                uiState.update {
+                    it.copy(
+                        fullContextTokens = null,
+                        modelSwitchConfirmMessage = null,
+                    )
+                }
+                onModelSwitchInitiated()
+            }
+        }
         val pendingFast = pendingFastSwitchRequests.remove(id)
         if (pendingFast != null) {
             val errorMsg =
@@ -298,6 +361,26 @@ class ChatModelSwitchDelegate(
             }
             uiState.update { it.copy(isFastModeChanging = false) }
         }
+    }
+
+    fun isSwitchPending(): Boolean =
+        optimisticPreviousModel != null ||
+            unconfirmedTargetModel != null ||
+            activeModelSwitchConfirmation != null
+
+    fun onModelConfirmed(modelLabel: String) {
+        lastConfirmedModel = modelLabel
+        optimisticPreviousModel = null
+        unconfirmedTargetModel = null
+    }
+
+    fun reset() {
+        pendingModelSwitchRequests.clear()
+        pendingFastSwitchRequests.clear()
+        activeModelSwitchConfirmation = null
+        optimisticPreviousModel = null
+        lastConfirmedModel = null
+        unconfirmedTargetModel = null
     }
 
     fun setReasoningLevel(level: String?) {

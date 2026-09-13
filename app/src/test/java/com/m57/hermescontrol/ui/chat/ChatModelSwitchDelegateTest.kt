@@ -30,6 +30,7 @@ class ChatModelSwitchDelegateTest {
     private val slashCommands = mutableListOf<String>()
     private val assistantMessages = mutableListOf<String>()
     private var contextRefetched = 0
+    private var modelSwitchInitiated = 0
     private var pinnedList = mutableListOf(PinnedModel("anthropic", "claude-3"))
 
     private val fakeResponse =
@@ -60,6 +61,7 @@ class ChatModelSwitchDelegateTest {
             addAssistantMessage = { assistantMessages.add(it) },
             handleSlashCommand = { slashCommands.add(it) },
             fetchContextUsage = { contextRefetched++ },
+            onModelSwitchInitiated = { modelSwitchInitiated++ },
             getModelOptionsCall = { NetworkResult.Success(fakeResponse) },
             getPinnedModels = { pinnedList },
             savePinnedModels = { pinnedList = it.toMutableList() },
@@ -92,7 +94,24 @@ class ChatModelSwitchDelegateTest {
         assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
         assertFalse(uiState.value.showModelPicker)
         assertEquals(listOf("/model gpt-4o --provider openai --session"), slashCommands)
-        assertEquals(1, contextRefetched)
+        assertEquals(1, modelSwitchInitiated)
+    }
+
+    @Test
+    fun sendSlashModel_withSameModel_doesNotInitiateSwitchOrBlankTokens() {
+        uiState.value =
+            uiState.value.copy(
+                currentSessionModel = "openai/gpt-4o",
+                fullContextTokens = 128_000L,
+                showModelPicker = true,
+            )
+        val initialInitiated = modelSwitchInitiated
+        delegate.sendSlashModel("openai", "gpt-4o")
+        assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
+        assertEquals(128_000L, uiState.value.fullContextTokens)
+        assertEquals(initialInitiated, modelSwitchInitiated)
+        assertEquals(emptyList<String>(), slashCommands)
+        assertFalse(uiState.value.showModelPicker)
     }
 
     @Test
@@ -137,6 +156,21 @@ class ChatModelSwitchDelegateTest {
             delegate.dismissModelSwitchConfirm()
             assertNull(uiState.value.modelSwitchConfirmMessage)
             assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun handleConfigSetError_rollsBackToPreviousModel_onlyWhenMatchingCurrentSequence() =
+        testScope.runTest {
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
+
+            // Current switch error rolls back
+            delegate.handleConfigSetError("req-1", "Model unavailable")
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
+            assertNull(uiState.value.fullContextTokens)
         }
 
     @Test
@@ -206,5 +240,54 @@ class ChatModelSwitchDelegateTest {
             delegate.toggleFastMode()
             advanceUntilIdle()
             assertEquals(sentCount, sentMethods.size)
+        }
+
+    @Test
+    fun handleConfigSetResult_staleSequenceConfirmRequired_isIgnored() =
+        testScope.runTest {
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+
+            // A second switch arrives before first confirms
+            delegate.sendSlashModel("anthropic", "claude-3-5-sonnet")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model claude-3-5-sonnet --provider anthropic --session")
+            advanceUntilIdle()
+
+            // First switch response arrives with confirm_required
+            delegate.handleConfigSetResult(
+                id = "req-1",
+                result = mapOf("key" to "model", "confirm_required" to true),
+            )
+            // Guarded: sequence 1 != current sequence 2, so confirmation is ignored
+            assertNull(uiState.value.modelSwitchConfirmMessage)
+        }
+
+    @Test
+    fun rapidPicks_preservesOriginalConfirmedModelForRollback() =
+        testScope.runTest {
+            // Initially confirmed model is anthropic/claude-3
+            delegate.onModelConfirmed("anthropic/claude-3")
+            uiState.value = uiState.value.copy(currentSessionModel = "anthropic/claude-3")
+
+            // Pick 1: switch to gpt-4o
+            delegate.sendSlashModel("openai", "gpt-4o")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model gpt-4o --provider openai --session")
+            advanceUntilIdle()
+            assertEquals("openai/gpt-4o", uiState.value.currentSessionModel)
+
+            // Pick 2: rapidly pick solar without gpt-4o ever confirming
+            delegate.sendSlashModel("nous", "solar")
+            advanceUntilIdle()
+            delegate.handleModelSwitch("/model solar --provider nous --session")
+            advanceUntilIdle()
+            assertEquals("nous/solar", uiState.value.currentSessionModel)
+
+            // Error on second switch (req-2) should roll back to confirmed model, not optimistic gpt-4o
+            delegate.handleConfigSetError("req-2", "Solar failed")
+            assertEquals("anthropic/claude-3", uiState.value.currentSessionModel)
         }
 }

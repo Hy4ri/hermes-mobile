@@ -1,5 +1,12 @@
 package com.m57.hermescontrol.data.model
 
+import com.m57.hermescontrol.data.ws.toAny
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
+
 /**
  * Minimal view of the `session.usage` WS RPC result or `session.usage` push event —
  * only the fields the context widget consumes today. The backend sends many more keys
@@ -29,17 +36,47 @@ data class UsageSnapshotResponse(
  *
  * Handles both direct usage dict (from RPC response) and nested `{ "usage": { ... } }`
  * (from push event payload). The WS event parser decodes JSON numbers as [Double]
- * (`JsonRpcModels.toAny`), so every count is read through [Number].
+ * (`JsonRpcModels.toAny`), so every count is read through [Number]. Also supports raw [JsonObject].
  * Returns null when the payload is not a map (error/malformed response) — callers keep the last known value.
  */
 fun parseUsageSnapshot(result: Any?): UsageSnapshotResponse? {
-    val map = result as? Map<*, *> ?: return null
-    val usageMap = (map["usage"] as? Map<*, *>) ?: map
+    val rawMap =
+        when (result) {
+            is JsonElement -> result.toAny() as? Map<*, *>
+            is Map<*, *> -> result
+            else -> null
+        } ?: return null
+    val usageMap = (rawMap["usage"] as? Map<*, *>) ?: rawMap
+
+    fun num(key: String): Long? =
+        when (val value = usageMap[key]) {
+            is Number -> value.toLong()
+            is JsonPrimitive -> value.longOrNull ?: value.intOrNull?.toLong()
+            is String -> value.toLongOrNull()
+            else -> null
+        }
+
+    fun intNum(key: String): Int? =
+        when (val value = usageMap[key]) {
+            is Number -> value.toInt()
+            is JsonPrimitive -> value.intOrNull
+            is String -> value.toIntOrNull()
+            else -> null
+        }
+
+    fun doubleNum(key: String): Double? =
+        when (val value = usageMap[key]) {
+            is Number -> value.toDouble()
+            is JsonPrimitive -> value.doubleOrNull ?: value.longOrNull?.toDouble()
+            is String -> value.toDoubleOrNull()
+            else -> null
+        }
+
     return UsageSnapshotResponse(
-        compressions = (usageMap["compressions"] as? Number)?.toInt(),
-        contextUsed = (usageMap["context_used"] as? Number)?.toLong(),
-        contextMax = (usageMap["context_max"] as? Number)?.toLong(),
-        totalTokens = (usageMap["total"] as? Number)?.toLong(),
-        avgTps = (usageMap["avg_tps"] as? Number)?.toDouble(),
+        compressions = intNum("compressions"),
+        contextUsed = num("context_used"),
+        contextMax = num("context_max"),
+        totalTokens = num("total"),
+        avgTps = doubleNum("avg_tps"),
     )
 }

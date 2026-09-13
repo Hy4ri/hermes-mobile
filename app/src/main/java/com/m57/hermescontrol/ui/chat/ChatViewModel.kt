@@ -677,6 +677,13 @@ class ChatViewModel(
             if (!initial.isNullOrBlank()) {
                 initialSessionId = null
                 switchSession(initial)
+            } else if (AuthManager.isRestoreLastSession()) {
+                val restoredId = AuthManager.getLastOpenedSessionId()
+                if (!restoredId.isNullOrBlank()) {
+                    switchSession(restoredId)
+                } else {
+                    createNewSession(setLoading = false)
+                }
             } else {
                 createNewSession(setLoading = false)
             }
@@ -1406,6 +1413,7 @@ class ChatViewModel(
         userMessage: ChatMessage? = null,
     ) {
         val dispatchGeneration = sessionGeneration
+        AuthManager.setLastOpenedSessionId(storageSessionId)
         val msgToPersist =
             userMessage ?: ChatMessage(
                 role = MessageRole.USER,
@@ -2356,6 +2364,7 @@ class ChatViewModel(
                 .find { it.id == sessionId }
                 ?.title ?: "Hermes"
         val generation = resetSessionState(sessionId, title, isLoading = true)
+        AuthManager.setLastOpenedSessionId(sessionId)
         viewModelScope.launch {
             // Warm-cache fast-path (desktop parity): paint the cached Room
             // transcript immediately so the screen never sits blank, then load
@@ -2708,6 +2717,9 @@ class ChatViewModel(
         }
         sessionGoneRecoveryInFlight = true
         cancelResumeRetry()
+        if (AuthManager.getLastOpenedSessionId() == sessionId) {
+            AuthManager.clearLastOpenedSessionId()
+        }
         _uiState.update {
             it.copy(
                 isLoading = false,

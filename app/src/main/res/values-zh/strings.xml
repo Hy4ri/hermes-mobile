@@ -177,6 +177,8 @@
     <string name="settings_sec_behavior">行为</string>
     <string name="settings_item_auto_reconnect">自动重连</string>
     <string name="settings_desc_auto_reconnect">断开后自动重新连接</string>
+    <string name="settings_item_restore_session">恢复上次会话</string>
+    <string name="settings_desc_restore_session">启动时重新打开最近的聊天会话</string>
     <string name="settings_sec_appearance">外观</string>
     <string name="settings_item_theme">主题</string>
     <string name="settings_sec_chat">对话</string>

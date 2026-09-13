@@ -177,6 +177,8 @@
 <string name="settings_sec_behavior">السلوك</string>
 <string name="settings_item_auto_reconnect">إعادة الاتصال التلقائي</string>
 <string name="settings_desc_auto_reconnect">إعادة الاتصال تلقائيًا عند انقطاعه</string>
+<string name="settings_item_restore_session">استعادة الجلسة الأخيرة</string>
+<string name="settings_desc_restore_session">إعادة فتح أحدث جلسة محادثة عند بدء التشغيل</string>
 <string name="settings_sec_appearance">المظهر</string>
 <string name="settings_item_theme">السمة</string>
 <string name="settings_sec_chat">المحادثة</string>

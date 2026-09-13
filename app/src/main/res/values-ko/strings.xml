@@ -180,6 +180,8 @@
     <string name="settings_sec_behavior">동작</string>
     <string name="settings_item_auto_reconnect">자동 재연결</string>
     <string name="settings_desc_auto_reconnect">연결 끊김 시 자동 재연결</string>
+    <string name="settings_item_restore_session">마지막 세션 복원</string>
+    <string name="settings_desc_restore_session">시작 시 가장 최근 채팅 세션을 다시 엽니다</string>
     <string name="settings_sec_appearance">테마</string>
     <string name="settings_item_theme">테마</string>
     <string name="settings_sec_chat">채팅</string>

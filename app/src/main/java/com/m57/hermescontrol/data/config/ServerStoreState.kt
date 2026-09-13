@@ -12,6 +12,8 @@ data class ServerStoreState(
     val port: Int = 9119,
     val baseUrl: String? = null,
     val autoReconnect: Boolean = true,
+    val restoreLastSession: Boolean = false,
+    val lastOpenedSessionIds: Map<String, String> = emptyMap(),
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val useDynamicColors: Boolean = false,
     val themePreset: ThemePreset = ThemePreset.DEFAULT,

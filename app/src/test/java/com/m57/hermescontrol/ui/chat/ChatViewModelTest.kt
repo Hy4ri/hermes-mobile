@@ -164,6 +164,10 @@ class ChatViewModelTest {
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isAutoReconnect() } returns false
+        every { AuthManager.isRestoreLastSession() } returns false
+        every { AuthManager.getLastOpenedSessionId() } returns null
+        every { AuthManager.setLastOpenedSessionId(any()) } returns Unit
+        every { AuthManager.clearLastOpenedSessionId() } returns Unit
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
         every { HermesWsClient.connect() } answers {
@@ -5082,5 +5086,76 @@ class ChatViewModelTest {
             assertEquals("cancelled", updated.status)
             assertTrue(updated.logs.any { it.text.contains("Stopped subagent") })
             io.mockk.verify { HermesWsClient.sendRedirect(sessionId, "/stop sub-123", any()) }
+        }
+
+    @Test
+    fun testHandleGatewayReady_withRestoreLastSessionEnabled_resumesStoredSession() =
+        runTest {
+            every { AuthManager.isRestoreLastSession() } returns true
+            every { AuthManager.getLastOpenedSessionId() } returns "session-stored-999"
+
+            val resumeParamsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.send(WsMethods.SESSION_RESUME, capture(resumeParamsSlot), any())
+            } answers {
+                "req-resume-test"
+            }
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            io.mockk.verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    any(),
+                    any(),
+                )
+            }
+            assertEquals("session-stored-999", resumeParamsSlot.captured["session_id"])
+        }
+
+    @Test
+    fun testHandleGatewayReady_withRestoreLastSessionDisabled_createsNewSession() =
+        runTest {
+            every { AuthManager.isRestoreLastSession() } returns false
+            every { AuthManager.getLastOpenedSessionId() } returns "session-stored-999"
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            io.mockk.verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_CREATE,
+                    any(),
+                    any(),
+                )
+            }
+            io.mockk.verify(exactly = 0) {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    any(),
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testSwitchSession_updatesLastOpenedSessionId() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            viewModel.switchSession("session-other-456")
+            advanceUntilIdle()
+
+            io.mockk.verify { AuthManager.setLastOpenedSessionId("session-other-456") }
         }
 }

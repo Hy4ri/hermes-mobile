@@ -9,6 +9,7 @@ import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -702,6 +705,8 @@ object HermesWsClient {
     /** Thrown when an awaited [request] is neither answered nor rejected within [REQUEST_TIMEOUT_MS], or is rejected by a disconnect. */
     class HermesRpcException(
         message: String,
+        val code: Int = 0,
+        val data: JsonElement? = null,
     ) : Exception(message)
 
     /**
@@ -741,6 +746,15 @@ object HermesWsClient {
             send(method, params) { reqId ->
                 pendingCalls[reqId] = PendingCall(method, deferred)
             }
+        deferred.invokeOnCompletion { cause ->
+            if (cause is CancellationException) {
+                pendingCalls.remove(id)?.let { call ->
+                    call.timeoutJob?.cancel()
+                    removeQueuedMessage(id)
+                    disconnectIfIdleInBackground()
+                }
+            }
+        }
         // Arm the per-request timeout (fires if the server never answers).
         pendingCalls[id]?.timeoutJob =
             wsScope.launch {
@@ -760,7 +774,13 @@ object HermesWsClient {
         removeQueuedMessage(id)
         call.timeoutJob?.cancel()
         if (error != null) {
-            call.deferred.completeExceptionally(HermesRpcException(error.message))
+            call.deferred.completeExceptionally(
+                HermesRpcException(
+                    message = error.message,
+                    code = error.code,
+                    data = error.data,
+                ),
+            )
         } else {
             call.deferred.complete(result)
         }
@@ -808,7 +828,9 @@ object HermesWsClient {
                 params = decoratedParams.mapValues { it.value.toJsonElement() },
             )
         val json = OkHttpProvider.json.encodeToString(request)
-        if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, formatSafeOutgoingFrameLog(id, method, request.params.keys, json.length, queued = false))
+        }
         var reconnect = false
         synchronized(outboundLock) {
             if (method == WsMethods.PROMPT_SUBMIT) {
@@ -1191,7 +1213,7 @@ object HermesWsClient {
                         markQueuedMessageSent(msg)
                         continue
                     }
-                    if (BuildConfig.DEBUG) Log.d(TAG, "→ (queued) $msg")
+                    if (BuildConfig.DEBUG) Log.d(TAG, formatSafeQueuedFrameLog(msg))
                     if (!webSocket.send(msg)) {
                         recoverRejectedSocket(webSocket)
                         break
@@ -1209,7 +1231,7 @@ object HermesWsClient {
             text: String,
         ) {
             if (!isCurrent() || HermesWsClient.webSocket !== webSocket) return
-            if (BuildConfig.DEBUG) Log.d(TAG, "← $text")
+            if (BuildConfig.DEBUG) Log.d(TAG, formatSafeIncomingFrameLog(text))
             lastPongTimestamp = monotonicTimeMs()
             // Resolve any in-flight `request()` awaiting this RPC result/error
             // (issue #526) before fanning the parsed event out to collectors.
@@ -1269,7 +1291,7 @@ object HermesWsClient {
                         parsed
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse message", e)
+                    Log.e(TAG, "Failed to parse message: ${e.javaClass.simpleName}")
                     WsEvent.Unknown(text)
                 }
             when (event) {
@@ -1381,4 +1403,60 @@ object HermesWsClient {
             }
         }
     }
+
+    @VisibleForTesting
+    internal fun setConnectionStatusForTest(status: ConnectionStatus) {
+        _connectionStatus.value = status
+    }
+
+    @VisibleForTesting
+    internal fun formatSafeOutgoingFrameLog(
+        id: String,
+        method: String,
+        paramsKeys: Collection<String>?,
+        byteLength: Int,
+        queued: Boolean = false,
+    ): String {
+        val prefix = if (queued) "→ (queued)" else "→"
+        val keys = paramsKeys?.joinToString(",", prefix = "[", postfix = "]") ?: "[]"
+        return "$prefix id=$id method=$method paramsKeys=$keys bytes=$byteLength"
+    }
+
+    @VisibleForTesting
+    internal fun formatSafeQueuedFrameLog(msg: String): String =
+        try {
+            val req = OkHttpProvider.json.decodeFromString<JsonRpcRequest>(msg)
+            formatSafeOutgoingFrameLog(req.id, req.method, req.params.keys, msg.length, queued = true)
+        } catch (_: Throwable) {
+            "→ (queued) frame bytes=${msg.length}"
+        }
+
+    @VisibleForTesting
+    internal fun formatSafeIncomingFrameLog(text: String): String =
+        try {
+            val element = OkHttpProvider.json.parseToJsonElement(text)
+            if (element is JsonObject) {
+                val id = (element["id"] as? JsonPrimitive)?.content
+                val method = (element["method"] as? JsonPrimitive)?.content
+                val hasResult = element.containsKey("result")
+                val resultKeys =
+                    (element["result"] as? JsonObject)?.keys?.joinToString(
+                        ",",
+                        prefix = "[",
+                        postfix = "]",
+                    )
+                val errorObj = element["error"] as? JsonObject
+                val errorCode = (errorObj?.get("code") as? JsonPrimitive)?.content
+                val sb = StringBuilder("← ")
+                if (id != null) sb.append("id=").append(id).append(" ")
+                if (method != null) sb.append("method=").append(method).append(" ")
+                if (hasResult) sb.append("result=").append(resultKeys ?: "present").append(" ")
+                if (errorCode != null) sb.append("errorCode=").append(errorCode).append(" ")
+                sb.append("bytes=").append(text.length).toString()
+            } else {
+                "← non-object frame bytes=${text.length}"
+            }
+        } catch (_: Throwable) {
+            "← frame bytes=${text.length}"
+        }
 }

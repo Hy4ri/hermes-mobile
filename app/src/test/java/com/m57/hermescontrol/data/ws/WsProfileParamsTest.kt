@@ -162,6 +162,26 @@ class WsProfileParamsTest {
     }
 
     @Test
+    fun `connectors_list is not profile scoped`() {
+        AuthManager.setActiveProfileId("meow")
+
+        val original = mapOf("session_id" to "sess-123")
+        val result = WsProfileParams.decorate(WsMethods.CONNECTORS_LIST, original)
+
+        assertSame(original, result)
+    }
+
+    @Test
+    fun `connectors_connect is not profile scoped`() {
+        AuthManager.setActiveProfileId("meow")
+
+        val original = mapOf("session_id" to "sess-123", "connectors" to listOf("linear"), "reconnect" to false)
+        val result = WsProfileParams.decorate(WsMethods.CONNECTORS_CONNECT, original)
+
+        assertSame(original, result)
+    }
+
+    @Test
     fun `unknown method is not profile scoped`() {
         AuthManager.setActiveProfileId("meow")
 

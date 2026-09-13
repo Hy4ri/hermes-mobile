@@ -1175,4 +1175,36 @@
     <string name="group_chat_settings_high_limits_confirm">仍要保存</string>
     <string name="group_chat_settings_high_limits_adjust">调整限制</string>
     <string name="group_chat_action_settings">设置</string>
+
+    <!-- Session Integrations (issue #1091) -->
+    <string name="session_integrations_title">集成</string>
+    <string name="session_integrations_subtitle">当前会话：%1$s</string>
+    <string name="session_integrations_no_session">无活动会话</string>
+    <string name="session_integrations_empty">此会话暂无可用集成</string>
+    <string name="session_integrations_refresh">刷新集成</string>
+    <string name="session_integrations_connect">连接</string>
+    <string name="session_integrations_reconnect">重新连接</string>
+    <string name="session_integrations_connecting">正在连接…</string>
+    <string name="session_integrations_awaiting">等待授权</string>
+    <string name="session_integrations_awaiting_desc">请在浏览器中完成登录，然后返回此处。</string>
+    <string name="session_integrations_refresh_status">刷新状态</string>
+    <string name="session_integrations_status_connected">已连接</string>
+    <string name="session_integrations_status_disconnected">未连接</string>
+    <string name="session_integrations_status_expired">已过期</string>
+    <string name="session_integrations_status_revoked">已撤销</string>
+    <string name="session_integrations_status_failed">失败</string>
+    <string name="session_integrations_status_unknown">未知</string>
+    <string name="session_integrations_err_invalid_params">连接器参数无效</string>
+    <string name="session_integrations_err_not_owner">此传输通道未拥有该会话。请重新连接会话。</string>
+    <string name="session_integrations_err_unavailable">此会话中不可使用集成</string>
+    <string name="session_integrations_err_unsupported_runtime">集成必须在会话所在的主机上进行管理</string>
+    <string name="session_integrations_err_unsupported_backend">后端不支持集成服务</string>
+    <string name="session_integrations_err_request_failed">连接器请求失败，请重试。</string>
+    <string name="session_integrations_err_invalid_response">连接器服务返回无效响应</string>
+    <string name="session_integrations_err_network">与网关通信失败</string>
+    <string name="session_integrations_err_browser_launch">无法打开浏览器以进行授权</string>
+    <string name="session_integrations_err_generic">连接器操作失败</string>
+    <string name="session_integrations_retry">重试</string>
+    <string name="session_integrations_close">关闭</string>
+    <string name="session_integrations_menu_item">会话集成</string>
 </resources>

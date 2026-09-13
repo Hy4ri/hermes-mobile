@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.VisibleForTesting
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.data.config.ConnectionProfile
@@ -498,6 +499,11 @@ object AuthManager {
         }
         _activeProfileId.value = null
         _baseUrlFlow.value = ""
+    }
+
+    @VisibleForTesting
+    fun setBaseUrlForTest(baseUrl: String) {
+        _baseUrlFlow.value = baseUrl
     }
 
     fun getToken(): String? {

@@ -1387,4 +1387,36 @@
     <string name="vault_code_label">Verification Code</string>
     <string name="vault_code_action">Submit</string>
     <string name="vault_code_dismiss">Skip</string>
+
+    <!-- Session Integrations (issue #1091) -->
+    <string name="session_integrations_title">Integrations</string>
+    <string name="session_integrations_subtitle">Active Session: %1$s</string>
+    <string name="session_integrations_no_session">No active session</string>
+    <string name="session_integrations_empty">No integrations available for this session</string>
+    <string name="session_integrations_refresh">Refresh integrations</string>
+    <string name="session_integrations_connect">Connect</string>
+    <string name="session_integrations_reconnect">Reconnect</string>
+    <string name="session_integrations_connecting">Connecting…</string>
+    <string name="session_integrations_awaiting">Awaiting authorization</string>
+    <string name="session_integrations_awaiting_desc">Complete sign-in in your browser, then return here.</string>
+    <string name="session_integrations_refresh_status">Refresh status</string>
+    <string name="session_integrations_status_connected">Connected</string>
+    <string name="session_integrations_status_disconnected">Disconnected</string>
+    <string name="session_integrations_status_expired">Expired</string>
+    <string name="session_integrations_status_revoked">Revoked</string>
+    <string name="session_integrations_status_failed">Failed</string>
+    <string name="session_integrations_status_unknown">Unknown</string>
+    <string name="session_integrations_err_invalid_params">Invalid connector parameters</string>
+    <string name="session_integrations_err_not_owner">Session is not owned by this transport. Please reconnect the session.</string>
+    <string name="session_integrations_err_unavailable">Integrations are not available in this session</string>
+    <string name="session_integrations_err_unsupported_runtime">Integrations must be managed on the session compute host</string>
+    <string name="session_integrations_err_unsupported_backend">Integrations are not supported by this backend</string>
+    <string name="session_integrations_err_request_failed">Connector request failed. Please try again.</string>
+    <string name="session_integrations_err_invalid_response">Invalid response from connector service</string>
+    <string name="session_integrations_err_network">Failed to communicate with gateway</string>
+    <string name="session_integrations_err_browser_launch">Could not open browser for authorization</string>
+    <string name="session_integrations_err_generic">Connector operation failed</string>
+    <string name="session_integrations_retry">Retry</string>
+    <string name="session_integrations_close">Close</string>
+    <string name="session_integrations_menu_item">Session Integrations</string>
 </resources>

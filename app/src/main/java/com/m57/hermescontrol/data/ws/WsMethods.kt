@@ -91,6 +91,14 @@ object WsMethods {
     /** Rolling tail snapshot of a subagent's live execution transcript. */
     const val SUBAGENT_TAIL = "subagent.tail"
 
+    // ── Connectors (issue #1091) ───────────────────────────────────────────
+
+    /** List available third-party connectors and authorization state for a session. */
+    const val CONNECTORS_LIST = "connectors.list"
+
+    /** Initiate or restart authorization flow for one or more connectors. */
+    const val CONNECTORS_CONNECT = "connectors.connect"
+
     // ── Billing / subscription (issue #628) ─────────────────────────────
     // Adopted from the backend release audit (hermes-agent 0bf44d557..614dc194e).
     // `credits.view` was REMOVED upstream; these replace it. `usage.bars`

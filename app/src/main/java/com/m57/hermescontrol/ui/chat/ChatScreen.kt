@@ -1,6 +1,8 @@
 package com.m57.hermescontrol.ui.chat
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,9 +32,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +50,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -58,11 +65,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -90,6 +99,7 @@ import com.m57.hermescontrol.ui.chat.components.ContextUsageChip
 import com.m57.hermescontrol.ui.chat.components.ReactionHeartsOverlay
 import com.m57.hermescontrol.ui.chat.components.ReloginDialog
 import com.m57.hermescontrol.ui.chat.components.SearchBarRow
+import com.m57.hermescontrol.ui.chat.components.SessionIntegrationsSheet
 import com.m57.hermescontrol.ui.chat.components.SideQuestionSheet
 import com.m57.hermescontrol.ui.chat.components.SubagentInspectionSheet
 import com.m57.hermescontrol.ui.chat.components.TaskProgressChip
@@ -104,6 +114,7 @@ import com.m57.hermescontrol.ui.common.CredentialWarningBanner
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.model.components.ModelPickerDialog
+import com.m57.hermescontrol.util.ConnectorUrlValidator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -143,10 +154,60 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingState by viewModel.streamingState.collectAsStateWithLifecycle()
     val credentialWarning by HermesWsClient.credentialWarning.collectAsStateWithLifecycle()
+    val connectorsViewModel: ChatConnectorsViewModel = viewModel()
+    val connectorsState by connectorsViewModel.uiState.collectAsStateWithLifecycle()
     // Snapshot-backed search state — read directly so only the scopes that
     // read its fields recompose on search changes (bar, matched bubbles).
     val searchState = viewModel.searchState
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+    var browserAuthInFlight by rememberSaveable { mutableStateOf(false) }
+    var browserAuthDeparted by rememberSaveable { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                        if (browserAuthInFlight) {
+                            browserAuthDeparted = true
+                        }
+                        connectorsViewModel.onPause()
+                    }
+
+                    Lifecycle.Event.ON_RESUME -> {
+                        connectorsViewModel.onResume()
+                        if (browserAuthInFlight && browserAuthDeparted) {
+                            browserAuthInFlight = false
+                            browserAuthDeparted = false
+                            ExternalActivityLifecycleGuard.externalActivityReturned()
+                        }
+                    }
+
+                    else -> {}
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            val activity =
+                generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+                    .filterIsInstance<Activity>()
+                    .firstOrNull()
+            val isChangingConfigs = activity?.isChangingConfigurations == true
+            if (!isChangingConfigs) {
+                if (browserAuthInFlight && browserAuthDeparted) {
+                    browserAuthInFlight = false
+                    browserAuthDeparted = false
+                    ExternalActivityLifecycleGuard.externalActivityReturned()
+                }
+                connectorsViewModel.onPause()
+                connectorsViewModel.hide()
+            }
+        }
+    }
+
+    val browserEvent = connectorsState.browserLaunchEvent
     val listState = rememberLazyListState(prefetchStrategy = ChatTimelineNoPrefetchStrategy)
     val scrollScope = rememberCoroutineScope()
     val scrollController = rememberChatScrollController(listState, scrollScope)
@@ -299,7 +360,6 @@ fun ChatScreen(
     var viewingImage by rememberSaveable { mutableStateOf<ImageViewerModel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = isSystemInDarkTheme()
-    val context = LocalContext.current
     val launchExternalActivity: (() -> Unit) -> Unit = { launch ->
         ExternalActivityLifecycleGuard.launchExternalActivity(
             acquireConnectionLease = HermesWsClient::acquireExternalActivityConnectionLease,
@@ -308,6 +368,45 @@ fun ChatScreen(
             cleanupAfterLaunchFailure = { NotificationHelper.stop(context) },
             launch = launch,
         )
+    }
+
+    val invalidResponseError = stringResource(R.string.session_integrations_err_invalid_response)
+    val browserLaunchError = stringResource(R.string.session_integrations_err_browser_launch)
+
+    LaunchedEffect(browserEvent) {
+        if (browserEvent != null) {
+            val eventId = browserEvent.eventId
+            val taken = connectorsViewModel.takeBrowserEvent(eventId)
+            if (taken != null) {
+                if (!ConnectorUrlValidator.isValidHttpsUrl(taken.url)) {
+                    connectorsViewModel.launchError(invalidResponseError)
+                    return@LaunchedEffect
+                }
+                try {
+                    val intent =
+                        Intent(Intent.ACTION_VIEW, Uri.parse(taken.url)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    launchExternalActivity {
+                        browserAuthDeparted = false
+                        browserAuthInFlight = true
+                        context.startActivity(intent)
+                    }
+                } catch (_: ActivityNotFoundException) {
+                    browserAuthInFlight = false
+                    browserAuthDeparted = false
+                    connectorsViewModel.launchError(browserLaunchError)
+                } catch (_: SecurityException) {
+                    browserAuthInFlight = false
+                    browserAuthDeparted = false
+                    connectorsViewModel.launchError(browserLaunchError)
+                } catch (_: Exception) {
+                    browserAuthInFlight = false
+                    browserAuthDeparted = false
+                    connectorsViewModel.launchError(browserLaunchError)
+                }
+            }
+        }
     }
 
     val mediaLaunchers =
@@ -427,6 +526,39 @@ fun ChatScreen(
                     imageVector = Icons.Filled.Add,
                     contentDescription = stringResource(R.string.content_desc_new_chat),
                 )
+            }
+
+            // Session actions overflow menu (issue #1091)
+            var showSessionMenu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(
+                    onClick = { showSessionMenu = true },
+                    modifier = Modifier.testTag("chat_session_menu_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.session_integrations_menu_item),
+                    )
+                }
+                DropdownMenu(
+                    expanded = showSessionMenu,
+                    onDismissRequest = { showSessionMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.session_integrations_menu_item)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Extension,
+                                contentDescription = null,
+                            )
+                        },
+                        onClick = {
+                            showSessionMenu = false
+                            connectorsViewModel.show()
+                        },
+                        modifier = Modifier.testTag("chat_menu_session_integrations"),
+                    )
+                }
             }
         },
     ) { _ ->
@@ -763,5 +895,14 @@ fun ChatScreen(
                 onDismiss = { viewingImage = null },
             )
         }
+
+        SessionIntegrationsSheet(
+            uiState = connectorsState,
+            sessionId = connectorsState.sessionId,
+            onDismiss = connectorsViewModel::hide,
+            onRefresh = { connectorsViewModel.refresh(force = true) },
+            onConnect = { slug, reconnect -> connectorsViewModel.connect(slug, reconnect) },
+            onClearError = connectorsViewModel::clearError,
+        )
     }
 }

@@ -423,6 +423,10 @@
     <string name="sessions_hide_hidden">숨겨진 세션 숨기기</string>
     <string name="sessions_hidden_badge">숨김</string>
     <string name="sessions_all_hidden_desc">모든 세션이 현재 숨겨져 있습니다. 아래를 탭하여 숨겨진 세션을 표시하세요.</string>
+    <string name="sessions_live_status_running">실행 중</string>
+    <string name="sessions_live_status_waiting">입력 대기 중</string>
+    <string name="sessions_live_status_running_desc">세션이 실행 중입니다</string>
+    <string name="sessions_live_status_waiting_desc">세션이 사용자 입력을 대기하고 있습니다</string>
 
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">툴셋이 없습니다</string>

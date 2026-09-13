@@ -72,6 +72,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -272,6 +273,13 @@ fun SessionsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loadSessions()
+    }
+
+    DisposableEffect(Unit) {
+        viewModel.startLiveStatusTracking()
+        onDispose {
+            viewModel.stopLiveStatusTracking()
+        }
     }
 
     // Toast effect
@@ -612,6 +620,7 @@ fun SessionsScreen(
                                                     isSelecting = state.isSelecting,
                                                     isSelected = session.id in state.selectedIds,
                                                     isDeleting = session.id in state.deletingSessionIds,
+                                                    liveStatus = state.liveStatuses[session.id],
                                                     highlightBackground = primaryContainer,
                                                     highlightForeground = onPrimaryContainer,
                                                     onCardClick = {
@@ -760,6 +769,7 @@ fun SessionsScreen(
                                         isDeleting = session.id in state.deletingSessionIds,
                                         isPinned = session.pinned == true,
                                         isHidden = session.hidden == true,
+                                        liveStatus = state.liveStatuses[session.id],
                                         highlightBackground = primaryContainer,
                                         highlightForeground = onPrimaryContainer,
                                         onCardClick = {

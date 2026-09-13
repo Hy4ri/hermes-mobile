@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionLiveStatus
+import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
 import com.m57.hermescontrol.ui.common.StatusBadge
 import com.m57.hermescontrol.ui.common.StatusBadgeType
@@ -56,6 +58,7 @@ fun SearchResultCard(
     isSelecting: Boolean,
     isSelected: Boolean,
     isDeleting: Boolean,
+    liveStatus: SessionLiveStatus? = null,
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
@@ -65,6 +68,7 @@ fun SearchResultCard(
     onDelete: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
+    val statusColors = LocalHermesStatusColors.current
     val snippet = session.preview?.takeIf { it.isNotBlank() } ?: stringResource(R.string.history_untitled)
     val cleanSnippet = cleanSearchSnippet(snippet)
     val playedAt = formatPlayedAt(session.started_at)
@@ -86,6 +90,10 @@ fun SearchResultCard(
         border =
             if (isSelected) {
                 BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else if (!isSelecting && liveStatus == SessionLiveStatus.WORKING) {
+                BorderStroke(2.dp, statusColors.success)
+            } else if (!isSelecting && liveStatus == SessionLiveStatus.WAITING) {
+                BorderStroke(2.dp, statusColors.warning)
             } else {
                 null
             },
@@ -153,6 +161,12 @@ fun SearchResultCard(
                         horizontalArrangement = Arrangement.spacedBy(spacing.xs),
                         verticalArrangement = Arrangement.spacedBy(spacing.xs),
                     ) {
+                        if (liveStatus != null) {
+                            SessionLiveStatusIndicator(
+                                liveStatus = liveStatus,
+                                sessionId = session.id,
+                            )
+                        }
                         session.source?.let { src ->
                             StatusBadge(
                                 text = sourceLabel(src),

@@ -46,6 +46,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionTreeItem
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.theme.LocalSpacing
@@ -146,6 +147,7 @@ fun SessionCard(
     isDeleting: Boolean,
     isPinned: Boolean,
     isHidden: Boolean = false,
+    liveStatus: SessionLiveStatus? = null,
     highlightBackground: Color,
     highlightForeground: Color,
     onCardClick: () -> Unit,
@@ -158,7 +160,6 @@ fun SessionCard(
 ) {
     val spacing = LocalSpacing.current
     val statusColors = LocalHermesStatusColors.current
-    val isActive = session.status?.lowercase() == "active" || session.status?.lowercase() == "streaming"
     val srcIcon = sourceIcon(session.source)
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -176,10 +177,12 @@ fun SessionCard(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
         border =
-            if (isActive && !isSelecting) {
-                BorderStroke(2.dp, statusColors.success)
-            } else if (isSelected) {
+            if (isSelected) {
                 BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else if (!isSelecting && liveStatus == SessionLiveStatus.WORKING) {
+                BorderStroke(2.dp, statusColors.success)
+            } else if (!isSelecting && liveStatus == SessionLiveStatus.WAITING) {
+                BorderStroke(2.dp, statusColors.warning)
             } else {
                 null
             },
@@ -270,11 +273,11 @@ fun SessionCard(
                                 status = StatusBadgeType.NEUTRAL,
                             )
                         }
-                        if (!session.status.isNullOrBlank()) {
+                        if (liveStatus != null) {
                             Spacer(modifier = Modifier.width(spacing.sm))
-                            StatusBadge(
-                                text = session.status,
-                                status = if (isActive) StatusBadgeType.SUCCESS else StatusBadgeType.NEUTRAL,
+                            SessionLiveStatusIndicator(
+                                liveStatus = liveStatus,
+                                sessionId = session.id,
                             )
                         }
                     }

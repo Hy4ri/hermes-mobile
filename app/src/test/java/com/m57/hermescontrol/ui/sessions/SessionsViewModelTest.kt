@@ -1,19 +1,31 @@
 package com.m57.hermescontrol.ui.sessions
 
+import com.m57.hermescontrol.data.model.LiveSessionSnapshot
 import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
+import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.data.model.SessionSearchResponse
 import com.m57.hermescontrol.data.model.SessionSearchResult
 import com.m57.hermescontrol.data.remote.ApiClient
 import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.ws.ChangeEventHub
+import com.m57.hermescontrol.data.ws.ChangeEvents
+import com.m57.hermescontrol.data.ws.ConnectionStatus
+import com.m57.hermescontrol.data.ws.SessionLiveStatusSource
+import com.m57.hermescontrol.data.ws.WsEvent
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -24,6 +36,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -34,8 +47,25 @@ class SessionsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockApi = mockk<HermesApiService>(relaxed = true)
 
-    private fun createViewModel(): SessionsViewModel {
-        val vm = SessionsViewModel()
+    private class FakeSessionLiveStatusSource : SessionLiveStatusSource {
+        val eventsFlow = MutableSharedFlow<WsEvent>(extraBufferCapacity = 16)
+        val connectionStatusFlow = MutableStateFlow(ConnectionStatus.CONNECTED)
+        var snapshotToReturn: LiveSessionSnapshot? = null
+        var fetchCallCount = 0
+        var snapshotDeferred: CompletableDeferred<LiveSessionSnapshot?>? = null
+
+        override suspend fun fetchActiveSessionsSnapshot(): LiveSessionSnapshot? {
+            fetchCallCount++
+            val deferred = snapshotDeferred
+            return if (deferred != null) deferred.await() else snapshotToReturn
+        }
+
+        override val events: Flow<WsEvent> = eventsFlow
+        override val connectionStatus: StateFlow<ConnectionStatus> = connectionStatusFlow
+    }
+
+    private fun createViewModel(source: SessionLiveStatusSource = FakeSessionLiveStatusSource()): SessionsViewModel {
+        val vm = SessionsViewModel(liveStatusSource = source)
         testDispatcher.scheduler.advanceUntilIdle()
         return vm
     }
@@ -547,5 +577,220 @@ class SessionsViewModelTest {
         assertFalse(vm.uiState.value.pinnedExpanded)
         vm.togglePinnedExpanded()
         assertTrue(vm.uiState.value.pinnedExpanded)
+    }
+
+    // ── Live Session Status Tracking (issue #1101) ───────────────────────
+
+    @Test
+    fun `initial snapshot hydration updates liveStatuses`() {
+        val source = FakeSessionLiveStatusSource()
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(SessionLiveStatus.WORKING, vm.uiState.value.liveStatuses["stored-1"])
+        assertEquals(1, source.fetchCallCount)
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `successful absence reaping clears statuses not in snapshot`() {
+        val source = FakeSessionLiveStatusSource()
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(SessionLiveStatus.WORKING, vm.uiState.value.liveStatuses["stored-1"])
+
+        // Second snapshot returns empty
+        source.snapshotToReturn = LiveSessionSnapshot(emptyMap(), emptyMap())
+        vm.refreshLiveStatuses()
+        testDispatcher.scheduler.runCurrent()
+
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
+        assertEquals(2, source.fetchCallCount)
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `working to idle event transition via SessionInfo updates liveStatuses`() {
+        val source = FakeSessionLiveStatusSource()
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(SessionLiveStatus.WORKING, vm.uiState.value.liveStatuses["stored-1"])
+
+        // Send running = false
+        source.eventsFlow.tryEmit(
+            WsEvent.SessionInfo(
+                data =
+                    mapOf(
+                        "session_id" to "rt-1",
+                        "stored_session_id" to "stored-1",
+                        "running" to false,
+                    ),
+            ),
+        )
+        testDispatcher.scheduler.runCurrent()
+
+        assertNull(vm.uiState.value.liveStatuses["stored-1"])
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `disconnect clears immediately and reconnect rehydrates`() {
+        val source = FakeSessionLiveStatusSource()
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(SessionLiveStatus.WORKING, vm.uiState.value.liveStatuses["stored-1"])
+
+        // Disconnect
+        source.connectionStatusFlow.value = ConnectionStatus.DISCONNECTED
+        testDispatcher.scheduler.runCurrent()
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
+
+        // Reconnect
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WAITING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+        source.connectionStatusFlow.value = ConnectionStatus.CONNECTED
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(SessionLiveStatus.WAITING, vm.uiState.value.liveStatuses["stored-1"])
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `late pre-disconnect response is ignored`() {
+        val source = FakeSessionLiveStatusSource()
+        val deferred = CompletableDeferred<LiveSessionSnapshot?>()
+        source.snapshotDeferred = deferred
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+
+        // Disconnect before deferred completes
+        source.connectionStatusFlow.value = ConnectionStatus.DISCONNECTED
+        testDispatcher.scheduler.runCurrent()
+
+        // Complete the late response
+        deferred.complete(
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            ),
+        )
+        testDispatcher.scheduler.runCurrent()
+
+        // Must remain empty because the response was from the previous generation
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `repeated start is idempotent`() {
+        val source = FakeSessionLiveStatusSource()
+        source.snapshotToReturn = LiveSessionSnapshot()
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(1, source.fetchCallCount)
+        vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `stop cancels ticker and clears state`() {
+        val source = FakeSessionLiveStatusSource()
+        source.snapshotToReturn =
+            LiveSessionSnapshot(
+                statusByStoredId = mapOf("stored-1" to SessionLiveStatus.WORKING),
+                storedIdByRuntimeId = mapOf("rt-1" to "stored-1"),
+            )
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, vm.uiState.value.liveStatuses.size)
+
+        vm.stopLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertTrue(
+            vm.uiState.value.liveStatuses
+                .isEmpty(),
+        )
+
+        // Advancing time past the 30s poll interval should NOT trigger another fetch
+        testDispatcher.scheduler.advanceTimeBy(60_000)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, source.fetchCallCount)
+    }
+
+    @Test
+    fun `change bursts coalesce into at most one trailing request`() {
+        val source = FakeSessionLiveStatusSource()
+        val deferred1 = CompletableDeferred<LiveSessionSnapshot?>()
+        source.snapshotDeferred = deferred1
+
+        val vm = createViewModel(source)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, source.fetchCallCount)
+
+        // Multiple change events while request 1 is in flight
+        source.snapshotDeferred = CompletableDeferred()
+        ChangeEventHub.emit(WsEvent.ChangeEvent(ChangeEvents.SESSIONS, null))
+        ChangeEventHub.emit(WsEvent.ChangeEvent(ChangeEvents.SESSIONS, null))
+        testDispatcher.scheduler.runCurrent()
+
+        // Call count should still be 1 (in-flight)
+        assertEquals(1, source.fetchCallCount)
+
+        // Complete request 1
+        deferred1.complete(LiveSessionSnapshot())
+        testDispatcher.scheduler.runCurrent()
+
+        // Request 2 was coalesced and launched as the trailing request
+        assertEquals(2, source.fetchCallCount)
+        vm.stopLiveStatusTracking()
     }
 }

@@ -534,6 +534,10 @@
     <string name="sessions_all_hidden_desc">所有会话当前均已隐藏。点击下方以显示已隐藏的会话。</string>
     <string name="sessions_pinned_indicator">已置顶</string>
     <string name="sessions_fork_indicator">分支会话</string>
+    <string name="sessions_live_status_running">运行中</string>
+    <string name="sessions_live_status_waiting">等待输入</string>
+    <string name="sessions_live_status_running_desc">会话正在运行中</string>
+    <string name="sessions_live_status_waiting_desc">会话等待用户输入</string>
     <string name="sessions_rename_title">重命名会话</string>
     <string name="sessions_rename_hint">会话标题</string>
     <string name="toolsets_empty_title">没有工具集数据</string>

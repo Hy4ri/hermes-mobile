@@ -87,7 +87,7 @@ object EventParser {
             "message.complete" -> {
                 val text = payload?.get("text") as? String ?: ""
                 val reasoning = payload?.get("reasoning") as? String
-                WsEvent.MessageComplete(text, sessionId, reasoning)
+                WsEvent.MessageComplete(text, sessionId, reasoning, rawPayload = payload)
             }
 
             "message.done" -> {
@@ -339,6 +339,43 @@ object EventParser {
             "secret.expire" -> {
                 val requestId = payload?.get("request_id") as? String
                 WsEvent.SecretExpire(requestId, sessionId)
+            }
+
+            // ── Credential Vault prompts (issue #1090) ──────────────────
+            "vault.unlock.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                val backend = payload?.get("backend") as? String
+                val displayName = payload?.get("display_name") as? String
+                WsEvent.VaultUnlockRequest(requestId, sessionId, backend, displayName)
+            }
+
+            "vault.unlock.expire" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.VaultUnlockExpire(requestId, sessionId)
+            }
+
+            "vault.save_login.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                val origin = payload?.get("origin") as? String
+                val site = payload?.get("site") as? String
+                WsEvent.VaultSaveLoginRequest(requestId, sessionId, origin, site)
+            }
+
+            "vault.save_login.expire" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.VaultSaveLoginExpire(requestId, sessionId)
+            }
+
+            "vault.code.request" -> {
+                val requestId = payload?.get("request_id") as? String
+                val site = payload?.get("site") as? String
+                val hint = payload?.get("hint") as? String
+                WsEvent.VaultCodeRequest(requestId, sessionId, site, hint)
+            }
+
+            "vault.code.expire" -> {
+                val requestId = payload?.get("request_id") as? String
+                WsEvent.VaultCodeExpire(requestId, sessionId)
             }
 
             else -> {

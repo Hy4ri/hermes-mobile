@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
@@ -45,7 +48,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
@@ -58,6 +63,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.HermesStatusColors
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
@@ -84,6 +90,7 @@ internal fun composeToolSummaryLines(
 ): Pair<String, String?>? {
     val titleIsGeneric = view.title.equals(ToolViewBuilder.genericTitleFor(toolName), ignoreCase = true)
     val subtitle = view.subtitle.takeIf { it.isNotBlank() && it != view.title }
+    val statsSuffix = view.diffStats?.let { " (+${it.added}/-${it.removed})" } ?: ""
 
     val firstLine: String
     val secondLine: String?
@@ -93,6 +100,7 @@ internal fun composeToolSummaryLines(
                 if (subtitle != null) {
                     append(subtitle)
                 }
+                append(statsSuffix)
                 view.countLabel?.let { append(" ($it)") }
             }
         secondLine = null
@@ -100,6 +108,7 @@ internal fun composeToolSummaryLines(
         firstLine =
             buildString {
                 append(view.title)
+                append(statsSuffix)
                 view.countLabel?.let { append(" ($it)") }
             }
         secondLine = subtitle
@@ -233,6 +242,11 @@ internal fun ToolBubble(
                             SelectionContainer {
                                 Text(
                                     text = message.content,
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 240.dp)
+                                            .verticalScroll(rememberScrollState()),
                                     style =
                                         MaterialTheme.typography.bodySmall.copy(
                                             color = contentColor.copy(alpha = 0.8f),
@@ -301,6 +315,11 @@ internal fun ToolBubble(
                             SelectionContainer {
                                 Text(
                                     text = message.content,
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 240.dp)
+                                            .verticalScroll(rememberScrollState()),
                                     style =
                                         MaterialTheme.typography.bodySmall.copy(
                                             color = contentColor.copy(alpha = 0.8f),
@@ -383,6 +402,11 @@ private fun ExpandedToolContent(
             view.stdout?.let {
                 Text(
                     text = it,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(rememberScrollState()),
                     style =
                         MaterialTheme.typography.bodySmall.copy(
                             color = contentColor.copy(alpha = 0.9f),
@@ -394,6 +418,11 @@ private fun ExpandedToolContent(
             view.stderr?.let {
                 Text(
                     text = it,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(rememberScrollState()),
                     style =
                         MaterialTheme.typography.bodySmall.copy(
                             color = contentColor.copy(alpha = 0.6f),
@@ -408,13 +437,27 @@ private fun ExpandedToolContent(
                         text = stringResource(R.string.chat_tool_exit_code, code),
                         style =
                             MaterialTheme.typography.labelSmall.copy(
-                                color = statusColors.error,
+                                color = statusColors.warning,
                                 fontWeight = FontWeight.Medium,
                             ),
                     )
                 }
             }
         } else {
+            // ── Generated/resolved image preview ──
+            view.imageUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = view.title,
+                    contentScale = ContentScale.Crop,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                )
+            }
+
             // ── File diff ──
             if (view.inlineDiff != null) {
                 DiffViewCard(
@@ -479,6 +522,11 @@ private fun ExpandedToolContent(
             if (view.detail.isNotBlank() && view.inlineDiff == null) {
                 Text(
                     text = view.detail,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(rememberScrollState()),
                     style =
                         MaterialTheme.typography.bodySmall.copy(
                             color = contentColor.copy(alpha = 0.9f),

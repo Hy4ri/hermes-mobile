@@ -80,6 +80,7 @@ import com.m57.hermescontrol.data.model.OAuthSubmitResponse
 import com.m57.hermescontrol.data.model.PairingApproveRequest
 import com.m57.hermescontrol.data.model.PairingResponse
 import com.m57.hermescontrol.data.model.PairingRevokeRequest
+import com.m57.hermescontrol.data.model.PluginCatalogResponse
 import com.m57.hermescontrol.data.model.PluginProvidersPutRequest
 import com.m57.hermescontrol.data.model.PluginsHubResponse
 import com.m57.hermescontrol.data.model.PortalResponse
@@ -95,6 +96,7 @@ import com.m57.hermescontrol.data.model.RenameProfileRequest
 import com.m57.hermescontrol.data.model.SaveSkillContentRequest
 import com.m57.hermescontrol.data.model.ScanStatus
 import com.m57.hermescontrol.data.model.SessionDetailResponse
+import com.m57.hermescontrol.data.model.SessionInfo
 import com.m57.hermescontrol.data.model.SessionListResponse
 import com.m57.hermescontrol.data.model.SessionMessagesResponse
 import com.m57.hermescontrol.data.model.SessionRenameRequest
@@ -266,6 +268,12 @@ interface HermesApiService {
         @Path("id", encoded = true) sessionId: String,
         @Query("profile") profile: String? = null,
     ): Response<SessionDetailResponse>
+
+    @GET("api/sessions/{id}")
+    suspend fun getSessionInfo(
+        @Path("id", encoded = true) sessionId: String,
+        @Query("profile") profile: String? = null,
+    ): Response<SessionInfo>
 
     @GET("api/model/info")
     suspend fun getModelInfo(): Response<ModelInfoResponse>
@@ -617,6 +625,9 @@ interface HermesApiService {
 
     @GET("api/dashboard/plugins/hub")
     suspend fun getPlugins(): Response<PluginsHubResponse>
+
+    @GET("api/dashboard/plugins/catalog")
+    suspend fun getPluginCatalog(): Response<PluginCatalogResponse>
 
     @POST("api/dashboard/agent-plugins/install")
     suspend fun installPlugin(

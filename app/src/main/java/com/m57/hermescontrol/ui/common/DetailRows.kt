@@ -5,6 +5,7 @@ import androidx.compose.ui.res.stringResource
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.HubSkill
 import com.m57.hermescontrol.data.model.McpServer
+import com.m57.hermescontrol.data.model.PluginCatalogEntry
 import com.m57.hermescontrol.data.model.PluginInfo
 import com.m57.hermescontrol.data.model.Skill
 import com.m57.hermescontrol.data.model.Toolset
@@ -66,6 +67,26 @@ fun PluginInfo.toDetailRows(): List<DetailRow> =
             toneForStatus(runtimeStatus),
         ),
         DetailRow(stringResource(R.string.detail_dialog_description), description),
+    )
+
+@Composable
+fun PluginCatalogEntry.toDetailRows(): List<DetailRow> =
+    listOfNotNull(
+        tier?.let { DetailRow(stringResource(R.string.detail_dialog_tier), it) },
+        maintainer?.let { DetailRow(stringResource(R.string.detail_dialog_maintainer), it) },
+        category?.let { DetailRow(stringResource(R.string.detail_dialog_category), it) },
+        repo?.let { DetailRow(stringResource(R.string.detail_dialog_repository), it) },
+        shaShort?.let { DetailRow(stringResource(R.string.detail_dialog_commit), it) },
+        requiresHermes?.takeIf { it.isNotBlank() }?.let {
+            DetailRow(stringResource(R.string.detail_dialog_requires_hermes), it)
+        },
+        docsUrl?.takeIf { it.isNotBlank() }?.let {
+            DetailRow(stringResource(R.string.detail_dialog_docs), it)
+        },
+        capabilitySummary?.takeIf { it.isNotBlank() }?.let {
+            DetailRow(stringResource(R.string.detail_dialog_capabilities), it)
+        },
+        description?.let { DetailRow(stringResource(R.string.detail_dialog_description), it) },
     )
 
 @Composable

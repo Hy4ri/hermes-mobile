@@ -23,6 +23,8 @@ class ChatMessageMapperTest {
                 toolName = "search",
                 toolStatus = "RUNNING",
                 isStreaming = true,
+                tokenCount = 42,
+                tps = 55.5,
             )
 
         val ui = entity.toUiModel()
@@ -35,6 +37,8 @@ class ChatMessageMapperTest {
         assertEquals("search", ui.toolName)
         assertEquals(ToolStatus.RUNNING, ui.toolStatus)
         assertTrue(ui.isStreaming)
+        assertEquals(42, ui.tokenCount)
+        assertEquals(55.5, ui.tps ?: 0.0, 0.001)
     }
 
     @Test
@@ -49,6 +53,8 @@ class ChatMessageMapperTest {
                 toolName = null,
                 toolStatus = null,
                 isStreaming = false,
+                tokenCount = 100,
+                tps = 24.8,
             )
 
         val entity = ui.toEntity("session-b")
@@ -62,6 +68,8 @@ class ChatMessageMapperTest {
         assertNull(entity.toolName)
         assertNull(entity.toolStatus)
         assertFalse(entity.isStreaming)
+        assertEquals(100, entity.tokenCount)
+        assertEquals(24.8, entity.tps ?: 0.0, 0.001)
     }
 
     @Test

@@ -12,7 +12,6 @@ import com.m57.hermescontrol.data.model.Attachment
 import com.m57.hermescontrol.data.model.ModelCapabilities
 import com.m57.hermescontrol.data.model.ModelProvider
 import com.m57.hermescontrol.data.model.PinnedModel
-import com.m57.hermescontrol.data.model.ProfileInfo
 import com.m57.hermescontrol.data.model.parseContextBreakdown
 import com.m57.hermescontrol.data.model.parseUsageSnapshot
 import com.m57.hermescontrol.data.remote.ApiClient
@@ -29,9 +28,11 @@ import com.m57.hermescontrol.data.ws.WsEvent
 import com.m57.hermescontrol.data.ws.WsMethods
 import com.m57.hermescontrol.data.ws.toJsonElement
 import com.m57.hermescontrol.ui.common.ActionProgressController
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,10 +46,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -69,217 +66,6 @@ private sealed interface PrepareAttachmentResult {
 
     data object Unreadable : PrepareAttachmentResult
 }
-
-/**
- * Canonical comparison key for a tool message's result payload.
- *
- * WS tool messages store the full tool.complete payload
- * (`{"tool_id":..., "name":..., "args":..., "result": {...}}`) while REST
- * transcript rows store just the result object (`{"output":..., "exit_code":...}`).
- * This key normalizes both sides — preferring the `result` field when present,
- * and treating int/float JSON numbers as equal — so the two representations of
- * the SAME tool call can be matched regardless of position or pagination.
- * Returns null for unparseable content (no match possible).
- */
-internal fun canonicalToolResultKey(content: String): String? {
-    val element =
-        try {
-            OkHttpProvider.json.parseToJsonElement(content)
-        } catch (_: Exception) {
-            return null
-        }
-
-    fun canon(e: kotlinx.serialization.json.JsonElement): String =
-        when (e) {
-            is kotlinx.serialization.json.JsonObject -> {
-                e.entries.sortedBy { it.key }.joinToString("|") { "${it.key}=${canon(it.value)}" }
-            }
-
-            is kotlinx.serialization.json.JsonArray -> {
-                e.joinToString(",") { canon(it) }
-            }
-
-            is kotlinx.serialization.json.JsonPrimitive -> {
-                // Canonicalize ALL numbers through double, collapsing int/float
-                // spellings of the same value (0 vs 0.0 → "i0", 0.5 → "d0.5").
-                val s = e.content
-                val d = s.toDoubleOrNull()
-                if (d != null) {
-                    if (d == d.toLong().toDouble()) "i${d.toLong()}" else "d$d"
-                } else {
-                    "s$s"
-                }
-            }
-        }
-    return when (element) {
-        is kotlinx.serialization.json.JsonObject -> {
-            element["result"]?.let { canon(it) } ?: canon(element)
-        }
-
-        else -> {
-            canon(element)
-        }
-    }
-}
-
-/**
- * True when [a] and [b] are the same logical message (the WS-persisted and
- * REST-persisted copies of one row — they carry different ids, see #771).
- * Tool messages match on their normalized result payload; other roles on
- * exact content, IGNORING leading/trailing whitespace.
- *
- * Issue #842: the app seals the RAW streamed text (which can carry leading
- * blank lines the model emits before its narration), while the backend
- * persists a CLEANED copy (leading whitespace stripped). An exact-content
- * compare made the reload merge treat them as different messages and add
- * the REST copy on top — the commentary duplicated ~10s after the stream
- * ended. Trim closes the drift: the sealed live bubble is covered by the
- * REST row and the duplicate never renders.
- */
-internal fun sameLogicalMessage(
-    a: ChatMessage,
-    b: ChatMessage,
-): Boolean {
-    if (a.role != b.role) return false
-    if (a.role == MessageRole.TOOL) {
-        // Issue #842: prefer the gateway's tool call id when both sides carry
-        // it — the REST transcript stores `tool_call_id` and the live WS
-        // bubble keeps it from `tool.start`. Content canonicalization cannot
-        // cover MCP/web tools: the REST side stores the payload as raw
-        // `<untrusted_tool_result>` text (not JSON), so it has no key at all.
-        if (a.toolCallId.isNotBlank() && b.toolCallId.isNotBlank()) {
-            return a.toolCallId == b.toolCallId
-        }
-        val ka = canonicalToolResultKey(a.content)
-        val kb = canonicalToolResultKey(b.content)
-        return ka != null && ka == kb
-    }
-    val ta = a.content.trim()
-    val tb = b.content.trim()
-    if (ta == tb) return true
-    // Attachment dedupe: when the user sends an image/file, the backend
-    // persists an ENRICHED copy of the prompt — the real caption plus
-    // `@image:`/`@file:` reference lines and a `[screenshot]` marker
-    // (tui_gateway _build_image_ref_message / run_agent flattening). The
-    // optimistic bubble carries the raw caption only, so the exact compare
-    // above fails and the REST sync renders the same message twice. Compare
-    // USER rows on the caption with injection lines stripped (both sides —
-    // stripping a clean string is a no-op). USER-only so assistant text that
-    // legitimately mentions these tokens is never collapsed.
-    if (a.role == MessageRole.USER) {
-        val ca = stripAttachmentRefLines(ta)
-        val cb = stripAttachmentRefLines(tb)
-        if (ca == cb) return true
-    }
-    // Issue #842: a seal race can leave the live orphan a few trailing tokens
-    // short of the streamed narration (the last delta was still in the
-    // throttled buffer when tool.start sealed the message). The backend
-    // persists the COMPLETE copy, so the orphan is a strict prefix of the
-    // REST row. Accept prefix-covering only for substantial texts (>=40
-    // chars) so a short reply can never be swallowed by a longer message
-    // that merely starts with it.
-    return ta.length >= 40 &&
-        tb.length >= 40 &&
-        (tb.startsWith(ta) || ta.startsWith(tb))
-}
-
-/**
- * Remove backend attachment-injection lines from a user message so the
- * optimistic bubble and the server-enriched REST copy compare equal.
- * Lines the gateway adds on top of the user's caption: `@image:<path>`,
- * `@file:<ref>`, and `[screenshot]` (multipart image placeholder written by
- * run_agent). Blank lines left behind are dropped too.
- */
-internal fun stripAttachmentRefLines(content: String): String =
-    content
-        .lines()
-        .map { it.trim() }
-        .filterNot { line ->
-            line.startsWith("@image:") ||
-                line.startsWith("@file:") ||
-                line == "[screenshot]"
-        }.joinToString("\n")
-        .trim()
-
-/**
- * Room accumulates BOTH the WS-persisted copy (UUID id, rich tool payload,
- * tool name) and the REST-persisted copy (`rest-` id, result-only payload,
- * no tool name) of every message. Painting the cache verbatim renders the
- * same call twice. Drop the `rest-` copy whenever a WS copy of the same
- * logical message exists (issue #771).
- */
-internal fun dedupeCachedMessages(messages: List<ChatMessage>): List<ChatMessage> {
-    val rest = messages.filter { it.id.startsWith("rest-") }
-    if (rest.isEmpty()) return messages
-    val nonRest = messages.filterNot { it.id.startsWith("rest-") }
-    if (nonRest.isEmpty()) return messages
-    val keepRest = rest.filter { restMsg -> nonRest.none { sameLogicalMessage(it, restMsg) } }
-    return (nonRest + keepRest).sortedBy { it.timestamp }
-}
-
-/**
- * A transcript reload must NOT yank live WS bubbles the server has not
- * persisted yet. The gateway stores a tool row only once the tool
- * COMPLETES server-side, so a reload that lands while a tool is running
- * (app background/foreground mid-turn, reconnect re-resume, pull-refresh)
- * returns a page without the tool row — replacing the list outright made
- * the in-flight tool bubble vanish and left tool.complete with no RUNNING
- * message to update (issue #771).
- *
- * Merge instead of replace: append any current message the REST page does
- * not already cover (checked by id AND logical content via
- * [sameLogicalMessage]) and keep chronological order.
- */
-internal fun mergeTranscriptWithLive(
-    restMessages: List<ChatMessage>,
-    currentMessages: List<ChatMessage>,
-): List<ChatMessage> {
-    val dedupedRest = restMessages.dedupeById()
-    val dedupedCurrent = currentMessages.dedupeById()
-    // User rows can carry live/cache-only metadata (for example whether the
-    // bubble continues the active turn). Keep that richer copy when REST
-    // returns the same logical row.
-    val currentUsers = dedupedCurrent.filter { it.role == MessageRole.USER }.toMutableList()
-    val mergedRest =
-        dedupedRest.map { rest ->
-            if (rest.role != MessageRole.USER) return@map rest
-            val matchIndex =
-                currentUsers.indexOfFirst { it.id == rest.id }.takeIf { it >= 0 }
-                    ?: currentUsers.indexOfFirst { sameLogicalMessage(rest, it) }
-            if (matchIndex >= 0) currentUsers.removeAt(matchIndex) else rest
-        }
-    val restIds = dedupedRest.map { it.id }.toSet()
-    val liveTail =
-        dedupedCurrent.filter { old ->
-            old.id !in restIds && mergedRest.none { sameLogicalMessage(it, old) }
-        }
-    if (liveTail.isEmpty()) return mergedRest.dedupeById()
-    return (mergedRest + liveTail).dedupeById().sortedBy { it.timestamp }
-}
-
-/** Merge a REST page without matching it against already-settled transcript rows. */
-internal fun mergeIncrementalTranscriptPage(
-    restMessages: List<ChatMessage>,
-    currentMessages: List<ChatMessage>,
-    sessionId: String,
-    offset: Int,
-): List<ChatMessage> {
-    val settledEnd =
-        currentMessages.indexOfLast { message ->
-            serverMessageIndex(message.id, sessionId)?.let { it < offset } == true
-        }
-    return (
-        currentMessages.take(settledEnd + 1) +
-            mergeTranscriptWithLive(restMessages, currentMessages.drop(settledEnd + 1))
-    ).dedupeById()
-}
-
-private fun serverMessageIndex(
-    id: String,
-    sessionId: String,
-): Int? = id.removePrefix("rest-$sessionId-").takeIf { it != id }?.toIntOrNull()
-
-internal fun List<ChatMessage>.dedupeById(): List<ChatMessage> = associateBy { it.id }.values.toList()
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -314,6 +100,10 @@ data class ChatUiState(
     // Sudo / secret prompts — surfaced as dialogs (issue #524)
     val sudoPrompt: SudoPromptUi? = null,
     val secretPrompt: SecretPromptUi? = null,
+    // Credential vault prompts — interactive prompt cards (issue #1090)
+    val vaultUnlockPrompt: VaultUnlockPromptUi? = null,
+    val vaultSaveLoginPrompt: VaultSaveLoginPromptUi? = null,
+    val vaultCodePrompt: VaultCodePromptUi? = null,
     val showSessionPicker: Boolean = false,
     // /update confirm dialog (issue #862) — the command is handled client-side
     val updateConfirmOpen: Boolean = false,
@@ -346,6 +136,9 @@ data class ChatUiState(
     val currentModelCapabilities: ModelCapabilities? = null,
     // Reasoning effort level for the current session
     val reasoningLevel: String? = null,
+    // Fast mode / Priority processing state for the current session
+    val fastMode: Boolean = false,
+    val isFastModeChanging: Boolean = false,
     val terminalBackend: String? = null,
     // Context-window meter (issue #756): tokens currently used by the session
     // prompt (numerator) and the active model's full context window (denominator).
@@ -359,6 +152,8 @@ data class ChatUiState(
     // until the first successful session.usage fetch) — drives the
     // "compressed ×N" badge on the context chip.
     val compressionCount: Int? = null,
+    /** Rolling output tokens/sec over the last ~10 calls. */
+    val latestTps: Double? = null,
     // Attachment state
     val pendingAttachments: List<Attachment> = emptyList(),
     /** One-shot composer recovery after an attachment is rejected before send. */
@@ -371,6 +166,10 @@ data class ChatUiState(
     val btwState: BtwUiState? = null,
     /** Subagent delegation indicators (issue #538) — transient UI state. */
     val subagentIndicators: List<SubagentIndicator> = emptyList(),
+    /** Currently inspected subagent ID for live transcript tail (issue #1089). */
+    val inspectingSubagentId: String? = null,
+    /** Transient live transcript tail state for the inspected subagent (issue #1089). */
+    val subagentTranscript: SubagentTranscriptUiState? = null,
     /** Agent todo / plan items (issue #736). */
     val todos: List<TodoItem> = emptyList(),
     // Session resume recovery (desktop parity: bounded auto-retry + error UI)
@@ -462,6 +261,30 @@ data class SecretPromptUi(
     val prompt: String? = null,
 )
 
+/** Transient — not persisted. Holds a pending vault unlock request (issue #1090). */
+data class VaultUnlockPromptUi(
+    val requestId: String?,
+    val sessionId: String?,
+    val backend: String? = null,
+    val displayName: String? = null,
+)
+
+/** Transient — not persisted. Holds a pending vault save login request (issue #1090). */
+data class VaultSaveLoginPromptUi(
+    val requestId: String?,
+    val sessionId: String?,
+    val origin: String? = null,
+    val site: String? = null,
+)
+
+/** Transient — not persisted. Holds a pending vault 2FA/MFA code request (issue #1090). */
+data class VaultCodePromptUi(
+    val requestId: String?,
+    val sessionId: String?,
+    val site: String? = null,
+    val hint: String? = null,
+)
+
 /**
  * Token breakdown backing the context meter's detail sheet. All values are
  * cumulative lifetime token counts sourced from `GET /api/sessions/{id}`
@@ -510,14 +333,6 @@ class ChatViewModel(
     private val sessionRequestById = ConcurrentHashMap<String, SessionRequest>()
     private var sessionGeneration = 0L
 
-    private data class ActiveModelSwitch(
-        val spec: String,
-        val previousModel: String?,
-    )
-
-    private val pendingModelSwitchRequests = ConcurrentHashMap<String, ActiveModelSwitch>()
-    private var activeModelSwitchConfirmation: ActiveModelSwitch? = null
-    private var optimisticPreviousModel: String? = null
     private var resumeRequestSequence = 0L
     private var activeResumeRequestSequence = 0L
     private var hydrationRequestSequence = 0L
@@ -581,6 +396,18 @@ class ChatViewModel(
     /** Tracks the auto-clear coroutine for reaction animations. */
     private var reactionClearJob: Job? = null
 
+    /** Last confirmed model label pushed by SessionInfo or SessionResume from backend (issue #1103). */
+    private var lastConfirmedSessionModel: String? = null
+
+    /** Model generation counter to prevent stale context writes across switches (issue #1103). */
+    private var modelGeneration: Long = 0L
+
+    /** Request sequence counter for fetchContextUsage calls. */
+    private var contextFetchSequence: Long = 0L
+
+    /** Tracks the latest context-usage poll or refetch job. */
+    private var contextUsageJob: Job? = null
+
     private val wsClient = HermesWsClient
 
     // ── Session persistence ──────────────────────────────────────────────
@@ -615,12 +442,63 @@ class ChatViewModel(
             ioDispatcher = ioDispatcher,
         )
 
-    /**
-     * Model options cached from GET /api/model/options so the in-session model
-     * picker (issue #589) opens instantly when the user types /model or taps the
-     * top-bar chip. Preloaded at GatewayReady; refreshed on open if empty.
-     */
-    private var cachedModelOptions: List<ModelProvider> = emptyList()
+    private val reloginAuthenticator =
+        com.m57.hermescontrol.data.remote.ChatReloginAuthenticator(
+            ioDispatcher = ioDispatcher,
+            mainDispatcher = Dispatchers.Main,
+        )
+
+    private val modelSwitchDelegate =
+        ChatModelSwitchDelegate(
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            uiState = _uiState,
+            runtimeSessionId = { runtimeSessionId },
+            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            trackRequest = { id, method -> trackRequest(id, method) },
+            addAssistantMessage = { text -> addAssistantMessage(text) },
+            handleSlashCommand = { cmd -> handleSlashCommand(cmd) },
+            fetchContextUsage = { fetchContextUsage() },
+            onModelSwitchInitiated = { onModelSwitchInitiated() },
+        )
+
+    private val credentialPromptsDelegate =
+        ChatCredentialPromptsDelegate(
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            uiState = _uiState,
+            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            trackRequest = { id, method -> trackRequest(id, method) },
+        )
+
+    private val approvalsDelegate =
+        ChatApprovalsDelegate(
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            uiState = _uiState,
+            runtimeSessionId = { runtimeSessionId },
+            wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
+            trackRequest = { id, method -> trackRequest(id, method) },
+            addSystemMessage = { text -> addSystemMessage(text) },
+        )
+
+    private val clarifyDelegate =
+        ChatClarifyDelegate(
+            uiState = _uiState,
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            persistMessage = { msg, sid -> repo.persistMessage(msg, sid) },
+            wsClient = wsClient,
+            trackRequest = { id, method -> trackRequest(id, method) },
+        )
+
+    private val subagentsDelegate =
+        ChatSubagentsDelegate(
+            uiState = _uiState,
+            scope = viewModelScope,
+            ioDispatcher = ioDispatcher,
+            runtimeSessionId = { runtimeSessionId ?: _uiState.value.currentSessionId },
+        )
 
     private val streamingController =
         ChatStreamingController(
@@ -683,6 +561,7 @@ class ChatViewModel(
                     status == ConnectionStatus.AUTH_EXPIRED
                 ) {
                     _uiState.update { it.copy(isLoading = false) }
+                    subagentsDelegate.closeSubagentTranscript()
                     // The runtime session id is only valid while the socket
                     // owns it — a dropped connection may mean the gateway
                     // closed/pruned the session (or restarted, wiping the
@@ -796,7 +675,7 @@ class ChatViewModel(
         addSystemMessage("Connected to Hermes")
         loadSessions()
         fetchCommandCatalog()
-        preloadModelOptions()
+        modelSwitchDelegate.preloadModelOptions()
         val currentId = _uiState.value.currentSessionId
         if (currentId != null) {
             if (sessionHasServerPresence) {
@@ -813,6 +692,13 @@ class ChatViewModel(
             if (!initial.isNullOrBlank()) {
                 initialSessionId = null
                 switchSession(initial)
+            } else if (AuthManager.isRestoreLastSession()) {
+                val restoredId = AuthManager.getLastOpenedSessionId()
+                if (!restoredId.isNullOrBlank()) {
+                    switchSession(restoredId)
+                } else {
+                    createNewSession(setLoading = false)
+                }
             } else {
                 createNewSession(setLoading = false)
             }
@@ -915,22 +801,35 @@ class ChatViewModel(
                     val provider = info["provider"] as? String
                     val reasoningEffort = info["reasoning_effort"] as? String
                     val terminalBackend = info["terminal_backend"] as? String
+                    val serviceTier = (info["service_tier"] as? String)?.trim()?.lowercase()
+                    val fastFlag =
+                        (info["fast"] as? Boolean)
+                            ?: (if (serviceTier != null) serviceTier == "priority" else null)
                     val newModelLabel =
                         if (model != null && provider != null) {
                             "$provider/$model"
                         } else {
                             model
                         }
-                    // Issue #817: on a REAL model swap the meter's denominator
+                    // Issue #817 & #1103: on a REAL model swap the meter's denominator
                     // still belongs to the old model until the next fetch.
-                    // Blank it so the chip hides instead of flashing a stale
-                    // window under the new label, and re-fire the fetch so the
-                    // new window lands immediately (no 30s poll wait). Only a
-                    // change from a known label counts — the first SessionInfo
-                    // of a session just sets the label.
-                    val previousLabel = _uiState.value.currentSessionModel
+                    // Check against both lastConfirmedSessionModel and optimisticPreviousModel
+                    // so optimistic model updates in sendSlashModel don't defeat swap detection.
+                    val optimisticPrevious = modelSwitchDelegate.consumeOptimisticPreviousModel()
+                    val previousModel =
+                        lastConfirmedSessionModel
+                            ?: optimisticPrevious
+                            ?: _uiState.value.currentSessionModel
                     val modelSwapped =
-                        previousLabel != null && newModelLabel != null && newModelLabel != previousLabel
+                        previousModel != null &&
+                            newModelLabel != null &&
+                            !newModelLabel.equals(previousModel, ignoreCase = true)
+                    val initialHydration = previousModel == null && newModelLabel != null
+                    val meterEmpty = _uiState.value.fullContextTokens == null
+                    lastConfirmedSessionModel = newModelLabel ?: lastConfirmedSessionModel
+                    if (newModelLabel != null) {
+                        modelSwitchDelegate.onModelConfirmed(newModelLabel)
+                    }
                     _uiState.update { state ->
                         state.copy(
                             currentSessionModel = newModelLabel ?: state.currentSessionModel,
@@ -940,35 +839,36 @@ class ChatViewModel(
                                 } else {
                                     reasoningEffort
                                 },
+                            fastMode = fastFlag ?: state.fastMode,
+                            isFastModeChanging = if (fastFlag != null) false else state.isFastModeChanging,
                             terminalBackend = terminalBackend ?: state.terminalBackend,
                             fullContextTokens = if (modelSwapped) null else state.fullContextTokens,
                         )
                     }
-                    syncCurrentModelCapabilities()
+                    modelSwitchDelegate.syncCurrentModelCapabilities()
                     if (modelSwapped) {
-                        // Issue #817: after a swap the REST model/info window is
+                        modelGeneration++
+                        contextUsageJob?.cancel()
+                        contextUsageJob = null
+                        // Issue #817 & #1103: after a swap the REST model/info window is
                         // PROFILE-scoped and may describe the old model (e.g. a
                         // session-scoped swap) — the meter must not fall back to
                         // it. Wait for the RPC's live context_max instead; the
                         // chip stays hidden until the real window lands.
                         viewModelScope.launch { fetchContextUsage(skipRestFallback = true) }
+                    } else if ((initialHydration || meterEmpty) && newModelLabel != null &&
+                        contextUsageJob?.isActive != true
+                    ) {
+                        viewModelScope.launch { fetchContextUsage() }
                     }
                     // Session.info can carry `pending_approval` (reconnect
                     // reconciliation) — surface it unless already on screen.
                     val pendingApproval = info["pending_approval"] as? Map<*, *>
                     if (pendingApproval != null) {
-                        val rid = pendingApproval["request_id"] as? String
-                        val alreadyShown =
-                            rid != null &&
-                                _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
-                        if (!alreadyShown) {
-                            handleApprovalRequest(
-                                parseApprovalMap(
-                                    pendingApproval,
-                                    runtimeSessionId ?: _uiState.value.currentSessionId,
-                                ),
-                            )
-                        }
+                        approvalsDelegate.maybeSurfacePendingApproval(
+                            pendingApproval,
+                            runtimeSessionId ?: _uiState.value.currentSessionId,
+                        )
                     }
                 }
             }
@@ -1023,6 +923,14 @@ class ChatViewModel(
                 loadSessions()
             }
 
+            is WsEvent.TranscriptResyncRequired -> {
+                val current = runtimeSessionId ?: _uiState.value.currentSessionId
+                if (current != null && (current == event.sessionId || event.sessionId.isEmpty())) {
+                    val storageId = ActiveSessionHolder.resolveStoredSessionId(current) ?: current
+                    loadSessionMessages(storageId, sessionGeneration)
+                }
+            }
+
             is WsEvent.ClarifyRequest -> {
                 _uiState.update {
                     it.copy(
@@ -1034,23 +942,47 @@ class ChatViewModel(
             }
 
             is WsEvent.ApprovalRequest -> {
-                handleApprovalRequest(event)
+                approvalsDelegate.handleApprovalRequest(event)
             }
 
             is WsEvent.SudoRequest -> {
-                handleSudoRequest(event)
+                credentialPromptsDelegate.handleSudoRequest(event)
             }
 
             is WsEvent.SudoExpire -> {
-                handleSudoExpire(event)
+                credentialPromptsDelegate.handleSudoExpire(event)
             }
 
             is WsEvent.SecretRequest -> {
-                handleSecretRequest(event)
+                credentialPromptsDelegate.handleSecretRequest(event)
             }
 
             is WsEvent.SecretExpire -> {
-                handleSecretExpire(event)
+                credentialPromptsDelegate.handleSecretExpire(event)
+            }
+
+            is WsEvent.VaultUnlockRequest -> {
+                credentialPromptsDelegate.handleVaultUnlockRequest(event)
+            }
+
+            is WsEvent.VaultUnlockExpire -> {
+                credentialPromptsDelegate.handleVaultUnlockExpire(event)
+            }
+
+            is WsEvent.VaultSaveLoginRequest -> {
+                credentialPromptsDelegate.handleVaultSaveLoginRequest(event)
+            }
+
+            is WsEvent.VaultSaveLoginExpire -> {
+                credentialPromptsDelegate.handleVaultSaveLoginExpire(event)
+            }
+
+            is WsEvent.VaultCodeRequest -> {
+                credentialPromptsDelegate.handleVaultCodeRequest(event)
+            }
+
+            is WsEvent.VaultCodeExpire -> {
+                credentialPromptsDelegate.handleVaultCodeExpire(event)
             }
 
             is WsEvent.GatewayError -> {
@@ -1218,6 +1150,10 @@ class ChatViewModel(
                 val provider = infoMap?.get("provider") as? String
                 val reasoningEffort = infoMap?.get("reasoning_effort") as? String
                 val terminalBackend = infoMap?.get("terminal_backend") as? String
+                val serviceTier = (infoMap?.get("service_tier") as? String)?.trim()?.lowercase()
+                val fastFlag =
+                    (infoMap?.get("fast") as? Boolean)
+                        ?: (if (serviceTier != null) serviceTier == "priority" else null)
 
                 // B8 (Jun 20 2026, kanban t_session_resume): do NOT reload
                 // cached messages here — switchSession() already did so before
@@ -1241,10 +1177,29 @@ class ChatViewModel(
                             } else {
                                 reasoningEffort
                             },
+                        fastMode = fastFlag ?: false,
+                        isFastModeChanging = false,
                         terminalBackend = terminalBackend ?: it.terminalBackend,
                     )
                 }
-                syncCurrentModelCapabilities()
+                val resumedModelLabel =
+                    if (model != null && provider != null) {
+                        "$provider/$model"
+                    } else {
+                        model
+                    }
+                if (resumedModelLabel != null) {
+                    if (lastConfirmedSessionModel != null &&
+                        !resumedModelLabel.equals(lastConfirmedSessionModel, ignoreCase = true)
+                    ) {
+                        modelGeneration++
+                        contextUsageJob?.cancel()
+                        contextUsageJob = null
+                        _uiState.update { it.copy(fullContextTokens = null) }
+                    }
+                    lastConfirmedSessionModel = resumedModelLabel
+                }
+                modelSwitchDelegate.syncCurrentModelCapabilities()
                 // Mirror the active runtime session id app-wide (issue #532).
                 ActiveSessionHolder.set(runtimeSessionId ?: sessionId, sessionId)
                 addSystemMessage("Session resumed")
@@ -1252,26 +1207,19 @@ class ChatViewModel(
                 val generation = request?.generation ?: sessionGeneration
                 resumedGeneration = generation
                 finishResumeWhenHydrated(generation)
+                subagentsDelegate.hydrateSubagents(runtimeSessionId ?: sessionId)
                 // Reconnect replay: resume payload can carry `pending_approval`
                 // (server `_session_info_payload`); surface it, then ask for
                 // the full queue in case more are parked.
                 val pendingApproval = resultMap?.get("pending_approval") as? Map<*, *>
                 if (pendingApproval != null) {
-                    val rid = pendingApproval["request_id"] as? String
-                    val alreadyShown =
-                        rid != null &&
-                            _uiState.value.messages.any { it.approvalInfo?.requestId == rid }
-                    if (!alreadyShown) {
-                        handleApprovalRequest(
-                            parseApprovalMap(
-                                pendingApproval,
-                                runtimeSessionId ?: sessionId,
-                            ),
-                        )
-                    }
+                    approvalsDelegate.maybeSurfacePendingApproval(
+                        pendingApproval,
+                        runtimeSessionId ?: sessionId,
+                    )
                 }
                 val activeSessionId = runtimeSessionId ?: sessionId
-                if (activeSessionId != null) replayPendingApproval(activeSessionId)
+                if (activeSessionId != null) approvalsDelegate.replayPendingApproval(activeSessionId)
             }
 
             WsMethods.SESSION_INTERRUPT -> {
@@ -1304,34 +1252,15 @@ class ChatViewModel(
             }
 
             WsMethods.APPROVAL_RESPOND -> {
-                val map = result as? Map<*, *>
-                val resolved = (map?.get("resolved") as? Number)?.toInt() ?: 0
-                if (resolved > 0) {
-                    addSystemMessage("Approval submitted")
-                }
+                approvalsDelegate.handleApprovalRespondResult(result)
             }
 
             WsMethods.APPROVAL_PENDING -> {
-                handleApprovalPendingResult(result)
+                approvalsDelegate.handleApprovalPendingResult(result)
             }
 
             WsMethods.CONFIG_SET -> {
-                val pending = pendingModelSwitchRequests.remove(id)
-                val map = result as? Map<*, *> ?: return
-                val key = map["key"] as? String
-                if (key == "model") {
-                    val confirmRequired = map["confirm_required"] as? Boolean ?: false
-                    if (confirmRequired) {
-                        val confirmMessage =
-                            (map["confirm_message"] as? String)
-                                ?: (map["warning"] as? String)
-                                ?: "This model requires confirmation to switch. Continue?"
-                        activeModelSwitchConfirmation = pending
-                        _uiState.update {
-                            it.copy(modelSwitchConfirmMessage = confirmMessage)
-                        }
-                    }
-                }
+                modelSwitchDelegate.handleConfigSetResult(id, result)
             }
         }
     }
@@ -1407,6 +1336,10 @@ class ChatViewModel(
             return
         }
 
+        if (method == WsMethods.CONFIG_SET) {
+            modelSwitchDelegate.handleConfigSetError(id, error)
+        }
+
         if (method == WsMethods.SESSION_CREATE) {
             val pending = pendingInitialPrompt
             pendingInitialPrompt = null
@@ -1455,7 +1388,7 @@ class ChatViewModel(
         if (trimmed.startsWith("/", ignoreCase = true)) {
             // Issue #589: a bare "/model" (no argument) opens the picker instead
             // of requiring the user to hand-type the provider/model.
-            if (isModelPickerCommand(trimmed)) {
+            if (modelSwitchDelegate.isModelPickerCommand(trimmed)) {
                 openModelPicker()
                 return
             }
@@ -1488,6 +1421,7 @@ class ChatViewModel(
                 role = MessageRole.USER,
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
+                tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
             )
 
         // Update UI immediately
@@ -1527,11 +1461,13 @@ class ChatViewModel(
         userMessage: ChatMessage? = null,
     ) {
         val dispatchGeneration = sessionGeneration
+        AuthManager.setLastOpenedSessionId(storageSessionId)
         val msgToPersist =
             userMessage ?: ChatMessage(
                 role = MessageRole.USER,
                 content = text,
                 attachments = if (attachments.isNotEmpty()) attachments else null,
+                tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 },
             )
 
         // Upload attachments then submit prompt
@@ -1814,7 +1750,12 @@ class ChatViewModel(
 
         val displayContent =
             if (result is SlashResult.QueuePrompt) result.displayContent else command
-        val userMsg = ChatMessage(role = MessageRole.USER, content = displayContent)
+        val userMsg =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = displayContent,
+                tokenCount = TokenEstimator.estimate(displayContent).takeIf { it > 0 },
+            )
         val sessionId = _uiState.value.currentSessionId
 
         _uiState.update { it.copy(messages = it.messages + userMsg) }
@@ -1880,7 +1821,7 @@ class ChatViewModel(
             }
 
             is SlashResult.ModelSwitch -> {
-                handleModelSwitch(command)
+                modelSwitchDelegate.handleModelSwitch(command)
             }
 
             is SlashResult.Update -> {
@@ -2124,68 +2065,6 @@ class ChatViewModel(
     }
 
     /**
-     * Hot-swap the current session's model via the backend's model-switch
-     * mechanism (issue #589).
-     *
-     * The TUI gateway's `prompt.submit` does NOT parse slash commands (it would
-     * make the LLM treat "/model ..." as a chat message), and `command.dispatch`
-     * only knows quick/plugin/bundle/skill commands (4018s on /model). The
-     * correct RPC is `config.set` with `key="model"` — the gateway (server.py
-     * `config.set`, L10253) routes `key=="model"` straight to `_apply_model_switch`
-     * using the same `_sessions.get(session_id)` lookup that the working
-     * `command.dispatch` uses.
-     *
-     * IMPORTANT: `config.set` key=model passes the value DIRECTLY to
-     * `parse_model_flags` (it does NOT strip a leading "/model" like slash.exec /
-     * prompt.submit do). So we strip the "/model" prefix here and send the bare
-     * spec `parse_model_flags` understands:
-     *   `<model> --provider <slug> --session`
-     * (matching the TUI client's `modelValueForConfigSet`).
-     */
-    private fun handleModelSwitch(
-        command: String,
-        confirmExpensive: Boolean = false,
-    ) {
-        val sessionId = runtimeSessionId
-        if (sessionId == null) {
-            addAssistantMessage("No active session. Use `/new` to create one.")
-            return
-        }
-        // Strip a leading "/model" (and any following whitespace) — config.set
-        // key=model expects the bare spec, not a slash command. Match the
-        // dispatcher's case-insensitive "/model" detection so a typed "/MODEL"
-        // (or any casing) doesn't forward the literal slash prefix to the
-        // backend, where parse_model_flags wouldn't recognize it.
-        val spec =
-            if (command.startsWith("/model", ignoreCase = true)) {
-                command.substring(6).trim()
-            } else {
-                command.trim()
-            }
-        val previousModel = optimisticPreviousModel ?: _uiState.value.currentSessionModel
-        optimisticPreviousModel = null
-        val params =
-            mutableMapOf<String, Any>(
-                "key" to "model",
-                "value" to spec,
-                "session_id" to sessionId,
-            )
-        if (confirmExpensive) {
-            params["confirm_expensive_model"] = true
-        }
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.send(
-                WsMethods.CONFIG_SET,
-                params,
-                onSent = { id ->
-                    trackRequest(id, WsMethods.CONFIG_SET)
-                    pendingModelSwitchRequests[id] = ActiveModelSwitch(spec, previousModel)
-                },
-            )
-        }
-    }
-
-    /**
      * Submits [text] as a prompt to the current session via WS, without
      * adding a duplicate user message. Used by [handleDispatchResult] when
      * a slash command resolves to a normal user prompt (e.g. `/init` → "Scan this repo").
@@ -2373,6 +2252,22 @@ class ChatViewModel(
         }
     }
 
+    fun hydrateSubagents(sessionId: String? = null) {
+        subagentsDelegate.hydrateSubagents(sessionId ?: runtimeSessionId ?: _uiState.value.currentSessionId)
+    }
+
+    fun toggleSubagentTranscript(subagentId: String) {
+        subagentsDelegate.toggleSubagentTranscript(subagentId)
+    }
+
+    fun retrySubagentTranscript() {
+        subagentsDelegate.retryTranscript()
+    }
+
+    fun closeSubagentTranscript() {
+        subagentsDelegate.closeSubagentTranscript()
+    }
+
     fun createNewSession(setLoading: Boolean = true) {
         // A fresh create has no persisted row until the first prompt.
         sessionHasServerPresence = false
@@ -2470,220 +2365,36 @@ class ChatViewModel(
 
     // ── In-session model picker (issue #589) ─────────────────────────────
 
-    /**
-     * Whether [command] should open the in-session model picker instead of being
-     * dispatched as a normal slash command. True for a bare `/model` (with no
-     * trailing model argument) — the picker supplies the argument interactively.
-     * A fully-typed `/model provider/model` is forwarded straight to the backend.
-     */
-    private fun isModelPickerCommand(command: String): Boolean {
-        val trimmed = command.trim()
-        if (!trimmed.startsWith("/", ignoreCase = true)) return false
-        val body = trimmed.removePrefix("/").trimStart()
-        // Must be exactly "model" with no argument (or just whitespace).
-        return body.equals("model", ignoreCase = true) ||
-            (
-                body.startsWith("model ", ignoreCase = true) &&
-                    body.substringAfter("model").trim().isEmpty()
-            )
-    }
+    fun openModelPicker() = modelSwitchDelegate.openModelPicker()
 
-    /** Preload model options so the picker opens instantly (no spinner on /model). */
-    private fun preloadModelOptions() {
-        viewModelScope.launch(ioDispatcher) {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.getModelOptions(refresh = false)
-                }
-            if (result is NetworkResult.Success) {
-                cachedModelOptions = result.data.providers.orEmpty()
-                _uiState.update { it.copy(modelPickerPinned = AuthManager.getPinnedModels()) }
-                syncCurrentModelCapabilities()
-            }
-        }
-    }
+    fun refreshModelOptions() = modelSwitchDelegate.refreshModelOptions()
 
-    /**
-     * Open the in-session model picker. Uses the preloaded options if available
-     * (instant open); otherwise shows a loading state and fetches them. The
-     * `/model` slash command is the supported session hot-swap mechanism per the
-     * backend contract (issue #589).
-     */
-    fun openModelPicker() {
-        val hasCached = cachedModelOptions.isNotEmpty()
-        _uiState.update {
-            it.copy(
-                showModelPicker = true,
-                modelPickerProviders = if (hasCached) cachedModelOptions else emptyList(),
-                modelPickerPinned = AuthManager.getPinnedModels(),
-                modelPickerLoading = !hasCached,
-            )
-        }
-        if (!hasCached) {
-            refreshModelOptions()
-        }
-    }
-
-    /** Re-fetch options (pull-to-refresh style) when the picker is already open. */
-    fun refreshModelOptions() {
-        _uiState.update { it.copy(modelPickerLoading = true) }
-        viewModelScope.launch(ioDispatcher) {
-            val result =
-                safeApiCall {
-                    ApiClient.hermesApi.getModelOptions(refresh = true)
-                }
-            when (result) {
-                is NetworkResult.Success -> {
-                    cachedModelOptions = result.data.providers.orEmpty()
-                    _uiState.update {
-                        it.copy(
-                            modelPickerProviders = cachedModelOptions,
-                            modelPickerLoading = false,
-                        )
-                    }
-                    syncCurrentModelCapabilities()
-                }
-
-                is NetworkResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            modelPickerLoading = false,
-                            errorMessage = "Failed to load models: ${result.error.message}",
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    fun closeModelPicker() {
-        _uiState.update { it.copy(showModelPicker = false, modelPickerLoading = false) }
-    }
+    fun closeModelPicker() = modelSwitchDelegate.closeModelPicker()
 
     fun togglePinModel(
         providerSlug: String,
         modelName: String,
-    ) {
-        val currentPinned = AuthManager.getPinnedModels().toMutableList()
-        val target = PinnedModel(providerSlug, modelName)
-        if (currentPinned.contains(target)) {
-            currentPinned.remove(target)
-        } else {
-            currentPinned.add(target)
-        }
-        AuthManager.savePinnedModels(currentPinned)
-        _uiState.update { it.copy(modelPickerPinned = currentPinned) }
-    }
+    ) = modelSwitchDelegate.togglePinModel(providerSlug, modelName)
 
-    /**
-     * Hot-swap the CURRENT session's model via the /model slash command.
-     *
-     * Builds the backend-valid command form `/model <model> --provider <slug>
-     * --session`. The `--session` flag keeps the switch scoped to this chat
-     * only (it writes a per-session override and never touches the global
-     * model config), per the backend model-switch contract.
-     */
     fun sendSlashModel(
         provider: String,
         model: String,
-    ) {
-        optimisticPreviousModel = _uiState.value.currentSessionModel
-        _uiState.update {
-            it.copy(
-                showModelPicker = false,
-                modelPickerLoading = false,
-                // Optimistic: reflect the chosen model in the top-bar chip until
-                // the next session sync confirms the backend hot-swap.
-                currentSessionModel = "$provider/$model",
-            )
-        }
-        syncCurrentModelCapabilities()
-        // Model switch changes the context-window denominator — refetch it.
-        fetchContextUsage()
-        handleSlashCommand("/model $model --provider $provider --session")
-    }
+    ) = modelSwitchDelegate.sendSlashModel(provider, model)
 
-    fun dismissModelSwitchConfirm() {
-        val pending = activeModelSwitchConfirmation
-        activeModelSwitchConfirmation = null
-        _uiState.update {
-            it.copy(
-                modelSwitchConfirmMessage = null,
-                currentSessionModel = pending?.previousModel ?: it.currentSessionModel,
-            )
-        }
-        syncCurrentModelCapabilities()
-        fetchContextUsage()
-    }
+    fun dismissModelSwitchConfirm() = modelSwitchDelegate.dismissModelSwitchConfirm()
 
-    fun confirmModelSwitchExpensive() {
-        val pending = activeModelSwitchConfirmation
-        activeModelSwitchConfirmation = null
-        _uiState.update { it.copy(modelSwitchConfirmMessage = null) }
-        if (pending != null) {
-            handleModelSwitch(pending.spec, confirmExpensive = true)
-        }
-    }
+    fun confirmModelSwitchExpensive() = modelSwitchDelegate.confirmModelSwitchExpensive()
 
-    /**
-     * Set the reasoning effort level for the current session.
-     *
-     * Updates the UI optimistically and sends a `config.set` RPC to the
-     * backend. The level applies per-session via the runtime session ID.
-     * If [level] is null it resets to the model's default.
-     *
-     * @param level One of "low", "medium", "high", or null for default.
-     */
-    fun setReasoningLevel(level: String?) {
-        _uiState.update { it.copy(reasoningLevel = level) }
-        val sessionId = runtimeSessionId ?: return
-        if (level == null) return // null = model default, no need to send WS
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.send(
-                WsMethods.CONFIG_SET,
-                mapOf(
-                    "key" to "reasoning",
-                    "value" to level,
-                    "session_id" to sessionId,
-                ),
-                onSent = { id -> trackRequest(id, WsMethods.CONFIG_SET) },
-            )
-        }
-    }
+    fun setReasoningLevel(level: String?) = modelSwitchDelegate.setReasoningLevel(level)
+
+    fun toggleFastMode() = modelSwitchDelegate.toggleFastMode()
 
     fun getModelCapabilities(
         providerSlug: String,
         modelName: String,
-    ): ModelCapabilities? = cachedModelOptions.find { it.slug == providerSlug }?.capabilities?.get(modelName)
+    ): ModelCapabilities? = modelSwitchDelegate.getModelCapabilities(providerSlug, modelName)
 
-    fun getCurrentModelCapabilities(): ModelCapabilities? {
-        val label = _uiState.value.currentSessionModel ?: return null
-        val idx = label.indexOf('/')
-        if (idx <= 0) return null
-        val provider = label.substring(0, idx)
-        val model = label.substring(idx + 1)
-        return getModelCapabilities(provider, model)
-    }
-
-    private fun syncCurrentModelCapabilities() {
-        val label = _uiState.value.currentSessionModel
-        val caps =
-            if (label == null) {
-                null
-            } else {
-                val idx = label.indexOf('/')
-                if (idx <= 0) {
-                    null
-                } else {
-                    val provider = label.substring(0, idx)
-                    val model = label.substring(idx + 1)
-                    cachedModelOptions.find { it.slug == provider }?.capabilities?.get(model)
-                }
-            }
-        _uiState.update { state ->
-            if (state.currentModelCapabilities != caps) state.copy(currentModelCapabilities = caps) else state
-        }
-    }
+    fun getCurrentModelCapabilities(): ModelCapabilities? = modelSwitchDelegate.getCurrentModelCapabilities()
 
     fun switchSession(sessionId: String) {
         if (sessionId == _uiState.value.currentSessionId) return
@@ -2701,6 +2412,7 @@ class ChatViewModel(
                 .find { it.id == sessionId }
                 ?.title ?: "Hermes"
         val generation = resetSessionState(sessionId, title, isLoading = true)
+        AuthManager.setLastOpenedSessionId(sessionId)
         viewModelScope.launch {
             // Warm-cache fast-path (desktop parity): paint the cached Room
             // transcript immediately so the screen never sits blank, then load
@@ -2894,6 +2606,11 @@ class ChatViewModel(
     ): Long {
         val generation = ++sessionGeneration
         cancelResumeRetry()
+        contextUsageJob?.cancel()
+        contextUsageJob = null
+        modelGeneration++
+        lastConfirmedSessionModel = null
+        modelSwitchDelegate.reset()
         resumedGeneration = -1L
         hydratedGeneration = -1L
         runtimeSessionId = null
@@ -2928,6 +2645,8 @@ class ChatViewModel(
                 currentSessionModel = null,
                 currentModelCapabilities = null,
                 reasoningLevel = null,
+                fastMode = false,
+                isFastModeChanging = false,
                 terminalBackend = null,
                 usedContextTokens = null,
                 fullContextTokens = null,
@@ -3051,6 +2770,9 @@ class ChatViewModel(
         }
         sessionGoneRecoveryInFlight = true
         cancelResumeRetry()
+        if (AuthManager.getLastOpenedSessionId() == sessionId) {
+            AuthManager.clearLastOpenedSessionId()
+        }
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -3374,6 +3096,57 @@ class ChatViewModel(
         }
     }
 
+    internal fun onModelSwitchInitiated() {
+        modelGeneration++
+        contextUsageJob?.cancel()
+        contextUsageJob = null
+        _uiState.update { it.copy(fullContextTokens = null) }
+    }
+
+    private fun isCurrentContextFetch(
+        sessionId: String,
+        targetSessionGeneration: Long,
+        targetModelGeneration: Long,
+        targetRequestSequence: Long,
+    ): Boolean =
+        targetSessionGeneration == sessionGeneration &&
+            targetModelGeneration == modelGeneration &&
+            targetRequestSequence == contextFetchSequence &&
+            _uiState.value.currentSessionId == sessionId
+
+    internal fun isMatchingModel(
+        currentModel: String?,
+        info: com.m57.hermescontrol.data.model.ModelInfoResponse?,
+    ): Boolean {
+        if (currentModel.isNullOrBlank() || info == null || info.model.isNullOrBlank()) {
+            return false
+        }
+        val restModel = info.model
+        val restProvider = info.provider
+        return if (currentModel.contains('/')) {
+            val curProvider = currentModel.substringBefore('/')
+            val curModel = currentModel.substringAfter('/')
+            if (!restProvider.isNullOrBlank()) {
+                curProvider.equals(restProvider, ignoreCase = true) &&
+                    curModel.equals(restModel, ignoreCase = true)
+            } else {
+                curModel.equals(restModel, ignoreCase = true)
+            }
+        } else {
+            currentModel.equals(restModel, ignoreCase = true)
+        }
+    }
+
+    internal fun isMatchingRpcModel(
+        currentModel: String?,
+        rpcModel: String?,
+    ): Boolean {
+        if (currentModel.isNullOrBlank() || rpcModel.isNullOrBlank()) return false
+        if (currentModel.equals(rpcModel, ignoreCase = true)) return true
+        return currentModel.contains('/') &&
+            currentModel.substringAfter('/').equals(rpcModel, ignoreCase = true)
+    }
+
     /**
      * Refresh the context meter: used / full tokens for the current session.
      *
@@ -3399,105 +3172,211 @@ class ChatViewModel(
     fun fetchContextUsage(skipRestFallback: Boolean = false) {
         val sessionId = _uiState.value.currentSessionId ?: return
         val profile = AuthManager.activeProfileId.value
-        viewModelScope.launch(ioDispatcher) {
-            // Denominator fallback: full context window (cheap, public, rarely
-            // changes). The RPC's context_max below overrides it when present.
-            // Kept as a local (not a state write) so both sources resolve
-            // before ONE atomic update below (issue #817 — two independent
-            // writes let a stale pre-swap value override a fresh one mid-swap).
-            val fullResult =
-                safeApiCall { ApiClient.hermesApi.getModelInfo() }
-            val restFull =
-                if (fullResult is NetworkResult.Success) {
-                    fullResult.data.effective_context_length
-                        ?: fullResult.data.auto_context_length
-                        ?: fullResult.data.config_context_length
-                } else {
-                    null
+        val targetSessionGeneration = sessionGeneration
+        val targetModelGeneration = modelGeneration
+        val targetRequestSequence = ++contextFetchSequence
+        val isSwitchPending = modelSwitchDelegate.isSwitchPending()
+
+        contextUsageJob?.cancel()
+        contextUsageJob =
+            viewModelScope.launch(ioDispatcher) {
+                // Denominator fallback: full context window (cheap, public, rarely
+                // changes). The RPC's context_max below overrides it when present.
+                // Kept as a local (not a state write) so both sources resolve
+                // before ONE atomic update below (issue #817 — two independent
+                // writes let a stale pre-swap value override a fresh one mid-swap).
+                val fullResult =
+                    safeApiCall { ApiClient.hermesApi.getModelInfo() }
+                coroutineContext.ensureActive()
+                if (!isCurrentContextFetch(
+                        sessionId,
+                        targetSessionGeneration,
+                        targetModelGeneration,
+                        targetRequestSequence,
+                    )
+                ) {
+                    return@launch
                 }
-            // Numerator: live context occupancy from the gateway's live agent,
-            // via the same RPC the desktop meter uses. `context_used` is the
-            // real current prompt size (drops after compression); `context_max`
-            // is the compressor's actual window. Any failure keeps the last
-            // known values — never blank the meter over a transient RPC error.
-            //
-            // These RPCs resolve the session against the gateway's LIVE runtime
-            // registry (_sess_nowait) — the storage session id 4001s "session
-            // not found" until session.resume has registered it. ChatScreen's
-            // sync effect fires this immediately on session switch, before the
-            // resume result lands, so skip the RPCs until resume confirms the
-            // runtime id. The REST parts below stay live (they key on the
-            // storage id).
-            var rpcUsed: Long? = null
-            var rpcMax: Long? = null
-            val rpcSessionId = runtimeSessionId
-            if (rpcSessionId != null) {
-                try {
-                    val result =
-                        sendRpcAndAwait(
-                            WsMethods.SESSION_CONTEXT_BREAKDOWN,
-                            mapOf("session_id" to rpcSessionId),
-                        )
-                    val ctx = parseContextBreakdown(result)
-                    if (ctx != null) {
-                        rpcUsed = ctx.contextUsed?.takeIf { it > 0L }
-                        rpcMax = ctx.contextMax?.takeIf { it > 0L }
+                val restFull =
+                    if (fullResult is NetworkResult.Success && !isSwitchPending) {
+                        val info = fullResult.data
+                        val currentModel = _uiState.value.currentSessionModel
+                        // Issue #1103: only use profile REST model/info as fallback if it
+                        // matches the current session model identity. If the session was switched to
+                        // another model (e.g. Solar, Gemini), the profile-level model/info describes
+                        // a different model and must never poison the session's context window.
+                        if (isMatchingModel(currentModel, info)) {
+                            info.effective_context_length
+                                ?: info.auto_context_length
+                                ?: info.config_context_length
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
                     }
-                } catch (_: Exception) {
-                    // Best-effort: RPC error/timeout/disconnect — keep last values.
+                // Numerator: live context occupancy from the gateway's live agent,
+                // via the same RPC the desktop meter uses. `context_used` is the
+                // real current prompt size (drops after compression); `context_max`
+                // is the compressor's actual window. Any failure keeps the last
+                // known values — never blank the meter over a transient RPC error.
+                //
+                // These RPCs resolve the session against the gateway's LIVE runtime
+                // registry (_sess_nowait) — the storage session id 4001s "session
+                // not found" until session.resume has registered it. ChatScreen's
+                // sync effect fires this immediately on session switch, before the
+                // resume result lands, so skip the RPCs until resume confirms the
+                // runtime id. The REST parts below stay live (they key on the
+                // storage id).
+                var rpcUsed: Long? = null
+                var rpcMax: Long? = null
+                val rpcSessionId = runtimeSessionId
+                if (rpcSessionId != null) {
+                    try {
+                        val result =
+                            sendRpcAndAwait(
+                                WsMethods.SESSION_CONTEXT_BREAKDOWN,
+                                mapOf("session_id" to rpcSessionId),
+                            )
+                        coroutineContext.ensureActive()
+                        val ctx = parseContextBreakdown(result)
+                        if (ctx != null) {
+                            val currentModel = _uiState.value.currentSessionModel
+                            val modelMatches =
+                                if (ctx.model != null) {
+                                    isMatchingRpcModel(currentModel, ctx.model)
+                                } else {
+                                    !isSwitchPending
+                                }
+                            if (modelMatches) {
+                                rpcUsed = ctx.contextUsed?.takeIf { it > 0L }
+                                rpcMax = ctx.contextMax?.takeIf { it > 0L }
+                            }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        // Best-effort: RPC error/timeout/disconnect — keep last values.
+                    }
+                    if (!isCurrentContextFetch(
+                            sessionId,
+                            targetSessionGeneration,
+                            targetModelGeneration,
+                            targetRequestSequence,
+                        )
+                    ) {
+                        return@launch
+                    }
+                    // Compression count: how many times this session has been compacted
+                    // (session.usage → compressions). Feeds the "compressed ×N" badge —
+                    // the same usage snapshot the desktop status bar reads.
+                    if (!isSwitchPending) {
+                        try {
+                            val usage =
+                                sendRpcAndAwait(
+                                    WsMethods.SESSION_USAGE,
+                                    mapOf("session_id" to rpcSessionId),
+                                )
+                            coroutineContext.ensureActive()
+                            val snapshot = parseUsageSnapshot(usage)
+                            if (snapshot != null && snapshot.compressions != null) {
+                                _uiState.update { current ->
+                                    if (!isCurrentContextFetch(
+                                            sessionId,
+                                            targetSessionGeneration,
+                                            targetModelGeneration,
+                                            targetRequestSequence,
+                                        )
+                                    ) {
+                                        current
+                                    } else {
+                                        current.copy(compressionCount = snapshot.compressions)
+                                    }
+                                }
+                            }
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            // Best-effort: keep the last known badge value.
+                        }
+                    }
                 }
-                // Compression count: how many times this session has been compacted
-                // (session.usage → compressions). Feeds the "compressed ×N" badge —
-                // the same usage snapshot the desktop status bar reads.
-                try {
-                    val usage =
-                        sendRpcAndAwait(
-                            WsMethods.SESSION_USAGE,
-                            mapOf("session_id" to rpcSessionId),
+                coroutineContext.ensureActive()
+                if (!isCurrentContextFetch(
+                        sessionId,
+                        targetSessionGeneration,
+                        targetModelGeneration,
+                        targetRequestSequence,
+                    )
+                ) {
+                    return@launch
+                }
+                // Issue #817 & #1103: single atomic denominator write. The RPC's live
+                // context_max wins, REST model/info is the fallback, and a stale
+                // value from a pre-swap fetch can never overwrite a fresh one —
+                // the meter always shows ONE coherent window.
+                _uiState.update { current ->
+                    if (!isCurrentContextFetch(
+                            sessionId,
+                            targetSessionGeneration,
+                            targetModelGeneration,
+                            targetRequestSequence,
                         )
-                    val snapshot = parseUsageSnapshot(usage)
-                    if (snapshot != null && snapshot.compressions != null) {
-                        _uiState.update { it.copy(compressionCount = snapshot.compressions) }
+                    ) {
+                        current
+                    } else {
+                        val fallbackFull =
+                            if (skipRestFallback) current.fullContextTokens else restFull ?: current.fullContextTokens
+                        current.copy(
+                            usedContextTokens = rpcUsed ?: current.usedContextTokens,
+                            fullContextTokens = rpcMax ?: fallbackFull,
+                        )
                     }
-                } catch (_: Exception) {
-                    // Best-effort: keep the last known badge value.
+                }
+                // Detail-sheet accounting (cumulative REST counters, informational).
+                coroutineContext.ensureActive()
+                if (!isCurrentContextFetch(
+                        sessionId,
+                        targetSessionGeneration,
+                        targetModelGeneration,
+                        targetRequestSequence,
+                    )
+                ) {
+                    return@launch
+                }
+                val usedResult =
+                    safeApiCall { ApiClient.hermesApi.getSessionDetail(sessionId, profile) }
+                coroutineContext.ensureActive()
+                if (usedResult is NetworkResult.Success) {
+                    val d = usedResult.data
+                    val used = d.input_tokens
+                    if (used != null) {
+                        _uiState.update { current ->
+                            if (!isCurrentContextFetch(
+                                    sessionId,
+                                    targetSessionGeneration,
+                                    targetModelGeneration,
+                                    targetRequestSequence,
+                                )
+                            ) {
+                                current
+                            } else {
+                                current.copy(
+                                    contextBreakdown =
+                                        ContextBreakdown(
+                                            inputTokens = used,
+                                            outputTokens = d.output_tokens ?: 0L,
+                                            cacheReadTokens = d.cache_read_tokens ?: 0L,
+                                            cacheWriteTokens = d.cache_write_tokens ?: 0L,
+                                            reasoningTokens = d.reasoning_tokens ?: 0L,
+                                            messageCount = d.message_count ?: 0,
+                                        ),
+                                )
+                            }
+                        }
+                    }
                 }
             }
-            // Issue #817: single atomic denominator write. The RPC's live
-            // context_max wins, REST model/info is the fallback, and a stale
-            // value from a pre-swap fetch can never overwrite a fresh one —
-            // the meter always shows ONE coherent window.
-            _uiState.update { current ->
-                val fallbackFull =
-                    if (skipRestFallback) current.fullContextTokens else restFull ?: current.fullContextTokens
-                current.copy(
-                    usedContextTokens = rpcUsed ?: current.usedContextTokens,
-                    fullContextTokens = rpcMax ?: fallbackFull,
-                )
-            }
-            // Detail-sheet accounting (cumulative REST counters, informational).
-            val usedResult =
-                safeApiCall { ApiClient.hermesApi.getSessionDetail(sessionId, profile) }
-            if (usedResult is NetworkResult.Success) {
-                val d = usedResult.data
-                val used = d.input_tokens
-                if (used != null) {
-                    _uiState.update {
-                        it.copy(
-                            contextBreakdown =
-                                ContextBreakdown(
-                                    inputTokens = used,
-                                    outputTokens = d.output_tokens ?: 0L,
-                                    cacheReadTokens = d.cache_read_tokens ?: 0L,
-                                    cacheWriteTokens = d.cache_write_tokens ?: 0L,
-                                    reasoningTokens = d.reasoning_tokens ?: 0L,
-                                    messageCount = d.message_count ?: 0,
-                                ),
-                        )
-                    }
-                }
-            }
-        }
     }
 
     private suspend fun fetchServerMessageCount(
@@ -3642,110 +3521,12 @@ class ChatViewModel(
         }
     }
 
-    fun respondToClarify(option: String) {
-        val clarify = _uiState.value.clarifyRequest
-        // Only use synthesized qid when this is a true batch or legacy with explicit qid.
-        val qid =
-            if (clarify != null &&
-                (clarify.questionId != null || clarify.questions.isNotEmpty())
-            ) {
-                clarify.resolvedQuestions.firstOrNull()?.qid ?: clarify.questionId
-            } else {
-                null
-            }
-        if (qid != null && clarify?.resolvedQuestions?.size == 1) {
-            respondToClarifyBatch(mapOf(qid to option))
-        } else {
-            respondToClarifyBatch(emptyMap(), singleFallbackAnswer = option)
-        }
-    }
+    fun respondToClarify(option: String) = clarifyDelegate.respondToClarify(option)
 
     fun respondToClarifyBatch(
         answers: Map<String, String>,
         singleFallbackAnswer: String? = null,
-    ) {
-        val sessionId = _uiState.value.currentSessionId ?: return
-        val clarify = _uiState.value.clarifyRequest
-        val clarifyId = clarify?.clarifyId
-        val isBatch = !clarify?.questions.isNullOrEmpty()
-        val questions = clarify?.resolvedQuestions.orEmpty()
-        _uiState.update { it.copy(clarifyRequest = null) }
-
-        val displayContent =
-            if (questions.size > 1) {
-                questions
-                    .mapIndexed { index, q ->
-                        val ans = answers[q.qid]?.trim().orEmpty()
-                        "${index + 1}. ${ans.ifEmpty { "(Skipped)" }}"
-                    }.joinToString("\n")
-            } else {
-                val loneAns = answers.values.firstOrNull()?.trim() ?: singleFallbackAnswer?.trim().orEmpty()
-                loneAns
-            }
-
-        val userMessage =
-            ChatMessage(
-                role = MessageRole.USER,
-                content = displayContent,
-            )
-
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages + userMessage,
-                isAgentTyping = true,
-            )
-        }
-
-        viewModelScope.launch(ioDispatcher) {
-            repo.persistMessage(userMessage, sessionId)
-        }
-
-        viewModelScope.launch(ioDispatcher) {
-            if (isBatch) {
-                for (q in questions) {
-                    val ans = answers[q.qid]?.trim().orEmpty()
-                    val params =
-                        mutableMapOf<String, Any>(
-                            "session_id" to sessionId,
-                            "response" to ans,
-                            "answer" to ans,
-                            "question_id" to q.qid,
-                        )
-                    if (clarifyId != null) {
-                        params["clarify_id"] = clarifyId
-                        params["request_id"] = clarifyId
-                    }
-                    wsClient.send(
-                        method = WsMethods.CLARIFY_RESPOND,
-                        params = params,
-                        onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-                    )
-                }
-            } else {
-                // Legacy single: only include question_id when explicitly present.
-                val qid = clarify?.questionId
-                val ans = answers.values.firstOrNull() ?: singleFallbackAnswer.orEmpty()
-                val params =
-                    mutableMapOf<String, Any>(
-                        "session_id" to sessionId,
-                        "response" to ans,
-                        "answer" to ans,
-                    )
-                if (clarifyId != null) {
-                    params["clarify_id"] = clarifyId
-                    params["request_id"] = clarifyId
-                }
-                if (qid != null) {
-                    params["question_id"] = qid
-                }
-                wsClient.send(
-                    method = WsMethods.CLARIFY_RESPOND,
-                    params = params,
-                    onSent = { id -> trackRequest(id, WsMethods.CLARIFY_RESPOND) },
-                )
-            }
-        }
-    }
+    ) = clarifyDelegate.respondToClarifyBatch(answers, singleFallbackAnswer)
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
@@ -3762,332 +3543,34 @@ class ChatViewModel(
 
     // ── Approval flow ───────────────────────────────────────────────────
 
-    private fun handleApprovalRequest(event: WsEvent.ApprovalRequest) {
-        val description = event.description ?: event.command ?: "Unknown command"
-        val content = "**Approval Required**\n$description"
-        val msg =
-            ChatMessage(
-                role = MessageRole.SYSTEM,
-                content = content,
-                approvalInfo =
-                    ApprovalInfo(
-                        command = event.command,
-                        description = event.description,
-                        patternKeys = event.patternKeys,
-                        requestId = event.requestId,
-                        choices = event.choices,
-                        allowPermanent = event.allowPermanent,
-                        smartDenied = event.smartDenied,
-                    ),
-            )
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages + msg,
-                isAgentTyping = false,
-            )
-        }
-        // Desktop parity (`prompts.ts` receiveApprovalRequest): ack the render
-        // so the backend knows this client holds the prompt. Fire-and-forget.
-        val requestId = event.requestId
-        val sessionId = runtimeSessionId ?: event.sessionId ?: _uiState.value.currentSessionId
-        if (requestId != null && sessionId != null) {
-            viewModelScope.launch(ioDispatcher) {
-                runCatching {
-                    wsClient.send(
-                        method = WsMethods.APPROVAL_RECEIVED,
-                        params =
-                            mapOf(
-                                "session_id" to sessionId,
-                                "request_id" to requestId,
-                            ),
-                    )
-                }
-            }
-        }
-    }
-
-    /**
-     * Convert a backend approval map (snake_case, from `approval.pending` or
-     * `session.info` `pending_approval`) into a typed event. Mirrors
-     * [EventParser] defaults so replay and live paths agree.
-     */
-    private fun parseApprovalMap(
-        map: Map<*, *>,
-        sessionId: String?,
-    ): WsEvent.ApprovalRequest {
-        @Suppress("UNCHECKED_CAST")
-        val patternKeys = (map["pattern_keys"] as? List<*>)?.filterIsInstance<String>()
-
-        @Suppress("UNCHECKED_CAST")
-        val rawChoices = (map["choices"] as? List<*>)?.filterIsInstance<String>()
-        val allowPermanent = map["allow_permanent"] as? Boolean
-        val allowSession = map["allow_session"] as? Boolean
-        val smartDenied = map["smart_denied"] as? Boolean
-        val choices =
-            rawChoices ?: run {
-                if (smartDenied == true) {
-                    listOf("once", "deny")
-                } else {
-                    buildList {
-                        add("once")
-                        if (allowSession != false) {
-                            add("session")
-                            if (allowPermanent != false) add("always")
-                        }
-                        add("deny")
-                    }
-                }
-            }
-        return WsEvent.ApprovalRequest(
-            command = map["command"] as? String,
-            description = map["description"] as? String,
-            patternKeys = patternKeys,
-            sessionId = sessionId,
-            requestId = map["request_id"] as? String,
-            choices = choices,
-            allowPermanent = allowPermanent,
-            smartDenied = smartDenied,
-        )
-    }
-
-    /**
-     * Reconnect replay (desktop `replayPendingApproval` parity): ask the
-     * gateway for unresolved approvals and surface the oldest one. Called
-     * after resume and after each respond (the queue can hold more).
-     */
-    private fun replayPendingApproval(sessionId: String) {
-        val targetSessionId = runtimeSessionId ?: sessionId
-        viewModelScope.launch(ioDispatcher) {
-            wsClient.send(
-                method = WsMethods.APPROVAL_PENDING,
-                params = mapOf("session_id" to targetSessionId),
-                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_PENDING) },
-            )
-        }
-    }
-
-    private fun handleApprovalPendingResult(result: Any?) {
-        @Suppress("UNCHECKED_CAST")
-        val approvals = (result as? Map<*, *>)?.get("approvals") as? List<*>
-        val first = approvals?.filterIsInstance<Map<*, *>>()?.firstOrNull() ?: return
-        val requestId = first["request_id"] as? String ?: return
-        val sessionId = runtimeSessionId ?: _uiState.value.currentSessionId
-        // Don't duplicate a prompt already on screen.
-        val alreadyShown =
-            _uiState.value.messages.any { it.approvalInfo?.requestId == requestId }
-        if (alreadyShown) return
-        handleApprovalRequest(parseApprovalMap(first, sessionId))
-    }
-
-    fun respondToApproval(action: String) {
-        val state = _uiState.value
-        val approvalMsg = state.messages.lastOrNull { it.approvalInfo != null } ?: return
-        val sessionId = runtimeSessionId ?: state.currentSessionId ?: return
-        // Desktop sends `once` for a single run; legacy mobile sent `approve`
-        // (any non-deny still unblocks, but stay on-spec going forward).
-        val choice = if (action == "approve") "once" else action
-        val requestId = approvalMsg.approvalInfo?.requestId
-
-        // Clear buttons immediately
-        _uiState.update { s ->
-            s.copy(
-                messages =
-                    s.messages.map {
-                        if (it.id == approvalMsg.id) {
-                            it.copy(approvalInfo = null)
-                        } else {
-                            it
-                        }
-                    },
-            )
-        }
-
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "choice" to choice,
-                    "all" to false,
-                )
-            if (requestId != null) params["request_id"] = requestId
-            wsClient.send(
-                method = WsMethods.APPROVAL_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.APPROVAL_RESPOND) },
-            )
-            // The queue can hold more pendings — surface the next one.
-            replayPendingApproval(sessionId)
-        }
-    }
+    fun respondToApproval(action: String) = approvalsDelegate.respondToApproval(action)
 
     // ── Sudo / secret prompt flow (issue #524) ──────────────────────────
 
-    /**
-     * The agent needs the user's sudo password. Previously dropped → agent
-     * hung forever. Now we surface a secure dialog and reply via sudo.respond.
-     */
-    private fun handleSudoRequest(event: WsEvent.SudoRequest) {
-        _uiState.update {
-            it.copy(
-                sudoPrompt = SudoPromptUi(event.requestId, event.sessionId),
-                isAgentTyping = false,
-            )
-        }
-    }
+    fun dismissSudo() = credentialPromptsDelegate.dismissSudo()
 
-    /**
-     * Backend sudo timeout (120s) — clear only the matching dialog so a
-     * late expire for an old prompt never kills the current one.
-     * Desktop parity: `patchOverlayState(prev => prev.sudo?.requestId === id ? null : prev)`.
-     */
-    private fun handleSudoExpire(event: WsEvent.SudoExpire) {
-        _uiState.update { state ->
-            val current = state.sudoPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
-                return@update state
-            }
-            state.copy(sudoPrompt = null)
-        }
-    }
+    fun dismissSecret() = credentialPromptsDelegate.dismissSecret()
 
-    /**
-     * The agent needs a secret value (token/password). Previously dropped →
-     * agent hung forever. Now we surface a secure dialog and reply via
-     * secret.respond.
-     */
-    private fun handleSecretRequest(event: WsEvent.SecretRequest) {
-        _uiState.update {
-            it.copy(
-                secretPrompt =
-                    SecretPromptUi(
-                        event.requestId,
-                        event.sessionId,
-                        event.envVar,
-                        event.prompt,
-                    ),
-                isAgentTyping = false,
-            )
-        }
-    }
+    fun respondToSudo(password: String) = credentialPromptsDelegate.respondToSudo(password)
 
-    /**
-     * Backend secret timeout — match-only clear like [handleSudoExpire].
-     */
-    private fun handleSecretExpire(event: WsEvent.SecretExpire) {
-        _uiState.update { state ->
-            val current = state.secretPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
-                return@update state
-            }
-            state.copy(secretPrompt = null)
-        }
-    }
+    fun respondToSecret(value: String) = credentialPromptsDelegate.respondToSecret(value)
 
-    /**
-     * Cancel → send empty password (desktop parity:
-     * `prompt-overlays.tsx` `send('')`). Backend treats empty sudo as
-     * failed sudo (no command runs), so closing the dialog is a safe
-     * refusal that unblocks the turn instantly instead of hanging 120s
-     * until `sudo.expire`.
-     */
-    fun dismissSudo() {
-        val prompt = _uiState.value.sudoPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
-        _uiState.update { it.copy(sudoPrompt = null) }
-        if (sessionId == null) return
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "password" to "",
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SUDO_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SUDO_RESPOND) },
-            )
-        }
-    }
+    // ── Vault prompt flow (issue #1090) ──────────────────────────────────
 
-    /**
-     * Cancel → send empty value (desktop parity). Backend `secret_cb`
-     * returns `skipped=True` on empty, unblocking the turn instantly.
-     */
-    fun dismissSecret() {
-        val prompt = _uiState.value.secretPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId
-        _uiState.update { it.copy(secretPrompt = null) }
-        if (sessionId == null) return
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "value" to "",
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SECRET_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SECRET_RESPOND) },
-            )
-        }
-    }
+    fun dismissVaultUnlock() = credentialPromptsDelegate.dismissVaultUnlock()
 
-    /**
-     * Send the user's sudo password back to the gateway. Mirrors
-     * respondToApproval: clear the prompt immediately, then fire the RPC.
-     */
-    fun respondToSudo(password: String) {
-        val prompt = _uiState.value.sudoPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
-        if (password.isBlank()) return
+    fun respondToVaultUnlock(password: String) = credentialPromptsDelegate.respondToVaultUnlock(password)
 
-        _uiState.update { it.copy(sudoPrompt = null) }
+    fun dismissVaultSaveLogin() = credentialPromptsDelegate.dismissVaultSaveLogin()
 
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "password" to password,
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SUDO_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SUDO_RESPOND) },
-            )
-        }
-    }
+    fun respondToVaultSaveLogin(
+        identifier: String,
+        password: String,
+    ) = credentialPromptsDelegate.respondToVaultSaveLogin(identifier, password)
 
-    /**
-     * Send the user's secret value back to the gateway. Mirrors respondToSudo.
-     */
-    fun respondToSecret(value: String) {
-        val prompt = _uiState.value.secretPrompt ?: return
-        val sessionId = prompt.sessionId ?: _uiState.value.currentSessionId ?: return
-        if (value.isBlank()) return
+    fun dismissVaultCode() = credentialPromptsDelegate.dismissVaultCode()
 
-        _uiState.update { it.copy(secretPrompt = null) }
-
-        viewModelScope.launch(ioDispatcher) {
-            val params =
-                mutableMapOf<String, Any>(
-                    "session_id" to sessionId,
-                    "value" to value,
-                )
-            prompt.requestId?.let { id -> params["request_id"] = id }
-            wsClient.send(
-                method = WsMethods.SECRET_RESPOND,
-                params = params,
-                onSent = { id -> trackRequest(id, WsMethods.SECRET_RESPOND) },
-            )
-        }
-    }
+    fun respondToVaultCode(code: String) = credentialPromptsDelegate.respondToVaultCode(code)
 
     fun reconnect() {
         _uiState.update {
@@ -4111,95 +3594,18 @@ class ChatViewModel(
         password: String,
         onResult: (Boolean, String?) -> Unit,
     ) {
-        viewModelScope.launch(ioDispatcher) {
-            val endpoint = AuthManager.endpointForBuild()
-            val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-            val jsonBody =
-                JSONObject()
-                    .put("provider", "basic")
-                    .put("username", username)
-                    .put("password", password)
-                    .put("next", "")
-                    .toString()
-
-            try {
-                val loginClient =
-                    com.m57.hermescontrol.data.remote.OkHttpProvider.probe
-                        .newBuilder()
-                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
-
-                val loginReq =
-                    Request
-                        .Builder()
-                        .url(endpoint.resolve("auth/password-login").toString())
-                        .header("Content-Type", "application/json")
-                        .post(jsonBody.toRequestBody(jsonMediaType))
-                        .build()
-                loginClient.newCall(loginReq).execute().use { loginResp ->
-                    if (!loginResp.isSuccessful) {
-                        val msg =
-                            when (loginResp.code) {
-                                401 -> "Invalid username or password (401)"
-                                403 -> "Forbidden (403)"
-                                else -> "HTTP error code: ${loginResp.code}"
-                            }
-                        withContext(Dispatchers.Main) {
-                            onResult(false, msg)
-                        }
-                        return@launch
-                    }
-                }
-
-                val ticketClient =
-                    com.m57.hermescontrol.data.remote.OkHttpProvider.base
-                        .newBuilder()
-                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
-
-                val ticketReq =
-                    Request
-                        .Builder()
-                        .url(endpoint.resolve("api/auth/ws-ticket").toString())
-                        .post("{}".toRequestBody(jsonMediaType))
-                        .build()
-                ticketClient.newCall(ticketReq).execute().use { ticketResp ->
-                    if (!ticketResp.isSuccessful) {
-                        withContext(Dispatchers.Main) {
-                            onResult(false, "Failed to mint WS ticket: HTTP ${ticketResp.code}")
-                        }
-                        return@launch
-                    }
-
-                    val body = ticketResp.body.string()
-                    val ticket = JSONObject(body).optString("ticket").takeIf { it.isNotBlank() }
-
-                    if (ticket.isNullOrBlank()) {
-                        withContext(Dispatchers.Main) {
-                            onResult(false, "Invalid ticket returned from server")
-                        }
-                        return@launch
-                    }
-
-                    AuthManager.setWsAuthParam("ticket")
-                    AuthManager.setToken(ticket)
-
-                    withContext(Dispatchers.Main) {
-                        onResult(true, null)
-                        reconnect()
-                    }
-                }
-            } catch (e: java.io.IOException) {
-                withContext(Dispatchers.Main) {
-                    onResult(false, "Connection failed: ${e.message}")
-                }
-            } catch (e: org.json.JSONException) {
-                withContext(Dispatchers.Main) {
-                    onResult(false, "Connection failed: ${e.message}")
-                }
-            }
+        viewModelScope.launch {
+            reloginAuthenticator.relogin(
+                username = username,
+                password = password,
+                onSuccess = {
+                    onResult(true, null)
+                    reconnect()
+                },
+                onFailure = { msg ->
+                    onResult(false, msg)
+                },
+            )
         }
     }
 
@@ -4297,6 +3703,7 @@ class ChatViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        subagentsDelegate.closeSubagentTranscript()
         // PERF-16: Don't disconnect the global HermesWsClient singleton when
         // leaving the Chat screen — it's used by background notification reply.
     }

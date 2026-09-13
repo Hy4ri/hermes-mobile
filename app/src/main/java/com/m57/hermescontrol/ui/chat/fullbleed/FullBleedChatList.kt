@@ -28,9 +28,15 @@ import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.ClarifyUi
 import com.m57.hermescontrol.ui.chat.ImageViewerModel
 import com.m57.hermescontrol.ui.chat.ToolCallDivider
+import com.m57.hermescontrol.ui.chat.VaultCodePromptUi
+import com.m57.hermescontrol.ui.chat.VaultSaveLoginPromptUi
+import com.m57.hermescontrol.ui.chat.VaultUnlockPromptUi
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
 import com.m57.hermescontrol.ui.chat.components.ClarifyBubble
 import com.m57.hermescontrol.ui.chat.components.ReasoningCard
+import com.m57.hermescontrol.ui.chat.components.VaultCodeCard
+import com.m57.hermescontrol.ui.chat.components.VaultSaveLoginCard
+import com.m57.hermescontrol.ui.chat.components.VaultUnlockCard
 import com.m57.hermescontrol.ui.chat.toolCallMilestones
 import com.m57.hermescontrol.ui.common.EmptyState
 
@@ -69,6 +75,15 @@ fun FullBleedChatList(
     onRespondClarify: ((String) -> Unit)? = null,
     onRespondClarifyBatch: ((Map<String, String>) -> Unit)? = null,
     onDismissClarify: (() -> Unit)? = null,
+    vaultUnlockPrompt: VaultUnlockPromptUi? = null,
+    onRespondVaultUnlock: ((String) -> Unit)? = null,
+    onDismissVaultUnlock: (() -> Unit)? = null,
+    vaultSaveLoginPrompt: VaultSaveLoginPromptUi? = null,
+    onRespondVaultSaveLogin: ((String, String) -> Unit)? = null,
+    onDismissVaultSaveLogin: (() -> Unit)? = null,
+    vaultCodePrompt: VaultCodePromptUi? = null,
+    onRespondVaultCode: ((String) -> Unit)? = null,
+    onDismissVaultCode: (() -> Unit)? = null,
     onSaveAttachment: (com.m57.hermescontrol.data.model.Attachment) -> Unit = {},
     savingAttachmentPath: String? = null,
     openingAttachmentPath: String? = null,
@@ -85,7 +100,7 @@ fun FullBleedChatList(
             )
         }
     } else {
-        val toolMilestones = toolCallMilestones(messages)
+        val toolMilestones = remember(messages) { toolCallMilestones(messages) }
         val turns =
             remember(messages, streamingMessage) {
                 groupIntoTurnsWithStreaming(messages, streamingMessage)
@@ -148,14 +163,12 @@ fun FullBleedChatList(
                     }
                 }
 
-                var entryIndex = 0
                 turns.forEach { turn ->
                     when (turn) {
                         is ChatTurn.User -> {
                             // Eager captures: item lambda reads these at
                             // composition time (lazy), so capture now.
                             val userMessage = turn.message
-                            val milestone = toolMilestones[entryIndex]
                             item(key = "user-${userMessage.id}") {
                                 Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                     renderChatBubble(
@@ -170,12 +183,8 @@ fun FullBleedChatList(
                                         openingAttachmentPath = openingAttachmentPath,
                                         onImageClick = onImageClick,
                                     )
-                                    milestone?.let { count ->
-                                        ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
-                                    }
                                 }
                             }
-                            entryIndex++
                         }
 
                         is ChatTurn.Agent -> {
@@ -210,7 +219,6 @@ fun FullBleedChatList(
                                         val hoistedReasoning =
                                             turnReasoning != null &&
                                                 proseMessage.id == turnReasoning.message.id
-                                        val milestone = toolMilestones[entryIndex]
                                         item(key = "prose-${proseMessage.id}") {
                                             Column(modifier = Modifier.padding(bottom = 12.dp)) {
                                                 if (proseMessage.isStreaming && typingEffectEnabled) {
@@ -248,18 +256,14 @@ fun FullBleedChatList(
                                                         onImageClick = onImageClick,
                                                     )
                                                 }
-                                                milestone?.let { count ->
-                                                    ToolCallDivider(count = count, maxPerTurn = maxToolCallsPerTurn)
-                                                }
                                             }
                                         }
                                         firstProseSeen = true
-                                        entryIndex++
                                     }
 
                                     is AgentEntry.ToolRow -> {
                                         val toolMessage = entry.message
-                                        val milestone = toolMilestones[entryIndex]
+                                        val milestone = toolMilestones[toolMessage.id]
                                         item(key = "tool-${toolMessage.id}") {
                                             Column(modifier = Modifier.padding(bottom = 6.dp)) {
                                                 FullBleedToolRow(toolMessage)
@@ -268,7 +272,6 @@ fun FullBleedChatList(
                                                 }
                                             }
                                         }
-                                        entryIndex++
                                     }
 
                                     is AgentEntry.SystemEvent -> {
@@ -288,7 +291,6 @@ fun FullBleedChatList(
                                                 }
                                             }
                                         }
-                                        entryIndex++
                                     }
                                 }
                             }
@@ -304,6 +306,38 @@ fun FullBleedChatList(
                             onRespondSingle = { option -> onRespondClarify?.invoke(option) },
                             onRespondBatch = { answers -> onRespondClarifyBatch?.invoke(answers) },
                             onDismiss = { onDismissClarify?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultUnlockPrompt != null) {
+                    item(key = "vault_unlock_card") {
+                        VaultUnlockCard(
+                            prompt = vaultUnlockPrompt,
+                            onConfirm = { password -> onRespondVaultUnlock?.invoke(password) },
+                            onDismiss = { onDismissVaultUnlock?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultSaveLoginPrompt != null) {
+                    item(key = "vault_save_login_card") {
+                        VaultSaveLoginCard(
+                            prompt = vaultSaveLoginPrompt,
+                            onConfirm = { identifier, password ->
+                                onRespondVaultSaveLogin?.invoke(identifier, password)
+                            },
+                            onDismiss = { onDismissVaultSaveLogin?.invoke() },
+                        )
+                    }
+                }
+
+                if (vaultCodePrompt != null) {
+                    item(key = "vault_code_card") {
+                        VaultCodeCard(
+                            prompt = vaultCodePrompt,
+                            onConfirm = { code -> onRespondVaultCode?.invoke(code) },
+                            onDismiss = { onDismissVaultCode?.invoke() },
                         )
                     }
                 }

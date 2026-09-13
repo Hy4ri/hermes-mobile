@@ -84,4 +84,24 @@ class ContextBreakdownResponseTest {
         assertEquals(262144L, parsed?.contextMax)
         assertEquals(0, parsed?.contextPercent)
     }
+
+    @Test
+    fun `JsonObject and JsonPrimitive payloads parse successfully`() {
+        val json =
+            kotlinx.serialization.json.buildJsonObject {
+                put("context_used", kotlinx.serialization.json.JsonPrimitive(52428))
+                put("context_max", kotlinx.serialization.json.JsonPrimitive(524288))
+                put("context_percent", kotlinx.serialization.json.JsonPrimitive(10))
+                put("estimated_total", kotlinx.serialization.json.JsonPrimitive(52428))
+                put("model", kotlinx.serialization.json.JsonPrimitive("upstage/solar-pro4:free"))
+            }
+
+        val parsed = parseContextBreakdown(json)
+
+        assertEquals(52428L, parsed?.contextUsed)
+        assertEquals(524288L, parsed?.contextMax)
+        assertEquals(10, parsed?.contextPercent)
+        assertEquals(52428L, parsed?.estimatedTotal)
+        assertEquals("upstage/solar-pro4:free", parsed?.model)
+    }
 }

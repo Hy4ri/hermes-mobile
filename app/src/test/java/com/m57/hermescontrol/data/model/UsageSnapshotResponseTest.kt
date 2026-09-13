@@ -30,4 +30,24 @@ class UsageSnapshotResponseTest {
         assertNull(parseUsageSnapshot("oops"))
         assertNull(parseUsageSnapshot(listOf(1.0)))
     }
+
+    @Test
+    fun `JsonObject and JsonPrimitive payloads parse successfully`() {
+        val json =
+            kotlinx.serialization.json.buildJsonObject {
+                put("compressions", kotlinx.serialization.json.JsonPrimitive(3))
+                put("context_used", kotlinx.serialization.json.JsonPrimitive(12000))
+                put("context_max", kotlinx.serialization.json.JsonPrimitive(200000))
+                put("total", kotlinx.serialization.json.JsonPrimitive(50000))
+                put("avg_tps", kotlinx.serialization.json.JsonPrimitive(45.5))
+            }
+
+        val parsed = parseUsageSnapshot(json)
+
+        assertEquals(3, parsed?.compressions)
+        assertEquals(12000L, parsed?.contextUsed)
+        assertEquals(200000L, parsed?.contextMax)
+        assertEquals(50000L, parsed?.totalTokens)
+        assertEquals(45.5, parsed?.avgTps ?: 0.0, 0.001)
+    }
 }

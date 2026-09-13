@@ -25,32 +25,65 @@ import androidx.compose.ui.unit.sp
  */
 const val TOOL_CALL_DIVIDER_INTERVAL = 5
 
+private const val MAX_ITERATIONS_SYSTEM_MARKER =
+    "You've reached the maximum number of tool-calling iterations allowed."
+
 /**
- * Returns the message indices that complete a tool-call milestone — a [MessageRole.TOOL]
+ * A genuine user message that establishes a new turn boundary.
+ * Timeline markers (`displayKind != null`) and synthetic system rows
+ * (such as max-iterations nudges) ride with `role == MessageRole.USER`
+ * in storage but belong to the surrounding agent turn.
+ */
+internal fun ChatMessage.isUserTurnBoundary(): Boolean =
+    role == MessageRole.USER &&
+        displayKind == null &&
+        !content.startsWith(MAX_ITERATIONS_SYSTEM_MARKER)
+
+/**
+ * Returns the message IDs that complete a tool-call milestone — a [MessageRole.TOOL]
  * message whose per-turn tool-call count is a multiple of [TOOL_CALL_DIVIDER_INTERVAL] —
  * mapped to the per-turn count at that point.
  *
- * The counter resets at each [MessageRole.USER] message (a new turn), so
+ * The counter resets at each genuine user turn boundary ([isUserTurnBoundary]), so
  * milestones read `5, 10, 15...` within a turn and restart at `5` on the next.
  */
-fun toolCallMilestones(messages: List<ChatMessage>): Map<Int, Int> {
-    val milestones = mutableMapOf<Int, Int>()
+fun toolCallMilestones(messages: List<ChatMessage>): Map<String, Int> {
+    val milestones = mutableMapOf<String, Int>()
     var toolCount = 0
-    messages.forEachIndexed { index, message ->
-        when (message.role) {
-            MessageRole.USER -> {
+    messages.forEach { message ->
+        when {
+            message.isUserTurnBoundary() -> {
                 toolCount = 0
             }
 
-            MessageRole.TOOL -> {
+            message.role == MessageRole.TOOL -> {
+                toolCount += 1
+                if (toolCount % TOOL_CALL_DIVIDER_INTERVAL == 0) {
+                    milestones[message.id] = toolCount
+                }
+            }
+        }
+    }
+    return milestones
+}
+
+/**
+ * Index-based milestone map for position-based callers and backwards compatibility.
+ */
+fun toolCallMilestoneIndices(messages: List<ChatMessage>): Map<Int, Int> {
+    val milestones = mutableMapOf<Int, Int>()
+    var toolCount = 0
+    messages.forEachIndexed { index, message ->
+        when {
+            message.isUserTurnBoundary() -> {
+                toolCount = 0
+            }
+
+            message.role == MessageRole.TOOL -> {
                 toolCount += 1
                 if (toolCount % TOOL_CALL_DIVIDER_INTERVAL == 0) {
                     milestones[index] = toolCount
                 }
-            }
-
-            else -> {
-                Unit
             }
         }
     }

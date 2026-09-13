@@ -63,6 +63,10 @@ class SettingsViewModelTest {
         every { AuthManager.getAppLanguage() } returns "system"
         every { AuthManager.getToken() } returns ""
         every { AuthManager.isAutoReconnect() } returns true
+        every { AuthManager.isRestoreLastSession() } returns false
+        every { AuthManager.setRestoreLastSession(any()) } returns Unit
+        every { AuthManager.clearLastOpenedSessionIdsForConnection(any()) } returns Unit
+        every { AuthManager.clearLastOpenedSessionId() } returns Unit
         every { AuthManager.getThemePreference() } returns ThemePreference.SYSTEM
         every { AuthManager.isUseDynamicColors() } returns true
         every { AuthManager.getThemePreset() } returns ThemePreset.DEFAULT
@@ -252,5 +256,27 @@ class SettingsViewModelTest {
         verify { AuthManager.saveConnectionProfiles(any()) }
         verify { AuthManager.setSelectedProfileId(any()) }
         assertEquals(true, viewModel.uiState.value.navigateToLogin)
+    }
+
+    @Test
+    fun testRestoreLastSession_loadsAndUpdatesState() {
+        every { AuthManager.isRestoreLastSession() } returns true
+        val viewModel = createViewModel()
+
+        assertEquals(true, viewModel.uiState.value.restoreLastSession)
+
+        viewModel.onRestoreLastSessionChange(false)
+        assertEquals(false, viewModel.uiState.value.restoreLastSession)
+        verify { AuthManager.setRestoreLastSession(false) }
+    }
+
+    @Test
+    fun testDeleteProfile_clearsStoredSessionIdsForConnection() {
+        val viewModel = createViewModel()
+
+        viewModel.deleteProfile("prof-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { AuthManager.clearLastOpenedSessionIdsForConnection("prof-1") }
     }
 }

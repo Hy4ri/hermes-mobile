@@ -61,6 +61,8 @@ sealed class WsEvent {
         val reasoning: String? = null,
         /** Stored session id captured before background disconnect clears the active mapping. */
         val storedSessionId: String? = null,
+        /** Full raw payload map (including usage/avg_tps) emitted with message.complete. */
+        val rawPayload: Map<String, Any?>? = null,
     ) : WsEvent()
 
     data class MessageDone(
@@ -301,6 +303,44 @@ sealed class WsEvent {
         val sessionId: String?,
     ) : WsEvent()
 
+    // ── Credential Vault prompts (issue #1090) ──────────────────────────
+
+    data class VaultUnlockRequest(
+        val requestId: String?,
+        val sessionId: String? = null,
+        val backend: String? = null,
+        val displayName: String? = null,
+    ) : WsEvent()
+
+    data class VaultUnlockExpire(
+        val requestId: String?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    data class VaultSaveLoginRequest(
+        val requestId: String?,
+        val sessionId: String? = null,
+        val origin: String? = null,
+        val site: String? = null,
+    ) : WsEvent()
+
+    data class VaultSaveLoginExpire(
+        val requestId: String?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
+    data class VaultCodeRequest(
+        val requestId: String?,
+        val sessionId: String? = null,
+        val site: String? = null,
+        val hint: String? = null,
+    ) : WsEvent()
+
+    data class VaultCodeExpire(
+        val requestId: String?,
+        val sessionId: String? = null,
+    ) : WsEvent()
+
     // ── Gateway-level errors ───────────────────────────────────────────
 
     /**
@@ -353,6 +393,13 @@ sealed class WsEvent {
      */
     data class ReactionEvent(
         val kind: String = "",
+    ) : WsEvent()
+
+    // ── Replay resync (internal) ──────────────────────────────────────────
+
+    /** Internal: replay could not cover the reconnect gap (truncated or epoch change) — UI must refetch history. */
+    data class TranscriptResyncRequired(
+        val sessionId: String,
     ) : WsEvent()
 
     // ── Fallback ─────────────────────────────────────────────────────────

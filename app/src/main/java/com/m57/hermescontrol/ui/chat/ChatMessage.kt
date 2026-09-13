@@ -79,6 +79,10 @@ data class ChatMessage(
      * When present, rendered at the bottom beside the copy button.
      */
     val finishTimestamp: Long? = null,
+    /** Token count used by this message (persisted to SQLite). */
+    val tokenCount: Int? = null,
+    /** Tokens per second generation speed (persisted to SQLite). */
+    val tps: Double? = null,
 )
 
 /**
@@ -124,6 +128,7 @@ data class SubagentIndicator(
     val logs: List<SubagentLogLine> = emptyList(),
     val durationSeconds: Double? = null,
     val model: String? = null,
+    val lastEventTimestamp: Long = 0L,
 ) {
     val isComplete: Boolean get() = type == "subagent.complete" || status == "completed" || status == "done"
     val isFailed: Boolean get() = status == "failed" || status == "interrupted"
@@ -131,6 +136,20 @@ data class SubagentIndicator(
     val isSteered: Boolean get() = status == "steered"
     val isQueued: Boolean get() = status == "queued"
     val isRunning: Boolean get() = !isComplete && !isFailed && !isCancelled && !isQueued
+}
+
+/**
+ * State for inspecting a live subagent's rolling execution transcript (issue #1089).
+ */
+data class SubagentTranscriptUiState(
+    val subagentId: String,
+    val text: String = "",
+    val isLoading: Boolean = false,
+    val isTruncated: Boolean = false,
+    val bytesRead: Long? = null,
+    val error: String? = null,
+) {
+    val isEmpty: Boolean get() = text.isEmpty() && !isLoading && error == null
 }
 
 enum class MessageRole {

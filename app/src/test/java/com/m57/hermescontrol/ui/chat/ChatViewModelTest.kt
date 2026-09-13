@@ -164,6 +164,10 @@ class ChatViewModelTest {
         every { AuthManager.isTypingEffectEnabled() } returns true
         every { AuthManager.getTypingEffectDelayMs() } returns 30
         every { AuthManager.isAutoReconnect() } returns false
+        every { AuthManager.isRestoreLastSession() } returns false
+        every { AuthManager.getLastOpenedSessionId() } returns null
+        every { AuthManager.setLastOpenedSessionId(any()) } returns Unit
+        every { AuthManager.clearLastOpenedSessionId() } returns Unit
         every { HermesWsClient.events } returns mockEventsFlow
         every { HermesWsClient.connectionStatus } returns mockConnectionStatus
         every { HermesWsClient.connect() } answers {
@@ -2913,6 +2917,113 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testPickerModelSwitch_blanksMeterAndResolvesNewContextWindow_issue1103() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            // Profile default model is 900k
+            coEvery { ApiClient.hermesApi.getModelInfo() } returns
+                retrofit2.Response.success(
+                    com.m57.hermescontrol.data.model.ModelInfoResponse(
+                        model = "gpt-5.6-luna-900k",
+                        provider = "openai-codex",
+                        effective_context_length = 900_000L,
+                    ),
+                )
+
+            // Initial session.info for default model
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "gpt-5.6-luna-900k", "provider" to "openai-codex"),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals("openai-codex/gpt-5.6-luna-900k", viewModel.uiState.value.currentSessionModel)
+
+            var breakdownResult: Any =
+                mapOf("context_max" to 900_000L, "context_used" to 10_000L)
+            every { HermesWsClient.request(WsMethods.SESSION_CONTEXT_BREAKDOWN, any(), any()) } answers {
+                CompletableDeferred<Any?>(breakdownResult)
+            }
+            viewModel.fetchContextUsage()
+            advanceUntilIdle()
+            assertEquals(900_000L, viewModel.uiState.value.fullContextTokens)
+
+            // User picks Solar 200k via model picker (sendSlashModel)
+            viewModel.sendSlashModel("nous", "upstage/solar-pro4:free")
+            advanceUntilIdle()
+            assertEquals("nous/upstage/solar-pro4:free", viewModel.uiState.value.currentSessionModel)
+            assertNull("Picker model switch must immediately blank meter", viewModel.uiState.value.fullContextTokens)
+
+            // Backend replies with session.info confirming Solar
+            // Breakdown RPC returns JsonObject (from wire) with 524288 context_max
+            breakdownResult =
+                kotlinx.serialization.json.buildJsonObject {
+                    put("context_max", kotlinx.serialization.json.JsonPrimitive(524288))
+                    put("context_used", kotlinx.serialization.json.JsonPrimitive(20000))
+                }
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("model" to "upstage/solar-pro4:free", "provider" to "nous"),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Verified: meter resolves to Solar's 524288 window, NOT profile's 900k
+            assertEquals(524288L, viewModel.uiState.value.fullContextTokens)
+
+            // Periodic background sync with skipRestFallback=false must NOT overwrite with profile's 900k
+            viewModel.fetchContextUsage(skipRestFallback = false)
+            advanceUntilIdle()
+            assertEquals(524288L, viewModel.uiState.value.fullContextTokens)
+        }
+
+    @Test
+    fun testIsMatchingRpcModel_namespacedAndProviderMatching() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+
+            // Current session model has provider prefix, rpc model retains internal namespace
+            assertTrue(
+                viewModel.isMatchingRpcModel(
+                    "nous/upstage/solar-pro4:free",
+                    "upstage/solar-pro4:free",
+                ),
+            )
+            // Exact match
+            assertTrue(
+                viewModel.isMatchingRpcModel(
+                    "upstage/solar-pro4:free",
+                    "upstage/solar-pro4:free",
+                ),
+            )
+            // Provider prefix with non-namespaced model
+            assertTrue(
+                viewModel.isMatchingRpcModel(
+                    "openai/gpt-4o",
+                    "gpt-4o",
+                ),
+            )
+            // Never blindly strip model's own namespace: rpcModel missing internal namespace must not match
+            assertFalse(
+                viewModel.isMatchingRpcModel(
+                    "nous/upstage/solar-pro4:free",
+                    "solar-pro4:free",
+                ),
+            )
+            // Mismatch
+            assertFalse(
+                viewModel.isMatchingRpcModel(
+                    "nous/upstage/solar-pro4:free",
+                    "claude-3",
+                ),
+            )
+        }
+
+    @Test
     fun testSessionInfoSameModel_keepsMeterUntouched() =
         runTest {
             stubEmptySessionRests("session-a")
@@ -2949,6 +3060,92 @@ class ChatViewModelTest {
             assertEquals(callsBefore, breakdownCalls)
             assertEquals(262_144L, viewModel.uiState.value.fullContextTokens)
             assertEquals("nous/tencent/hy3:free", viewModel.uiState.value.currentSessionModel)
+        }
+
+    @Test
+    fun testSessionInfo_hydratesFastModeState() =
+        runTest {
+            stubEmptySessionRests("session-a")
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            assertFalse(viewModel.uiState.value.fastMode)
+
+            // Fast = true in session.info
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("fast" to true, "service_tier" to "priority"),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.fastMode)
+            assertFalse(viewModel.uiState.value.isFastModeChanging)
+
+            // Fast = false / normal in session.info
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("fast" to false, "service_tier" to "normal"),
+                ),
+            )
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.fastMode)
+
+            // Partial session.info without fast/service_tier does NOT clear state
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("fast" to true),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.fastMode)
+
+            mockEventsFlow.emit(
+                WsEvent.SessionInfo(
+                    mapOf("terminal_backend" to "tmux"),
+                ),
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.fastMode) // preserved!
+        }
+
+    @Test
+    fun testSessionResume_hydratesFastModeState() =
+        runTest {
+            stubEmptySessionRests("session-b")
+            val (viewModel, _) = createViewModelWithSession()
+            var resumeReqId = ""
+            every { HermesWsClient.send(WsMethods.SESSION_RESUME, any(), any()) } answers {
+                val reqId = "resume-req-1"
+                resumeReqId = reqId
+                arg<((String) -> Unit)?>(2)?.invoke(reqId)
+                reqId
+            }
+
+            viewModel.switchSession("session-b")
+            runCurrent()
+
+            // Simulate SESSION_RESUME response with fast=true in info
+            mockEventsFlow.emit(
+                WsEvent.RpcResult(
+                    id = resumeReqId,
+                    result =
+                        mapOf(
+                            "session_id" to "sess-runtime-1",
+                            "resumed" to "session-b",
+                            "info" to
+                                mapOf(
+                                    "model" to "gpt-4o",
+                                    "provider" to "openai",
+                                    "fast" to true,
+                                    "service_tier" to "priority",
+                                ),
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.fastMode)
+            assertFalse(viewModel.uiState.value.isFastModeChanging)
         }
 
     @Test
@@ -4996,5 +5193,76 @@ class ChatViewModelTest {
             assertEquals("cancelled", updated.status)
             assertTrue(updated.logs.any { it.text.contains("Stopped subagent") })
             io.mockk.verify { HermesWsClient.sendRedirect(sessionId, "/stop sub-123", any()) }
+        }
+
+    @Test
+    fun testHandleGatewayReady_withRestoreLastSessionEnabled_resumesStoredSession() =
+        runTest {
+            every { AuthManager.isRestoreLastSession() } returns true
+            every { AuthManager.getLastOpenedSessionId() } returns "session-stored-999"
+
+            val resumeParamsSlot = slot<Map<String, Any>>()
+            every {
+                HermesWsClient.send(WsMethods.SESSION_RESUME, capture(resumeParamsSlot), any())
+            } answers {
+                "req-resume-test"
+            }
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            io.mockk.verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    any(),
+                    any(),
+                )
+            }
+            assertEquals("session-stored-999", resumeParamsSlot.captured["session_id"])
+        }
+
+    @Test
+    fun testHandleGatewayReady_withRestoreLastSessionDisabled_createsNewSession() =
+        runTest {
+            every { AuthManager.isRestoreLastSession() } returns false
+            every { AuthManager.getLastOpenedSessionId() } returns "session-stored-999"
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            mockConnectionStatus.value = ConnectionStatus.CONNECTED
+            mockEventsFlow.emit(WsEvent.GatewayReady(null))
+            advanceUntilIdle()
+
+            io.mockk.verify {
+                HermesWsClient.send(
+                    WsMethods.SESSION_CREATE,
+                    any(),
+                    any(),
+                )
+            }
+            io.mockk.verify(exactly = 0) {
+                HermesWsClient.send(
+                    WsMethods.SESSION_RESUME,
+                    any(),
+                    any(),
+                )
+            }
+        }
+
+    @Test
+    fun testSwitchSession_updatesLastOpenedSessionId() =
+        runTest {
+            val (viewModel, _) = createViewModelWithSession()
+            advanceUntilIdle()
+
+            viewModel.switchSession("session-other-456")
+            advanceUntilIdle()
+
+            io.mockk.verify { AuthManager.setLastOpenedSessionId("session-other-456") }
         }
 }

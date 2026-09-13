@@ -74,6 +74,13 @@ object ChatWsEventReducer {
                 is WsEvent.ReviewSummary -> event.sessionId
                 is WsEvent.BtwComplete -> event.sessionId
                 is WsEvent.SessionUsage -> event.sessionId
+                is WsEvent.TranscriptResyncRequired -> event.sessionId
+                is WsEvent.VaultUnlockRequest -> event.sessionId
+                is WsEvent.VaultUnlockExpire -> event.sessionId
+                is WsEvent.VaultSaveLoginRequest -> event.sessionId
+                is WsEvent.VaultSaveLoginExpire -> event.sessionId
+                is WsEvent.VaultCodeRequest -> event.sessionId
+                is WsEvent.VaultCodeExpire -> event.sessionId
                 else -> null
             }
         if (eventSessionId != null && currentSessionId != null && eventSessionId != currentSessionId) {
@@ -169,11 +176,23 @@ object ChatWsEventReducer {
 
             is WsEvent.SecretExpire -> ReducerResult(state = state, streamingState = streamingState)
 
+            // Vault prompts are handled by the ViewModel (issue #1090)
+            is WsEvent.VaultUnlockRequest,
+            is WsEvent.VaultUnlockExpire,
+            is WsEvent.VaultSaveLoginRequest,
+            is WsEvent.VaultSaveLoginExpire,
+            is WsEvent.VaultCodeRequest,
+            is WsEvent.VaultCodeExpire,
+            -> ReducerResult(state = state, streamingState = streamingState)
+
             // ReactionEvent is handled by the ViewModel — purely cosmetic animation
             is WsEvent.ReactionEvent -> ReducerResult(state = state, streamingState = streamingState)
 
             // Change events (issue #784) are consumed by their screens' ViewModels
             is WsEvent.ChangeEvent -> ReducerResult(state = state, streamingState = streamingState)
+
+            // TranscriptResyncRequired is handled by ChatViewModel directly (refetch history on replay gap)
+            is WsEvent.TranscriptResyncRequired -> ReducerResult(state = state, streamingState = streamingState)
         }
 
     // ── GatewayReady ──────────────────────────────────────────────────
@@ -217,6 +236,8 @@ object ChatWsEventReducer {
                     streamingState.streamingMessage.copy(
                         isStreaming = false,
                         finishTimestamp = System.currentTimeMillis(),
+                        tokenCount = TokenEstimator.estimate(streamingState.streamingMessage.content).takeIf { it > 0 },
+                        tps = state.latestTps?.takeIf { it > 0.0 },
                     )
                 orphan = finalized
                 state.copy(
@@ -375,17 +396,25 @@ object ChatWsEventReducer {
                 streamingState = streamingState.copy(streamingMessage = null),
             )
         }
+        val rawUsage = event.rawPayload?.get("usage") as? Map<*, *>
+        val tpsFromPayload = (rawUsage?.get("avg_tps") as? Number)?.toDouble()
+        val tps = (tpsFromPayload ?: state.latestTps)?.takeIf { it > 0.0 }
+        val tokenCount = TokenEstimator.estimate(text).takeIf { it > 0 }
         val msg =
             streaming?.copy(
                 content = text,
                 isStreaming = false,
                 reasoningText = reasoning,
                 finishTimestamp = System.currentTimeMillis(),
+                tokenCount = tokenCount,
+                tps = tps,
             ) ?: ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = text,
                 reasoningText = reasoning,
                 finishTimestamp = System.currentTimeMillis(),
+                tokenCount = tokenCount,
+                tps = tps,
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -431,11 +460,14 @@ object ChatWsEventReducer {
             } else {
                 streaming.reasoningText
             }
+        val tokenCount = TokenEstimator.estimate(streaming.content).takeIf { it > 0 }
         val msg =
             streaming.copy(
                 isStreaming = false,
                 reasoningText = reasoning,
                 finishTimestamp = System.currentTimeMillis(),
+                tokenCount = streaming.tokenCount ?: tokenCount,
+                tps = streaming.tps ?: state.latestTps?.takeIf { it > 0.0 },
             )
         val effects = mutableListOf<ReducerEffect>()
         val sid = state.currentSessionId
@@ -500,6 +532,8 @@ object ChatWsEventReducer {
                         isStreaming = false,
                         reasoningText = reasoning,
                         finishTimestamp = System.currentTimeMillis(),
+                        tokenCount = TokenEstimator.estimate(streamingState.streamingMessage.content).takeIf { it > 0 },
+                        tps = state.latestTps?.takeIf { it > 0.0 },
                     )
                 orphanToPersist = finalized
                 state.copy(
@@ -912,6 +946,7 @@ object ChatWsEventReducer {
                 logs = trimmedLogs,
                 durationSeconds = durationSeconds ?: (if (idx >= 0) indicators[idx].durationSeconds else null),
                 model = model ?: (if (idx >= 0) indicators[idx].model else null),
+                lastEventTimestamp = System.currentTimeMillis(),
             )
 
         if (idx >= 0) {
@@ -957,6 +992,9 @@ object ChatWsEventReducer {
         }
         if (snapshot.contextMax != null && snapshot.contextMax > 0L) {
             updatedState = updatedState.copy(fullContextTokens = snapshot.contextMax)
+        }
+        if (snapshot.avgTps != null && snapshot.avgTps > 0.0) {
+            updatedState = updatedState.copy(latestTps = snapshot.avgTps)
         }
         return ReducerResult(state = updatedState, streamingState = streamingState)
     }

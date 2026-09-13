@@ -9,10 +9,12 @@ import com.m57.hermescontrol.data.remote.DashboardSessionTokenRefresher
 import com.m57.hermescontrol.data.remote.NetworkMonitor
 import com.m57.hermescontrol.data.remote.OkHttpProvider
 import com.m57.hermescontrol.data.session.ActiveSessionHolder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
@@ -25,9 +27,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -62,34 +67,48 @@ enum class ConnectionStatus {
 object HermesWsClient {
     private const val TAG = "HermesWsClient"
 
-    // ── Backoff settings ─────────────────────────────────────────────────
+    // ── Monotonic time helper (immune to NTP and wall-clock jumps) ─────────
+    private fun monotonicTimeMs(): Long = System.nanoTime() / 1_000_000L
+
+    // ── Backoff settings (desktop parity: reconnect-backoff.ts full-jitter) ─
 
     private var initialBackoffMs = 1_000L
+    private const val BACKOFF_BASE_MS = 300L
+    private const val BACKOFF_CAP_MS = 15_000L
     private const val MAX_BACKOFF_MS = 30_000L
     private const val BACKOFF_MULTIPLIER = 2.0
+    private var testBackoffOverrideMs: Long? = null
 
     /**
      * Test hook: the initial reconnect backoff, overridable so reconnect
      * tests are deterministic instead of racing real time (CI runners
-     * routinely exceed fixed latch windows). Production keeps 1s.
+     * routinely exceed fixed latch windows). Production keeps full-jitter backoff.
      */
     @VisibleForTesting
     internal fun setReconnectBackoffForTest(initialMillis: Long) {
         initialBackoffMs = initialMillis
         currentBackoff = initialMillis
+        testBackoffOverrideMs = initialMillis
+    }
+
+    private fun nextBackoffDelayMs(): Long {
+        val override = testBackoffOverrideMs
+        if (override != null) return override
+        val ceiling = currentBackoff
+        if (ceiling <= 0L) return 0L
+        return (Math.random() * ceiling).toLong().coerceAtLeast(BACKOFF_BASE_MS).coerceAtMost(ceiling)
     }
 
     private const val MAX_OUTBOUND_MESSAGE_BYTES = 16 * 1024 * 1024
     private const val OUTBOUND_DRAIN_TIMEOUT_MS = 60_000L
 
     /**
-     * No inbound frame for this long means the link is dead even though the
-     * TCP session may still look open (silent NAT/VPN drop). OkHttp pings
-     * every 30s (OkHttpProvider.websocket) and any inbound frame refreshes
-     * [lastPongTimestamp], so a healthy link never exceeds ~30s of silence.
-     * 90s tolerates exactly one missed ping cycle before acting.
+     * Liveness thresholds aligned with reference clients (desktop/web):
+     * Ping every 15s using gateway.ping; 45s inbound silence deadline.
      */
-    private const val STALE_THRESHOLD_MS = 90_000L
+    private const val HEARTBEAT_INTERVAL_MS = 15_000L
+    private const val STALE_THRESHOLD_MS = 45_000L
+    private const val LIVENESS_PROBE_TIMEOUT_MS = 5_000L
 
     // ── Internal state (all access through synchronized / atomic) ────────
 
@@ -150,7 +169,7 @@ object HermesWsClient {
         private set
 
     val isHealthy: Boolean
-        get() = isConnected && (System.currentTimeMillis() - lastPongTimestamp < 60_000L)
+        get() = isConnected && (monotonicTimeMs() - lastPongTimestamp < STALE_THRESHOLD_MS)
 
     // ── Observable latency tracking (issue #1017) ─────────────────────────
     private val _lastLatencyMs = MutableStateFlow<Long?>(null)
@@ -162,14 +181,14 @@ object HermesWsClient {
 
     private fun startHealthTracking() {
         healthJob?.cancel()
-        lastPongTimestamp = System.currentTimeMillis()
+        lastPongTimestamp = monotonicTimeMs()
         healthJob =
             wsScope.launch {
                 while (connected.get()) {
-                    delay(30_000L)
+                    delay(HEARTBEAT_INTERVAL_MS)
                     if (connected.get()) {
                         try {
-                            ping(timeoutMs = 10_000L)
+                            ping(timeoutMs = LIVENESS_PROBE_TIMEOUT_MS)
                         } catch (e: Exception) {
                             Log.w(TAG, "Health check ping failed: ${e.message}")
                         }
@@ -181,14 +200,15 @@ object HermesWsClient {
 
     /**
      * Ultra-lightweight JSON-RPC liveness check and RTT measurement (issue #1017).
-     * Bypasses agent queues on the backend; measures round-trip time in milliseconds.
+     * Uses [WsMethods.GATEWAY_PING] which is answered inline in the WebSocket read
+     * loop (ws.py:350) and never queues behind worker dispatch pools.
      * Updates [lastLatencyMs] and [lastPongTimestamp].
      */
-    suspend fun ping(timeoutMs: Long = 5_000L): Long {
-        val start = System.currentTimeMillis()
-        request(WsMethods.PING, emptyMap(), timeoutMs = timeoutMs).await()
-        val latency = (System.currentTimeMillis() - start).coerceAtLeast(0L)
-        lastPongTimestamp = System.currentTimeMillis()
+    suspend fun ping(timeoutMs: Long = LIVENESS_PROBE_TIMEOUT_MS): Long {
+        val start = monotonicTimeMs()
+        request(WsMethods.GATEWAY_PING, emptyMap(), timeoutMs = timeoutMs).await()
+        val latency = (monotonicTimeMs() - start).coerceAtLeast(0L)
+        lastPongTimestamp = monotonicTimeMs()
         _lastLatencyMs.value = latency
         return latency
     }
@@ -207,7 +227,7 @@ object HermesWsClient {
      */
     private fun runHealthCheckPass(): Boolean {
         if (!connected.get()) return false
-        val staleMs = System.currentTimeMillis() - lastPongTimestamp
+        val staleMs = monotonicTimeMs() - lastPongTimestamp
         if (staleMs <= STALE_THRESHOLD_MS) return true
         Log.w(TAG, "WebSocket stale (${staleMs / 1000}s without frames) — cancelling to trigger reconnect")
         synchronized(outboundLock) {
@@ -220,11 +240,11 @@ object HermesWsClient {
     /**
      * Test hook: backdate liveness past the staleness threshold and force one
      * synchronous watchdog pass, so reconnect tests are deterministic instead
-     * of racing the real 30s/90s cadence.
+     * of racing the real 15s/45s cadence.
      */
     @VisibleForTesting
     internal fun forceHealthCheckForTest(staleMillis: Long) {
-        lastPongTimestamp = System.currentTimeMillis() - staleMillis
+        lastPongTimestamp = monotonicTimeMs() - staleMillis
         runHealthCheckPass()
     }
 
@@ -238,7 +258,7 @@ object HermesWsClient {
 
     private val parsedEvents =
         MutableSharedFlow<WsEvent>(
-            extraBufferCapacity = 512,
+            extraBufferCapacity = 2048,
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
@@ -346,9 +366,34 @@ object HermesWsClient {
     @VisibleForTesting
     val isConnected: Boolean get() = connected.get()
 
+    private var foregroundProbeJob: Job? = null
+
     fun setAppForeground(foreground: Boolean) {
         appInForeground.set(foreground)
-        if (!foreground) disconnectIfIdleInBackground()
+        if (!foreground) {
+            disconnectIfIdleInBackground()
+            return
+        }
+        probeLivenessOnWake()
+    }
+
+    private fun probeLivenessOnWake(deferredOnce: Boolean = false) {
+        if (!connected.get()) return
+        foregroundProbeJob?.cancel()
+        foregroundProbeJob =
+            wsScope.launch {
+                val alive = runCatching { ping(LIVENESS_PROBE_TIMEOUT_MS) }.isSuccess
+                if (alive) return@launch
+                if (pendingReply && !deferredOnce) {
+                    delay(3_000L)
+                    probeLivenessOnWake(deferredOnce = true)
+                    return@launch
+                }
+                Log.w(TAG, "Foreground liveness probe failed — cancelling socket")
+                synchronized(outboundLock) {
+                    if (connected.get()) webSocket?.cancel()
+                }
+            }
     }
 
     fun acquireExternalActivityConnectionLease() {
@@ -629,6 +674,8 @@ object HermesWsClient {
             reconnectJob = null
             outboundDrainJob?.cancel()
             outboundDrainJob = null
+            foregroundProbeJob?.cancel()
+            foregroundProbeJob = null
             stopHealthTracking()
             webSocket?.close(1000, "Client closed")
             webSocket = null
@@ -658,6 +705,8 @@ object HermesWsClient {
     /** Thrown when an awaited [request] is neither answered nor rejected within [REQUEST_TIMEOUT_MS], or is rejected by a disconnect. */
     class HermesRpcException(
         message: String,
+        val code: Int = 0,
+        val data: JsonElement? = null,
     ) : Exception(message)
 
     /**
@@ -697,6 +746,15 @@ object HermesWsClient {
             send(method, params) { reqId ->
                 pendingCalls[reqId] = PendingCall(method, deferred)
             }
+        deferred.invokeOnCompletion { cause ->
+            if (cause is CancellationException) {
+                pendingCalls.remove(id)?.let { call ->
+                    call.timeoutJob?.cancel()
+                    removeQueuedMessage(id)
+                    disconnectIfIdleInBackground()
+                }
+            }
+        }
         // Arm the per-request timeout (fires if the server never answers).
         pendingCalls[id]?.timeoutJob =
             wsScope.launch {
@@ -716,7 +774,13 @@ object HermesWsClient {
         removeQueuedMessage(id)
         call.timeoutJob?.cancel()
         if (error != null) {
-            call.deferred.completeExceptionally(HermesRpcException(error.message))
+            call.deferred.completeExceptionally(
+                HermesRpcException(
+                    message = error.message,
+                    code = error.code,
+                    data = error.data,
+                ),
+            )
         } else {
             call.deferred.complete(result)
         }
@@ -764,7 +828,9 @@ object HermesWsClient {
                 params = decoratedParams.mapValues { it.value.toJsonElement() },
             )
         val json = OkHttpProvider.json.encodeToString(request)
-        if (BuildConfig.DEBUG) Log.d(TAG, "→ $json")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, formatSafeOutgoingFrameLog(id, method, request.params.keys, json.length, queued = false))
+        }
         var reconnect = false
         synchronized(outboundLock) {
             if (method == WsMethods.PROMPT_SUBMIT) {
@@ -890,21 +956,23 @@ object HermesWsClient {
     // ── Sequence tracking & replay on reconnect (issue #1016) ─────────────
 
     private fun triggerReplay() {
+        // Arm the hold SYNCHRONOUSLY (still under onOpen's outboundLock) so a
+        // live frame racing the replay coroutine is parked instead of advancing
+        // lastSeenSeq past events the replay would then skip-drop (G2).
         if (lastSeenSeq.isEmpty() || replayInFlight) return
-        replayJob?.cancel()
-        replayJob =
-            wsScope.launch {
-                fetchReplay()
-            }
-    }
-
-    private suspend fun fetchReplay() {
-        if (replayInFlight || lastSeenSeq.isEmpty()) return
         replayInFlight = true
         val sessionsToReplay = lastSeenSeq.keys().toList()
         for (sid in sessionsToReplay) {
             replayHold[sid] = Collections.synchronizedList(mutableListOf())
         }
+        replayJob?.cancel()
+        replayJob =
+            wsScope.launch {
+                fetchReplay(sessionsToReplay)
+            }
+    }
+
+    private suspend fun fetchReplay(sessionsToReplay: List<String> = lastSeenSeq.keys().toList()) {
         try {
             for (sid in sessionsToReplay) {
                 val lastSeen = lastSeenSeq[sid] ?: continue
@@ -926,13 +994,21 @@ object HermesWsClient {
                         }
                     if (resultMap != null) {
                         val epoch = resultMap["epoch"] as? String
-                        if (!epoch.isNullOrEmpty()) {
-                            if (replayEpoch != null && replayEpoch != epoch) {
-                                replayEpoch = epoch
-                                lastSeenSeq.clear()
-                                continue
-                            }
-                            replayEpoch = epoch
+                        val epochChanged =
+                            !epoch.isNullOrEmpty() && replayEpoch != null && replayEpoch != epoch
+                        val truncated = resultMap["truncated"] == true
+                        val latestSeq = (resultMap["latest_seq"] as? Number)?.toInt()
+
+                        if (epochChanged) replayEpoch = epoch
+
+                        if (epochChanged || truncated) {
+                            // Ring buffer (512 events) could not cover the gap or epoch changed (gateway restarted).
+                            // Partial replay would silently hole the transcript — fast-forward watermark
+                            // and request full transcript resync.
+                            if (epochChanged) lastSeenSeq.clear()
+                            if (latestSeq != null && !epochChanged) lastSeenSeq[sid] = latestSeq
+                            parsedEvents.tryEmit(WsEvent.TranscriptResyncRequired(sid))
+                            continue
                         }
                         val eventsList = (resultMap["events"] as? List<*>)?.filterIsInstance<Map<String, Any?>>()
                         if (eventsList != null) {
@@ -962,25 +1038,28 @@ object HermesWsClient {
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Replay failed for session $sid: ${e.message}")
+                    parsedEvents.tryEmit(WsEvent.TranscriptResyncRequired(sid))
                 }
             }
         } finally {
-            for (sid in sessionsToReplay) {
-                val held = replayHold.remove(sid)
-                if (held != null) {
-                    synchronized(held) {
-                        for ((heldSeq, heldEvent) in held) {
-                            if (heldSeq != null) {
-                                val prev = lastSeenSeq[sid] ?: 0
-                                if (heldSeq <= prev) continue
-                                lastSeenSeq[sid] = heldSeq
+            withContext(NonCancellable) {
+                for (sid in sessionsToReplay) {
+                    val held = replayHold.remove(sid)
+                    if (held != null) {
+                        synchronized(held) {
+                            for ((heldSeq, heldEvent) in held) {
+                                if (heldSeq != null) {
+                                    val prev = lastSeenSeq[sid] ?: 0
+                                    if (heldSeq <= prev) continue
+                                    lastSeenSeq[sid] = heldSeq
+                                }
+                                parsedEvents.tryEmit(heldEvent)
                             }
-                            parsedEvents.tryEmit(heldEvent)
                         }
                     }
                 }
+                replayInFlight = false
             }
-            replayInFlight = false
         }
     }
 
@@ -1065,7 +1144,7 @@ object HermesWsClient {
                 _connectionStatus.value = ConnectionStatus.NO_NETWORK
                 return
             }
-            val reconnectDelay = currentBackoff
+            val reconnectDelay = nextBackoffDelayMs()
             currentBackoff =
                 (currentBackoff * BACKOFF_MULTIPLIER)
                     .toLong()
@@ -1091,6 +1170,14 @@ object HermesWsClient {
                 }
         }
     }
+
+    private fun isTerminalAuthClose(
+        code: Int,
+        reason: String,
+    ): Boolean =
+        code == 4401 || code == 4403 ||
+            reason.contains("unauthorized", ignoreCase = true) ||
+            reason.startsWith("auth:", ignoreCase = true)
 
     // ── Listener ─────────────────────────────────────────────────────────
 
@@ -1126,7 +1213,7 @@ object HermesWsClient {
                         markQueuedMessageSent(msg)
                         continue
                     }
-                    if (BuildConfig.DEBUG) Log.d(TAG, "→ (queued) $msg")
+                    if (BuildConfig.DEBUG) Log.d(TAG, formatSafeQueuedFrameLog(msg))
                     if (!webSocket.send(msg)) {
                         recoverRejectedSocket(webSocket)
                         break
@@ -1144,8 +1231,8 @@ object HermesWsClient {
             text: String,
         ) {
             if (!isCurrent() || HermesWsClient.webSocket !== webSocket) return
-            if (BuildConfig.DEBUG) Log.d(TAG, "← $text")
-            lastPongTimestamp = System.currentTimeMillis()
+            if (BuildConfig.DEBUG) Log.d(TAG, formatSafeIncomingFrameLog(text))
+            lastPongTimestamp = monotonicTimeMs()
             // Resolve any in-flight `request()` awaiting this RPC result/error
             // (issue #526) before fanning the parsed event out to collectors.
             val event =
@@ -1173,6 +1260,7 @@ object HermesWsClient {
                         if (!sid.isNullOrBlank() && seq != null) {
                             val prev = lastSeenSeq[sid] ?: 0
                             if (seq <= prev) {
+                                // Frame is already at or behind watermark — drop duplicate
                                 return
                             }
                             val parsed = EventParser.parse(rpc, text)
@@ -1203,7 +1291,7 @@ object HermesWsClient {
                         parsed
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse message", e)
+                    Log.e(TAG, "Failed to parse message: ${e.javaClass.simpleName}")
                     WsEvent.Unknown(text)
                 }
             when (event) {
@@ -1219,17 +1307,17 @@ object HermesWsClient {
                             pendingPromptSubmits.isEmpty()
                         ) {
                             pendingReply = false
+                            disconnectIfIdleInBackground()
                         }
                     }
                     removeQueuedMessage(event.id)
                     resolvePending(event.id, null, event.error)
-                    disconnectIfIdleInBackground()
                 }
 
                 else -> {}
             }
             // tryEmit on a DROP_OLDEST flow only returns false when the
-            // buffer is full AND no subscriber is draining; with extraBuffer=512
+            // buffer is full AND no subscriber is draining; with extraBuffer=2048
             // and always-on init collectors this is unreachable in practice.
             parsedEvents.tryEmit(event)
         }
@@ -1247,10 +1335,7 @@ object HermesWsClient {
                 closingSocket = webSocket
                 // Do NOT log [reason] — it may carry server-side context.
                 Log.d(TAG, "WebSocket closing: $code")
-                if (code == 4001 || code == 4401 ||
-                    reason.contains("unauthorized", ignoreCase = true) ||
-                    reason.startsWith("auth:", ignoreCase = true)
-                ) {
+                if (isTerminalAuthClose(code, reason)) {
                     _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
                 }
                 webSocket.close(code, reason)
@@ -1275,10 +1360,7 @@ object HermesWsClient {
                 connected.set(false)
                 ActiveSessionHolder.clear()
                 stopHealthTracking()
-                if (code == 4001 || code == 4401 ||
-                    reason.contains("unauthorized", ignoreCase = true) ||
-                    reason.startsWith("auth:", ignoreCase = true)
-                ) {
+                if (isTerminalAuthClose(code, reason)) {
                     _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
                 } else if (_connectionStatus.value != ConnectionStatus.AUTH_EXPIRED) {
                     _connectionStatus.value = ConnectionStatus.RECONNECTING
@@ -1307,9 +1389,11 @@ object HermesWsClient {
                 ActiveSessionHolder.clear()
                 stopHealthTracking()
                 val code = response?.code ?: 0
-                if (code == 401 || t.message?.contains(
-                        "401",
-                    ) == true || t.message?.contains("unauthorized", ignoreCase = true) == true
+                if (code == 401 || code == 4401 || code == 4403 ||
+                    t.message?.contains("401") == true ||
+                    t.message?.contains("4401") == true ||
+                    t.message?.contains("4403") == true ||
+                    t.message?.contains("unauthorized", ignoreCase = true) == true
                 ) {
                     _connectionStatus.value = ConnectionStatus.AUTH_EXPIRED
                 } else if (_connectionStatus.value != ConnectionStatus.AUTH_EXPIRED) {
@@ -1319,4 +1403,60 @@ object HermesWsClient {
             }
         }
     }
+
+    @VisibleForTesting
+    internal fun setConnectionStatusForTest(status: ConnectionStatus) {
+        _connectionStatus.value = status
+    }
+
+    @VisibleForTesting
+    internal fun formatSafeOutgoingFrameLog(
+        id: String,
+        method: String,
+        paramsKeys: Collection<String>?,
+        byteLength: Int,
+        queued: Boolean = false,
+    ): String {
+        val prefix = if (queued) "→ (queued)" else "→"
+        val keys = paramsKeys?.joinToString(",", prefix = "[", postfix = "]") ?: "[]"
+        return "$prefix id=$id method=$method paramsKeys=$keys bytes=$byteLength"
+    }
+
+    @VisibleForTesting
+    internal fun formatSafeQueuedFrameLog(msg: String): String =
+        try {
+            val req = OkHttpProvider.json.decodeFromString<JsonRpcRequest>(msg)
+            formatSafeOutgoingFrameLog(req.id, req.method, req.params.keys, msg.length, queued = true)
+        } catch (_: Throwable) {
+            "→ (queued) frame bytes=${msg.length}"
+        }
+
+    @VisibleForTesting
+    internal fun formatSafeIncomingFrameLog(text: String): String =
+        try {
+            val element = OkHttpProvider.json.parseToJsonElement(text)
+            if (element is JsonObject) {
+                val id = (element["id"] as? JsonPrimitive)?.content
+                val method = (element["method"] as? JsonPrimitive)?.content
+                val hasResult = element.containsKey("result")
+                val resultKeys =
+                    (element["result"] as? JsonObject)?.keys?.joinToString(
+                        ",",
+                        prefix = "[",
+                        postfix = "]",
+                    )
+                val errorObj = element["error"] as? JsonObject
+                val errorCode = (errorObj?.get("code") as? JsonPrimitive)?.content
+                val sb = StringBuilder("← ")
+                if (id != null) sb.append("id=").append(id).append(" ")
+                if (method != null) sb.append("method=").append(method).append(" ")
+                if (hasResult) sb.append("result=").append(resultKeys ?: "present").append(" ")
+                if (errorCode != null) sb.append("errorCode=").append(errorCode).append(" ")
+                sb.append("bytes=").append(text.length).toString()
+            } else {
+                "← non-object frame bytes=${text.length}"
+            }
+        } catch (_: Throwable) {
+            "← frame bytes=${text.length}"
+        }
 }

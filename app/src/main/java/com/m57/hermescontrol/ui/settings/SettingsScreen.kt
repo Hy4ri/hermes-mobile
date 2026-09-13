@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
@@ -41,9 +42,11 @@ import com.m57.hermescontrol.SettingsBehavior
 import com.m57.hermescontrol.SettingsChat
 import com.m57.hermescontrol.SettingsConnection
 import com.m57.hermescontrol.SettingsLanguage
+import com.m57.hermescontrol.SettingsVault
 import com.m57.hermescontrol.theme.ThemePreference
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
+import com.m57.hermescontrol.ui.settings.components.SupportSection
 import com.m57.hermescontrol.ui.settings.components.languageLabel
 
 @Composable
@@ -111,12 +114,18 @@ fun SettingsScreen(
                             icon = Icons.Filled.Tune,
                             label = stringResource(R.string.settings_sec_behavior),
                             summary =
-                                if (state.autoReconnect) {
+                                if (state.autoReconnect || state.restoreLastSession) {
                                     stringResource(R.string.settings_summary_on)
                                 } else {
                                     stringResource(R.string.settings_summary_off)
                                 },
                             onClick = { NavigationController.navigateTo(SettingsBehavior) },
+                        ),
+                        SettingsRow(
+                            icon = Icons.Filled.Lock,
+                            label = stringResource(R.string.settings_sec_vault),
+                            summary = stringResource(R.string.settings_summary_vault),
+                            onClick = { NavigationController.navigateTo(SettingsVault) },
                         ),
                         SettingsRow(
                             icon = Icons.Filled.Info,
@@ -125,6 +134,7 @@ fun SettingsScreen(
                         ),
                     ),
             )
+            SupportSection()
         }
     }
 }

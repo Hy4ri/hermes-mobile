@@ -35,6 +35,33 @@ inline fun <T> ViewModel.safeLaunchLoad(
 }
 
 /**
+ * Executes a mutating API call inside viewModelScope with onStart, onSuccess, onError, and onComplete lifecycle callbacks.
+ * Like safeLaunchLoad, avoids Dispatchers.IO hop to protect tests from dispatcher poisoning.
+ */
+inline fun <T> ViewModel.safeLaunchAction(
+    currentJob: Job? = null,
+    crossinline onStart: () -> Unit = {},
+    crossinline apiCall: suspend () -> NetworkResult<T>,
+    crossinline onSuccess: (T) -> Unit = {},
+    crossinline onError: (String) -> Unit = {},
+    crossinline onComplete: () -> Unit = {},
+): Job {
+    if (currentJob?.isActive == true) return currentJob
+    onStart()
+    return viewModelScope.launch {
+        try {
+            val result = apiCall()
+            when (result) {
+                is NetworkResult.Success -> onSuccess(result.data)
+                is NetworkResult.Failure -> onError(result.error.message)
+            }
+        } finally {
+            onComplete()
+        }
+    }
+}
+
+/**
  * Collect a gateway change event ([com.m57.hermescontrol.data.ws.ChangeEvents])
  * from [ChangeEventHub] and run a **silent** refresh: no loading spinner, no
  * error surface — stale data stays in place on failure. At most one request

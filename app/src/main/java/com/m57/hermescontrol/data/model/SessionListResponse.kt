@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.model
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
@@ -78,6 +79,14 @@ data class SessionInfo(
     val display_name: String? = null,
     val model: String? = null,
     val terminal_backend: String? = null,
+    // Epoch seconds of the latest message (backend-computed, present on all
+    // list rows). Recency source of truth; started_at is the fallback.
+    val last_active: Double? = null,
+    // Original root id when this row is a compression-projected tip. Branch
+    // children reference the ROOT id in parent_session_id, so tree building
+    // must alias this id to this row (desktop byVisibleId parity).
+    @SerialName("_lineage_root_id")
+    val lineageRootId: String? = null,
     // Durable "keep" flag: pinned sessions are exempt from the auto-archive
     // sweep and are surfaced first in the history list (sorted client-side).
     // Uses LenientNullableBooleanSerializer to tolerate both JSON booleans and raw SQLite ints (issue #966).

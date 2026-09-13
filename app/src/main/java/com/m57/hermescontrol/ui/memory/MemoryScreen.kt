@@ -62,6 +62,7 @@ import com.m57.hermescontrol.ui.common.listContentPadding
 import com.m57.hermescontrol.ui.common.listItemSpacing
 import com.m57.hermescontrol.ui.plugins.memoryProviderStatusLabel
 import com.m57.hermescontrol.ui.plugins.memoryProviderStatusType
+import com.m57.hermescontrol.util.formatBytes
 
 /**
  * Memory management home — owns the memory surface that used to live in the
@@ -425,10 +426,3 @@ private fun MemoryProviderRow(
         }
     }
 }
-
-private fun formatBytes(bytes: Long): String =
-    when {
-        bytes >= 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
-        bytes >= 1024 -> "%.1f KB".format(bytes / 1024.0)
-        else -> "$bytes B"
-    }

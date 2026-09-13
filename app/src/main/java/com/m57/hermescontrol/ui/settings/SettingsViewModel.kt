@@ -28,6 +28,7 @@ data class SettingsUiState(
     val transportWarning: String? = null,
     val token: String = "",
     val autoReconnect: Boolean = true,
+    val restoreLastSession: Boolean = false,
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val useDynamicColors: Boolean = false,
     val themePreset: ThemePreset = ThemePreset.DEFAULT,
@@ -72,6 +73,7 @@ class SettingsViewModel(
         val baseUrl = AuthManager.getBaseUrl()
         val token = AuthManager.getToken() ?: ""
         val autoReconnect = AuthManager.isAutoReconnect()
+        val restoreLastSession = AuthManager.isRestoreLastSession()
         val themePreference = AuthManager.getThemePreference()
         val useDynamicColors = AuthManager.isUseDynamicColors()
         val themePreset = AuthManager.getThemePreset()
@@ -92,6 +94,7 @@ class SettingsViewModel(
                 transportWarning = transportWarning,
                 token = token,
                 autoReconnect = autoReconnect,
+                restoreLastSession = restoreLastSession,
                 themePreference = themePreference,
                 useDynamicColors = useDynamicColors,
                 themePreset = themePreset,
@@ -120,6 +123,7 @@ class SettingsViewModel(
         val updatedProfiles = AuthManager.getConnectionProfiles().filter { it.id != profileId }
         AuthManager.saveConnectionProfiles(updatedProfiles)
         AuthManager.setProfileToken(profileId, null)
+        AuthManager.clearLastOpenedSessionIdsForConnection(profileId)
         // Never leave selection null (issue #478): if the deleted profile was selected,
         // fall back to the default profile instead of clearing selection.
         val reselectDefault =
@@ -283,6 +287,11 @@ class SettingsViewModel(
         AuthManager.setAutoReconnect(enabled)
     }
 
+    fun onRestoreLastSessionChange(enabled: Boolean) {
+        _uiState.update { it.copy(restoreLastSession = enabled, isSaved = false) }
+        AuthManager.setRestoreLastSession(enabled)
+    }
+
     fun onThemeChange(theme: ThemePreference) {
         _uiState.update { it.copy(themePreference = theme, isSaved = false) }
         AuthManager.setThemePreference(theme)
@@ -323,6 +332,7 @@ class SettingsViewModel(
         AuthManager.setToken(null)
         AuthManager.setSessionCookie(null)
         AuthManager.setWsAuthParam("token")
+        AuthManager.clearLastOpenedSessionId()
         HermesWsClient.disconnect(clearPendingMessages = true)
         // Don't rebuild ApiClient here — let the navigation complete first
     }
@@ -337,6 +347,7 @@ class SettingsViewModel(
         AuthManager.setBaseUrl(normalized)
         AuthManager.setToken(state.token)
         AuthManager.setAutoReconnect(state.autoReconnect)
+        AuthManager.setRestoreLastSession(state.restoreLastSession)
         // B6 (Jun 18 2026, kanban t_86e9be9b): persist theme choice so it
         // survives a cold start (was previously dropped on save()).
         AuthManager.setThemePreference(state.themePreference)

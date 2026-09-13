@@ -149,6 +149,25 @@ class ChatStreamingControllerTest {
             assertEquals("real reasoning trace", streamingState.value.streamingMessage?.reasoningText)
         }
 
+    @Test
+    fun handleMessageToken_schedulesTrailingFlushForBufferedTail() =
+        runTest {
+            val uiState = MutableStateFlow(ChatUiState())
+            val streamingState = MutableStateFlow(StreamingState())
+            val controller = controller(this, uiState, streamingState, isTestEnvironment = { false })
+
+            controller.handleMessageToken(WsEvent.MessageToken("First", "session"))
+            assertEquals("First", streamingState.value.streamingMessage?.content)
+
+            // Second token arrives immediately (<33ms) -> held in buffer
+            controller.handleMessageToken(WsEvent.MessageToken(" Second", "session"))
+            assertEquals("First", streamingState.value.streamingMessage?.content)
+
+            // Advance virtual time by 35ms -> trailing flush executes
+            testScheduler.advanceTimeBy(35L)
+            assertEquals("First Second", streamingState.value.streamingMessage?.content)
+        }
+
     private fun controller(
         scope: CoroutineScope,
         uiState: MutableStateFlow<ChatUiState>,

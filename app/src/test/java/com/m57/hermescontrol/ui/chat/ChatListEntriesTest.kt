@@ -31,13 +31,18 @@ class ChatListEntriesTest {
     @Test
     fun fifthToolCallIsAMilestone() {
         val messages = List(5) { toolMessage() }
-        assertEquals(mapOf(4 to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(messages[4].id to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(4 to 5), toolCallMilestoneIndices(messages))
     }
 
     @Test
     fun milestoneAtEveryFifthToolCallWithinTurn() {
         val messages = List(12) { toolMessage() }
-        assertEquals(mapOf(4 to 5, 9 to 10), toolCallMilestones(messages))
+        assertEquals(
+            mapOf(messages[4].id to 5, messages[9].id to 10),
+            toolCallMilestones(messages),
+        )
+        assertEquals(mapOf(4 to 5, 9 to 10), toolCallMilestoneIndices(messages))
     }
 
     @Test
@@ -57,7 +62,56 @@ class ChatListEntriesTest {
                 toolMessage(), // 10
                 toolMessage(), // 11 ← 5th tool call of turn 2 (not 10)
             )
-        assertEquals(mapOf(5 to 5, 11 to 5), toolCallMilestones(messages))
+        assertEquals(
+            mapOf(messages[5].id to 5, messages[11].id to 5),
+            toolCallMilestones(messages),
+        )
+        assertEquals(mapOf(5 to 5, 11 to 5), toolCallMilestoneIndices(messages))
+    }
+
+    @Test
+    fun timelineMarkerDoesNotResetToolCounter() {
+        val marker =
+            ChatMessage(
+                role = MessageRole.USER,
+                content = "[System: The active model has changed to gpt-5]",
+                displayKind = "model_switch",
+            )
+        val messages =
+            listOf(
+                userMessage(),
+                toolMessage(),
+                toolMessage(),
+                marker,
+                toolMessage(),
+                toolMessage(),
+                toolMessage(), // 5th tool call despite intervening marker
+            )
+        assertEquals(mapOf(messages[6].id to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(6 to 5), toolCallMilestoneIndices(messages))
+    }
+
+    @Test
+    fun syntheticMaxIterationsNudgeDoesNotResetToolCounter() {
+        val nudge =
+            ChatMessage(
+                role = MessageRole.USER,
+                content =
+                    "You've reached the maximum number of tool-calling iterations allowed. " +
+                        "Please provide a summary.",
+            )
+        val messages =
+            listOf(
+                userMessage(),
+                toolMessage(),
+                toolMessage(),
+                toolMessage(),
+                nudge,
+                toolMessage(),
+                toolMessage(), // 5th tool call despite intervening nudge
+            )
+        assertEquals(mapOf(messages[6].id to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(6 to 5), toolCallMilestoneIndices(messages))
     }
 
     @Test
@@ -73,13 +127,15 @@ class ChatListEntriesTest {
                 textMessage(), // 6
                 toolMessage(), // 7 ← 5th tool call
             )
-        assertEquals(mapOf(7 to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(messages[7].id to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(7 to 5), toolCallMilestoneIndices(messages))
     }
 
     @Test
     fun toolMessagesWithoutToolNameStillCount() {
         val messages = List(5) { ChatMessage(role = MessageRole.TOOL, content = "", toolName = null) }
-        assertEquals(mapOf(4 to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(messages[4].id to 5), toolCallMilestones(messages))
+        assertEquals(mapOf(4 to 5), toolCallMilestoneIndices(messages))
     }
 
     @Test

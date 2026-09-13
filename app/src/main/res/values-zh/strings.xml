@@ -168,6 +168,8 @@
     <string name="content_desc_scroll_to_bottom">滚动到底部</string>
     <string name="content_desc_copy">复制</string>
     <string name="content_desc_edit">编辑</string>
+    <string name="chat_msg_tokens">%1$s tok</string>
+    <string name="chat_msg_tps">%1$s t/s</string>
     <string name="chat_attach_remove_desc">移除附件</string>
     <string name="chat_camera_error">拍照失败</string>
     <string name="settings_sec_connection">连接</string>
@@ -175,6 +177,8 @@
     <string name="settings_sec_behavior">行为</string>
     <string name="settings_item_auto_reconnect">自动重连</string>
     <string name="settings_desc_auto_reconnect">断开后自动重新连接</string>
+    <string name="settings_item_restore_session">恢复上次会话</string>
+    <string name="settings_desc_restore_session">启动时重新打开最近的聊天会话</string>
     <string name="settings_sec_appearance">外观</string>
     <string name="settings_item_theme">主题</string>
     <string name="settings_sec_chat">对话</string>
@@ -199,6 +203,9 @@
     <string name="settings_sec_about">关于</string>
     <string name="settings_sec_language">语言</string>
     <string name="settings_about_app_name">Hermes Mobile</string>
+    <string name="settings_support_title">支持 Hermes Mobile</string>
+    <string name="settings_support_message">如果 Hermes Mobile 为你节省了时间，欢迎支持它的开发。</string>
+    <string name="settings_support_action">在 Ko-fi 上支持我</string>
     <string name="settings_about_version">版本</string>
     <string name="settings_about_build">构建</string>
     <string name="settings_about_debug">调试版</string>
@@ -532,6 +539,10 @@
     <string name="sessions_all_hidden_desc">所有会话当前均已隐藏。点击下方以显示已隐藏的会话。</string>
     <string name="sessions_pinned_indicator">已置顶</string>
     <string name="sessions_fork_indicator">分支会话</string>
+    <string name="sessions_live_status_running">运行中</string>
+    <string name="sessions_live_status_waiting">等待输入</string>
+    <string name="sessions_live_status_running_desc">会话正在运行中</string>
+    <string name="sessions_live_status_waiting_desc">会话等待用户输入</string>
     <string name="sessions_rename_title">重命名会话</string>
     <string name="sessions_rename_hint">会话标题</string>
     <string name="toolsets_empty_title">没有工具集数据</string>
@@ -1022,6 +1033,9 @@
     <string name="channels_expiry_format">过期时间：%1$s</string>
     <string name="channels_search_placeholder">搜索渠道…</string>
     <string name="chat_attach_file">附加文件</string>
+    <string name="chat_fast_mode_label">快速</string>
+    <string name="chat_fast_mode_desc">快速模式</string>
+    <string name="chat_fast_mode_unavailable">此模型不支持快速模式</string>
     <string name="chat_save_attachment">保存 %1$s</string>
     <string name="chat_switch_model_title">切换模型（当前对话）</string>
     <string name="config_clear_value">清除值</string>
@@ -1170,4 +1184,36 @@
     <string name="group_chat_settings_high_limits_confirm">仍要保存</string>
     <string name="group_chat_settings_high_limits_adjust">调整限制</string>
     <string name="group_chat_action_settings">设置</string>
+
+    <!-- Session Integrations (issue #1091) -->
+    <string name="session_integrations_title">集成</string>
+    <string name="session_integrations_subtitle">当前会话：%1$s</string>
+    <string name="session_integrations_no_session">无活动会话</string>
+    <string name="session_integrations_empty">此会话暂无可用集成</string>
+    <string name="session_integrations_refresh">刷新集成</string>
+    <string name="session_integrations_connect">连接</string>
+    <string name="session_integrations_reconnect">重新连接</string>
+    <string name="session_integrations_connecting">正在连接…</string>
+    <string name="session_integrations_awaiting">等待授权</string>
+    <string name="session_integrations_awaiting_desc">请在浏览器中完成登录，然后返回此处。</string>
+    <string name="session_integrations_refresh_status">刷新状态</string>
+    <string name="session_integrations_status_connected">已连接</string>
+    <string name="session_integrations_status_disconnected">未连接</string>
+    <string name="session_integrations_status_expired">已过期</string>
+    <string name="session_integrations_status_revoked">已撤销</string>
+    <string name="session_integrations_status_failed">失败</string>
+    <string name="session_integrations_status_unknown">未知</string>
+    <string name="session_integrations_err_invalid_params">连接器参数无效</string>
+    <string name="session_integrations_err_not_owner">此传输通道未拥有该会话。请重新连接会话。</string>
+    <string name="session_integrations_err_unavailable">此会话中不可使用集成</string>
+    <string name="session_integrations_err_unsupported_runtime">集成必须在会话所在的主机上进行管理</string>
+    <string name="session_integrations_err_unsupported_backend">后端不支持集成服务</string>
+    <string name="session_integrations_err_request_failed">连接器请求失败，请重试。</string>
+    <string name="session_integrations_err_invalid_response">连接器服务返回无效响应</string>
+    <string name="session_integrations_err_network">与网关通信失败</string>
+    <string name="session_integrations_err_browser_launch">无法打开浏览器以进行授权</string>
+    <string name="session_integrations_err_generic">连接器操作失败</string>
+    <string name="session_integrations_retry">重试</string>
+    <string name="session_integrations_close">关闭</string>
+    <string name="session_integrations_menu_item">会话集成</string>
 </resources>

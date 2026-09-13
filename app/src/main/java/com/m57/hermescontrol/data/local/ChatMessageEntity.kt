@@ -42,4 +42,8 @@ data class ChatMessageEntity(
     val isStreaming: Boolean = false,
     @ColumnInfo(name = "display_kind")
     val displayKind: String? = null,
+    @ColumnInfo(name = "token_count")
+    val tokenCount: Int? = null,
+    @ColumnInfo(name = "tps")
+    val tps: Double? = null,
 )

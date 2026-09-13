@@ -43,10 +43,23 @@ object WsMethods {
     const val SUDO_RESPOND = "sudo.respond"
     const val SECRET_RESPOND = "secret.respond"
 
+    // ── Credential Vault (issue #1090) ────────────────────────────────────
+    const val VAULT_UNLOCK_RESPOND = "vault.unlock.respond"
+    const val VAULT_SAVE_LOGIN_RESPOND = "vault.save_login.respond"
+    const val VAULT_CODE_RESPOND = "vault.code.respond"
+    const val VAULT_LIST = "vault.list"
+    const val VAULT_SOURCES = "vault.sources"
+    const val VAULT_SOURCE_SET = "vault.source.set"
+    const val VAULT_UNLOCK = "vault.unlock"
+    const val VAULT_LOCK = "vault.lock"
+
     // ── Heartbeat & Latency (issue #1017) ──────────────────────────────────
 
     /** Ultra-lightweight liveness check and round-trip latency measurement. */
     const val PING = "ping"
+
+    /** Inline WebSocket read-loop ping, bypasses server thread pool dispatch. */
+    const val GATEWAY_PING = "gateway.ping"
 
     // ── Commands catalog ──────────────────────────────────────────────────
     const val COMMANDS_CATALOG = "commands.catalog"
@@ -69,6 +82,22 @@ object WsMethods {
 
     /** Kill a single background process (scoped to the active session). */
     const val PROCESS_KILL = "process.kill"
+
+    // ── Subagents (issue #1089) ───────────────────────────────────────────
+
+    /** List active subagents and delegations for a session. */
+    const val SUBAGENT_LIST = "subagent.list"
+
+    /** Rolling tail snapshot of a subagent's live execution transcript. */
+    const val SUBAGENT_TAIL = "subagent.tail"
+
+    // ── Connectors (issue #1091) ───────────────────────────────────────────
+
+    /** List available third-party connectors and authorization state for a session. */
+    const val CONNECTORS_LIST = "connectors.list"
+
+    /** Initiate or restart authorization flow for one or more connectors. */
+    const val CONNECTORS_CONNECT = "connectors.connect"
 
     // ── Billing / subscription (issue #628) ─────────────────────────────
     // Adopted from the backend release audit (hermes-agent 0bf44d557..614dc194e).

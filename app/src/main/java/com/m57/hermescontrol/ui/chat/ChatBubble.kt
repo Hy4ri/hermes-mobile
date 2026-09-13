@@ -257,6 +257,44 @@ fun ChatBubble(
                                         color = userBubbleTextColor.copy(alpha = 0.6f),
                                         style = MaterialTheme.typography.labelSmall,
                                     )
+                                    if (message.tokenCount != null && message.tokenCount > 0) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "•",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = userBubbleTextColor.copy(alpha = 0.4f),
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text =
+                                                stringResource(
+                                                    R.string.chat_msg_tokens,
+                                                    TokenEstimator.formatTokenCount(message.tokenCount),
+                                                ),
+                                            color = userBubbleTextColor.copy(alpha = 0.7f),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.testTag("bubble_token_count"),
+                                        )
+                                    }
+                                    if (message.tps != null && message.tps > 0.0) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "•",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = userBubbleTextColor.copy(alpha = 0.4f),
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text =
+                                                stringResource(
+                                                    R.string.chat_msg_tps,
+                                                    TokenEstimator.formatTps(message.tps),
+                                                ),
+                                            color = userBubbleTextColor.copy(alpha = 0.7f),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.testTag("bubble_tps"),
+                                        )
+                                    }
                                 }
                             }
                         }

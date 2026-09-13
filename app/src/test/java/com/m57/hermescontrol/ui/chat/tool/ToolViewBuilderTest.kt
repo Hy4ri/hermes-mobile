@@ -265,4 +265,159 @@ class ToolViewBuilderTest {
         assertEquals(ToolViewStatus.ERROR, view.status)
         assertTrue(view.error?.contains("Permission denied") == true)
     }
+
+    // ── name aliases ──────────────────────────────────────────────────────
+
+    @Test
+    fun `process_manage alias activates ProcessRenderer`() {
+        val view =
+            build(
+                "process_manage",
+                """{"action":"list"}""",
+                """{"processes":[{"pid":123,"command":"sleep 100","status":"running"}]}""",
+            )
+
+        assertEquals("list", view.subtitle)
+        assertTrue(view.detail.contains("sleep 100"))
+    }
+
+    @Test
+    fun `todo_list alias activates TodoRenderer`() {
+        val view =
+            build(
+                "todo_list",
+                """{"action":"create"}""",
+                """{"summary":{"total":1,"pending":1,"completed":0},"todos":""" +
+                    """[{"id":"1","content":"write tests","status":"pending"}]}""",
+            )
+
+        assertEquals("1 item (1 pending)", view.subtitle)
+        assertTrue(view.detail.contains("[ ] 1. write tests"))
+    }
+
+    @Test
+    fun `cronjob_manage alias activates CronjobRenderer`() {
+        val view =
+            build(
+                "cronjob_manage",
+                """{"action":"list"}""",
+                """{"jobs":[{"name":"backup","schedule":"0 0 * * *"}]}""",
+            )
+
+        assertEquals("1 cron job", view.subtitle)
+        assertTrue(view.detail.contains("- backup · 0 0 * * *"))
+    }
+
+    // ── new renderers ─────────────────────────────────────────────────────
+
+    @Test
+    fun `search_files dense format parses matches_text and count`() {
+        val view =
+            build(
+                "search_files",
+                """{"pattern":"fun connect","path":"app/src"}""",
+                """{"total_count":2,"matches_text":"app/src/A.kt:10: fun connect()\napp/src/B.kt:20: fun connect()"}""",
+            )
+
+        assertEquals("Searched “fun connect” · 2 matches", view.title)
+        assertEquals("app/src", view.subtitle)
+        assertTrue(view.detail.contains("app/src/A.kt:10: fun connect()"))
+        assertEquals("Matches", view.detailLabel)
+    }
+
+    @Test
+    fun `search_files sparse array format formats hits`() {
+        val view =
+            build(
+                "search_files",
+                """{"pattern":"test","path":"."}""",
+                """{"total_count":1,"matches":[{"path":"foo.kt","line":42,"content":"val test = 1"}]}""",
+            )
+
+        assertEquals("Searched “test” · 1 match", view.title)
+        assertTrue(view.detail.contains("foo.kt:42: val test = 1"))
+    }
+
+    @Test
+    fun `delegate_task handles joined spawn with status markers`() {
+        val view =
+            build(
+                "delegate_task",
+                """{"action":"spawn","tasks":[{"goal":"Research architecture"},{"goal":"Write code"}]}""",
+                """{"results":[{"task_index":0,"status":"completed","model":"claude-3-7","summary":"Researched OK",""" +
+                    """"duration_seconds":12.5},{"task_index":1,"status":"failed","error":"Build broke",""" +
+                    """"duration_seconds":4.0}]}""",
+            )
+
+        assertEquals("Delegated 2 tasks · 1 failed", view.title)
+        assertEquals("Research architecture", view.subtitle)
+        assertTrue(view.detail.contains("[x] Research architecture"))
+        assertTrue(view.detail.contains("claude-3-7"))
+        assertTrue(view.detail.contains("[!] Write code"))
+        assertTrue(view.detail.contains("Build broke"))
+    }
+
+    @Test
+    fun `delegate_task handles list action`() {
+        val view =
+            build(
+                "delegate_task",
+                """{"action":"list"}""",
+                """{"count":1,"subagents":[{"goal":"Background indexing","status":"running",""" +
+                    """"running_seconds":35.0}]}""",
+            )
+
+        assertEquals("1 subagent", view.title)
+        assertTrue(view.detail.contains("- [running] Background indexing · 35s"))
+    }
+
+    @Test
+    fun `text_to_speech formats provider and audio path`() {
+        val view =
+            build(
+                "text_to_speech",
+                """{"text":"Hello world"}""",
+                """{"provider":"edge","chunk_count":1,"file_path":"/tmp/audio.mp3"}""",
+            )
+
+        assertEquals("Generated speech", view.title)
+        assertEquals("edge", view.subtitle)
+        assertTrue(view.detail.contains("“Hello world”"))
+        assertTrue(view.detail.contains("Saved to /tmp/audio.mp3"))
+    }
+
+    @Test
+    fun `browser action renderers format scroll, back, vision and console`() {
+        val scroll = build("browser_scroll", """{"direction":"down"}""", """{"scrolled":"down"}""")
+        assertEquals("Scrolled down", scroll.title)
+
+        val back = build("browser_back", """{}""", """{"url":"https://example.com/docs"}""")
+        assertEquals("Went back to example.com/docs", back.title)
+
+        val vision =
+            build("browser_vision", """{"question":"Is there a login button?"}""", """{"analysis":"Yes, top right"}""")
+        assertEquals("Analyzed page", vision.title)
+        assertEquals("Is there a login button?", vision.subtitle)
+        assertEquals("Yes, top right", vision.detail)
+
+        val console =
+            build(
+                "browser_console",
+                """{}""",
+                """{"total_messages":5,"total_errors":1,"js_errors":[{"message":"Uncaught TypeError"}]}""",
+            )
+        assertEquals("Console: 5 messages, 1 error", console.title)
+        assertTrue(console.detail.contains("[error] Uncaught TypeError"))
+    }
+
+    @Test
+    fun `output is clamped to maximum display chars`() {
+        val longOutput = "a".repeat(25_000)
+        val view = build("terminal", """{"command":"dump"}""", """{"output":"$longOutput"}""")
+
+        val stdout = view.stdout
+        assertNotNull(stdout)
+        assertTrue(stdout!!.length < 25_000)
+        assertTrue(stdout.contains("more characters truncated"))
+    }
 }

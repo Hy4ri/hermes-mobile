@@ -165,6 +165,8 @@
     <string name="content_desc_scroll_to_bottom">맨 아래로</string>
     <string name="content_desc_copy">복사</string>
     <string name="content_desc_edit">편집</string>
+    <string name="chat_msg_tokens">%1$s 토큰</string>
+    <string name="chat_msg_tps">%1$s t/s</string>
 
     <!-- Attachment / File Picker -->
     <string name="chat_attach_remove_desc">첨부 제거</string>
@@ -178,6 +180,8 @@
     <string name="settings_sec_behavior">동작</string>
     <string name="settings_item_auto_reconnect">자동 재연결</string>
     <string name="settings_desc_auto_reconnect">연결 끊김 시 자동 재연결</string>
+    <string name="settings_item_restore_session">마지막 세션 복원</string>
+    <string name="settings_desc_restore_session">시작 시 가장 최근 채팅 세션을 다시 엽니다</string>
     <string name="settings_sec_appearance">테마</string>
     <string name="settings_item_theme">테마</string>
     <string name="settings_sec_chat">채팅</string>
@@ -201,6 +205,9 @@
     <string name="settings_action_test_connection">연결 테스트</string>
     <string name="settings_sec_about">정보</string>
     <string name="settings_about_app_name">헤르메스 모바일</string>
+    <string name="settings_support_title">Hermes Mobile 후원</string>
+    <string name="settings_support_message">Hermes Mobile이 시간을 절약해 준다면 개발을 후원해 주세요.</string>
+    <string name="settings_support_action">Ko-fi에서 후원하기</string>
     <string name="settings_about_version">버전</string>
     <string name="settings_about_build">빌드</string>
     <string name="settings_about_debug">디버그</string>
@@ -421,6 +428,10 @@
     <string name="sessions_hide_hidden">숨겨진 세션 숨기기</string>
     <string name="sessions_hidden_badge">숨김</string>
     <string name="sessions_all_hidden_desc">모든 세션이 현재 숨겨져 있습니다. 아래를 탭하여 숨겨진 세션을 표시하세요.</string>
+    <string name="sessions_live_status_running">실행 중</string>
+    <string name="sessions_live_status_waiting">입력 대기 중</string>
+    <string name="sessions_live_status_running_desc">세션이 실행 중입니다</string>
+    <string name="sessions_live_status_waiting_desc">세션이 사용자 입력을 대기하고 있습니다</string>
 
     <!-- Toolsets Screen -->
     <string name="toolsets_empty_title">툴셋이 없습니다</string>
@@ -883,4 +894,39 @@
     <string name="subagent_status_cancelled">취소됨</string>
     <string name="subagent_status_failed">실패</string>
     <string name="subagent_duration">%1$.1f초</string>
+    <string name="chat_fast_mode_label">빠름</string>
+    <string name="chat_fast_mode_desc">빠른 모드</string>
+    <string name="chat_fast_mode_unavailable">이 모델에서는 빠른 모드를 사용할 수 없습니다</string>
+
+    <!-- Session Integrations (issue #1091) -->
+    <string name="session_integrations_title">연동</string>
+    <string name="session_integrations_subtitle">활성 세션: %1$s</string>
+    <string name="session_integrations_no_session">활성 세션 없음</string>
+    <string name="session_integrations_empty">이 세션에서 사용할 수 있는 연동이 없습니다</string>
+    <string name="session_integrations_refresh">연동 새로고침</string>
+    <string name="session_integrations_connect">연결</string>
+    <string name="session_integrations_reconnect">다시 연결</string>
+    <string name="session_integrations_connecting">연결 중…</string>
+    <string name="session_integrations_awaiting">인증 대기 중</string>
+    <string name="session_integrations_awaiting_desc">브라우저에서 로그인을 완료한 후 다시 돌아오세요.</string>
+    <string name="session_integrations_refresh_status">상태 새로고침</string>
+    <string name="session_integrations_status_connected">연결됨</string>
+    <string name="session_integrations_status_disconnected">연결 해제됨</string>
+    <string name="session_integrations_status_expired">만료됨</string>
+    <string name="session_integrations_status_revoked">취소됨</string>
+    <string name="session_integrations_status_failed">실패</string>
+    <string name="session_integrations_status_unknown">알 수 없음</string>
+    <string name="session_integrations_err_invalid_params">잘못된 커넥터 매개변수</string>
+    <string name="session_integrations_err_not_owner">이 전송 계층이 세션을 소유하고 있지 않습니다. 세션을 다시 연결하세요.</string>
+    <string name="session_integrations_err_unavailable">이 세션에서는 연동을 사용할 수 없습니다</string>
+    <string name="session_integrations_err_unsupported_runtime">연동은 세션 호스트에서 관리해야 합니다</string>
+    <string name="session_integrations_err_unsupported_backend">백엔드에서 연동 서비스를 지원하지 않습니다</string>
+    <string name="session_integrations_err_request_failed">커넥터 요청에 실패했습니다. 다시 시도해 주세요.</string>
+    <string name="session_integrations_err_invalid_response">커넥터 서비스에서 잘못된 응답을 반환했습니다</string>
+    <string name="session_integrations_err_network">게이트웨이와의 통신에 실패했습니다</string>
+    <string name="session_integrations_err_browser_launch">인증을 위한 브라우저를 열 수 없습니다</string>
+    <string name="session_integrations_err_generic">커넥터 작업에 실패했습니다</string>
+    <string name="session_integrations_retry">다시 시도</string>
+    <string name="session_integrations_close">닫기</string>
+    <string name="session_integrations_menu_item">세션 연동</string>
 </resources>

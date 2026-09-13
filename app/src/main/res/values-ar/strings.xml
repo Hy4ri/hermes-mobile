@@ -168,6 +168,8 @@
 <string name="content_desc_scroll_to_bottom">التمرير إلى الأسفل</string>
 <string name="content_desc_copy">نسخ</string>
 <string name="content_desc_edit">تعديل</string>
+<string name="chat_msg_tokens">%1$s رمز</string>
+<string name="chat_msg_tps">%1$s رمز/ث</string>
 <string name="chat_attach_remove_desc">إزالة المرفق</string>
 <string name="chat_camera_error">تعذر التقاط الصورة</string>
 <string name="settings_sec_connection">الاتصال</string>
@@ -175,6 +177,8 @@
 <string name="settings_sec_behavior">السلوك</string>
 <string name="settings_item_auto_reconnect">إعادة الاتصال التلقائي</string>
 <string name="settings_desc_auto_reconnect">إعادة الاتصال تلقائيًا عند انقطاعه</string>
+<string name="settings_item_restore_session">استعادة الجلسة الأخيرة</string>
+<string name="settings_desc_restore_session">إعادة فتح أحدث جلسة محادثة عند بدء التشغيل</string>
 <string name="settings_sec_appearance">المظهر</string>
 <string name="settings_item_theme">السمة</string>
 <string name="settings_sec_chat">المحادثة</string>
@@ -199,6 +203,9 @@
 <string name="settings_sec_about">حول التطبيق</string>
 <string name="settings_sec_language">اللغة</string>
 <string name="settings_about_app_name">Hermes Mobile</string>
+<string name="settings_support_title">ادعم Hermes Mobile</string>
+<string name="settings_support_message">إذا وفّر لك Hermes Mobile الوقت، يمكنك دعم تطويره.</string>
+<string name="settings_support_action">ادعمني على Ko-fi</string>
 <string name="settings_about_version">الإصدار</string>
 <string name="settings_about_build">رقم البنية</string>
     <string name="settings_about_debug">تصحيح الأخطاء (Debug)</string>
@@ -541,6 +548,10 @@
 <string name="sessions_all_hidden_desc">جميع الجلسات مخفية حاليًا. اضغط أدناه لإظهار الجلسات المخفية.</string>
 <string name="sessions_pinned_indicator">مثبتة</string>
 <string name="sessions_fork_indicator">جلسة مفرعة</string>
+<string name="sessions_live_status_running">قيد التشغيل</string>
+<string name="sessions_live_status_waiting">بانتظار إدخال</string>
+<string name="sessions_live_status_running_desc">الجلسة قيد التشغيل</string>
+<string name="sessions_live_status_waiting_desc">الجلسة بانتظار إدخال من المستخدم</string>
 <string name="sessions_rename_title">إعادة تسمية الجلسة</string>
 <string name="sessions_rename_hint">عنوان الجلسة</string>
 <string name="toolsets_empty_title">لم يتم العثور على مجموعات أدوات</string>
@@ -1031,6 +1042,9 @@
 <string name="channels_expiry_format">ينتهي في: %1$s</string>
 <string name="channels_search_placeholder">البحث في القنوات…</string>
 <string name="chat_attach_file">إرفاق ملف</string>
+<string name="chat_fast_mode_label">سريع</string>
+<string name="chat_fast_mode_desc">الوضع السريع</string>
+<string name="chat_fast_mode_unavailable">الوضع السريع غير مدعوم لهذا النموذج</string>
 <string name="chat_save_attachment">حفظ %1$s</string>
 <string name="chat_switch_model_title">تبديل النموذج (لهذه المحادثة)</string>
 <string name="config_clear_value">مسح القيمة</string>
@@ -1193,4 +1207,36 @@
 <string name="group_chat_action_settings">الإعدادات</string>
 <string name="group_chat_stopped_by_user">تم إيقاف النقاش</string>
 <string name="group_chat_action_stop">إيقاف التوليد</string>
+
+    <!-- Session Integrations (issue #1091) -->
+    <string name="session_integrations_title">التكاملات</string>
+    <string name="session_integrations_subtitle">الجلسة النشطة: %1$s</string>
+    <string name="session_integrations_no_session">لا توجد جلسة نشطة</string>
+    <string name="session_integrations_empty">لا توجد تكاملات متاحة لهذه الجلسة</string>
+    <string name="session_integrations_refresh">تحديث التكاملات</string>
+    <string name="session_integrations_connect">ربط</string>
+    <string name="session_integrations_reconnect">إعادة الربط</string>
+    <string name="session_integrations_connecting">جاري الاتصال…</string>
+    <string name="session_integrations_awaiting">بانتظار التفويض</string>
+    <string name="session_integrations_awaiting_desc">أكمل تسجيل الدخول في المتصفح، ثم ارجع إلى هنا.</string>
+    <string name="session_integrations_refresh_status">تحديث الحالة</string>
+    <string name="session_integrations_status_connected">متصل</string>
+    <string name="session_integrations_status_disconnected">غير متصل</string>
+    <string name="session_integrations_status_expired">منتهي الصلاحية</string>
+    <string name="session_integrations_status_revoked">تم إلغاء الوصول</string>
+    <string name="session_integrations_status_failed">فشل</string>
+    <string name="session_integrations_status_unknown">غير معروف</string>
+    <string name="session_integrations_err_invalid_params">معلمات التكامل غير صالحة</string>
+    <string name="session_integrations_err_not_owner">الجلسة غير مملوكة بواسطة مسار النقل هذا. يرجى إعادة الاتصال بالجلسة.</string>
+    <string name="session_integrations_err_unavailable">التكاملات غير متوفرة في هذه الجلسة</string>
+    <string name="session_integrations_err_unsupported_runtime">يجب إدارة التكاملات على جهاز مضيف الجلسة</string>
+    <string name="session_integrations_err_unsupported_backend">التكاملات غير مدعومة من هذا الخادم</string>
+    <string name="session_integrations_err_request_failed">فشل طلب التكامل. يرجى المحاولة مرة أخرى.</string>
+    <string name="session_integrations_err_invalid_response">استجابة غير صالحة من خدمة التكامل</string>
+    <string name="session_integrations_err_network">تعذر الاتصال بالبوابة</string>
+    <string name="session_integrations_err_browser_launch">تعذر فتح المتصفح للتفويض</string>
+    <string name="session_integrations_err_generic">فشلت عملية التكامل</string>
+    <string name="session_integrations_retry">إعادة المحاولة</string>
+    <string name="session_integrations_close">إغلاق</string>
+    <string name="session_integrations_menu_item">تكاملات الجلسة</string>
 </resources>

@@ -2,6 +2,7 @@ package com.m57.hermescontrol.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.VisibleForTesting
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.m57.hermescontrol.data.config.ConnectionProfile
@@ -500,6 +501,11 @@ object AuthManager {
         _baseUrlFlow.value = ""
     }
 
+    @VisibleForTesting
+    fun setBaseUrlForTest(baseUrl: String) {
+        _baseUrlFlow.value = baseUrl
+    }
+
     fun getToken(): String? {
         if (tokenInitialized) return cachedToken
         synchronized(this) {
@@ -608,6 +614,47 @@ object AuthManager {
 
     fun setAutoReconnect(enabled: Boolean) {
         serverStore.update { it.copy(autoReconnect = enabled) }
+    }
+
+    // ── Restore last session on startup (issue #1102) ─────────────────────
+
+    private fun currentSessionScopeKey(): String {
+        val connId = getSelectedProfileId()?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        val serverProfile = activeProfileId.value?.takeIf { it.isNotBlank() } ?: DEFAULT_PROFILE_ID
+        return "$connId:$serverProfile"
+    }
+
+    fun isRestoreLastSession(): Boolean = serverStore.getLatestState().restoreLastSession
+
+    fun setRestoreLastSession(enabled: Boolean) {
+        serverStore.update { it.copy(restoreLastSession = enabled) }
+    }
+
+    fun getLastOpenedSessionId(): String? = serverStore.getLatestState().lastOpenedSessionIds[currentSessionScopeKey()]
+
+    fun setLastOpenedSessionId(sessionId: String?) {
+        val key = currentSessionScopeKey()
+        serverStore.update { state ->
+            val updated =
+                if (sessionId != null) {
+                    state.lastOpenedSessionIds + (key to sessionId)
+                } else {
+                    state.lastOpenedSessionIds - key
+                }
+            state.copy(lastOpenedSessionIds = updated)
+        }
+    }
+
+    fun clearLastOpenedSessionId() {
+        setLastOpenedSessionId(null)
+    }
+
+    fun clearLastOpenedSessionIdsForConnection(connectionProfileId: String) {
+        serverStore.update { state ->
+            val prefix = "$connectionProfileId:"
+            val updated = state.lastOpenedSessionIds.filterKeys { !it.startsWith(prefix) }
+            state.copy(lastOpenedSessionIds = updated)
+        }
     }
 
     // ── Theme preference ──────────────────────────────────────────────────

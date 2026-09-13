@@ -4,20 +4,25 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
@@ -32,11 +37,14 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -45,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +72,7 @@ import androidx.compose.ui.unit.sp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
 import com.m57.hermescontrol.ui.chat.SubagentIndicator
+import com.m57.hermescontrol.ui.chat.SubagentTranscriptUiState
 import com.m57.hermescontrol.ui.chat.TodoItem
 
 /**
@@ -73,6 +83,10 @@ import com.m57.hermescontrol.ui.chat.TodoItem
 fun SubagentInspectionSheet(
     indicators: List<SubagentIndicator> = emptyList(),
     todos: List<TodoItem> = emptyList(),
+    inspectingSubagentId: String? = null,
+    subagentTranscript: SubagentTranscriptUiState? = null,
+    onToggleTranscript: ((String) -> Unit)? = null,
+    onRetryTranscript: (() -> Unit)? = null,
     onSteerSubagent: ((SubagentIndicator, String) -> Unit)? = null,
     onStopSubagent: ((SubagentIndicator) -> Unit)? = null,
     onDismiss: () -> Unit,
@@ -197,7 +211,7 @@ fun SubagentInspectionSheet(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "SUBAGENTS",
+                                        text = stringResource(R.string.subagent_subagents_header).uppercase(),
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,
@@ -211,8 +225,14 @@ fun SubagentInspectionSheet(
                                 "subagent-${indicator.subagentId ?: indicator.goal ?: "${indicator.type}_$index"}"
                             },
                         ) { _, indicator ->
+                            val isInspectingThis =
+                                indicator.subagentId != null && indicator.subagentId == inspectingSubagentId
                             InspectionItemCard(
                                 indicator = indicator,
+                                isInspectingTranscript = isInspectingThis,
+                                transcriptState = if (isInspectingThis) subagentTranscript else null,
+                                onToggleTranscript = onToggleTranscript,
+                                onRetryTranscript = onRetryTranscript,
                                 onSteer =
                                     if (onSteerSubagent != null) {
                                         { message -> onSteerSubagent(indicator, message) }
@@ -448,6 +468,10 @@ private fun TodoInspectionCard(
 @Composable
 private fun InspectionItemCard(
     indicator: SubagentIndicator,
+    isInspectingTranscript: Boolean = false,
+    transcriptState: SubagentTranscriptUiState? = null,
+    onToggleTranscript: ((String) -> Unit)? = null,
+    onRetryTranscript: (() -> Unit)? = null,
     onSteer: ((String) -> Unit)? = null,
     onStop: (() -> Unit)? = null,
 ) {
@@ -619,6 +643,44 @@ private fun InspectionItemCard(
                 }
             }
 
+            // Full Rolling Transcript Disclosure (issue #1089)
+            if (!indicator.subagentId.isNullOrBlank() && onToggleTranscript != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { onToggleTranscript(indicator.subagentId) },
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("subagent_transcript_toggle_${indicator.subagentId}"),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isInspectingTranscript) Icons.Filled.ExpandLess else Icons.Filled.Terminal,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text =
+                            if (isInspectingTranscript) {
+                                stringResource(R.string.subagent_hide_transcript)
+                            } else {
+                                stringResource(R.string.subagent_inspect_transcript)
+                            },
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+
+                AnimatedVisibility(visible = isInspectingTranscript) {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        SubagentTranscriptView(
+                            state = transcriptState,
+                            onRetry = onRetryTranscript,
+                        )
+                    }
+                }
+            }
+
             // Interactive Controls for active subagent (issue #1030)
             if (indicator.isRunning || indicator.isSteered) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -712,6 +774,178 @@ private fun InspectionItemCard(
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                         },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubagentTranscriptView(
+    state: SubagentTranscriptUiState?,
+    onRetry: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth().testTag("subagent_transcript_container"),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            when {
+                state == null || (state.isLoading && state.text.isEmpty()) -> {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.subagent_transcript_loading),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                state.error != null && state.text.isEmpty() -> {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = state.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        if (onRetry != null) {
+                            OutlinedButton(
+                                onClick = onRetry,
+                                modifier = Modifier.testTag("subagent_transcript_retry"),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.subagent_transcript_retry),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                state.isEmpty -> {
+                    Text(
+                        text = stringResource(R.string.subagent_transcript_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .testTag("subagent_transcript_empty"),
+                    )
+                }
+
+                else -> {
+                    // Header badges (truncation note & background loading indicator)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.subagent_live_transcript),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.outline,
+                            fontSize = 9.sp,
+                        )
+
+                        if (state.isTruncated) {
+                            Text(
+                                text = stringResource(R.string.subagent_transcript_truncated),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                fontSize = 8.sp,
+                            )
+                        }
+                    }
+
+                    if (state.isLoading) {
+                        LinearProgressIndicator(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(2.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+
+                    val scrollState = rememberScrollState()
+                    LaunchedEffect(state.text) {
+                        scrollState.animateScrollTo(scrollState.maxValue)
+                    }
+
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 60.dp, max = 240.dp)
+                                .verticalScroll(scrollState),
+                    ) {
+                        Text(
+                            text = state.text,
+                            style =
+                                MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp,
+                                ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.testTag("subagent_transcript_text"),
+                        )
+                    }
+
+                    if (state.error != null && onRetry != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = state.error,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                onClick = onRetry,
+                                modifier = Modifier.size(24.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Autorenew,
+                                    contentDescription = stringResource(R.string.subagent_transcript_retry),
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp),
                                 )
                             }
                         }

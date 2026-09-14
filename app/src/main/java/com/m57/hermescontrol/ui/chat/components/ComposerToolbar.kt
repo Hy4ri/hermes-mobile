@@ -404,7 +404,7 @@ fun ComposerToolbar(
     }
 }
 
-private val ControlSize = 40.dp
+private val ControlSize = 36.dp
 
 private enum class ActionGlyph { SEND, STOP, VOICE }
 

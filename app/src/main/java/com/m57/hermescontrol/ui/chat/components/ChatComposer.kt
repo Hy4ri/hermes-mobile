@@ -249,7 +249,7 @@ fun ChatInputBar(
                             modifier =
                                 Modifier
                                     .weight(1f)
-                                    .heightIn(min = 42.dp, max = 120.dp)
+                                    .heightIn(min = 42.dp, max = 200.dp)
                                     .padding(vertical = 4.dp)
                                     .testTag("chat_input"),
                             enabled = isConnected,
@@ -260,7 +260,7 @@ fun ChatInputBar(
                                     textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
                                 ),
                             singleLine = false,
-                            maxLines = 4,
+                            maxLines = 8,
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                             decorationBox = { innerTextField ->
                                 CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {

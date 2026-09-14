@@ -1,5 +1,11 @@
 package com.m57.hermescontrol.ui.chat.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,17 +18,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -48,7 +58,11 @@ import com.m57.hermescontrol.R
 /**
  * Bottom toolbar row for the chat composer.
  *
- * Layout: [📎 attach] [model chip] [←spacer→] [🧠 reasoning] [🎙 mic]
+ * Layout: [📎 attach] [model chip] [🧠 reasoning] [mic] [action]
+ *
+ * The trailing action button morphs: while a send is possible it sends,
+ * otherwise it carries the mic action. The flat mic button only appears next
+ * to it while it is in send mode, so dictation stays reachable at all times.
  *
  * The reasoning chip opens a dropdown menu to pick a level (instead of cycling).
  * When [canDisableReasoning] is false the "None" level is disabled with a
@@ -68,6 +82,8 @@ fun ComposerToolbar(
     onReasoningSelected: (String?) -> Unit,
     onMicTap: () -> Unit,
     modifier: Modifier = Modifier,
+    canSend: Boolean = false,
+    onSend: () -> Unit = {},
     canDisableReasoning: Boolean? = null,
     supportsReasoning: Boolean? = null,
     fastMode: Boolean = false,
@@ -299,31 +315,99 @@ fun ComposerToolbar(
             }
         }
 
-        // Mic / Stop button
-        IconButton(
-            onClick = onMicTap,
-            enabled = isConnected,
+        // Flat mic / stop button — only while the action button is in send mode
+        AnimatedVisibility(
+            visible = canSend,
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 0.8f),
+        ) {
+            FilledIconButton(
+                onClick = onMicTap,
+                enabled = isConnected,
+                colors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(),
+                modifier =
+                    Modifier
+                        .size(ControlSize)
+                        .testTag(if (isListening) "mic_stop_button" else "mic_button"),
+            ) {
+                Icon(
+                    imageVector = if (isListening) Icons.Default.Stop else Icons.Outlined.Mic,
+                    contentDescription = if (isListening) "Stop listening" else "Mic",
+                )
+            }
+        }
+
+        // Action button — send when a send is possible, mic / stop otherwise
+        FilledIconButton(
+            onClick = if (canSend) onSend else onMicTap,
+            enabled = canSend || isConnected,
             colors =
-                if (isListening) {
-                    IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    )
+                if (!canSend && isListening) {
+                    listeningIconButtonColors()
                 } else {
-                    IconButtonDefaults.filledTonalIconButtonColors()
+                    IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.onSurface,
+                        contentColor = MaterialTheme.colorScheme.surface,
+                    )
                 },
             modifier =
                 Modifier
-                    .size(36.dp)
-                    .testTag(if (isListening) "mic_stop_button" else "mic_button"),
+                    .size(ControlSize)
+                    .testTag(
+                        when {
+                            canSend -> "send_button"
+                            isListening -> "mic_stop_button"
+                            else -> "mic_button"
+                        },
+                    ),
         ) {
-            Icon(
-                imageVector = if (isListening) Icons.Default.Stop else Icons.Default.Mic,
-                contentDescription = if (isListening) "Stop listening" else "Mic",
-            )
+            Crossfade(
+                targetState =
+                    when {
+                        canSend -> ActionGlyph.SEND
+                        isListening -> ActionGlyph.STOP
+                        else -> ActionGlyph.VOICE
+                    },
+                label = "composer_action_glyph",
+            ) { glyph ->
+                when (glyph) {
+                    ActionGlyph.SEND -> {
+                        Icon(
+                            imageVector = Icons.Default.ArrowUpward,
+                            contentDescription = stringResource(R.string.chat_send_desc),
+                        )
+                    }
+
+                    ActionGlyph.STOP -> {
+                        Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop listening")
+                    }
+
+                    ActionGlyph.VOICE -> {
+                        Icon(imageVector = Icons.Default.GraphicEq, contentDescription = "Mic")
+                    }
+                }
+            }
         }
     }
 }
+
+private val ControlSize = 40.dp
+
+private enum class ActionGlyph { SEND, STOP, VOICE }
+
+@Composable
+private fun flatIconButtonColors(): IconButtonColors =
+    IconButtonDefaults.filledIconButtonColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    )
+
+@Composable
+private fun listeningIconButtonColors(): IconButtonColors =
+    IconButtonDefaults.filledIconButtonColors(
+        containerColor = MaterialTheme.colorScheme.error,
+        contentColor = MaterialTheme.colorScheme.onError,
+    )
 
 /**
  * Build a human-readable label from a reasoning effort level.

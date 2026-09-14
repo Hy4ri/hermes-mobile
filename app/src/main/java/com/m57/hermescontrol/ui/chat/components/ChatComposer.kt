@@ -1,16 +1,12 @@
 package com.m57.hermescontrol.ui.chat.components
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,13 +28,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -76,8 +70,8 @@ import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.util.BidiUtils
 
 /**
- * The chat input bar with a two-row layout: input+send on top,
- * and a toolbar with attach/model chip/reasoning chip/mic below.
+ * The chat input bar with a two-row layout: the input on top,
+ * and a toolbar with attach/model chip/reasoning chip/mic/send below.
  */
 @Composable
 fun ChatInputBar(
@@ -291,7 +285,7 @@ fun ChatInputBar(
                                         Row(
                                             modifier =
                                                 Modifier
-                                                    .padding(start = 12.dp, end = 4.dp, top = 9.dp, bottom = 9.dp)
+                                                    .padding(horizontal = 12.dp, vertical = 9.dp)
                                                     .fillMaxWidth(),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
@@ -327,39 +321,6 @@ fun ChatInputBar(
                                                     innerTextField()
                                                 }
                                             }
-
-                                            // Send button INSIDE the field. Shown whenever a send is
-                                            // possible — text typed OR an attachment pending (issue
-                                            // #956): the old text-only gate hid the button entirely
-                                            // for attachment-only sends.
-                                            AnimatedContent(
-                                                targetState = canSend,
-                                                transitionSpec = {
-                                                    (scaleIn(initialScale = 0.8f) + fadeIn())
-                                                        .togetherWith(scaleOut(targetScale = 0.8f) + fadeOut())
-                                                },
-                                                label = "send_toggle",
-                                            ) { showSend ->
-                                                if (showSend) {
-                                                    IconButton(
-                                                        onClick = onSend,
-                                                        enabled = canSend,
-                                                        colors = IconButtonDefaults.filledTonalIconButtonColors(),
-                                                        modifier =
-                                                            Modifier
-                                                                .size(36.dp)
-                                                                .testTag("send_button"),
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.AutoMirrored.Filled.Send,
-                                                            contentDescription =
-                                                                stringResource(
-                                                                    R.string.chat_send_desc,
-                                                                ),
-                                                        )
-                                                    }
-                                                }
-                                            }
                                         }
                                     }
                                 }
@@ -374,6 +335,8 @@ fun ChatInputBar(
                     currentSessionModel = currentSessionModel,
                     reasoningLevel = reasoningLevel,
                     isListening = isListening,
+                    canSend = canSend,
+                    onSend = onSend,
                     onAttachTap = { showAttachmentMenu = true },
                     onModelTap = onModelTap,
                     onReasoningSelected = onReasoningTap,

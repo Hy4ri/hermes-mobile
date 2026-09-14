@@ -14,7 +14,8 @@ import androidx.compose.ui.graphics.compositeOver
  * surfaceContainer tiers: several presets ship nearly identical tiers
  * (Nord's High and Highest are the same color), which made the flat controls
  * vanish into the card. A fixed onSurface tint keeps them visible in every
- * preset and under dynamic color.
+ * preset and under dynamic color. Text and icon contrast is gated per preset
+ * in ComposerPaletteTest.
  */
 internal data class ComposerPalette(
     val card: Color,

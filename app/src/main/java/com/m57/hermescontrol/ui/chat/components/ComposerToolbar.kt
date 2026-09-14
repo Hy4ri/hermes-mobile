@@ -18,8 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Stop
@@ -31,7 +31,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -106,15 +105,15 @@ fun ComposerToolbar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // Attach button
-        IconButton(
+        FilledIconButton(
             onClick = onAttachTap,
             enabled = isConnected,
-            modifier = Modifier.size(36.dp),
+            colors = flatIconButtonColors(),
+            modifier = Modifier.size(ControlSize),
         ) {
             Icon(
-                imageVector = Icons.Default.AttachFile,
+                imageVector = Icons.Default.Add,
                 contentDescription = stringResource(R.string.chat_attach_file),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 

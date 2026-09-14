@@ -65,6 +65,11 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object KanbanScreen : NavKey
 
+@Serializable data class KanbanTaskDetailKey(
+    val boardSlug: String,
+    val taskId: String,
+) : NavKey
+
 @Serializable data object ProcessesScreen : NavKey
 
 @Serializable data object ProvidersScreen : NavKey

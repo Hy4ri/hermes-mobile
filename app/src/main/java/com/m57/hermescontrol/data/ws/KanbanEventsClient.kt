@@ -8,11 +8,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -31,11 +39,37 @@ enum class KanbanLiveStatus {
     AUTH_FAILED,
 }
 
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+object StringOrLongSerializer : KSerializer<String?> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("StringOrLong", PrimitiveKind.STRING)
+
+    override fun serialize(
+        encoder: Encoder,
+        value: String?,
+    ) {
+        if (value == null) {
+            encoder.encodeNull()
+        } else {
+            encoder.encodeString(value)
+        }
+    }
+
+    override fun deserialize(decoder: Decoder): String? {
+        val jsonDecoder = decoder as? JsonDecoder ?: return decoder.decodeString()
+        val element = jsonDecoder.decodeJsonElement()
+        if (element is JsonPrimitive) {
+            return element.content
+        }
+        return null
+    }
+}
+
 /** One row of the backend's ``task_events`` table (``/api/plugins/kanban/events``). */
 @Serializable
 data class KanbanEvent(
     val id: Long,
     @SerialName("task_id") val taskId: String? = null,
+    @Serializable(with = StringOrLongSerializer::class)
     @SerialName("run_id") val runId: String? = null,
     val kind: String,
     /** Partial update (e.g. ``{"status": "done"}``) — never applied directly. */

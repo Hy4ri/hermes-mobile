@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -586,7 +588,15 @@ fun ProfilesScreen(
 
     if (soulEditProfileName != null) {
         val initialText = state.selectedSoulContent ?: ""
-        var soulText by remember(initialText) { mutableStateOf(initialText) }
+        val soulTextFieldState = rememberTextFieldState(initialText)
+
+        LaunchedEffect(initialText) {
+            if (soulTextFieldState.text.toString() != initialText) {
+                soulTextFieldState.edit {
+                    replace(0, length, initialText)
+                }
+            }
+        }
 
         AlertDialog(
             onDismissRequest = {
@@ -615,10 +625,9 @@ fun ProfilesScreen(
                     }
                 } else {
                     OutlinedTextField(
-                        value = soulText,
-                        onValueChange = { soulText = it },
+                        state = soulTextFieldState,
                         modifier = Modifier.fillMaxWidth(),
-                        maxLines = 10,
+                        lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 10),
                     )
                 }
             },
@@ -627,7 +636,7 @@ fun ProfilesScreen(
                     onClick = {
                         val profileName = soulEditProfileName
                         if (profileName != null) {
-                            viewModel.saveSoul(profileName, soulText)
+                            viewModel.saveSoul(profileName, soulTextFieldState.text.toString())
                         }
                         soulEditProfileName = null
                     },

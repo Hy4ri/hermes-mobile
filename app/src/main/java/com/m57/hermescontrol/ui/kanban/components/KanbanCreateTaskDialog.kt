@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
@@ -49,6 +50,7 @@ import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.TaskEstimate
+import com.m57.hermescontrol.ui.common.rememberSyncedTextFieldState
 import kotlinx.coroutines.launch
 
 private const val PARKED_VALUE = "__parked__"
@@ -68,6 +70,7 @@ fun KanbanCreateTaskDialog(
 ) {
     var title by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
+    val descTextFieldState = rememberSyncedTextFieldState(desc) { desc = it }
     var selectedColumn by remember(defaultColumn) { mutableStateOf(defaultColumn) }
     var selectedAssignee by remember { mutableStateOf<String?>(null) }
     var priority by remember { mutableIntStateOf(0) }
@@ -114,12 +117,10 @@ fun KanbanCreateTaskDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
-                    value = desc,
-                    onValueChange = { desc = it },
+                    state = descTextFieldState,
                     label = { Text(stringResource(R.string.kanban_task_desc)) },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                    maxLines = 5,
+                    lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = 3, maxHeightInLines = 5),
                     enabled = !isCreating,
                 )
 

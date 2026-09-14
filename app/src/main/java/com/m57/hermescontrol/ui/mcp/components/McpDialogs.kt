@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.UploadFile
@@ -37,6 +38,7 @@ import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.McpServer
 import com.m57.hermescontrol.theme.Spacing
 import com.m57.hermescontrol.ui.common.DetailDialog
+import com.m57.hermescontrol.ui.common.rememberSyncedTextFieldState
 import com.m57.hermescontrol.ui.common.toDetailRows
 import com.m57.hermescontrol.ui.mcp.McpServersUiState
 import com.m57.hermescontrol.ui.mcp.McpServersViewModel
@@ -112,6 +114,9 @@ fun McpDialogs(
     }
 
     if (state.showImportDialog) {
+        val importTextFieldState =
+            rememberSyncedTextFieldState(state.importJsonInput, viewModel::updateImportJsonInput)
+
         AlertDialog(
             onDismissRequest = { viewModel.toggleImportDialog() },
             title = {
@@ -157,8 +162,7 @@ fun McpDialogs(
                     }
                     Spacer(modifier = Modifier.height(spacing.xs))
                     OutlinedTextField(
-                        value = state.importJsonInput,
-                        onValueChange = viewModel::updateImportJsonInput,
+                        state = importTextFieldState,
                         placeholder = {
                             Text(
                                 "{\n  \"mcpServers\": {\n    \"name\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@mcp/srv\"]\n    }\n  }\n}",
@@ -170,7 +174,7 @@ fun McpDialogs(
                             Modifier
                                 .fillMaxWidth()
                                 .height(180.dp),
-                        maxLines = 10,
+                        lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 10),
                     )
                 }
             },

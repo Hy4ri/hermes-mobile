@@ -6,17 +6,20 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -28,7 +31,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonColors
@@ -44,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -55,20 +58,24 @@ import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 
 /**
- * Bottom toolbar row for the chat composer.
+ * Bottom controls row for the chat composer, rendered inside the composer card.
  *
- * Layout: [📎 attach] [model chip] [🧠 reasoning] [mic] [action]
+ * Layout: [+ attach] [model · reasoning pill ──free space──] [mic] [action]
+ *
+ * All controls are flat and borderless; hierarchy comes from fill brightness.
+ * The pill shows the model and the reasoning level side by side — tapping the
+ * model half opens the model picker, tapping the level half opens the level menu.
  *
  * The trailing action button morphs: while a send is possible it sends,
  * otherwise it carries the mic action. The flat mic button only appears next
  * to it while it is in send mode, so dictation stays reachable at all times.
  *
- * The reasoning chip opens a dropdown menu to pick a level (instead of cycling).
+ * The reasoning menu picks a level (instead of cycling).
  * When [canDisableReasoning] is false the "None" level is disabled with a
  * "reasoning always on" hint (issue #946). Absent key (null) means no
  * restriction is known — full scale offered.
  * When [supportsReasoning] is false the model takes no reasoning parameter
- * and the chip is disabled.
+ * and the level menu is disabled.
  */
 @Composable
 fun ComposerToolbar(
@@ -117,44 +124,53 @@ fun ComposerToolbar(
             )
         }
 
-        // Model chip — takes available space, fixed height
-        FilterChip(
-            selected = currentSessionModel != null,
-            onClick = onModelTap,
-            label = {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                ) {
-                    Text(
-                        text = currentSessionModel ?: "Model",
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                    )
-                }
-            },
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .height(28.dp)
-                    .testTag("model_chip"),
-        )
+        // Model + reasoning pill — wraps its content inside the free space,
+        // pushing the mic/action buttons to the far end
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            Row(
+                modifier =
+                    Modifier
+                        .height(ControlSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = currentSessionModel?.let(::displayModelName) ?: "Model",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier =
+                        Modifier
+                            .weight(1f, fill = false)
+                            .fillMaxHeight()
+                            .clickable(onClick = onModelTap)
+                            .wrapContentHeight()
+                            .padding(start = 16.dp, end = 6.dp)
+                            .testTag("model_chip"),
+                )
 
-        // Reasoning & Generation controls with dropdown menu (Option 3)
-        Box {
-            FilterChip(
-                selected = reasoningLevel != null || fastMode,
-                onClick = { showReasoningMenu = true },
-                enabled = isConnected,
-                label = {
+                Box {
                     Row(
+                        modifier =
+                            Modifier
+                                .fillMaxHeight()
+                                .clickable(enabled = isConnected) { showReasoningMenu = true }
+                                .padding(start = 6.dp, end = 16.dp)
+                                .testTag("reasoning_chip"),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
+                        val levelColor =
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = if (isConnected) 1f else 0.38f,
+                            )
                         if (fastMode) {
                             Icon(
                                 imageVector = Icons.Filled.Bolt,
                                 contentDescription = stringResource(R.string.chat_fast_mode_label),
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = levelColor,
                                 modifier = Modifier.size(14.dp),
                             )
                         }
@@ -172,145 +188,142 @@ fun ComposerToolbar(
                                         rLabel
                                     }
                                 },
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = levelColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                },
-                modifier =
-                    Modifier
-                        .height(28.dp)
-                        .testTag("reasoning_chip"),
-            )
 
-            DropdownMenu(
-                expanded = showReasoningMenu,
-                onDismissRequest = { showReasoningMenu = false },
-                modifier = Modifier.widthIn(min = 220.dp),
-            ) {
-                // ── Fast Mode Toggle Item ──
-                val fastAvailable = isConnected && fastSupported
-                DropdownMenuItem(
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Filled.Bolt,
-                            contentDescription = null,
-                            tint =
-                                if (fastMode) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                    text = {
-                        Column {
-                            Text(
-                                text = stringResource(R.string.chat_fast_mode_label),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (fastMode) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                            if (!fastSupported) {
-                                Text(
-                                    text = stringResource(R.string.chat_fast_mode_unavailable),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    DropdownMenu(
+                        expanded = showReasoningMenu,
+                        onDismissRequest = { showReasoningMenu = false },
+                        modifier = Modifier.widthIn(min = 220.dp),
+                    ) {
+                        // ── Fast Mode Toggle Item ──
+                        val fastAvailable = isConnected && fastSupported
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Bolt,
+                                    contentDescription = null,
+                                    tint =
+                                        if (fastMode) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    modifier = Modifier.size(20.dp),
                                 )
-                            }
-                        }
-                    },
-                    trailingIcon = {
-                        if (isFastModeChanging) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        } else {
-                            Switch(
-                                checked = fastMode,
-                                onCheckedChange = null, // MenuItem click owns the trigger
-                                enabled = fastAvailable && !isFastModeChanging,
-                                modifier =
-                                    Modifier
-                                        .scale(0.85f)
-                                        .testTag("fast_mode_switch"),
-                            )
-                        }
-                    },
-                    onClick = {
-                        if (fastAvailable && !isFastModeChanging) {
-                            onToggleFastMode()
-                        }
-                    },
-                    enabled = fastAvailable && !isFastModeChanging,
-                )
+                            },
+                            text = {
+                                Column {
+                                    Text(
+                                        text = stringResource(R.string.chat_fast_mode_label),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (fastMode) FontWeight.SemiBold else FontWeight.Normal,
+                                    )
+                                    if (!fastSupported) {
+                                        Text(
+                                            text = stringResource(R.string.chat_fast_mode_unavailable),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        )
+                                    }
+                                }
+                            },
+                            trailingIcon = {
+                                if (isFastModeChanging) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                } else {
+                                    Switch(
+                                        checked = fastMode,
+                                        onCheckedChange = null, // MenuItem click owns the trigger
+                                        enabled = fastAvailable && !isFastModeChanging,
+                                        modifier =
+                                            Modifier
+                                                .scale(0.85f)
+                                                .testTag("fast_mode_switch"),
+                                    )
+                                }
+                            },
+                            onClick = {
+                                if (fastAvailable && !isFastModeChanging) {
+                                    onToggleFastMode()
+                                }
+                            },
+                            enabled = fastAvailable && !isFastModeChanging,
+                        )
 
-                HorizontalDivider()
+                        HorizontalDivider()
 
-                Text(
-                    text = "REASONING",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-                if (canDisable == false) {
-                    Text(
-                        text = "reasoning always on",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-                    )
-                }
-                if (reasoningDisabledForModel) {
-                    Text(
-                        text = "no reasoning parameter for this model",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-                    )
-                }
-                val allLevels =
-                    listOf(
-                        "none" to "None",
-                        "minimal" to "Minimal",
-                        "low" to "Low",
-                        "medium" to "Med",
-                        "high" to "High",
-                        "xhigh" to "XHigh",
-                        "max" to "Max",
-                        "ultra" to "Ultra",
-                    )
-                allLevels.forEach { (level, label) ->
-                    val isNone = level == "none"
-                    val noneDisabled = isNone && (canDisable == false || reasoningDisabledForModel)
-                    DropdownMenuItem(
-                        text = {
+                        Text(
+                            text = "REASONING",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                        if (canDisable == false) {
                             Text(
-                                text = label,
-                                fontWeight =
-                                    if (reasoningLevel == level) {
-                                        MaterialTheme.typography.bodyMedium.fontWeight
-                                    } else {
-                                        null
-                                    },
-                                color =
-                                    when {
-                                        noneDisabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                        reasoningLevel == level -> MaterialTheme.colorScheme.primary
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    },
+                                text = "reasoning always on",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                             )
-                        },
-                        onClick = {
-                            showReasoningMenu = false
-                            onReasoningSelected(level)
-                        },
-                        enabled = !noneDisabled && !reasoningDisabledForModel,
-                    )
+                        }
+                        if (reasoningDisabledForModel) {
+                            Text(
+                                text = "no reasoning parameter for this model",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                            )
+                        }
+                        val allLevels =
+                            listOf(
+                                "none" to "None",
+                                "minimal" to "Minimal",
+                                "low" to "Low",
+                                "medium" to "Med",
+                                "high" to "High",
+                                "xhigh" to "XHigh",
+                                "max" to "Max",
+                                "ultra" to "Ultra",
+                            )
+                        allLevels.forEach { (level, label) ->
+                            val isNone = level == "none"
+                            val noneDisabled = isNone && (canDisable == false || reasoningDisabledForModel)
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = label,
+                                        fontWeight =
+                                            if (reasoningLevel == level) {
+                                                MaterialTheme.typography.bodyMedium.fontWeight
+                                            } else {
+                                                null
+                                            },
+                                        color =
+                                            when {
+                                                noneDisabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                                reasoningLevel == level -> MaterialTheme.colorScheme.primary
+                                                else -> MaterialTheme.colorScheme.onSurface
+                                            },
+                                    )
+                                },
+                                onClick = {
+                                    showReasoningMenu = false
+                                    onReasoningSelected(level)
+                                },
+                                enabled = !noneDisabled && !reasoningDisabledForModel,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -408,6 +421,13 @@ private fun listeningIconButtonColors(): IconButtonColors =
         containerColor = MaterialTheme.colorScheme.error,
         contentColor = MaterialTheme.colorScheme.onError,
     )
+
+/**
+ * Short model label for the composer pill: drops the provider path
+ * ("custom:acme/glm-5.3" → "glm-5.3"). Tags after ':' are kept ("llama3:8b").
+ * The model picker still shows the full id.
+ */
+internal fun displayModelName(model: String): String = model.substringAfterLast('/').ifBlank { model }
 
 /**
  * Build a human-readable label from a reasoning effort level.

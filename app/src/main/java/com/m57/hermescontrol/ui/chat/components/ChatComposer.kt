@@ -70,7 +70,7 @@ import com.m57.hermescontrol.util.BidiUtils
 
 /**
  * The chat input bar: a single rounded card with the input on top and a
- * controls row (attach, model and reasoning chips, mic, send) inside it below.
+ * controls row (attach, model/reasoning pill, mic, send) inside it below.
  */
 @Composable
 fun ChatInputBar(

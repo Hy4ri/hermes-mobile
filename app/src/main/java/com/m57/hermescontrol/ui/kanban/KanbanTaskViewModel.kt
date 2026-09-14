@@ -16,7 +16,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 data class KanbanTaskUiState(
     val isLoading: Boolean = false,
@@ -249,6 +251,18 @@ class KanbanTaskViewModel(
                 }
             }
         }
+    }
+
+    fun uploadAttachment(
+        board: String,
+        taskId: String,
+        filename: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ) {
+        val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+        val part = MultipartBody.Part.createFormData("file", filename, requestBody)
+        uploadAttachment(board, taskId, part)
     }
 
     fun uploadAttachment(

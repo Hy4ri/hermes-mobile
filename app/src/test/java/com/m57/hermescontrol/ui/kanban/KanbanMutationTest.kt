@@ -1,12 +1,18 @@
 package com.m57.hermescontrol.ui.kanban
 
 import com.m57.hermescontrol.data.local.InMemoryKanbanPreferencesStore
+import com.m57.hermescontrol.data.model.BulkTaskResult
+import com.m57.hermescontrol.data.model.BulkTasksResponse
+import com.m57.hermescontrol.data.model.CreateBoardResponse
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.CreateTaskResponse
+import com.m57.hermescontrol.data.model.DeleteBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.RenameBoardResponse
+import com.m57.hermescontrol.data.model.TaskEstimate
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.remote.NetworkError
@@ -340,5 +346,148 @@ class KanbanMutationTest {
                 vm.uiState.value.profiles[1]
                     .name,
             )
+        }
+
+    @Test
+    fun testCreateBoardSuccess() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "sprint-2", name = "Sprint 2")
+            coEvery { mockRepository.createBoard(any()) } returns
+                NetworkResult.Success(CreateBoardResponse(board = board))
+            coEvery { mockRepository.getBoards() } returns
+                NetworkResult.Success(
+                    com.m57.hermescontrol.data.model
+                        .KanbanBoardsResponse(listOf(board), "sprint-2"),
+                )
+
+            val vm = createViewModel()
+            vm.createBoard(slug = "sprint-2", name = "Sprint 2", description = "Next cycle")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.createBoard(
+                    match {
+                        it.slug == "sprint-2" && it.name == "Sprint 2" && it.description == "Next cycle"
+                    },
+                )
+            }
+            assertEquals("Board created: Sprint 2", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testRenameBoardSuccess() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev Renamed")
+            coEvery { mockRepository.updateBoard("dev", any()) } returns
+                NetworkResult.Success(RenameBoardResponse(board = board))
+            coEvery { mockRepository.getBoards() } returns
+                NetworkResult.Success(
+                    com.m57.hermescontrol.data.model
+                        .KanbanBoardsResponse(listOf(board), "dev"),
+                )
+
+            val vm = createViewModel()
+            vm.renameBoard("dev", "Dev Renamed")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.updateBoard("dev", match { it.name == "Dev Renamed" })
+            }
+            assertEquals("Board renamed to Dev Renamed", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testDeleteBoardSuccess() =
+        runTest(testDispatcher) {
+            coEvery { mockRepository.deleteBoard("old-board", delete = true) } returns
+                NetworkResult.Success(DeleteBoardResponse(current = null))
+            coEvery { mockRepository.getBoards() } returns
+                NetworkResult.Success(
+                    com.m57.hermescontrol.data.model
+                        .KanbanBoardsResponse(emptyList(), null),
+                )
+
+            val vm = createViewModel()
+            vm.deleteBoard("old-board")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify { mockRepository.deleteBoard("old-board", delete = true) }
+            assertEquals("Board deleted", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testBulkMoveTasksSuccess() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev")
+            coEvery { mockRepository.getBoard("dev") } returns
+                NetworkResult.Success(KanbanBoardResponse(columns = listOf(KanbanColumn("done", emptyList()))))
+            coEvery { mockRepository.bulkTasks("dev", any()) } returns
+                NetworkResult.Success(
+                    BulkTasksResponse(
+                        listOf(
+                            BulkTaskResult("t_1", true),
+                            BulkTaskResult("t_2", true),
+                        ),
+                    ),
+                )
+
+            val vm = createViewModel()
+            vm.selectBoard(board)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            vm.bulkMove(listOf("t_1", "t_2"), "done")
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.bulkTasks(
+                    "dev",
+                    match { it.ids == listOf("t_1", "t_2") && it.status == "done" },
+                )
+            }
+            assertEquals("Moved 2 tasks to done", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testBulkArchiveTasksSuccess() =
+        runTest(testDispatcher) {
+            val board = KanbanBoard(id = "dev", name = "Dev")
+            coEvery { mockRepository.getBoard("dev") } returns
+                NetworkResult.Success(KanbanBoardResponse(columns = listOf(KanbanColumn("todo", emptyList()))))
+            coEvery { mockRepository.bulkTasks("dev", any()) } returns
+                NetworkResult.Success(
+                    BulkTasksResponse(
+                        listOf(
+                            BulkTaskResult("t_1", true),
+                        ),
+                    ),
+                )
+
+            val vm = createViewModel()
+            vm.selectBoard(board)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            vm.bulkArchive(listOf("t_1"))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify {
+                mockRepository.bulkTasks(
+                    "dev",
+                    match { it.ids == listOf("t_1") && it.archive },
+                )
+            }
+            assertEquals("Archived 1 tasks", vm.uiState.value.toastMessage)
+        }
+
+    @Test
+    fun testEstimateNewTaskSuccess() =
+        runTest(testDispatcher) {
+            coEvery { mockRepository.estimateNew("Title", "Body") } returns
+                NetworkResult.Success(TaskEstimate(ok = true, estTokens = 1200, complexity = "low"))
+
+            val vm = createViewModel()
+            val estimate = vm.estimateNewTask("Title", "Body")
+
+            assertEquals(1200, estimate?.estTokens)
+            assertEquals("low", estimate?.complexity)
         }
 }

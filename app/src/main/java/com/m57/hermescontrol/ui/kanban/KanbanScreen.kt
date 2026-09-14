@@ -17,14 +17,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -105,6 +113,17 @@ fun KanbanScreen(
     var confirmTarget by remember { mutableStateOf<Pair<KanbanTask, KanbanTaskAction>?>(null) }
     var summaryTarget by remember { mutableStateOf<Pair<KanbanTask, KanbanTaskAction>?>(null) }
 
+    // Multi-select & Bulk operations state
+    var isMultiSelectMode by remember { mutableStateOf(false) }
+    var selectedTaskIds by remember { mutableStateOf(setOf<String>()) }
+    var showBulkMoveDialog by remember { mutableStateOf(false) }
+
+    // Board management dialogs
+    var showBoardMenu by remember { mutableStateOf(false) }
+    var showCreateBoardDialog by remember { mutableStateOf(false) }
+    var showRenameBoardDialog by remember { mutableStateOf(false) }
+    var showDeleteBoardDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         viewModel.loadBoards()
     }
@@ -114,6 +133,60 @@ fun KanbanScreen(
     HermesScaffold(
         title = { Text(stringResource(R.string.kanban_board_title)) },
         navigationIcon = onOpenDrawer?.let { NavIcon.Menu(it) },
+        actions = {
+            IconButton(onClick = { showFilterSheet = true }) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Filter",
+                )
+            }
+            Box {
+                IconButton(onClick = { showBoardMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Board options",
+                    )
+                }
+                DropdownMenu(
+                    expanded = showBoardMenu,
+                    onDismissRequest = { showBoardMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("New Board") },
+                        onClick = {
+                            showBoardMenu = false
+                            showCreateBoardDialog = true
+                        },
+                    )
+                    if (state.selectedBoard != null) {
+                        DropdownMenuItem(
+                            text = { Text("Rename Board") },
+                            onClick = {
+                                showBoardMenu = false
+                                showRenameBoardDialog = true
+                            },
+                        )
+                        if (state.boards.size > 1) {
+                            DropdownMenuItem(
+                                text = { Text("Delete Board") },
+                                onClick = {
+                                    showBoardMenu = false
+                                    showDeleteBoardDialog = true
+                                },
+                            )
+                        }
+                    }
+                    DropdownMenuItem(
+                        text = { Text(if (isMultiSelectMode) "Exit Multi-Select" else "Select Multiple") },
+                        onClick = {
+                            showBoardMenu = false
+                            isMultiSelectMode = !isMultiSelectMode
+                            if (!isMultiSelectMode) selectedTaskIds = emptySet()
+                        },
+                    )
+                }
+            }
+        },
         isRefreshing = state.isLoading,
         onRefresh = { viewModel.loadBoards() },
     ) { paddingValues ->
@@ -256,18 +329,38 @@ fun KanbanScreen(
                                                     items(colTasks, key = { it.id }) { task ->
                                                         KanbanTaskCard(
                                                             task = task,
+                                                            isSelected =
+                                                                isMultiSelectMode && task.id in selectedTaskIds,
                                                             onTaskClick = { clickedTask ->
-                                                                state.selectedBoard?.let { board ->
-                                                                    NavigationController.navigateTo(
-                                                                        KanbanTaskDetailKey(
-                                                                            boardSlug = board.id,
-                                                                            taskId = clickedTask.id,
-                                                                        ),
-                                                                    )
+                                                                if (isMultiSelectMode) {
+                                                                    selectedTaskIds =
+                                                                        if (clickedTask.id in selectedTaskIds) {
+                                                                            selectedTaskIds - clickedTask.id
+                                                                        } else {
+                                                                            selectedTaskIds + clickedTask.id
+                                                                        }
+                                                                } else {
+                                                                    state.selectedBoard?.let { board ->
+                                                                        NavigationController.navigateTo(
+                                                                            KanbanTaskDetailKey(
+                                                                                boardSlug = board.id,
+                                                                                taskId = clickedTask.id,
+                                                                            ),
+                                                                        )
+                                                                    }
                                                                 }
                                                             },
                                                             onActionClick = { clickedTask ->
-                                                                taskForActions = clickedTask
+                                                                if (isMultiSelectMode) {
+                                                                    selectedTaskIds =
+                                                                        if (clickedTask.id in selectedTaskIds) {
+                                                                            selectedTaskIds - clickedTask.id
+                                                                        } else {
+                                                                            selectedTaskIds + clickedTask.id
+                                                                        }
+                                                                } else {
+                                                                    taskForActions = clickedTask
+                                                                }
                                                             },
                                                         )
                                                     }
@@ -287,6 +380,7 @@ fun KanbanScreen(
                             profiles = state.profiles,
                             existingTasks = state.tasks,
                             isCreating = state.isCreatingTask,
+                            onEstimate = viewModel::estimateNewTask,
                             onDismiss = { showAddTaskDialog = false },
                             onConfirm = { body, targetStatus ->
                                 viewModel.createTask(body, targetStatus)
@@ -374,44 +468,238 @@ fun KanbanScreen(
                             onDismiss = { showFilterSheet = false },
                         )
                     }
-                }
-            }
-        }
-    }
-}
 
-@Composable
-fun TaskCard(
-    task: KanbanTask,
-    onTaskClick: (KanbanTask) -> Unit,
-) {
-    Card(onClick = { onTaskClick(task) }, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(4.dp))
-            task.description?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            task.assignedTo?.let { assignee ->
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = assignee,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (isMultiSelectMode) {
+                        Card(
+                            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                            colors =
+                                CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                ),
+                            modifier =
+                                Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth(),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = "${selectedTaskIds.size} selected",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            selectedTaskIds =
+                                                if (selectedTaskIds.size == filteredTasks.size) {
+                                                    emptySet()
+                                                } else {
+                                                    filteredTasks.map { it.id }.toSet()
+                                                }
+                                        },
+                                    ) {
+                                        Text(if (selectedTaskIds.size == filteredTasks.size) "Clear" else "All")
+                                    }
+                                    Button(
+                                        onClick = { showBulkMoveDialog = true },
+                                        enabled = selectedTaskIds.isNotEmpty(),
+                                    ) {
+                                        Text("Move")
+                                    }
+                                    Button(
+                                        onClick = {
+                                            viewModel.bulkArchive(selectedTaskIds.toList())
+                                            isMultiSelectMode = false
+                                            selectedTaskIds = emptySet()
+                                        },
+                                        enabled = selectedTaskIds.isNotEmpty(),
+                                    ) {
+                                        Text("Archive")
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            isMultiSelectMode = false
+                                            selectedTaskIds = emptySet()
+                                        },
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Close multi-select")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (showBulkMoveDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showBulkMoveDialog = false },
+                            title = { Text("Move ${selectedTaskIds.size} tasks") },
+                            text = {
+                                Column {
+                                    state.columns.forEach { col ->
+                                        TextButton(
+                                            onClick = {
+                                                viewModel.bulkMove(selectedTaskIds.toList(), col.name)
+                                                showBulkMoveDialog = false
+                                                isMultiSelectMode = false
+                                                selectedTaskIds = emptySet()
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text(col.name.uppercase(), modifier = Modifier.fillMaxWidth())
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {},
+                            dismissButton = {
+                                TextButton(onClick = { showBulkMoveDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            },
+                        )
+                    }
+
+                    if (showCreateBoardDialog) {
+                        var boardSlug by remember { mutableStateOf("") }
+                        var boardName by remember { mutableStateOf("") }
+                        var boardDesc by remember { mutableStateOf("") }
+                        AlertDialog(
+                            onDismissRequest = { showCreateBoardDialog = false },
+                            title = { Text("Create New Board") },
+                            text = {
+                                Column {
+                                    OutlinedTextField(
+                                        value = boardSlug,
+                                        onValueChange = {
+                                            boardSlug =
+                                                it.lowercase().filter { c ->
+                                                    c.isLetterOrDigit() || c == '-' || c == '_'
+                                                }
+                                        },
+                                        label = { Text("Board ID / Slug") },
+                                        placeholder = { Text("e.g. sprint-3") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = boardName,
+                                        onValueChange = { boardName = it },
+                                        label = { Text("Display Name") },
+                                        placeholder = { Text("e.g. Sprint 3") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = boardDesc,
+                                        onValueChange = { boardDesc = it },
+                                        label = { Text("Description") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        if (boardSlug.isNotBlank()) {
+                                            viewModel.createBoard(
+                                                slug = boardSlug.trim(),
+                                                name = boardName.trim().ifBlank { null },
+                                                description = boardDesc.trim().ifBlank { null },
+                                            )
+                                            showCreateBoardDialog = false
+                                        }
+                                    },
+                                    enabled = boardSlug.isNotBlank(),
+                                ) {
+                                    Text("Create")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showCreateBoardDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            },
+                        )
+                    }
+
+                    if (showRenameBoardDialog && state.selectedBoard != null) {
+                        var newName by remember { mutableStateOf(state.selectedBoard?.name ?: "") }
+                        AlertDialog(
+                            onDismissRequest = { showRenameBoardDialog = false },
+                            title = { Text("Rename Board") },
+                            text = {
+                                OutlinedTextField(
+                                    value = newName,
+                                    onValueChange = { newName = it },
+                                    label = { Text("Board Name") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        if (newName.isNotBlank()) {
+                                            state.selectedBoard?.let { board ->
+                                                viewModel.renameBoard(board.id, newName.trim())
+                                            }
+                                            showRenameBoardDialog = false
+                                        }
+                                    },
+                                    enabled = newName.isNotBlank(),
+                                ) {
+                                    Text("Save")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showRenameBoardDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            },
+                        )
+                    }
+
+                    if (showDeleteBoardDialog && state.selectedBoard != null) {
+                        AlertDialog(
+                            onDismissRequest = { showDeleteBoardDialog = false },
+                            title = { Text("Delete Board") },
+                            text = {
+                                Text(
+                                    "Are you sure you want to delete board '${state.selectedBoard?.displayName}'? This action cannot be undone.",
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        state.selectedBoard?.let { board ->
+                                            viewModel.deleteBoard(board.id)
+                                        }
+                                        showDeleteBoardDialog = false
+                                    },
+                                    colors =
+                                        ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                        ),
+                                ) {
+                                    Text("Delete")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showDeleteBoardDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }

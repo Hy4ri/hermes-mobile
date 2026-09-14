@@ -1,5 +1,9 @@
 package com.m57.hermescontrol.ui.kanban
 
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -75,7 +80,7 @@ fun KanbanTaskScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Overview", "Discussion", "Runs", "Activity")
+    val tabs = listOf("Overview", "Discussion", "Runs", "Activity", "Files")
 
     LaunchedEffect(boardSlug, taskId) {
         viewModel.loadTask(boardSlug, taskId)
@@ -169,6 +174,16 @@ fun KanbanTaskScreen(
                         3 -> {
                             TaskActivityTab(
                                 events = detail.events,
+                            )
+                        }
+
+                        4 -> {
+                            TaskFilesTab(
+                                attachments = detail.attachments ?: emptyList(),
+                                isUploading = state.isUploadingAttachment,
+                                onUpload = { filename, mimeType, bytes ->
+                                    viewModel.uploadAttachment(boardSlug, taskId, filename, mimeType, bytes)
+                                },
                             )
                         }
                     }
@@ -610,5 +625,126 @@ private fun MetaRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(text = value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun TaskFilesTab(
+    attachments: List<com.m57.hermescontrol.data.model.KanbanAttachment>,
+    isUploading: Boolean,
+    onUpload: (filename: String, mimeType: String, bytes: ByteArray) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val launcher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent(),
+        ) { uri: Uri? ->
+            if (uri != null) {
+                var filename = "attachment"
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        filename = cursor.getString(nameIndex) ?: "attachment"
+                    }
+                }
+                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes != null) {
+                    onUpload(filename, mimeType, bytes)
+                }
+            }
+        }
+
+    LazyColumn(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+            ) {
+                Text(
+                    text = "Attached Files (${attachments.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Button(
+                    onClick = { launcher.launch("*/*") },
+                    enabled = !isUploading,
+                ) {
+                    if (isUploading) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text("Attach File")
+                }
+            }
+        }
+
+        if (attachments.isEmpty()) {
+            item {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "No files attached to this task.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            items(attachments, key = { it.id }) { att ->
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier =
+                            Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = att.filename,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            val sizeStr =
+                                att.size?.let { s ->
+                                    if (s > 1024 * 1024) "${s / (1024 * 1024)} MB" else "${s / 1024} KB"
+                                } ?: "Unknown size"
+                            Text(
+                                text = "$sizeStr • ${att.uploadedBy ?: "unknown"}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

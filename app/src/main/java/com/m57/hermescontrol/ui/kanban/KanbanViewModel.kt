@@ -5,11 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.m57.hermescontrol.data.local.AuthManager
 import com.m57.hermescontrol.data.local.InMemoryKanbanPreferencesStore
 import com.m57.hermescontrol.data.local.KanbanPreferencesStore
+import com.m57.hermescontrol.data.model.BulkTasksBody
+import com.m57.hermescontrol.data.model.CreateBoardBody
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.RenameBoardBody
+import com.m57.hermescontrol.data.model.TaskEstimate
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.remote.NetworkResult
 import com.m57.hermescontrol.data.repository.KanbanRepository
@@ -258,6 +262,168 @@ class KanbanViewModel(
                 ),
             targetStatus = status,
         )
+    }
+
+    suspend fun estimateNewTask(
+        title: String,
+        body: String?,
+    ): TaskEstimate? =
+        when (val result = repository.estimateNew(title, body)) {
+            is NetworkResult.Success -> result.data
+            is NetworkResult.Failure -> null
+        }
+
+    fun createBoard(
+        slug: String,
+        name: String? = null,
+        description: String? = null,
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val body =
+                CreateBoardBody(
+                    slug = slug,
+                    name = name,
+                    description = description,
+                )
+            when (val res = repository.createBoard(body)) {
+                is NetworkResult.Success -> {
+                    val boardName = res.data.board?.name ?: slug
+                    _uiState.update { it.copy(toastMessage = "Board created: $boardName") }
+                    loadBoards()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to create board: ${res.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun renameBoard(
+        slug: String,
+        newName: String,
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val res = repository.updateBoard(slug, RenameBoardBody(name = newName))) {
+                is NetworkResult.Success -> {
+                    val boardName = res.data.board?.name ?: newName
+                    _uiState.update { it.copy(toastMessage = "Board renamed to $boardName") }
+                    loadBoards()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to rename board: ${res.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun deleteBoard(slug: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val res = repository.deleteBoard(slug, delete = true)) {
+                is NetworkResult.Success -> {
+                    _uiState.update { it.copy(toastMessage = "Board deleted") }
+                    loadBoards()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Failed to delete board: ${res.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun bulkMove(
+        taskIds: List<String>,
+        targetStatus: String,
+    ) {
+        val board = _uiState.value.selectedBoard ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val res = repository.bulkTasks(board.id, BulkTasksBody(ids = taskIds, status = targetStatus))) {
+                is NetworkResult.Success -> {
+                    val count = res.data.results.count { it.ok }
+                    _uiState.update { it.copy(toastMessage = "Moved $count tasks to $targetStatus") }
+                    reloadBoardSilently()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Bulk move failed: ${res.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun bulkArchive(taskIds: List<String>) {
+        val board = _uiState.value.selectedBoard ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val res = repository.bulkTasks(board.id, BulkTasksBody(ids = taskIds, archive = true))) {
+                is NetworkResult.Success -> {
+                    val count = res.data.results.count { it.ok }
+                    _uiState.update { it.copy(toastMessage = "Archived $count tasks") }
+                    reloadBoardSilently()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Bulk archive failed: ${res.error.message}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun bulkAssign(
+        taskIds: List<String>,
+        assignee: String?,
+    ) {
+        val board = _uiState.value.selectedBoard ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            when (val res = repository.bulkTasks(board.id, BulkTasksBody(ids = taskIds, assignee = assignee))) {
+                is NetworkResult.Success -> {
+                    val count = res.data.results.count { it.ok }
+                    _uiState.update { it.copy(toastMessage = "Assigned $count tasks") }
+                    reloadBoardSilently()
+                }
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            toastMessage = "Bulk assign failed: ${res.error.message}",
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun moveTask(

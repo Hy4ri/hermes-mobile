@@ -172,4 +172,29 @@ class KanbanTaskViewModelTest {
                     ?.contains("coder") == true,
             )
         }
+
+    @Test
+    fun testUploadAttachmentSuccess() =
+        runTest(testDispatcher) {
+            val task = KanbanTaskFull(id = "t_1", title = "Task with file", status = "todo")
+            coEvery { mockRepository.getTask("t_1", "dev") } returns
+                NetworkResult.Success(KanbanTaskDetailResponse(task = task))
+            coEvery { mockRepository.uploadAttachment("t_1", "dev", any()) } returns
+                NetworkResult.Success(
+                    com.m57.hermescontrol.data.model.AttachmentUploadResponse(
+                        attachment =
+                            com.m57.hermescontrol.data.model.KanbanAttachment(
+                                id = 101L,
+                                filename = "test.png",
+                            ),
+                    ),
+                )
+
+            val vm = createViewModel()
+            vm.uploadAttachment("dev", "t_1", "test.png", "image/png", byteArrayOf(1, 2, 3))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            coVerify { mockRepository.uploadAttachment("t_1", "dev", any()) }
+            assertEquals("Attachment uploaded", vm.uiState.value.toastMessage)
+        }
 }

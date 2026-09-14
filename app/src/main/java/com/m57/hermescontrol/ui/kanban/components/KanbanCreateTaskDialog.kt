@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,8 @@ import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.TaskEstimate
+import kotlinx.coroutines.launch
 
 private const val PARKED_VALUE = "__parked__"
 
@@ -61,6 +64,7 @@ fun KanbanCreateTaskDialog(
     onDismiss: () -> Unit,
     onConfirm: (body: CreateTaskBody, targetStatus: String) -> Unit,
     modifier: Modifier = Modifier,
+    onEstimate: (suspend (title: String, body: String?) -> TaskEstimate?)? = null,
 ) {
     var title by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
@@ -68,6 +72,11 @@ fun KanbanCreateTaskDialog(
     var selectedAssignee by remember { mutableStateOf<String?>(null) }
     var priority by remember { mutableIntStateOf(0) }
     var goalMode by remember { mutableStateOf(false) }
+
+    // Estimation state
+    var estimate by remember { mutableStateOf<TaskEstimate?>(null) }
+    var isEstimating by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     // Advanced options
     var showAdvanced by remember { mutableStateOf(false) }
@@ -435,6 +444,43 @@ fun KanbanCreateTaskDialog(
                             singleLine = true,
                             enabled = !isCreating,
                         )
+                    }
+                }
+
+                if (onEstimate != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        if (estimate != null && estimate?.ok == true) {
+                            Text(
+                                text = "~${estimate?.estTokens ?: 0} tokens · ${estimate?.complexity ?: "normal"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                        TextButton(
+                            onClick = {
+                                if (title.isNotBlank() && !isEstimating) {
+                                    coroutineScope.launch {
+                                        isEstimating = true
+                                        estimate = onEstimate(title, desc.ifBlank { null })
+                                        isEstimating = false
+                                    }
+                                }
+                            },
+                            enabled = title.isNotBlank() && !isEstimating && !isCreating,
+                        ) {
+                            if (isEstimating) {
+                                CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            Text(if (estimate != null) "Re-estimate" else "Estimate tokens")
+                        }
                     }
                 }
             }

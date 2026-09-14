@@ -154,7 +154,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Streaming
 
-interface HermesApiService {
+interface HermesApiService : KanbanApiService {
     @GET("api/skills/content")
     suspend fun getSkillContent(
         @Query("name") name: String,

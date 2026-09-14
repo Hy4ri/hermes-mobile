@@ -163,7 +163,7 @@ interface KanbanApiService {
     ): Response<ResponseBody>
 
     @GET("api/plugins/kanban/profiles")
-    suspend fun getProfiles(): Response<KanbanProfilesResponse>
+    suspend fun getKanbanProfiles(): Response<KanbanProfilesResponse>
 
     @PATCH("api/plugins/kanban/profiles/{name}")
     suspend fun updateProfileDescription(

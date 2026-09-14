@@ -323,7 +323,7 @@ class KanbanRepositoryImpl(
 
     override suspend fun getProfiles(): NetworkResult<KanbanProfilesResponse> =
         withContext(ioDispatcher) {
-            safeApiCall { apiProvider().getProfiles() }
+            safeApiCall { apiProvider().getKanbanProfiles() }
         }
 
     override suspend fun updateProfileDescription(

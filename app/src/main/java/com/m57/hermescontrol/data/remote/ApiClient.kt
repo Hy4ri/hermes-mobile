@@ -22,9 +22,6 @@ object ApiClient {
     @Volatile
     private var service: HermesApiService? = null
 
-    @Volatile
-    private var kanbanService: KanbanApiService? = null
-
     /** The current [HermesApiService] instance. Lazily created on first access. */
     val hermesApi: HermesApiService
         get() {
@@ -33,20 +30,15 @@ object ApiClient {
             }
         }
 
-    /** The current [KanbanApiService] instance. Lazily created on first access. */
+    /** The current [KanbanApiService] instance. Reuses [hermesApi]. */
     val kanbanApi: KanbanApiService
-        get() {
-            return kanbanService ?: synchronized(this) {
-                kanbanService ?: buildRetrofit().create(KanbanApiService::class.java).also { kanbanService = it }
-            }
-        }
+        get() = hermesApi
 
     /** Force-rebuild the Retrofit client (e.g. after settings change). */
     fun rebuild() {
         synchronized(this) {
             retrofit = null
             service = null
-            kanbanService = null
         }
     }
 

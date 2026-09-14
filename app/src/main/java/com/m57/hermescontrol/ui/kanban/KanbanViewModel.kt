@@ -26,6 +26,8 @@ import kotlinx.coroutines.launch
 
 data class KanbanUiState(
     val isLoading: Boolean = false,
+    val isCreatingTask: Boolean = false,
+    val operatingTaskIds: Set<String> = emptySet(),
     val boards: List<KanbanBoard> = emptyList(),
     val selectedBoard: KanbanBoard? = null,
     val columns: List<KanbanColumn> = emptyList(),
@@ -180,9 +182,11 @@ class KanbanViewModel(
     fun createTask(
         title: String,
         description: String?,
-        status: String,
+        status: String = "todo",
     ) {
         val board = _uiState.value.selectedBoard ?: return
+        if (_uiState.value.isCreatingTask) return
+        _uiState.update { it.copy(isCreatingTask = true) }
         viewModelScope.launch {
             val result =
                 repository.createTask(
@@ -195,12 +199,24 @@ class KanbanViewModel(
                 )
             when (result) {
                 is NetworkResult.Success -> {
-                    _uiState.update { it.copy(toastMessage = "Task created successfully") }
+                    val warning = result.data.warning
+                    val msg =
+                        if (!warning.isNullOrBlank()) {
+                            "Task created: $warning"
+                        } else {
+                            "Task created successfully"
+                        }
+                    _uiState.update { it.copy(isCreatingTask = false, toastMessage = msg) }
                     reloadBoardSilently()
                 }
 
                 is NetworkResult.Failure -> {
-                    _uiState.update { it.copy(toastMessage = "Failed to create task: ${result.error.message}") }
+                    _uiState.update {
+                        it.copy(
+                            isCreatingTask = false,
+                            toastMessage = "Failed to create task: ${result.error.message}",
+                        )
+                    }
                 }
             }
         }
@@ -212,14 +228,31 @@ class KanbanViewModel(
         summary: String? = null,
     ) {
         val board = _uiState.value.selectedBoard ?: return
+        if (task.id in _uiState.value.operatingTaskIds) return
         val originalStatus = task.status
-        // Optimistically update, desktop-style
+
+        // Optimistically update both tasks and columns, desktop-style
         _uiState.update { state ->
+            val updatedTasks =
+                state.tasks.map {
+                    if (it.id == task.id) it.copy(status = action.targetStatus) else it
+                }
+            val updatedColumns =
+                state.columns.map { col ->
+                    val filtered = col.tasks.filter { it.id != task.id }
+                    val newTasks =
+                        if (col.name.equals(action.targetStatus, ignoreCase = true)) {
+                            val moved = updatedTasks.find { it.id == task.id }
+                            if (moved != null) filtered + moved else filtered
+                        } else {
+                            filtered
+                        }
+                    col.copy(tasks = newTasks)
+                }
             state.copy(
-                tasks =
-                    state.tasks.map {
-                        if (it.id == task.id) it.copy(status = action.targetStatus) else it
-                    },
+                tasks = updatedTasks,
+                columns = updatedColumns,
+                operatingTaskIds = state.operatingTaskIds + task.id,
             )
         }
 
@@ -231,8 +264,38 @@ class KanbanViewModel(
                     result = if (action.needsSummary && !summary.isNullOrBlank()) summary else null,
                 )
             val result = repository.updateTask(task.id, board = board.id, body = body)
-            if (result is NetworkResult.Failure) {
-                revertTaskMove(task.id, originalStatus, "Move failed: ${result.error.message}")
+            when (result) {
+                is NetworkResult.Success -> {
+                    val returnedTask = result.data.task
+                    _uiState.update { state ->
+                        val finalStatus = returnedTask?.status ?: action.targetStatus
+                        val updatedTasks =
+                            state.tasks.map {
+                                if (it.id == task.id) (returnedTask ?: it.copy(status = finalStatus)) else it
+                            }
+                        val updatedColumns =
+                            state.columns.map { col ->
+                                val filtered = col.tasks.filter { it.id != task.id }
+                                val newTasks =
+                                    if (col.name.equals(finalStatus, ignoreCase = true)) {
+                                        val moved = updatedTasks.find { it.id == task.id }
+                                        if (moved != null) filtered + moved else filtered
+                                    } else {
+                                        filtered
+                                    }
+                                col.copy(tasks = newTasks)
+                            }
+                        state.copy(
+                            tasks = updatedTasks,
+                            columns = updatedColumns,
+                            operatingTaskIds = state.operatingTaskIds - task.id,
+                        )
+                    }
+                }
+
+                is NetworkResult.Failure -> {
+                    revertTaskMove(task.id, originalStatus, "Move failed: ${result.error.message}")
+                }
             }
         }
     }
@@ -243,11 +306,26 @@ class KanbanViewModel(
         errorMsg: String,
     ) {
         _uiState.update { state ->
+            val updatedTasks =
+                state.tasks.map {
+                    if (it.id == taskId) it.copy(status = originalStatus) else it
+                }
+            val updatedColumns =
+                state.columns.map { col ->
+                    val filtered = col.tasks.filter { it.id != taskId }
+                    val newTasks =
+                        if (col.name.equals(originalStatus, ignoreCase = true)) {
+                            val moved = updatedTasks.find { it.id == taskId }
+                            if (moved != null) filtered + moved else filtered
+                        } else {
+                            filtered
+                        }
+                    col.copy(tasks = newTasks)
+                }
             state.copy(
-                tasks =
-                    state.tasks.map {
-                        if (it.id == taskId) it.copy(status = originalStatus) else it
-                    },
+                tasks = updatedTasks,
+                columns = updatedColumns,
+                operatingTaskIds = state.operatingTaskIds - taskId,
                 toastMessage = errorMsg,
             )
         }

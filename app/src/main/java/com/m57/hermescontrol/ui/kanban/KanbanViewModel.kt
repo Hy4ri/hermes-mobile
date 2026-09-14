@@ -2,17 +2,20 @@ package com.m57.hermescontrol.ui.kanban
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.m57.hermescontrol.data.local.AuthManager
+import com.m57.hermescontrol.data.local.InMemoryKanbanPreferencesStore
+import com.m57.hermescontrol.data.local.KanbanPreferencesStore
+import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
-import com.m57.hermescontrol.data.remote.ApiClient
+import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.remote.NetworkResult
-import com.m57.hermescontrol.data.remote.safeApiCall
+import com.m57.hermescontrol.data.repository.KanbanRepository
+import com.m57.hermescontrol.data.repository.KanbanRepositoryImpl
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.data.ws.KanbanLiveStatus
 import com.m57.hermescontrol.ui.common.ToastHost
-import com.m57.hermescontrol.ui.common.safeLaunchLoad
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 data class KanbanUiState(
     val isLoading: Boolean = false,
@@ -113,7 +115,12 @@ fun kanbanActionsForStatus(status: String): List<KanbanTaskAction> =
     }
 
 class KanbanViewModel(
+    private val repository: KanbanRepository = KanbanRepositoryImpl(),
+    private val preferences: KanbanPreferencesStore = InMemoryKanbanPreferencesStore(),
     private val eventsClientProvider: () -> KanbanEventsClient = { KanbanEventsClient() },
+    private val endpointProvider: () -> String = {
+        runCatching { AuthManager.endpointForBuild().baseUrl.toString() }.getOrDefault("default")
+    },
 ) : ViewModel(),
     ToastHost {
     private val _uiState = MutableStateFlow(KanbanUiState())
@@ -122,58 +129,50 @@ class KanbanViewModel(
     private var eventsClient: KanbanEventsClient? = null
     private var eventsBoard: String? = null
     private var reloadJob: Job? = null
+    private var currentLoadGen: Int = 0
 
     fun loadBoards() {
-        safeLaunchLoad(
-            apiCall = { safeApiCall { ApiClient.hermesApi.getKanbanBoards() } },
-            onStart = { _uiState.update { it.copy(isLoading = true, errorMessage = null) } },
-            onSuccess = { data ->
-                val boards = data.boards.orEmpty()
-                _uiState.update { it.copy(isLoading = false, boards = boards) }
-                val currentSlug = data.current
-                val currentBoard = boards.find { it.id == currentSlug } ?: boards.firstOrNull()
-                if (currentBoard != null) {
-                    selectBoard(currentBoard)
+        val endpoint = endpointProvider()
+        val savedSlug = preferences.getSelectedBoard(endpoint)
+        val previouslySelectedId = _uiState.value.selectedBoard?.id ?: savedSlug
+
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            when (val result = repository.getBoards()) {
+                is NetworkResult.Success -> {
+                    val boards = result.data.boards
+                    _uiState.update { it.copy(isLoading = false, boards = boards) }
+                    val targetBoard =
+                        boards.find { it.id == previouslySelectedId }
+                            ?: boards.find { it.id == result.data.current }
+                            ?: boards.firstOrNull()
+                    if (targetBoard != null) {
+                        selectBoard(targetBoard)
+                    } else {
+                        _uiState.update { it.copy(selectedBoard = null, columns = emptyList(), tasks = emptyList()) }
+                    }
                 }
-            },
-            onError = { errorMsg ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load Kanban boards: $errorMsg",
-                    )
+
+                is NetworkResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load Kanban boards: ${result.error.message}",
+                        )
+                    }
                 }
-            },
-        )
+            }
+        }
     }
 
     fun selectBoard(board: KanbanBoard) {
-        val current = _uiState.value.selectedBoard
-        if (current?.id == board.id) {
-            // Already-active board: reload its data and (re)connect the events
-            // stream WITHOUT the /switch round-trip — refresh and createTask
-            // re-select the same board and must not POST a redundant switch.
-            viewModelScope.launch { loadBoardIntoState(board) }
-            connectEvents(board)
-            return
-        }
+        val endpoint = endpointProvider()
+        preferences.setSelectedBoard(endpoint, board.id)
+
+        val gen = ++currentLoadGen
         _uiState.update { it.copy(selectedBoard = board, isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            val switchResult =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.switchKanbanBoard(board.id) }
-                }
-            if (switchResult is NetworkResult.Failure) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to switch Kanban board: ${switchResult.error.message}",
-                    )
-                }
-                return@launch
-            }
-
-            loadBoardIntoState(board)
+            loadBoardIntoState(board, gen)
             connectEvents(board)
         }
     }
@@ -186,22 +185,18 @@ class KanbanViewModel(
         val board = _uiState.value.selectedBoard ?: return
         viewModelScope.launch {
             val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall {
-                        ApiClient.hermesApi.createKanbanTask(
-                            board = board.id,
-                            task =
-                                com.m57.hermescontrol.data.model.CreateTaskBody(
-                                    title = title,
-                                    body = description,
-                                ),
-                        )
-                    }
-                }
+                repository.createTask(
+                    board = board.id,
+                    body =
+                        CreateTaskBody(
+                            title = title,
+                            body = description,
+                        ),
+                )
             when (result) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(toastMessage = "Task created successfully") }
-                    selectBoard(board)
+                    reloadBoardSilently()
                 }
 
                 is NetworkResult.Failure -> {
@@ -216,6 +211,7 @@ class KanbanViewModel(
         action: KanbanTaskAction,
         summary: String? = null,
     ) {
+        val board = _uiState.value.selectedBoard ?: return
         val originalStatus = task.status
         // Optimistically update, desktop-style
         _uiState.update { state ->
@@ -229,17 +225,12 @@ class KanbanViewModel(
 
         viewModelScope.launch {
             val body =
-                buildMap<String, String?> {
-                    put("status", action.targetStatus)
-                    if (action.needsSummary && !summary.isNullOrBlank()) {
-                        put("result", summary)
-                        put("summary", summary)
-                    }
-                }
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.updateKanbanTask(task.id, body) }
-                }
+                UpdateTaskBody(
+                    status = action.targetStatus,
+                    summary = if (action.needsSummary && !summary.isNullOrBlank()) summary else null,
+                    result = if (action.needsSummary && !summary.isNullOrBlank()) summary else null,
+                )
+            val result = repository.updateTask(task.id, board = board.id, body = body)
             if (result is NetworkResult.Failure) {
                 revertTaskMove(task.id, originalStatus, "Move failed: ${result.error.message}")
             }
@@ -300,47 +291,60 @@ class KanbanViewModel(
 
     /** Re-fetch the current board without touching the loading spinner. */
     private fun reloadBoardSilently() {
+        val board = _uiState.value.selectedBoard ?: return
+        val gen = currentLoadGen
         viewModelScope.launch {
-            val result =
-                withContext(Dispatchers.IO) {
-                    safeApiCall { ApiClient.hermesApi.getKanbanBoard() }
-                }
+            val result = repository.getBoard(board = board.id)
+            if (gen != currentLoadGen) return@launch
             if (result is NetworkResult.Success) {
                 val body = result.data
                 _uiState.update {
-                    it.copy(
-                        columns = body.columns,
-                        tasks = body.columns.flatMap { it.tasks },
-                    )
+                    if (it.selectedBoard?.id != board.id) {
+                        it
+                    } else {
+                        it.copy(
+                            columns = body.columns,
+                            tasks = body.columns.flatMap { col -> col.tasks },
+                        )
+                    }
                 }
             }
         }
     }
 
-    private suspend fun loadBoardIntoState(board: KanbanBoard) {
-        val result =
-            withContext(Dispatchers.IO) {
-                safeApiCall { ApiClient.hermesApi.getKanbanBoard() }
-            }
+    private suspend fun loadBoardIntoState(
+        board: KanbanBoard,
+        gen: Int = currentLoadGen,
+    ) {
+        val result = repository.getBoard(board = board.id)
+        if (gen != currentLoadGen) return
         when (result) {
             is NetworkResult.Success -> {
                 val body = result.data
                 val allTasks = body.columns.flatMap { it.tasks }
                 _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        columns = body.columns,
-                        tasks = allTasks,
-                    )
+                    if (it.selectedBoard?.id != board.id) {
+                        it
+                    } else {
+                        it.copy(
+                            isLoading = false,
+                            columns = body.columns,
+                            tasks = allTasks,
+                        )
+                    }
                 }
             }
 
             is NetworkResult.Failure -> {
                 _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = "Failed to load Kanban tasks: ${result.error.message}",
-                    )
+                    if (it.selectedBoard?.id != board.id) {
+                        it
+                    } else {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Failed to load Kanban tasks: ${result.error.message}",
+                        )
+                    }
                 }
             }
         }

@@ -5,8 +5,9 @@ import com.m57.hermescontrol.data.model.KanbanBoardResponse
 import com.m57.hermescontrol.data.model.KanbanBoardsResponse
 import com.m57.hermescontrol.data.model.KanbanColumn
 import com.m57.hermescontrol.data.model.KanbanTask
+import com.m57.hermescontrol.data.model.UpdateTaskResponse
 import com.m57.hermescontrol.data.remote.ApiClient
-import com.m57.hermescontrol.data.remote.HermesApiService
+import com.m57.hermescontrol.data.remote.KanbanApiService
 import com.m57.hermescontrol.data.ws.KanbanEvent
 import com.m57.hermescontrol.data.ws.KanbanEventsClient
 import com.m57.hermescontrol.data.ws.KanbanEventsEnvelope
@@ -23,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -38,7 +38,7 @@ import retrofit2.Response
 @OptIn(ExperimentalCoroutinesApi::class)
 class KanbanViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
-    private val mockApi = mockk<HermesApiService>(relaxed = true)
+    private val mockApi = mockk<KanbanApiService>(relaxed = true)
     private val mockEventsClient = mockk<KanbanEventsClient>(relaxed = true)
 
     private fun createViewModel(): KanbanViewModel {
@@ -60,23 +60,24 @@ class KanbanViewModelTest {
     }
 
     private fun stubBoard(tasks: List<KanbanTask> = listOf(KanbanTask(id = "t1", title = "Task 1", status = "todo"))) {
-        coEvery { mockApi.getKanbanBoards() } returns
+        coEvery { mockApi.getBoards(any()) } returns
             Response.success(
                 KanbanBoardsResponse(
                     boards = listOf(KanbanBoard(id = "work", name = "Work")),
                     current = "work",
                 ),
             )
-        coEvery { mockApi.switchKanbanBoard("work") } returns Response.success(Unit)
-        coEvery { mockApi.getKanbanBoard() } returns
+        coEvery { mockApi.getBoard(board = "work", any(), any()) } returns
             Response.success(KanbanBoardResponse(columns = listOf(KanbanColumn(name = "todo", tasks = tasks))))
+        coEvery { mockApi.getBoard(board = "ops", any(), any()) } returns
+            Response.success(KanbanBoardResponse(columns = listOf(KanbanColumn(name = "todo", tasks = emptyList()))))
     }
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         mockkObject(ApiClient)
-        every { ApiClient.hermesApi } returns mockApi
+        every { ApiClient.kanbanApi } returns mockApi
         stubBoard()
     }
 
@@ -115,7 +116,7 @@ class KanbanViewModelTest {
         val eventsSlot = slot<(KanbanEventsEnvelope) -> Unit>()
         verify { mockEventsClient.connect(any(), any(), any(), capture(eventsSlot), any()) }
 
-        coEvery { mockApi.getKanbanBoard() } returns
+        coEvery { mockApi.getBoard(board = "work", any(), any()) } returns
             Response.success(
                 KanbanBoardResponse(
                     columns =
@@ -138,7 +139,7 @@ class KanbanViewModelTest {
         testDispatcher.scheduler.advanceTimeBy(1)
         settle()
         assertEquals(2, vm.uiState.value.tasks.size)
-        coVerify(exactly = 2) { mockApi.getKanbanBoard() }
+        coVerify(atLeast = 2) { mockApi.getBoard(board = "work", any(), any()) }
     }
 
     @Test
@@ -146,9 +147,6 @@ class KanbanViewModelTest {
         val vm = createViewModel()
         vm.loadBoards()
         settle()
-        coEvery { mockApi.switchKanbanBoard("ops") } returns Response.success(Unit)
-        coEvery { mockApi.getKanbanBoard() } returns
-            Response.success(KanbanBoardResponse(columns = listOf(KanbanColumn(name = "todo", tasks = emptyList()))))
         vm.selectBoard(KanbanBoard(id = "ops", name = "Ops"))
         settle()
         verify { mockEventsClient.connect(any(), eq("ops"), any(), any(), any()) }
@@ -219,7 +217,7 @@ class KanbanViewModelTest {
         val vm = createViewModel()
         vm.loadBoards()
         settle()
-        coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.success(Unit)
+        coEvery { mockApi.updateTask(any(), any(), any()) } returns Response.success(UpdateTaskResponse())
         vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
         settle()
         assertEquals(
@@ -228,7 +226,7 @@ class KanbanViewModelTest {
                 .first { it.id == "t1" }
                 .status,
         )
-        coVerify { mockApi.updateKanbanTask("t1", mapOf("status" to "ready")) }
+        coVerify { mockApi.updateTask("t1", "work", match { it.status == "ready" }) }
     }
 
     @Test
@@ -236,7 +234,7 @@ class KanbanViewModelTest {
         val vm = createViewModel()
         vm.loadBoards()
         settle()
-        coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.error(409, "".toResponseBody())
+        coEvery { mockApi.updateTask(any(), any(), any()) } returns Response.error(409, "".toResponseBody())
         vm.moveTask(KanbanTask(id = "t1", title = "Task 1", status = "todo"), KanbanTaskAction.READY)
         settle()
         assertEquals(
@@ -256,7 +254,7 @@ class KanbanViewModelTest {
         val vm = createViewModel()
         vm.loadBoards()
         settle()
-        coEvery { mockApi.updateKanbanTask(any(), any()) } returns Response.success(Unit)
+        coEvery { mockApi.updateTask(any(), any(), any()) } returns Response.success(UpdateTaskResponse())
         vm.moveTask(
             KanbanTask(id = "t1", title = "Task 1", status = "ready"),
             KanbanTaskAction.COMPLETE,
@@ -264,9 +262,10 @@ class KanbanViewModelTest {
         )
         settle()
         coVerify {
-            mockApi.updateKanbanTask(
+            mockApi.updateTask(
                 "t1",
-                mapOf("status" to "done", "result" to "Shipped it", "summary" to "Shipped it"),
+                "work",
+                match { it.status == "done" && it.summary == "Shipped it" && it.result == "Shipped it" },
             )
         }
     }

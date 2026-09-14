@@ -99,10 +99,11 @@ fun ComposerToolbar(
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .padding(horizontal = 12.dp)
+                .padding(top = 6.dp)
                 .testTag("composer_toolbar"),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // Attach button
         IconButton(

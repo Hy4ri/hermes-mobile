@@ -45,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -70,8 +69,8 @@ import com.m57.hermescontrol.ui.common.BotAvatar
 import com.m57.hermescontrol.util.BidiUtils
 
 /**
- * The chat input bar with a two-row layout: the input on top,
- * and a toolbar with attach/model chip/reasoning chip/mic/send below.
+ * The chat input bar: a single rounded card with the input on top and a
+ * controls row (attach, model and reasoning chips, mic, send) inside it below.
  */
 @Composable
 fun ChatInputBar(
@@ -110,29 +109,28 @@ fun ChatInputBar(
 
     // Attachment menu state
     var showAttachmentMenu by remember { mutableStateOf(false) }
-    var isFocused by remember { mutableStateOf(false) }
 
     AnimatedVisibility(
         visible = true,
         enter = slideInVertically(initialOffsetY = { it }),
         exit = slideOutVertically(targetOffsetY = { it }),
     ) {
+        // One floating card holds the whole composer: suggestions, attachments,
+        // the input and the controls row. Flat fill, hairline edge, no shadow.
         Surface(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             border =
                 BorderStroke(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                 ),
-            tonalElevation = 2.dp,
-            shadowElevation = 4.dp,
         ) {
-            Column {
+            Column(modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
                 // Commands hidden from the suggestion menu — desktop/CLI-only and
                 // TUI-only commands that don't function on mobile (issue #574).
                 // Single source of truth: CommandBlocklist.UNSUPPORTED, which is
@@ -210,12 +208,12 @@ fun ChatInputBar(
                     }
                 }
 
-                // ── TOP ROW: Input field with embedded send button ──
+                // ── TOP ROW: Borderless input field ──
                 Row(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val placeholderText =
@@ -253,74 +251,44 @@ fun ChatInputBar(
                                     .weight(1f)
                                     .heightIn(min = 42.dp, max = 120.dp)
                                     .padding(vertical = 4.dp)
-                                    .onFocusChanged { isFocused = it.isFocused }
                                     .testTag("chat_input"),
                             enabled = isConnected,
                             textStyle =
-                                MaterialTheme.typography.bodyMedium.copy(
+                                MaterialTheme.typography.bodyLarge.copy(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
                                     textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
                                 ),
                             singleLine = false,
                             maxLines = 4,
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                             decorationBox = { innerTextField ->
                                 CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
-                                    Surface(
-                                        shape = RoundedCornerShape(18.dp),
-                                        border =
-                                            BorderStroke(
-                                                width = if (isFocused) 2.dp else 1.dp,
-                                                color =
-                                                    if (isFocused) {
-                                                        MaterialTheme.colorScheme.primary
-                                                    } else {
-                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                                    },
-                                            ),
-                                        color = MaterialTheme.colorScheme.surface,
+                                    Box(
                                         modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment =
+                                            if (isInputRtl) {
+                                                Alignment.CenterEnd
+                                            } else {
+                                                Alignment.CenterStart
+                                            },
                                     ) {
-                                        Row(
-                                            modifier =
-                                                Modifier
-                                                    .padding(horizontal = 12.dp, vertical = 9.dp)
-                                                    .fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Box(
-                                                modifier = Modifier.weight(1f),
-                                                contentAlignment =
-                                                    if (isInputRtl) {
-                                                        Alignment.CenterEnd
-                                                    } else {
-                                                        Alignment.CenterStart
-                                                    },
-                                            ) {
-                                                CompositionLocalProvider(
-                                                    LocalLayoutDirection provides inputLayoutDirection,
-                                                ) {
-                                                    if (inputFieldValue.text.isEmpty()) {
-                                                        Text(
-                                                            text = placeholderText,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            textAlign =
-                                                                if (isInputRtl) {
-                                                                    TextAlign.Right
-                                                                } else {
-                                                                    TextAlign.Left
-                                                                },
-                                                            color =
-                                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                                    alpha = 0.6f,
-                                                                ),
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                        )
-                                                    }
-                                                    innerTextField()
-                                                }
+                                        CompositionLocalProvider(LocalLayoutDirection provides inputLayoutDirection) {
+                                            if (inputFieldValue.text.isEmpty()) {
+                                                Text(
+                                                    text = placeholderText,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
+                                                    color =
+                                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.7f,
+                                                        ),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                )
                                             }
+                                            innerTextField()
                                         }
                                     }
                                 }

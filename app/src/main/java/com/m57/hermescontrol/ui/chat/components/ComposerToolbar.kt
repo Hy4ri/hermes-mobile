@@ -97,6 +97,7 @@ fun ComposerToolbar(
     onToggleFastMode: () -> Unit = {},
 ) {
     var showReasoningMenu by remember { mutableStateOf(false) }
+    val palette = composerPalette()
     val reasoningDisabledForModel = supportsReasoning == false
     val canDisable = canDisableReasoning
 
@@ -114,7 +115,7 @@ fun ComposerToolbar(
         FilledIconButton(
             onClick = onAttachTap,
             enabled = isConnected,
-            colors = flatIconButtonColors(),
+            colors = flatIconButtonColors(palette),
             modifier = Modifier.size(ControlSize),
         ) {
             Icon(
@@ -131,13 +132,13 @@ fun ComposerToolbar(
                     Modifier
                         .height(ControlSize)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                        .background(palette.control),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = currentSessionModel?.let(::displayModelName) ?: "Model",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = palette.onControl,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier =
@@ -162,7 +163,7 @@ fun ComposerToolbar(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         val levelColor =
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            palette.onControlVariant.copy(
                                 alpha = if (isConnected) 1f else 0.38f,
                             )
                         if (fastMode) {
@@ -336,7 +337,7 @@ fun ComposerToolbar(
             FilledIconButton(
                 onClick = onMicTap,
                 enabled = isConnected,
-                colors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(),
+                colors = if (isListening) listeningIconButtonColors() else flatIconButtonColors(palette),
                 modifier =
                     Modifier
                         .size(ControlSize)
@@ -358,8 +359,8 @@ fun ComposerToolbar(
                     listeningIconButtonColors()
                 } else {
                     IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.onSurface,
-                        contentColor = MaterialTheme.colorScheme.surface,
+                        containerColor = palette.action,
+                        contentColor = palette.onAction,
                     )
                 },
             modifier =
@@ -408,10 +409,10 @@ private val ControlSize = 36.dp
 private enum class ActionGlyph { SEND, STOP, VOICE }
 
 @Composable
-private fun flatIconButtonColors(): IconButtonColors =
+private fun flatIconButtonColors(palette: ComposerPalette): IconButtonColors =
     IconButtonDefaults.filledIconButtonColors(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+        containerColor = palette.control,
+        contentColor = palette.onControl,
     )
 
 @Composable

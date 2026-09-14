@@ -109,6 +109,7 @@ fun ChatInputBar(
 
     // Attachment menu state
     var showAttachmentMenu by remember { mutableStateOf(false) }
+    val palette = composerPalette()
 
     AnimatedVisibility(
         visible = true,
@@ -123,12 +124,8 @@ fun ChatInputBar(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            border =
-                BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                ),
+            color = palette.card,
+            border = BorderStroke(width = 1.dp, color = palette.cardBorder),
         ) {
             Column(modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
                 // Commands hidden from the suggestion menu — desktop/CLI-only and
@@ -255,13 +252,13 @@ fun ChatInputBar(
                             enabled = isConnected,
                             textStyle =
                                 MaterialTheme.typography.bodyLarge.copy(
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    color = palette.text,
                                     textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
                                     textDirection = if (isInputRtl) TextDirection.Rtl else TextDirection.Ltr,
                                 ),
                             singleLine = false,
                             maxLines = 8,
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+                            cursorBrush = SolidColor(palette.text),
                             decorationBox = { innerTextField ->
                                 CompositionLocalProvider(LocalLayoutDirection provides ambientLayoutDirection) {
                                     Box(
@@ -279,10 +276,7 @@ fun ChatInputBar(
                                                     text = placeholderText,
                                                     style = MaterialTheme.typography.bodyLarge,
                                                     textAlign = if (isInputRtl) TextAlign.Right else TextAlign.Left,
-                                                    color =
-                                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                            alpha = 0.7f,
-                                                        ),
+                                                    color = palette.placeholder,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
                                                     modifier = Modifier.fillMaxWidth(),

@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.m57.hermescontrol.theme.LocalHermesStatusColors
+import com.m57.hermescontrol.ui.chat.MarkdownText
 import com.m57.hermescontrol.ui.common.ErrorState
 import com.m57.hermescontrol.ui.common.HermesScaffold
 import com.m57.hermescontrol.ui.common.NavIcon
@@ -322,10 +324,12 @@ private fun TaskOverviewTab(
                             }
                         }
                     } else {
-                        Text(
-                            text = task.body?.ifBlank { "No description provided." } ?: "No description provided.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        SelectionContainer {
+                            MarkdownText(
+                                text = task.body?.ifBlank { "No description provided." } ?: "No description provided.",
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                     }
                 }
             }
@@ -348,10 +352,12 @@ private fun TaskOverviewTab(
                             color = MaterialTheme.colorScheme.primary,
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = summary,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        SelectionContainer {
+                            MarkdownText(
+                                text = summary,
+                                textColor = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                     }
                 }
             }
@@ -406,7 +412,12 @@ private fun TaskDiscussionTab(
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = comment.body, style = MaterialTheme.typography.bodySmall)
+                            SelectionContainer {
+                                MarkdownText(
+                                    text = comment.body,
+                                    textColor = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
                         }
                     }
                 }

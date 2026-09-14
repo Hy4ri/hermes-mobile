@@ -57,6 +57,7 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.kanban.components.KanbanCreateTaskDialog
 import com.m57.hermescontrol.ui.kanban.components.KanbanFilterSheet
 import com.m57.hermescontrol.ui.kanban.components.KanbanTaskCard
 
@@ -265,6 +266,9 @@ fun KanbanScreen(
                                                                     )
                                                                 }
                                                             },
+                                                            onActionClick = { clickedTask ->
+                                                                taskForActions = clickedTask
+                                                            },
                                                         )
                                                     }
                                                 }
@@ -277,10 +281,15 @@ fun KanbanScreen(
                     }
 
                     if (showAddTaskDialog) {
-                        AddTaskDialog(
+                        KanbanCreateTaskDialog(
+                            columns = state.columns,
+                            defaultColumn = state.columns.firstOrNull()?.name ?: DEFAULT_COLUMN,
+                            profiles = state.profiles,
+                            existingTasks = state.tasks,
+                            isCreating = state.isCreatingTask,
                             onDismiss = { showAddTaskDialog = false },
-                            onConfirm = { title, desc ->
-                                viewModel.createTask(title, desc, state.columns.firstOrNull()?.name ?: DEFAULT_COLUMN)
+                            onConfirm = { body, targetStatus ->
+                                viewModel.createTask(body, targetStatus)
                                 showAddTaskDialog = false
                             },
                         )
@@ -431,51 +440,6 @@ private fun LiveStatusPill(isLive: Boolean) {
             color = color,
         )
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddTaskDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (title: String, desc: String?) -> Unit,
-) {
-    var title by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
-
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.kanban_add_new_task)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.kanban_task_title)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = desc,
-                    onValueChange = { desc = it },
-                    label = { Text(stringResource(R.string.kanban_task_desc)) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (title.isNotBlank()) onConfirm(title, desc.ifBlank { null }) },
-                enabled = title.isNotBlank(),
-            ) {
-                Text(stringResource(R.string.action_add))
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text(stringResource(R.string.action_cancel))
-            }
-        },
-    )
 }
 
 private fun KanbanTaskAction.labelRes(): Int =

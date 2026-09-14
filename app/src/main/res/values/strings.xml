@@ -342,6 +342,25 @@
     <string name="kanban_live">Live</string>
     <string name="kanban_offline">Offline</string>
     <string name="kanban_no_tasks">No tasks</string>
+    <string name="kanban_priority">Priority</string>
+    <string name="kanban_priority_normal">0 (Normal)</string>
+    <string name="kanban_priority_med">1 (Med)</string>
+    <string name="kanban_priority_high">2 (High)</string>
+    <string name="kanban_priority_urgent">3 (Urgent)</string>
+    <string name="kanban_assignee">Assignee</string>
+    <string name="kanban_assignee_unassigned">Default (Unassigned)</string>
+    <string name="kanban_assignee_parked">Parked (No worker)</string>
+    <string name="kanban_goal_mode">Autonomous Goal Mode</string>
+    <string name="kanban_goal_mode_desc">Judge validates task completion across multi-turn iterations</string>
+    <string name="kanban_advanced_options">Advanced Options</string>
+    <string name="kanban_parent_task">Parent Task</string>
+    <string name="kanban_parent_none">None</string>
+    <string name="kanban_model_override">Model Override</string>
+    <string name="kanban_provider_override">Provider Override</string>
+    <string name="kanban_reasoning_effort">Reasoning Effort</string>
+    <string name="kanban_workspace_kind">Workspace Kind</string>
+    <string name="kanban_skills">Skills</string>
+    <string name="kanban_target_column">Column</string>
     <string name="action_add">Add</string>
     <!-- Skills Screen -->
     <string name="skills_status_all">All Statuses</string>

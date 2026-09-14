@@ -8,6 +8,7 @@ import com.m57.hermescontrol.data.local.KanbanPreferencesStore
 import com.m57.hermescontrol.data.model.CreateTaskBody
 import com.m57.hermescontrol.data.model.KanbanBoard
 import com.m57.hermescontrol.data.model.KanbanColumn
+import com.m57.hermescontrol.data.model.KanbanProfile
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.data.model.UpdateTaskBody
 import com.m57.hermescontrol.data.remote.NetworkResult
@@ -32,6 +33,7 @@ data class KanbanUiState(
     val selectedBoard: KanbanBoard? = null,
     val columns: List<KanbanColumn> = emptyList(),
     val tasks: List<KanbanTask> = emptyList(),
+    val profiles: List<KanbanProfile> = emptyList(),
     val isLive: Boolean = false,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
@@ -139,6 +141,7 @@ class KanbanViewModel(
         val previouslySelectedId = _uiState.value.selectedBoard?.id ?: savedSlug
 
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        loadProfiles()
         viewModelScope.launch {
             when (val result = repository.getBoards()) {
                 is NetworkResult.Success -> {
@@ -179,10 +182,23 @@ class KanbanViewModel(
         }
     }
 
+    fun loadProfiles() {
+        viewModelScope.launch {
+            when (val result = repository.getProfiles()) {
+                is NetworkResult.Success -> {
+                    _uiState.update { it.copy(profiles = result.data.profiles) }
+                }
+
+                is NetworkResult.Failure -> {
+                    // Do not block UI if profiles fetch fails
+                }
+            }
+        }
+    }
+
     fun createTask(
-        title: String,
-        description: String?,
-        status: String = "todo",
+        body: CreateTaskBody,
+        targetStatus: String = "todo",
     ) {
         val board = _uiState.value.selectedBoard ?: return
         if (_uiState.value.isCreatingTask) return
@@ -191,14 +207,21 @@ class KanbanViewModel(
             val result =
                 repository.createTask(
                     board = board.id,
-                    body =
-                        CreateTaskBody(
-                            title = title,
-                            body = description,
-                        ),
+                    body = body,
                 )
             when (result) {
                 is NetworkResult.Success -> {
+                    val createdTask = result.data.task
+                    if (createdTask != null &&
+                        targetStatus.isNotBlank() &&
+                        !createdTask.status.equals(targetStatus, ignoreCase = true)
+                    ) {
+                        repository.updateTask(
+                            taskId = createdTask.id,
+                            board = board.id,
+                            body = UpdateTaskBody(status = targetStatus),
+                        )
+                    }
                     val warning = result.data.warning
                     val msg =
                         if (!warning.isNullOrBlank()) {
@@ -220,6 +243,21 @@ class KanbanViewModel(
                 }
             }
         }
+    }
+
+    fun createTask(
+        title: String,
+        description: String?,
+        status: String = "todo",
+    ) {
+        createTask(
+            body =
+                CreateTaskBody(
+                    title = title,
+                    body = description,
+                ),
+            targetStatus = status,
+        )
     }
 
     fun moveTask(

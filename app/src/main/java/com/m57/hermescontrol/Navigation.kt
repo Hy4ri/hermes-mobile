@@ -174,6 +174,15 @@ private fun appEntryProvider(
             onBack = { NavigationController.goBack() },
         )
     }
+
+    // ── Kanban Task Detail ─────────────────────────────────────────────
+    entry<KanbanTaskDetailKey> { key ->
+        com.m57.hermescontrol.ui.kanban.KanbanTaskScreen(
+            boardSlug = key.boardSlug,
+            taskId = key.taskId,
+            onBack = { NavigationController.goBack() },
+        )
+    }
 }
 
 @Composable

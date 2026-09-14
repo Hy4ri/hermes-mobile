@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.m57.hermescontrol.KanbanTaskDetailKey
+import com.m57.hermescontrol.NavigationController
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.KanbanTask
 import com.m57.hermescontrol.ui.common.ErrorState
@@ -54,6 +57,8 @@ import com.m57.hermescontrol.ui.common.NavIcon
 import com.m57.hermescontrol.ui.common.SearchBar
 import com.m57.hermescontrol.ui.common.SkeletonListState
 import com.m57.hermescontrol.ui.common.ToastEffect
+import com.m57.hermescontrol.ui.kanban.components.KanbanFilterSheet
+import com.m57.hermescontrol.ui.kanban.components.KanbanTaskCard
 
 private const val DEFAULT_COLUMN = "todo"
 
@@ -67,14 +72,26 @@ fun KanbanScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    var selectedAssignee by remember { mutableStateOf<String?>(null) }
+    var selectedTenant by remember { mutableStateOf<String?>(null) }
+    var includeArchived by remember { mutableStateOf(false) }
+    var groupRunning by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
 
     val filteredTasks =
-        remember(query, state.tasks) {
+        remember(query, state.tasks, selectedAssignee, selectedTenant) {
             state.tasks.filter { task ->
-                task.title.contains(query, ignoreCase = true) ||
-                    task.description?.contains(query, ignoreCase = true) == true ||
-                    task.status.contains(query, ignoreCase = true) ||
-                    task.assignedTo?.contains(query, ignoreCase = true) == true
+                val matchesQuery =
+                    query.isBlank() ||
+                        task.title.contains(query, ignoreCase = true) ||
+                        task.description?.contains(query, ignoreCase = true) == true ||
+                        task.status.contains(query, ignoreCase = true) ||
+                        task.assignedTo?.contains(query, ignoreCase = true) == true ||
+                        task.id.contains(query, ignoreCase = true)
+                val matchesAssignee =
+                    selectedAssignee == null || task.assignee.equals(selectedAssignee, ignoreCase = true)
+                val matchesTenant = selectedTenant == null || task.tenant.equals(selectedTenant, ignoreCase = true)
+                matchesQuery && matchesAssignee && matchesTenant
             }
         }
 
@@ -167,6 +184,14 @@ fun KanbanScreen(
                                 ) {
                                     LiveStatusPill(isLive = state.isLive)
                                     Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(onClick = { showFilterSheet = true }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.FilterList,
+                                            contentDescription = "Filters",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     IconButton(onClick = { showAddTaskDialog = true }) {
                                         Icon(
                                             imageVector = Icons.Filled.Add,
@@ -228,9 +253,18 @@ fun KanbanScreen(
                                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                                 ) {
                                                     items(colTasks, key = { it.id }) { task ->
-                                                        TaskCard(
+                                                        KanbanTaskCard(
                                                             task = task,
-                                                            onTaskClick = { taskForActions = it },
+                                                            onTaskClick = { clickedTask ->
+                                                                state.selectedBoard?.let { board ->
+                                                                    NavigationController.navigateTo(
+                                                                        KanbanTaskDetailKey(
+                                                                            boardSlug = board.id,
+                                                                            taskId = clickedTask.id,
+                                                                        ),
+                                                                    )
+                                                                }
+                                                            },
                                                         )
                                                     }
                                                 }
@@ -288,8 +322,47 @@ fun KanbanScreen(
 
                     summaryTarget?.let { (task, action) ->
                         CompleteTaskDialog(
-                            onConfirm = { summary -> viewModel.moveTask(task, action, summary) },
+                            onConfirm = { summary ->
+                                summaryTarget = null
+                                viewModel.moveTask(task, action, summary)
+                            },
                             onDismiss = { summaryTarget = null },
+                        )
+                    }
+
+                    if (showFilterSheet) {
+                        val assignees =
+                            remember(state.tasks) {
+                                state.tasks
+                                    .mapNotNull { it.assignee }
+                                    .distinct()
+                                    .sorted()
+                            }
+                        val tenants =
+                            remember(state.tasks) {
+                                state.tasks
+                                    .mapNotNull { it.tenant }
+                                    .distinct()
+                                    .sorted()
+                            }
+                        KanbanFilterSheet(
+                            assignees = assignees,
+                            tenants = tenants,
+                            selectedAssignee = selectedAssignee,
+                            selectedTenant = selectedTenant,
+                            includeArchived = includeArchived,
+                            groupRunning = groupRunning,
+                            onSelectAssignee = { selectedAssignee = it },
+                            onSelectTenant = { selectedTenant = it },
+                            onToggleIncludeArchived = { includeArchived = it },
+                            onToggleGroupRunning = { groupRunning = it },
+                            onClearFilters = {
+                                selectedAssignee = null
+                                selectedTenant = null
+                                includeArchived = false
+                                groupRunning = false
+                            },
+                            onDismiss = { showFilterSheet = false },
                         )
                     }
                 }

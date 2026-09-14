@@ -122,7 +122,7 @@ fun ChatInputBar(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(32.dp),
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             border =
                 BorderStroke(

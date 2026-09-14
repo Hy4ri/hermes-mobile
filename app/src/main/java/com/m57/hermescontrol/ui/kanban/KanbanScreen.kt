@@ -142,7 +142,7 @@ fun KanbanScreen(
                                         Tab(
                                             selected = board == state.selectedBoard,
                                             onClick = { viewModel.selectBoard(board) },
-                                            text = { Text(board.name) },
+                                            text = { Text(board.displayName) },
                                         )
                                     }
                                 }

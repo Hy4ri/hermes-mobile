@@ -22,6 +22,9 @@ object ApiClient {
     @Volatile
     private var service: HermesApiService? = null
 
+    @Volatile
+    private var kanbanService: KanbanApiService? = null
+
     /** The current [HermesApiService] instance. Lazily created on first access. */
     val hermesApi: HermesApiService
         get() {
@@ -30,11 +33,20 @@ object ApiClient {
             }
         }
 
+    /** The current [KanbanApiService] instance. Lazily created on first access. */
+    val kanbanApi: KanbanApiService
+        get() {
+            return kanbanService ?: synchronized(this) {
+                kanbanService ?: buildRetrofit().create(KanbanApiService::class.java).also { kanbanService = it }
+            }
+        }
+
     /** Force-rebuild the Retrofit client (e.g. after settings change). */
     fun rebuild() {
         synchronized(this) {
             retrofit = null
             service = null
+            kanbanService = null
         }
     }
 
@@ -79,7 +91,15 @@ object ApiClient {
 
     // ── Internal ─────────────────────────────────────────────────────────
 
-    private fun buildService(): HermesApiService {
+    private fun buildService(): HermesApiService =
+        buildRetrofit().create(HermesApiService::class.java).also {
+            service = it
+        }
+
+    private fun buildRetrofit(): Retrofit {
+        val cached = retrofit
+        if (cached != null) return cached
+
         val logging =
             HttpLoggingInterceptor().apply {
                 level =
@@ -129,15 +149,12 @@ object ApiClient {
                 .authenticator(TokenRefreshAuthenticator)
                 .build()
 
-        val rf =
-            Retrofit
-                .Builder()
-                .baseUrl(AuthManager.endpointForBuild().baseUrl)
-                .client(okHttp)
-                .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
-                .build()
-                .also { retrofit = it }
-
-        return rf.create(HermesApiService::class.java)
+        return Retrofit
+            .Builder()
+            .baseUrl(AuthManager.endpointForBuild().baseUrl)
+            .client(okHttp)
+            .addConverterFactory(OkHttpProvider.json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .also { retrofit = it }
     }
 }

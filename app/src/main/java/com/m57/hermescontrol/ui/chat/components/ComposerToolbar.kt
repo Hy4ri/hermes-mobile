@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.CircularProgressIndicator
@@ -396,7 +395,7 @@ fun ComposerToolbar(
                     }
 
                     ActionGlyph.VOICE -> {
-                        Icon(imageVector = Icons.Default.GraphicEq, contentDescription = "Mic")
+                        Icon(imageVector = Icons.Outlined.Mic, contentDescription = "Mic")
                     }
                 }
             }

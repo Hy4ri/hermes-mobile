@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Mic
@@ -385,7 +385,7 @@ fun ComposerToolbar(
                 when (glyph) {
                     ActionGlyph.SEND -> {
                         Icon(
-                            imageVector = Icons.Default.ArrowUpward,
+                            imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = stringResource(R.string.chat_send_desc),
                         )
                     }

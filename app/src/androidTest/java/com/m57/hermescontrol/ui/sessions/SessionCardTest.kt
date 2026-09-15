@@ -82,13 +82,15 @@ class SessionCardTest {
         }
     }
 
-    private fun longModelSession() =
+    // Fixed 360dp width so the fit doesn't depend on the device screen. The one-line case keeps
+    // plenty of slack (one badge) because font metrics vary between devices and emulators.
+    private fun longModelSession(hidden: Boolean) =
         SessionInfo(
             id = "long",
             title = "Draft the release notes",
             model = "openrouter/anthropic/a-very-long-model-identifier-name",
             message_count = 128,
-            hidden = true,
+            hidden = hidden,
         )
 
     private fun bounds(tag: String) =
@@ -96,7 +98,7 @@ class SessionCardTest {
 
     @Test
     fun longModel_shrinksInsteadOfWrappingTheBadges() {
-        setCard(session = longModelSession(), project = null, liveStatus = SessionLiveStatus.WORKING)
+        setCard(session = longModelSession(hidden = false), project = null, liveStatus = SessionLiveStatus.WORKING)
 
         val count = bounds("session_footer_count_long")
         val badge = bounds("session_live_status_long")
@@ -107,7 +109,12 @@ class SessionCardTest {
 
     @Test
     fun largeFont_wrapsTheBadgesToASecondLine() {
-        setCard(session = longModelSession(), project = null, liveStatus = SessionLiveStatus.WORKING, fontScale = 2f)
+        setCard(
+            session = longModelSession(hidden = true),
+            project = null,
+            liveStatus = SessionLiveStatus.WORKING,
+            fontScale = 2f,
+        )
 
         assertTrue(bounds("session_live_status_long").top >= bounds("session_footer_count_long").bottom)
     }

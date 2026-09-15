@@ -213,9 +213,16 @@ class ChatSubagentsDelegate(
      * Rules:
      * - `subagent_id` is the primary identity.
      * - Protects against races: if an indicator received a push event with timestamp > [requestTime],
-     *   its push-event status/type is preserved.
+     *   its push-event status/type is preserved and it is not pruned.
      * - Preserves local details (logs, taskIndex, taskCount, summary) not provided in the snapshot.
-     * - Does not discard locally known indicators absent from the snapshot.
+     * - Reconciles stale running indicators (issue #1117): an identified ([SubagentIndicator.subagentId] != null),
+     *   running ([SubagentIndicator.isRunning]) indicator omitted from an authoritative snapshot is removed
+     *   if its [SubagentIndicator.lastEventTimestamp] <= [requestTime]. This clears indicators that completed
+     *   while disconnected where `subagent.complete` was missed.
+     * - Protects against races for new subagents: a running indicator spawned or updated by a push event
+     *   newer than [requestTime] is preserved even if omitted from an older in-flight snapshot response.
+     * - Preserves already-terminal indicators (completed, failed, cancelled) and unassigned placeholders
+     *   ([SubagentIndicator.subagentId] == null) even if omitted from the snapshot.
      */
     internal fun mergeSubagentList(
         current: List<SubagentIndicator>,
@@ -298,6 +305,15 @@ class ChatSubagentsDelegate(
                     ),
                 )
             }
+        }
+
+        val snapshotIds = listItems.mapNotNull { it.subagentId.trim().takeIf { id -> id.isNotEmpty() } }.toSet()
+        merged.removeAll { indicator ->
+            val id = indicator.subagentId?.trim()
+            !id.isNullOrEmpty() &&
+                indicator.isRunning &&
+                id !in snapshotIds &&
+                indicator.lastEventTimestamp <= requestTime
         }
 
         return merged

@@ -184,7 +184,13 @@
 <string name="settings_sec_chat">المحادثة</string>
 <string name="settings_item_typing_effect">تأثير الكتابة</string>
 <string name="settings_desc_typing_effect">تحريك ظهور الرسائل الجديدة كلمة بكلمة</string>
-<string name="fullbleed_role_agent">المساعد</string>
+<string name="chat_agent_status_typing">الوكيل يكتب</string>
+<string name="chat_agent_status_thinking">يفكّر…</string>
+<string name="chat_agent_status_searching">يبحث…</string>
+<string name="chat_agent_status_reading">يقرأ الملف…</string>
+<string name="chat_agent_status_browsing">يتصفّح…</string>
+<string name="chat_agent_status_running_command">يشغّل الأمر…</string>
+<string name="chat_agent_status_using_tool">يستخدم أداة…</string>
 <string name="settings_item_typing_delay">التأخير: %1$d مللي ثانية</string>
 <string name="settings_delay_10ms">10 مللي ثانية</string>
 <string name="settings_delay_100ms">100 مللي ثانية</string>

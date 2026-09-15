@@ -37,6 +37,9 @@ sealed interface AgentEntry {
     ) : AgentEntry
 }
 
+/** Empty assistant placeholders carry no user-visible prose and need no list item. */
+internal fun ChatMessage.hasVisibleAgentContent(): Boolean = content.isNotBlank() || !attachments.isNullOrEmpty()
+
 /**
  * Stable content prefix the backend uses for its max-iterations runtime nudge
  * (`handle_max_iterations` in run_agent.py → chat_completion_helpers.py, text
@@ -145,15 +148,16 @@ fun groupIntoTurnsWithStreaming(
  * full-bleed renderer.
  *
  * The lazy list does NOT have one item per message: each agent turn with a
- * reasoning block emits an extra `reasoning-<id>` item BEFORE its prose, and
- * tool rows / system events are items too. Scrolling a search match by raw
- * message index therefore lands on the WRONG item whenever reasoning or tool
- * rows precede the target — the classic "match is above/below the view" bug.
+ * reasoning block emits an extra `reasoning-<id>` item BEFORE its prose, empty
+ * assistant placeholders emit no prose item, and tool rows / system events are
+ * items too. Scrolling a search match by raw message index therefore lands on
+ * the WRONG item whenever reasoning or tool rows precede the target — the
+ * classic "match is above/below the view" bug.
  *
  * Mirrors the item emission order in [FullBleedChatList] exactly:
  * user turn → 1 item; agent turn → optional reasoning item, then one item per
- * entry. [leadingItems] accounts for fixed items emitted before the turns
- * (e.g. the `loading-older` spinner when paging).
+ * visible entry. [leadingItems] accounts for fixed items emitted before the
+ * turns (e.g. the `loading-older` spinner when paging).
  *
  * @return messageId → LazyColumn item index of the message's content item
  *   (prose items for agent messages; user items for user messages).
@@ -183,8 +187,10 @@ fun messageIdToLazyIndex(
                 turn.entries.forEach { entry ->
                     when (entry) {
                         is AgentEntry.Prose -> {
-                            map[entry.message.id] = itemIndex
-                            itemIndex++
+                            if (entry.message.hasVisibleAgentContent()) {
+                                map[entry.message.id] = itemIndex
+                                itemIndex++
+                            }
                         }
 
                         is AgentEntry.ToolRow -> {

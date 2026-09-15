@@ -1518,6 +1518,16 @@ class ChatViewModel(
                 else -> error.toString()
             }
 
+        if (method == WsMethods.PROMPT_SUBMIT || method == WsMethods.SESSION_REDIRECT) {
+            // A prompt rejection can arrive before message.start, leaving the
+            // UI with only the optimistic typing state. Clear the live tail so
+            // a failed generation cannot leave stale dots or reasoning behind.
+            sealStreamingMessageIfAny()
+            _uiState.update { it.copy(isAgentTyping = false) }
+            _streamingState.update { StreamingState() }
+            streamingController.resetStreaming()
+        }
+
         // Session resume failures go through the bounded retry (desktop
         // parity) instead of a one-shot snackbar — the session may be
         // mid-flush on the gateway or the WS may have just rebound, and a

@@ -6,12 +6,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.ui.chat.ChatMessage
 import com.m57.hermescontrol.ui.chat.ChatSearchState
 import com.m57.hermescontrol.ui.chat.ChatViewModel
 import com.m57.hermescontrol.ui.chat.MessageRole
+import com.m57.hermescontrol.ui.chat.StreamingState
 import com.m57.hermescontrol.ui.chat.ToolStatus
 import com.m57.hermescontrol.ui.chat.components.ChatScrollController
 import io.mockk.mockk
@@ -47,19 +49,21 @@ class FullBleedChatListTest {
     private fun render(
         messages: List<ChatMessage>,
         streamingMessage: ChatMessage? = null,
+        streamingState: StreamingState = StreamingState(streamingMessage = streamingMessage),
+        isAgentTyping: Boolean = streamingMessage?.isStreaming == true,
         clarify: Boolean = false,
     ) {
         composeTestRule.setContent {
             val listState = LazyListState()
             FullBleedChatList(
                 messages = messages,
-                streamingMessage = streamingMessage,
+                streamingState = streamingState,
+                isAgentTyping = isAgentTyping,
                 searchState = ChatSearchState(),
                 typingEffectEnabled = false,
                 typingEffectDelayMs = 30,
                 isLoading = false,
                 isLoadingOlder = false,
-                isDark = false,
                 listState = listState,
                 scrollController =
                     ChatScrollController(
@@ -115,7 +119,7 @@ class FullBleedChatListTest {
     }
 
     @Test
-    fun turnHeader_renderedOncePerAgentTurn() {
+    fun assistantHeader_isRemovedFromEveryAgentTurn() {
         render(
             listOf(
                 msg("a1", MessageRole.ASSISTANT),
@@ -125,8 +129,8 @@ class FullBleedChatListTest {
                 msg("a3", MessageRole.ASSISTANT),
             ),
         )
-        // Two agent turns (a1..a2, a3) -> two turn headers (one per turn).
-        composeTestRule.onAllNodesWithTag("fullbleed_agent_header").assertCountEquals(2)
+        composeTestRule.onAllNodesWithTag("fullbleed_agent_header").assertCountEquals(0)
+        composeTestRule.onNodeWithTag("fullbleed_finish_time").assertDoesNotExist()
     }
 
     @Test
@@ -138,5 +142,56 @@ class FullBleedChatListTest {
         )
         composeTestRule.onNodeWithTag("fullbleed_agent_message").assertIsDisplayed()
         composeTestRule.onNodeWithTag("clarify_bubble").assertIsDisplayed()
+    }
+
+    @Test
+    fun emptyStreamingMessage_showsTypingStatus_withoutEmptyAssistantProse() {
+        render(
+            messages = listOf(msg("u1", MessageRole.USER)),
+            streamingMessage = msg("s1", MessageRole.ASSISTANT, content = "", isStreaming = true),
+            isAgentTyping = true,
+        )
+        composeTestRule.onNodeWithTag("typing_indicator").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("fullbleed_agent_message").assertDoesNotExist()
+    }
+
+    @Test
+    fun reasoningStreaming_showsThinkingStatus_andKeepsReasoningCard() {
+        val streaming =
+            msg(
+                "s1",
+                MessageRole.ASSISTANT,
+                content = "",
+                isStreaming = true,
+            ).copy(reasoningText = "step")
+        render(
+            messages = listOf(msg("u1", MessageRole.USER)),
+            streamingMessage = streaming,
+            streamingState =
+                StreamingState(
+                    streamingMessage = streaming,
+                    isReasoning = true,
+                    reasoningText = "step",
+                ),
+            isAgentTyping = true,
+        )
+        composeTestRule.onNodeWithTag("agent_status_thinking").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("reasoning_card").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("typing_indicator").assertDoesNotExist()
+    }
+
+    @Test
+    fun runningTool_showsToolStatus_insteadOfTypingDots() {
+        render(
+            messages =
+                listOf(
+                    msg("u1", MessageRole.USER),
+                    msg("t1", MessageRole.TOOL, toolStatus = ToolStatus.RUNNING).copy(toolName = "web_search"),
+                ),
+            isAgentTyping = true,
+        )
+        composeTestRule.onNodeWithTag("agent_status_tool").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Searching…").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("typing_indicator").assertDoesNotExist()
     }
 }

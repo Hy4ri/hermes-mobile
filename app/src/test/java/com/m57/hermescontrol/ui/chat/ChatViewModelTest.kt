@@ -4179,6 +4179,32 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun testSendMessage_capturesCurrentUsageBeforeTurnAndSessionSwitchClearsIt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.SessionUsage(
+                    data = mapOf("usage" to mapOf("output" to 1000L)),
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+
+            viewModel.sendMessage("prompt")
+
+            assertEquals(
+                1000L,
+                viewModel.streamingState.value.turnUsageBaseline
+                    ?.outputTokens,
+            )
+            assertTrue(viewModel.streamingState.value.turnUsageBaselineCaptured)
+            viewModel.switchSession("session-other")
+
+            assertNull(viewModel.streamingState.value.turnUsageBaseline)
+            assertFalse(viewModel.streamingState.value.turnUsageBaselineCaptured)
+        }
+
+    @Test
     fun testToggleSearch() =
         runTest {
             val viewModel = createViewModel()

@@ -49,6 +49,8 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -188,6 +190,8 @@ class ChatViewModelTest {
             arg<((String) -> Unit)?>(2)?.invoke(id)
             id
         }
+        every { HermesWsClient.respondToServerRequest(any(), any()) } returns true
+        every { HermesWsClient.respondToServerRequestError(any(), any(), any()) } returns true
 
         // Stub model-options so preloadModelOptions() (fired at GatewayReady) is safe.
         val mockApi = mockk<com.m57.hermescontrol.data.remote.HermesApiService>(relaxed = true)
@@ -1492,6 +1496,100 @@ class ChatViewModelTest {
                     onSent = any(),
                 )
             }
+        }
+
+    @Test
+    fun testServerRequestClarifyReplay_restoresLockedAnswersAndMergesRemainingAnswer() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+
+            mockEventsFlow.emit(
+                WsEvent.ServerRequest(
+                    id = "srq-clarify-replay",
+                    method = "clarify",
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "questions" to
+                                listOf(
+                                    mapOf("qid" to "q0", "question" to "First?", "choices" to listOf("yes")),
+                                    mapOf("qid" to "q1", "question" to "Second?", "choices" to emptyList<String>()),
+                                ),
+                            "answers" to mapOf("q0" to "yes", "invalid" to 42),
+                        ),
+                    replayed = true,
+                ),
+            )
+            advanceUntilIdle()
+
+            val clarify = viewModel.uiState.value.clarifyRequest
+            assertEquals("srq-clarify-replay", clarify?.serverRequestId)
+            assertEquals(mapOf("q0" to "yes"), clarify?.lockedAnswers)
+            assertEquals(2, clarify?.resolvedQuestions?.size)
+
+            viewModel.respondToClarifyBatch(mapOf("q0" to "", "q1" to "new answer"))
+            advanceUntilIdle()
+
+            verify {
+                HermesWsClient.respondToServerRequest(
+                    "srq-clarify-replay",
+                    withArg { result ->
+                        val answers = result.jsonObject["answers"]?.jsonObject
+                        assertEquals("yes", answers?.get("q0")?.jsonPrimitive?.content)
+                        assertEquals("new answer", answers?.get("q1")?.jsonPrimitive?.content)
+                        assertFalse(answers?.containsKey("invalid") == true)
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun serverRequestCancel_clearsOnlyMatchingClarifyPrompt() =
+        runTest {
+            val (viewModel, sessionId) = createViewModelWithSession()
+            mockEventsFlow.emit(
+                WsEvent.ServerRequest(
+                    id = "srq-clarify-cancel",
+                    method = "clarify",
+                    params =
+                        mapOf(
+                            "session_id" to sessionId,
+                            "question" to "Continue?",
+                        ),
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "srq-clarify-cancel",
+                viewModel.uiState.value.clarifyRequest
+                    ?.serverRequestId,
+            )
+
+            mockEventsFlow.emit(
+                WsEvent.ServerRequestCancelled(
+                    id = "srq-other",
+                    method = "clarify",
+                    reason = "timeout",
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertEquals(
+                "srq-clarify-cancel",
+                viewModel.uiState.value.clarifyRequest
+                    ?.serverRequestId,
+            )
+
+            mockEventsFlow.emit(
+                WsEvent.ServerRequestCancelled(
+                    id = "srq-clarify-cancel",
+                    method = "clarify",
+                    reason = "timeout",
+                    sessionId = sessionId,
+                ),
+            )
+            advanceUntilIdle()
+            assertNull(viewModel.uiState.value.clarifyRequest)
         }
 
     @Test

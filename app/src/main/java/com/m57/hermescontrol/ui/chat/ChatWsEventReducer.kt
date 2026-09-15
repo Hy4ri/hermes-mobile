@@ -164,6 +164,12 @@ object ChatWsEventReducer {
             // RpcResult is handled by the ViewModel (needs pending request context)
             is WsEvent.RpcResult -> ReducerResult(state = state, streamingState = streamingState)
 
+            // Server requests are dispatched by ChatViewModel to the existing
+            // prompt delegates; the reducer must remain side-effect free.
+            is WsEvent.ServerRequest -> ReducerResult(state = state, streamingState = streamingState)
+
+            is WsEvent.ServerRequestCancelled -> ReducerResult(state = state, streamingState = streamingState)
+
             // ApprovalRequest is handled by the ViewModel (needs active session + WS client)
             is WsEvent.ApprovalRequest -> ReducerResult(state = state, streamingState = streamingState)
 
@@ -706,6 +712,8 @@ object ChatWsEventReducer {
                             questionId = event.questionId,
                             multiSelect = event.multiSelect,
                             questions = questions,
+                            serverRequestId = event.serverRequestId,
+                            lockedAnswers = event.lockedAnswers,
                         ),
                     isAgentTyping = false,
                 ),

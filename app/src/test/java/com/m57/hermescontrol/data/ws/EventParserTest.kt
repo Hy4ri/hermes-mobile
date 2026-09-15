@@ -60,6 +60,57 @@ class EventParserTest {
     }
 
     @Test
+    fun testParseServerRequest_withIdAndMethod_isNotRpcResult() {
+        val event =
+            EventParser.parse(
+                createJsonRpcResponse(
+                    jsonrpc = "2.0",
+                    id = "srq-123",
+                    method = "clarify",
+                    params = mapOf("session_id" to "session-1", "question" to "Continue?"),
+                ),
+            )
+
+        assertTrue(event is WsEvent.ServerRequest)
+        assertFalse(event is WsEvent.RpcResult)
+        val request = event as WsEvent.ServerRequest
+        assertEquals("srq-123", request.id)
+        assertEquals("clarify", request.method)
+        assertEquals("session-1", request.params["session_id"])
+        assertEquals("Continue?", request.params["question"])
+    }
+
+    @Test
+    fun testParseRequestCancel_notification_returnsCancellationEvent() {
+        val event =
+            EventParser.parse(
+                createJsonRpcResponse(
+                    jsonrpc = "2.0",
+                    id = null,
+                    method = "event",
+                    params =
+                        mapOf(
+                            "type" to "request.cancel",
+                            "session_id" to "session-1",
+                            "payload" to
+                                mapOf(
+                                    "id" to "srq-123",
+                                    "method" to "clarify",
+                                    "reason" to "timeout",
+                                ),
+                        ),
+                ),
+            )
+
+        assertTrue(event is WsEvent.ServerRequestCancelled)
+        val cancelled = event as WsEvent.ServerRequestCancelled
+        assertEquals("srq-123", cancelled.id)
+        assertEquals("clarify", cancelled.method)
+        assertEquals("timeout", cancelled.reason)
+        assertEquals("session-1", cancelled.sessionId)
+    }
+
+    @Test
     fun testParseRpcError_returnsRpcErrorEvent() {
         val error = JsonRpcError(code = -32600, message = "Invalid Request")
         val response =

@@ -33,6 +33,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -808,6 +810,55 @@ object HermesWsClient {
         }
     }
 
+    /**
+     * Answer a gateway-originated JSON-RPC request. This deliberately bypasses
+     * [send]: server requests already have an id allocated by the gateway and
+     * responses must not contain a method or receive a new client id.
+     */
+    fun respondToServerRequest(
+        id: String,
+        result: JsonElement,
+    ): Boolean {
+        if (id.isBlank()) return false
+        val json =
+            buildJsonObject {
+                put("jsonrpc", "2.0")
+                put("id", id)
+                put("result", result)
+            }.toString()
+        synchronized(outboundLock) {
+            val ws = webSocket
+            if (ws == null || !connected.get()) return false
+            return ws.send(json)
+        }
+    }
+
+    /** Answer a gateway-originated request with a standard JSON-RPC error. */
+    fun respondToServerRequestError(
+        id: String,
+        code: Int,
+        message: String,
+    ): Boolean {
+        if (id.isBlank()) return false
+        val json =
+            buildJsonObject {
+                put("jsonrpc", "2.0")
+                put("id", id)
+                put(
+                    "error",
+                    buildJsonObject {
+                        put("code", code)
+                        put("message", message)
+                    },
+                )
+            }.toString()
+        synchronized(outboundLock) {
+            val ws = webSocket
+            if (ws == null || !connected.get()) return false
+            return ws.send(json)
+        }
+    }
+
     // ── Send helpers ─────────────────────────────────────────────────────
 
     /**
@@ -1247,6 +1298,21 @@ object HermesWsClient {
                         synchronized(outboundLock) { pendingPromptSubmits.remove(rpcId) }
                         removeQueuedMessage(rpcId)
                         resolvePending(rpcId, rpc.result, null)
+                    }
+
+                    // Resume/replay responses carry still-open server requests
+                    // separately from the event ring. Re-deliver them through the
+                    // same generic path before exposing the RPC result.
+                    @Suppress("UNCHECKED_CAST")
+                    val openRequests =
+                        (rpc.result?.toAny() as? Map<*, *>)?.get("open_requests") as? List<Map<*, *>>
+                    openRequests?.forEach { openRequest ->
+                        val openId = openRequest["id"] as? String ?: return@forEach
+                        val method = openRequest["method"] as? String ?: return@forEach
+
+                        @Suppress("UNCHECKED_CAST")
+                        val params = openRequest["params"] as? Map<String, Any?> ?: emptyMap()
+                        parsedEvents.tryEmit(WsEvent.ServerRequest(openId, method, params, replayed = true))
                     }
 
                     if (rpc.id == null) {

@@ -19,9 +19,17 @@ object EventParser {
         response: JsonRpcResponse,
         rawJson: String = "",
     ): WsEvent {
-        // ── RPC response (has id) ────────────────────────────────────────
+        // JSON-RPC is peer-to-peer: an inbound frame with both `id` and `method`
+        // is a request from the gateway, not a response to one of our calls.
         val id = response.id
-        if (id != null) {
+        if (response.method != null && id != null) {
+            @Suppress("UNCHECKED_CAST")
+            val requestParams = response.params?.toAny() as? Map<String, Any?> ?: emptyMap()
+            return WsEvent.ServerRequest(id, response.method, requestParams)
+        }
+
+        // A response has no method and carries a result or error member.
+        if (response.method == null && id != null && (response.result != null || response.error != null)) {
             return if (response.error != null) {
                 WsEvent.RpcError(id, response.error)
             } else {
@@ -218,6 +226,13 @@ object EventParser {
             "clarify.expire" -> {
                 val clarifyId = payload?.get("request_id") as? String ?: payload?.get("clarify_id") as? String
                 WsEvent.ClarifyExpire(clarifyId, sessionId)
+            }
+
+            "request.cancel" -> {
+                val requestId = payload?.get("id") as? String ?: ""
+                val requestMethod = payload?.get("method") as? String ?: ""
+                val reason = payload?.get("reason") as? String ?: ""
+                WsEvent.ServerRequestCancelled(requestId, requestMethod, reason, sessionId)
             }
 
             "status.update" -> {

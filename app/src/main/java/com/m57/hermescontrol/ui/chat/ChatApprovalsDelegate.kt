@@ -28,12 +28,44 @@ class ChatApprovalsDelegate(
     private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
 ) {
     fun handleApprovalRequest(event: WsEvent.ApprovalRequest) {
-        if ((event.serverRequestId != null || event.requestId != null) &&
-            uiState.value.messages.any {
-                it.approvalInfo?.serverRequestId == event.serverRequestId &&
-                    it.approvalInfo?.requestId == event.requestId
+        val existingIndex =
+            uiState.value.messages.indexOfLast { message ->
+                val approval = message.approvalInfo ?: return@indexOfLast false
+                (event.serverRequestId != null && approval.serverRequestId == event.serverRequestId) ||
+                    (event.requestId != null && approval.requestId == event.requestId)
             }
-        ) {
+        if (existingIndex >= 0) {
+            // `approval.pending` can arrive before the live server request during
+            // reconnect. Upgrade that legacy card with the direct server id so
+            // the user's next action answers the same JSON-RPC request instead of
+            // creating a duplicate prompt.
+            if (event.serverRequestId != null) {
+                uiState.update { state ->
+                    state.copy(
+                        messages =
+                            state.messages.mapIndexed { index, message ->
+                                if (index != existingIndex) {
+                                    message
+                                } else {
+                                    val approval = message.approvalInfo
+                                    message.copy(
+                                        approvalInfo =
+                                            approval?.copy(
+                                                command = event.command ?: approval.command,
+                                                description = event.description ?: approval.description,
+                                                patternKeys = event.patternKeys ?: approval.patternKeys,
+                                                requestId = event.requestId ?: approval.requestId,
+                                                serverRequestId = event.serverRequestId,
+                                                choices = event.choices ?: approval.choices,
+                                                allowPermanent = event.allowPermanent ?: approval.allowPermanent,
+                                                smartDenied = event.smartDenied ?: approval.smartDenied,
+                                            ),
+                                    )
+                                }
+                            },
+                    )
+                }
+            }
             return
         }
         val description = event.description ?: event.command ?: "Unknown command"

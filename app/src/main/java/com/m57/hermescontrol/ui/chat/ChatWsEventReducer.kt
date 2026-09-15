@@ -712,6 +712,8 @@ object ChatWsEventReducer {
                             questionId = event.questionId,
                             multiSelect = event.multiSelect,
                             questions = questions,
+                            serverRequestId = event.serverRequestId,
+                            lockedAnswers = event.lockedAnswers,
                         ),
                     isAgentTyping = false,
                 ),

@@ -8,8 +8,12 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -195,5 +199,112 @@ class ChatApprovalsDelegateTest {
     fun handleApprovalRespondResult_appendsDesktopParitySystemMessage() {
         delegate.handleApprovalRespondResult(mapOf("resolved" to 1))
         assertEquals(listOf("Approval submitted"), systemMessages)
+    }
+
+    @Test
+    fun cancelServerRequest_matchesServerRequestIdOnly() {
+        delegate.handleApprovalRequest(
+            WsEvent.ApprovalRequest(
+                command = "rm -rf /tmp/x",
+                description = "dangerous",
+                patternKeys = null,
+                sessionId = "session-1",
+                requestId = "approval-1",
+                serverRequestId = "srq-approval-1",
+            ),
+        )
+
+        delegate.cancelServerRequest("srq-other")
+        assertNotNull(
+            uiState.value.messages
+                .last()
+                .approvalInfo,
+        )
+
+        delegate.cancelServerRequest("srq-approval-1")
+        assertNull(
+            uiState.value.messages
+                .last()
+                .approvalInfo,
+        )
+    }
+
+    @Test
+    fun liveServerApproval_upgradesMatchingPendingApprovalWithoutDuplicating() {
+        delegate.handleApprovalRequest(
+            WsEvent.ApprovalRequest(
+                command = "git status",
+                description = "inspect",
+                patternKeys = null,
+                sessionId = "session-1",
+                requestId = "approval-business-id",
+            ),
+        )
+        delegate.handleApprovalRequest(
+            WsEvent.ApprovalRequest(
+                command = "git status",
+                description = "inspect",
+                patternKeys = null,
+                sessionId = "session-1",
+                requestId = "approval-business-id",
+                serverRequestId = "srq-approval",
+            ),
+        )
+
+        assertEquals(1, uiState.value.messages.size)
+        assertEquals(
+            "srq-approval",
+            uiState.value.messages
+                .single()
+                .approvalInfo
+                ?.serverRequestId,
+        )
+    }
+
+    @Test
+    fun serverApproval_usesChoiceAndAllResultPayload() {
+        val responses = mutableListOf<Pair<String, JsonElement>>()
+        val serverDelegate =
+            ChatApprovalsDelegate(
+                scope = testScope,
+                ioDispatcher = testDispatcher,
+                uiState = uiState,
+                runtimeSessionId = { "session-1" },
+                wsSend = { _, _, _ -> error("new approval must not use legacy response") },
+                trackRequest = { _, _ -> },
+                addSystemMessage = { },
+                respondToServerRequest = { id, result -> responses += id to result },
+            )
+        serverDelegate.handleApprovalRequest(
+            WsEvent.ApprovalRequest(
+                command = "rm -rf /tmp/x",
+                description = "dangerous",
+                patternKeys = null,
+                sessionId = "session-1",
+                requestId = "approval-1",
+                serverRequestId = "srq-approval",
+            ),
+        )
+
+        serverDelegate.respondToApproval("approve")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("srq-approval", responses.single().first)
+        assertEquals(
+            "once",
+            responses
+                .single()
+                .second.jsonObject["choice"]
+                ?.jsonPrimitive
+                ?.content,
+        )
+        assertEquals(
+            "false",
+            responses
+                .single()
+                .second.jsonObject["all"]
+                ?.jsonPrimitive
+                ?.content,
+        )
     }
 }

@@ -45,6 +45,8 @@ class ChatClarifyDelegate(
         val sessionId = uiState.value.currentSessionId ?: return
         val clarify = uiState.value.clarifyRequest
         val clarifyId = clarify?.clarifyId
+        val serverRequestId = clarify?.serverRequestId
+        val lockedAnswers = clarify?.lockedAnswers.orEmpty()
         val isBatch = !clarify?.questions.isNullOrEmpty()
         val questions = clarify?.resolvedQuestions.orEmpty()
         uiState.update { it.copy(clarifyRequest = null) }
@@ -53,7 +55,9 @@ class ChatClarifyDelegate(
             if (questions.size > 1) {
                 questions
                     .mapIndexed { index, q ->
-                        val ans = answers[q.qid]?.trim().orEmpty()
+                        val ans =
+                            answers[q.qid]?.trim()?.takeIf { it.isNotEmpty() }
+                                ?: lockedAnswers[q.qid].orEmpty()
                         "${index + 1}. ${ans.ifEmpty { "(Skipped)" }}"
                     }.joinToString("\n")
             } else {
@@ -79,15 +83,22 @@ class ChatClarifyDelegate(
         }
 
         scope.launch(ioDispatcher) {
-            if (clarifyId != null && respondToServerRequest != null) {
+            if (serverRequestId != null && respondToServerRequest != null) {
+                val finalAnswers =
+                    buildMap {
+                        putAll(lockedAnswers)
+                        answers.forEach { (qid, answer) ->
+                            answer.trim().takeIf { it.isNotEmpty() }?.let { put(qid, it) }
+                        }
+                    }
                 val result =
                     if (isBatch) {
                         buildJsonObject {
                             put(
                                 "answers",
                                 buildJsonObject {
-                                    for (question in questions) {
-                                        put(question.qid, answers[question.qid]?.trim().orEmpty())
+                                    for ((qid, answer) in finalAnswers) {
+                                        put(qid, answer)
                                     }
                                 },
                             )
@@ -97,7 +108,7 @@ class ChatClarifyDelegate(
                             put("answer", answers.values.firstOrNull()?.trim() ?: singleFallbackAnswer.orEmpty())
                         }
                     }
-                respondToServerRequest.invoke(clarifyId, result)
+                respondToServerRequest.invoke(serverRequestId, result)
                 return@launch
             }
 

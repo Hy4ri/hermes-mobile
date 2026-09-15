@@ -25,26 +25,26 @@ class ChatCredentialPromptsDelegate(
     private val respondToServerRequest: ((String, JsonElement) -> Unit)? = null,
 ) {
     private fun sendResponse(
-        requestId: String?,
+        serverRequestId: String?,
         result: JsonElement,
         legacyMethod: String,
         legacyParams: Map<String, Any>,
     ) {
-        if (requestId != null && respondToServerRequest != null) {
-            respondToServerRequest.invoke(requestId, result)
+        if (serverRequestId != null && respondToServerRequest != null) {
+            respondToServerRequest.invoke(serverRequestId, result)
         } else {
             wsSend(legacyMethod, legacyParams) { id -> trackRequest(id, legacyMethod) }
         }
     }
 
     /**
-     * The agent needs the user's sudo password. Surface a secure dialog and
-     * reply via sudo.respond.
+     * New gateways use a same-ID JSON-RPC response; legacy notifications fall
+     * back to sudo.respond.
      */
     fun handleSudoRequest(event: WsEvent.SudoRequest) {
         uiState.update {
             it.copy(
-                sudoPrompt = SudoPromptUi(event.requestId, event.sessionId),
+                sudoPrompt = SudoPromptUi(event.requestId, event.sessionId, event.serverRequestId),
                 isAgentTyping = false,
             )
         }
@@ -57,9 +57,10 @@ class ChatCredentialPromptsDelegate(
     fun handleSudoExpire(event: WsEvent.SudoExpire) {
         uiState.update { state ->
             val current = state.sudoPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
+            if (event.serverRequestId != null && current.serverRequestId != event.serverRequestId) {
+                return@update state
+            }
+            if (event.serverRequestId == null && event.requestId != null && current.requestId != event.requestId) {
                 return@update state
             }
             state.copy(sudoPrompt = null)
@@ -67,8 +68,8 @@ class ChatCredentialPromptsDelegate(
     }
 
     /**
-     * The agent needs a secret value (token/password). Surface a secure dialog
-     * and reply via secret.respond.
+     * New gateways use a same-ID JSON-RPC response; legacy notifications fall
+     * back to secret.respond.
      */
     fun handleSecretRequest(event: WsEvent.SecretRequest) {
         uiState.update {
@@ -79,6 +80,7 @@ class ChatCredentialPromptsDelegate(
                         event.sessionId,
                         event.envVar,
                         event.prompt,
+                        event.serverRequestId,
                     ),
                 isAgentTyping = false,
             )
@@ -91,9 +93,10 @@ class ChatCredentialPromptsDelegate(
     fun handleSecretExpire(event: WsEvent.SecretExpire) {
         uiState.update { state ->
             val current = state.secretPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
+            if (event.serverRequestId != null && current.serverRequestId != event.serverRequestId) {
+                return@update state
+            }
+            if (event.serverRequestId == null && event.requestId != null && current.requestId != event.requestId) {
                 return@update state
             }
             state.copy(secretPrompt = null)
@@ -117,7 +120,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", "") },
                 WsMethods.SUDO_RESPOND,
                 params,
@@ -142,7 +145,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", "") },
                 WsMethods.SECRET_RESPOND,
                 params,
@@ -169,7 +172,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", password) },
                 WsMethods.SUDO_RESPOND,
                 params,
@@ -195,7 +198,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", value) },
                 WsMethods.SECRET_RESPOND,
                 params,
@@ -207,7 +210,8 @@ class ChatCredentialPromptsDelegate(
 
     /**
      * The agent needs to unlock a password manager (1Password, Bitwarden).
-     * Surface an interactive prompt card in chat and reply via vault.unlock.respond.
+     * New gateways use a same-ID JSON-RPC response; legacy notifications fall
+     * back to vault.unlock.respond.
      */
     fun handleVaultUnlockRequest(event: WsEvent.VaultUnlockRequest) {
         uiState.update {
@@ -218,6 +222,7 @@ class ChatCredentialPromptsDelegate(
                         sessionId = event.sessionId,
                         backend = event.backend,
                         displayName = event.displayName,
+                        serverRequestId = event.serverRequestId,
                     ),
                 isAgentTyping = false,
             )
@@ -227,9 +232,10 @@ class ChatCredentialPromptsDelegate(
     fun handleVaultUnlockExpire(event: WsEvent.VaultUnlockExpire) {
         uiState.update { state ->
             val current = state.vaultUnlockPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
+            if (event.serverRequestId != null && current.serverRequestId != event.serverRequestId) {
+                return@update state
+            }
+            if (event.serverRequestId == null && event.requestId != null && current.requestId != event.requestId) {
                 return@update state
             }
             state.copy(vaultUnlockPrompt = null)
@@ -252,7 +258,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", "") },
                 WsMethods.VAULT_UNLOCK_RESPOND,
                 params,
@@ -275,7 +281,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", password) },
                 WsMethods.VAULT_UNLOCK_RESPOND,
                 params,
@@ -295,6 +301,7 @@ class ChatCredentialPromptsDelegate(
                         sessionId = event.sessionId,
                         origin = event.origin,
                         site = event.site,
+                        serverRequestId = event.serverRequestId,
                     ),
                 isAgentTyping = false,
             )
@@ -304,9 +311,10 @@ class ChatCredentialPromptsDelegate(
     fun handleVaultSaveLoginExpire(event: WsEvent.VaultSaveLoginExpire) {
         uiState.update { state ->
             val current = state.vaultSaveLoginPrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
+            if (event.serverRequestId != null && current.serverRequestId != event.serverRequestId) {
+                return@update state
+            }
+            if (event.serverRequestId == null && event.requestId != null && current.requestId != event.requestId) {
                 return@update state
             }
             state.copy(vaultSaveLoginPrompt = null)
@@ -329,7 +337,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", "") },
                 WsMethods.VAULT_SAVE_LOGIN_RESPOND,
                 params,
@@ -360,7 +368,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", loginJson) },
                 WsMethods.VAULT_SAVE_LOGIN_RESPOND,
                 params,
@@ -380,6 +388,7 @@ class ChatCredentialPromptsDelegate(
                         sessionId = event.sessionId,
                         site = event.site,
                         hint = event.hint,
+                        serverRequestId = event.serverRequestId,
                     ),
                 isAgentTyping = false,
             )
@@ -389,9 +398,10 @@ class ChatCredentialPromptsDelegate(
     fun handleVaultCodeExpire(event: WsEvent.VaultCodeExpire) {
         uiState.update { state ->
             val current = state.vaultCodePrompt ?: return@update state
-            if (event.requestId != null && current.requestId != null &&
-                event.requestId != current.requestId
-            ) {
+            if (event.serverRequestId != null && current.serverRequestId != event.serverRequestId) {
+                return@update state
+            }
+            if (event.serverRequestId == null && event.requestId != null && current.requestId != event.requestId) {
                 return@update state
             }
             state.copy(vaultCodePrompt = null)
@@ -414,7 +424,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", "") },
                 WsMethods.VAULT_CODE_RESPOND,
                 params,
@@ -437,7 +447,7 @@ class ChatCredentialPromptsDelegate(
                 )
             prompt.requestId?.let { id -> params["request_id"] = id }
             sendResponse(
-                prompt.requestId,
+                prompt.serverRequestId,
                 buildJsonObject { put("value", code) },
                 WsMethods.VAULT_CODE_RESPOND,
                 params,

@@ -473,6 +473,7 @@ fun ClarifyBubble(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             questions.forEachIndexed { index, q ->
+                val lockedAnswer = clarifyRequest.lockedAnswers[q.qid]
                 if (index > 0) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 12.dp),
@@ -497,79 +498,105 @@ fun ClarifyBubble(
                     )
                 }
 
-                if (q.multiSelect) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "Select all that apply",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                if (q.choices.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                if (lockedAnswer != null) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(8.dp),
                     ) {
-                        q.choices.forEach { choice ->
-                            val selectedSet = selectedChoicesByQid[q.qid] ?: emptySet()
-                            val isSelected = selectedSet.contains(choice)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    if (q.multiSelect) {
-                                        val updated = if (isSelected) selectedSet - choice else selectedSet + choice
-                                        selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
-                                    } else {
-                                        if (!isBatch && customTextByQid[q.qid].isNullOrBlank()) {
-                                            // Fast 1-tap respond for lone single-select question when no custom text is entered
-                                            onRespondSingle(choice)
-                                        } else {
-                                            val updated = if (isSelected) emptySet() else setOf(choice)
-                                            selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
-                                        }
-                                    }
-                                },
-                                label = { Text(choice) },
-                                leadingIcon =
-                                    if (isSelected) {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp),
-                                            )
-                                        }
-                                    } else {
-                                        null
-                                    },
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Answered: $lockedAnswer",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
                         }
                     }
-                }
-
-                Spacer(Modifier.height(8.dp))
-                val typed = customTextByQid[q.qid].orEmpty()
-                OutlinedTextField(
-                    value = typed,
-                    onValueChange = { newText ->
-                        customTextByQid = customTextByQid + (q.qid to newText)
-                    },
-                    label = {
+                } else {
+                    if (q.multiSelect) {
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            if (q.choices.isEmpty()) {
-                                stringResource(R.string.message_your_response)
-                            } else {
-                                "Other (optional)"
-                            },
+                            text = "Select all that apply",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                    }
+
+                    if (q.choices.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            q.choices.forEach { choice ->
+                                val selectedSet = selectedChoicesByQid[q.qid] ?: emptySet()
+                                val isSelected = selectedSet.contains(choice)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        if (q.multiSelect) {
+                                            val updated = if (isSelected) selectedSet - choice else selectedSet + choice
+                                            selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
+                                        } else {
+                                            if (!isBatch && customTextByQid[q.qid].isNullOrBlank()) {
+                                                // Fast 1-tap respond for lone single-select question when no custom text is entered
+                                                onRespondSingle(choice)
+                                            } else {
+                                                val updated = if (isSelected) emptySet() else setOf(choice)
+                                                selectedChoicesByQid = selectedChoicesByQid + (q.qid to updated)
+                                            }
+                                        }
+                                    },
+                                    label = { Text(choice) },
+                                    leadingIcon =
+                                        if (isSelected) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    val typed = customTextByQid[q.qid].orEmpty()
+                    OutlinedTextField(
+                        value = typed,
+                        onValueChange = { newText ->
+                            customTextByQid = customTextByQid + (q.qid to newText)
+                        },
+                        label = {
+                            Text(
+                                if (q.choices.isEmpty()) {
+                                    stringResource(R.string.message_your_response)
+                                } else {
+                                    "Other (optional)"
+                                },
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))

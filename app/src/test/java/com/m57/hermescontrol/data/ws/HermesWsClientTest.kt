@@ -19,13 +19,18 @@ import io.mockk.verify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -162,6 +167,106 @@ class HermesWsClientTest {
         assertTrue(msg.contains("test_method"))
         assertTrue(msg.contains("value"))
         assertTrue(msg.contains(id))
+    }
+
+    @Test
+    fun testOpenRequestsReplayUsesTheLiveServerRequestDispatcher() =
+        runBlocking {
+            mockWebServer.enqueue(
+                MockResponse().withWebSocketUpgrade(
+                    object : WebSocketListener() {
+                        override fun onOpen(
+                            webSocket: WebSocket,
+                            response: okhttp3.Response,
+                        ) {
+                            webSocket.send(
+                                """{"jsonrpc":"2.0","id":"42","result":{"open_requests":[{"id":"srq-secret","method":"secret","params":{"session_id":"session-1","env_var":"API_KEY","prompt":"Enter API key"}}]}}""",
+                            )
+                        }
+                    },
+                ),
+            )
+
+            val received =
+                async {
+                    withTimeout(5_000) {
+                        HermesWsClient.events.first {
+                            it is WsEvent.ServerRequest && it.id == "srq-secret"
+                        }
+                    }
+                }
+            HermesWsClient.connect()
+            val event = received.await() as WsEvent.ServerRequest
+
+            assertEquals("secret", event.method)
+            assertEquals("session-1", event.params["session_id"])
+            assertEquals("API_KEY", event.params["env_var"])
+        }
+
+    @Test
+    fun testRespondToServerRequest_preservesIdAndOmitsMethod() {
+        val socket = mockk<WebSocket>()
+        every { socket.send(any<String>()) } returns true
+        every { socket.close(any(), any()) } returns true
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket").apply { isAccessible = true }
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected").apply { isAccessible = true }
+        socketField.set(HermesWsClient, socket)
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        val sent =
+            HermesWsClient.respondToServerRequest(
+                "srq-abc123",
+                buildJsonObject { put("value", "hello") },
+            )
+
+        assertTrue(sent)
+        verify {
+            socket.send(
+                match<String> { raw ->
+                    val frame = Json.parseToJsonElement(raw).jsonObject
+                    frame["jsonrpc"]?.jsonPrimitive?.content == "2.0" &&
+                        frame["id"]?.jsonPrimitive?.content == "srq-abc123" &&
+                        frame["result"]
+                            ?.jsonObject
+                            ?.get("value")
+                            ?.jsonPrimitive
+                            ?.content == "hello" &&
+                        !frame.containsKey("method")
+                },
+            )
+        }
+    }
+
+    @Test
+    fun testRespondToServerRequestError_preservesIdAndErrorShape() {
+        val socket = mockk<WebSocket>()
+        every { socket.send(any<String>()) } returns true
+        every { socket.close(any(), any()) } returns true
+        val socketField = HermesWsClient::class.java.getDeclaredField("webSocket").apply { isAccessible = true }
+        val connectedField = HermesWsClient::class.java.getDeclaredField("connected").apply { isAccessible = true }
+        socketField.set(HermesWsClient, socket)
+        (connectedField.get(HermesWsClient) as java.util.concurrent.atomic.AtomicBoolean).set(true)
+
+        assertTrue(HermesWsClient.respondToServerRequestError("srq-abc123", -32601, "unsupported"))
+        verify {
+            socket.send(
+                match<String> { raw ->
+                    val frame = Json.parseToJsonElement(raw).jsonObject
+                    frame["id"]?.jsonPrimitive?.content == "srq-abc123" &&
+                        frame["error"]
+                            ?.jsonObject
+                            ?.get("code")
+                            ?.jsonPrimitive
+                            ?.content == "-32601" &&
+                        frame["error"]
+                            ?.jsonObject
+                            ?.get("message")
+                            ?.jsonPrimitive
+                            ?.content == "unsupported" &&
+                        !frame.containsKey("method")
+                },
+            )
+        }
     }
 
     @Test

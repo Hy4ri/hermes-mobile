@@ -205,6 +205,8 @@ data class ClarifyUi(
     val questionId: String? = null,
     val multiSelect: Boolean = false,
     val questions: List<ClarifyQuestionUi> = emptyList(),
+    val serverRequestId: String? = null,
+    val lockedAnswers: Map<String, String> = emptyMap(),
 ) {
     /**
      * Normalized list of questions to display. Guarantees at least one question
@@ -252,6 +254,7 @@ private const val CLARIFY_DISMISS_RESPONSE = "The user cancelled — no answer p
 data class SudoPromptUi(
     val requestId: String?,
     val sessionId: String?,
+    val serverRequestId: String? = null,
 )
 
 /** Transient — not persisted. Holds a pending secret (token/password) request. */
@@ -260,6 +263,7 @@ data class SecretPromptUi(
     val sessionId: String?,
     val envVar: String? = null,
     val prompt: String? = null,
+    val serverRequestId: String? = null,
 )
 
 /** Transient — not persisted. Holds a pending vault unlock request (issue #1090). */
@@ -268,6 +272,7 @@ data class VaultUnlockPromptUi(
     val sessionId: String?,
     val backend: String? = null,
     val displayName: String? = null,
+    val serverRequestId: String? = null,
 )
 
 /** Transient — not persisted. Holds a pending vault save login request (issue #1090). */
@@ -276,6 +281,7 @@ data class VaultSaveLoginPromptUi(
     val sessionId: String?,
     val origin: String? = null,
     val site: String? = null,
+    val serverRequestId: String? = null,
 )
 
 /** Transient — not persisted. Holds a pending vault 2FA/MFA code request (issue #1090). */
@@ -284,6 +290,7 @@ data class VaultCodePromptUi(
     val sessionId: String?,
     val site: String? = null,
     val hint: String? = null,
+    val serverRequestId: String? = null,
 )
 
 /**
@@ -470,12 +477,7 @@ class ChatViewModel(
             uiState = _uiState,
             wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
             trackRequest = { id, method -> trackRequest(id, method) },
-            respondToServerRequest =
-                if (isTestEnvironment()) {
-                    null
-                } else {
-                    { id, result -> wsClient.respondToServerRequest(id, result) }
-                },
+            respondToServerRequest = { id, result -> wsClient.respondToServerRequest(id, result) },
         )
 
     private val approvalsDelegate =
@@ -487,12 +489,7 @@ class ChatViewModel(
             wsSend = { method, params, onSent -> wsClient.send(method, params, onSent) },
             trackRequest = { id, method -> trackRequest(id, method) },
             addSystemMessage = { text -> addSystemMessage(text) },
-            respondToServerRequest =
-                if (isTestEnvironment()) {
-                    null
-                } else {
-                    { id, result -> wsClient.respondToServerRequest(id, result) }
-                },
+            respondToServerRequest = { id, result -> wsClient.respondToServerRequest(id, result) },
         )
 
     private val clarifyDelegate =
@@ -503,12 +500,7 @@ class ChatViewModel(
             persistMessage = { msg, sid -> repo.persistMessage(msg, sid) },
             wsClient = wsClient,
             trackRequest = { id, method -> trackRequest(id, method) },
-            respondToServerRequest =
-                if (isTestEnvironment()) {
-                    null
-                } else {
-                    { id, result -> wsClient.respondToServerRequest(id, result) }
-                },
+            respondToServerRequest = { id, result -> wsClient.respondToServerRequest(id, result) },
         )
 
     private val subagentsDelegate =
@@ -1050,6 +1042,15 @@ class ChatViewModel(
             "clarify" -> {
                 @Suppress("UNCHECKED_CAST")
                 val rawQuestions = params["questions"] as? List<*>
+
+                @Suppress("UNCHECKED_CAST")
+                val lockedAnswers =
+                    (params["answers"] as? Map<*, *>)
+                        ?.entries
+                        ?.mapNotNull { (key, value) ->
+                            if (key is String && value is String) key to value else null
+                        }?.toMap()
+                        .orEmpty()
                 val questions =
                     rawQuestions.orEmpty().mapIndexedNotNull { index, item ->
                         val map = item as? Map<*, *> ?: return@mapIndexedNotNull null
@@ -1069,11 +1070,13 @@ class ChatViewModel(
                     WsEvent.ClarifyRequest(
                         text = first?.question ?: params["question"] as? String,
                         options = first?.choices ?: (params["choices"] as? List<*>)?.filterIsInstance<String>(),
-                        clarifyId = request.id,
+                        clarifyId = params["clarify_id"] as? String ?: params["request_id"] as? String,
                         sessionId = sessionId,
                         questionId = first?.qid,
                         multiSelect = first?.multiSelect ?: (params["multi_select"] as? Boolean ?: false),
                         questions = questions,
+                        serverRequestId = request.id,
+                        lockedAnswers = lockedAnswers,
                     ),
                 )
             }
@@ -1097,16 +1100,23 @@ class ChatViewModel(
             }
 
             "sudo" -> {
-                handleWsEvent(WsEvent.SudoRequest(request.id, sessionId))
+                handleWsEvent(
+                    WsEvent.SudoRequest(
+                        requestId = params["request_id"] as? String,
+                        sessionId = sessionId,
+                        serverRequestId = request.id,
+                    ),
+                )
             }
 
             "secret" -> {
                 handleWsEvent(
                     WsEvent.SecretRequest(
-                        requestId = request.id,
+                        requestId = params["request_id"] as? String,
                         sessionId = sessionId,
                         envVar = params["env_var"] as? String,
                         prompt = params["prompt"] as? String,
+                        serverRequestId = request.id,
                     ),
                 )
             }
@@ -1114,10 +1124,11 @@ class ChatViewModel(
             "vault.code" -> {
                 handleWsEvent(
                     WsEvent.VaultCodeRequest(
-                        requestId = request.id,
+                        requestId = params["request_id"] as? String,
                         sessionId = sessionId,
                         site = params["site"] as? String,
                         hint = params["hint"] as? String,
+                        serverRequestId = request.id,
                     ),
                 )
             }
@@ -1125,10 +1136,11 @@ class ChatViewModel(
             "vault.save_login" -> {
                 handleWsEvent(
                     WsEvent.VaultSaveLoginRequest(
-                        requestId = request.id,
+                        requestId = params["request_id"] as? String,
                         sessionId = sessionId,
                         origin = params["origin"] as? String,
                         site = params["site"] as? String,
+                        serverRequestId = request.id,
                     ),
                 )
             }
@@ -1136,10 +1148,11 @@ class ChatViewModel(
             "vault.unlock_prompt" -> {
                 handleWsEvent(
                     WsEvent.VaultUnlockRequest(
-                        requestId = request.id,
+                        requestId = params["request_id"] as? String,
                         sessionId = sessionId,
                         backend = params["backend"] as? String,
                         displayName = params["display_name"] as? String,
+                        serverRequestId = request.id,
                     ),
                 )
             }
@@ -1157,7 +1170,7 @@ class ChatViewModel(
     private fun handleServerRequestCancelled(event: WsEvent.ServerRequestCancelled) {
         when (event.method) {
             "clarify" -> {
-                if (_uiState.value.clarifyRequest?.clarifyId == event.id) {
+                if (_uiState.value.clarifyRequest?.serverRequestId == event.id) {
                     _uiState.update { it.copy(clarifyRequest = null) }
                     streamingController.resetStreaming()
                 }
@@ -1168,26 +1181,32 @@ class ChatViewModel(
             }
 
             "sudo" -> {
-                credentialPromptsDelegate.handleSudoExpire(WsEvent.SudoExpire(event.id, event.sessionId))
+                credentialPromptsDelegate.handleSudoExpire(
+                    WsEvent.SudoExpire(null, event.sessionId, serverRequestId = event.id),
+                )
             }
 
             "secret" -> {
-                credentialPromptsDelegate.handleSecretExpire(WsEvent.SecretExpire(event.id, event.sessionId))
+                credentialPromptsDelegate.handleSecretExpire(
+                    WsEvent.SecretExpire(null, event.sessionId, serverRequestId = event.id),
+                )
             }
 
             "vault.code" -> {
-                credentialPromptsDelegate.handleVaultCodeExpire(WsEvent.VaultCodeExpire(event.id, event.sessionId))
+                credentialPromptsDelegate.handleVaultCodeExpire(
+                    WsEvent.VaultCodeExpire(null, event.sessionId, serverRequestId = event.id),
+                )
             }
 
             "vault.save_login" -> {
                 credentialPromptsDelegate.handleVaultSaveLoginExpire(
-                    WsEvent.VaultSaveLoginExpire(event.id, event.sessionId),
+                    WsEvent.VaultSaveLoginExpire(null, event.sessionId, serverRequestId = event.id),
                 )
             }
 
             "vault.unlock_prompt" -> {
                 credentialPromptsDelegate.handleVaultUnlockExpire(
-                    WsEvent.VaultUnlockExpire(event.id, event.sessionId),
+                    WsEvent.VaultUnlockExpire(null, event.sessionId, serverRequestId = event.id),
                 )
             }
         }
@@ -3630,8 +3649,8 @@ class ChatViewModel(
      *
      * The backend's clarify tool blocks the agent thread waiting for a response
      * (CLI timeout is 120s). A silent dismiss would leave the agent hanging
-     * until that timeout, so we send a cancel sentinel
-     * ([CLARIFY_DISMISS_RESPONSE]) over `clarify.respond` to unblock it.
+     * until that timeout, so we send an empty result frame for new gateways or
+     * the legacy cancel sentinel for old notification-based gateways.
      *
      * This is a *reject*, not an instruction to proceed — the agent is told no
      * answer was provided and should re-ask or back off, NOT charge ahead.
@@ -3645,6 +3664,7 @@ class ChatViewModel(
         val sessionId = _uiState.value.currentSessionId ?: return
         val clarify = _uiState.value.clarifyRequest
         val clarifyId = clarify?.clarifyId
+        val serverRequestId = clarify?.serverRequestId
         // Raw batch questions (non-empty only for true batch payloads).
         // Legacy singles keep questions empty and rely on questionId (nullable).
         val isBatch = !clarify?.questions.isNullOrEmpty()
@@ -3654,8 +3674,8 @@ class ChatViewModel(
         addSystemMessage("Clarify dismissed — no answer sent", persist = true)
 
         viewModelScope.launch(ioDispatcher) {
-            if (clarifyId != null && !isTestEnvironment()) {
-                wsClient.respondToServerRequest(clarifyId, buildJsonObject {})
+            if (serverRequestId != null) {
+                wsClient.respondToServerRequest(serverRequestId, buildJsonObject {})
                 return@launch
             }
             if (isBatch) {

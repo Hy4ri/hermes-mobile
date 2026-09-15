@@ -152,6 +152,8 @@ sealed class WsEvent {
         val questionId: String? = null,
         val multiSelect: Boolean = false,
         val questions: List<ClarifyQuestion> = emptyList(),
+        val serverRequestId: String? = null,
+        val lockedAnswers: Map<String, String> = emptyMap(),
     ) : WsEvent()
 
     data class ClarifyExpire(
@@ -283,12 +285,13 @@ sealed class WsEvent {
 
     /**
      * Backend needs the user's sudo password to continue a turn
-     * (desktop: `sudo.request` → `sudo.respond {request_id, password}`).
-     * Mobile previously dropped this and the agent hung forever.
+     * New gateways use a same-ID JSON-RPC result frame; legacy gateways fall
+     * back to `sudo.respond`.
      */
     data class SudoRequest(
         val requestId: String?,
         val sessionId: String?,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     /**
@@ -299,12 +302,13 @@ sealed class WsEvent {
     data class SudoExpire(
         val requestId: String?,
         val sessionId: String?,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     /**
      * Backend needs a secret value (password / token) to continue a turn
-     * (desktop: `secret.request` → `secret.respond {request_id, value}`).
-     * Mobile previously dropped this and the agent hung forever.
+     * New gateways use a same-ID JSON-RPC result frame; legacy gateways fall
+     * back to `secret.respond`.
      * `envVar`/`prompt` mirror desktop: title = envVar ?: secretTitle,
      * body = prompt ?: secretDesc.
      */
@@ -313,6 +317,7 @@ sealed class WsEvent {
         val sessionId: String?,
         val envVar: String? = null,
         val prompt: String? = null,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     /**
@@ -322,6 +327,7 @@ sealed class WsEvent {
     data class SecretExpire(
         val requestId: String?,
         val sessionId: String?,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     // ── Credential Vault prompts (issue #1090) ──────────────────────────
@@ -331,11 +337,13 @@ sealed class WsEvent {
         val sessionId: String? = null,
         val backend: String? = null,
         val displayName: String? = null,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     data class VaultUnlockExpire(
         val requestId: String?,
         val sessionId: String? = null,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     data class VaultSaveLoginRequest(
@@ -343,11 +351,13 @@ sealed class WsEvent {
         val sessionId: String? = null,
         val origin: String? = null,
         val site: String? = null,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     data class VaultSaveLoginExpire(
         val requestId: String?,
         val sessionId: String? = null,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     data class VaultCodeRequest(
@@ -355,11 +365,13 @@ sealed class WsEvent {
         val sessionId: String? = null,
         val site: String? = null,
         val hint: String? = null,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     data class VaultCodeExpire(
         val requestId: String?,
         val sessionId: String? = null,
+        val serverRequestId: String? = null,
     ) : WsEvent()
 
     // ── Gateway-level errors ───────────────────────────────────────────

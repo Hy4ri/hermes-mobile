@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -80,7 +81,11 @@ class ComposerInteractionTest {
                     onReasoningTap = { selectedLevel = it },
                 )
             }
-            if (composerWidth == null) composer() else Box(Modifier.width(composerWidth)) { composer() }
+            if (composerWidth == null) {
+                composer()
+            } else {
+                Box(Modifier.width(composerWidth).testTag("composer_toolbar")) { composer() }
+            }
         }
     }
 
@@ -198,17 +203,21 @@ class ComposerInteractionTest {
     fun shortModelName_wideComposerKeepsPillCompact() {
         setComposer(composerWidth = 420.dp)
 
-        val availableWidth = 420.dp
+        val toolbarBounds =
+            composeTestRule
+                .onNodeWithTag("composer_toolbar", useUnmergedTree = true)
+                .getUnclippedBoundsInRoot()
+        val toolbarWidth = toolbarBounds.right - toolbarBounds.left
         val modelChip = composeTestRule.onNodeWithTag("model_chip").getUnclippedBoundsInRoot()
         val reasoningChip = composeTestRule.onNodeWithTag("reasoning_chip").getUnclippedBoundsInRoot()
         val actionButton = composeTestRule.onNodeWithTag("mic_button").getUnclippedBoundsInRoot()
         val pillWidth = maxOf(modelChip.right, reasoningChip.right) - minOf(modelChip.left, reasoningChip.left)
 
-        check(pillWidth < availableWidth * 0.8f) {
-            "short model pill should remain content-sized, width=$pillWidth available=$availableWidth"
+        check(pillWidth < toolbarWidth * 0.8f) {
+            "short model pill should remain content-sized, width=$pillWidth toolbar=$toolbarWidth"
         }
-        check(actionButton.right > availableWidth * 0.8f) {
-            "trailing action should stay near the toolbar edge, right=${actionButton.right} available=$availableWidth"
+        check(actionButton.right > toolbarBounds.right - 32.dp) {
+            "trailing action should stay near the toolbar edge, right=${actionButton.right} toolbarRight=${toolbarBounds.right}"
         }
     }
 

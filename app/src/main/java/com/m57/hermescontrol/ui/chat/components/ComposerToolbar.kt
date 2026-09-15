@@ -137,11 +137,13 @@ fun ComposerToolbar(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = currentSessionModel?.let(::displayModelName) ?: "Model",
+                    // Keeps the provider so same-named models from different providers
+                    // stay distinguishable; trims from the middle when tight.
+                    text = currentSessionModel?.let(::composerModelLabel) ?: "Model",
                     style = MaterialTheme.typography.bodyMedium,
                     color = palette.onControl,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.MiddleEllipsis,
                     modifier =
                         Modifier
                             .weight(1f, fill = false)
@@ -431,11 +433,22 @@ private fun listeningIconButtonColors(): IconButtonColors =
     )
 
 /**
- * Short model label for the composer pill: drops the provider path
- * ("custom:acme/glm-5.3" → "glm-5.3"). Tags after ':' are kept ("llama3:8b").
- * The model picker still shows the full id.
+ * Model label for the composer pill: the session's "provider/model" id with
+ * only the "custom:" marker removed from the provider ("custom:acme/glm-5.3"
+ * → "acme/glm-5.3"). The provider itself is kept so the same model served by
+ * different providers never renders identically.
  */
-internal fun displayModelName(model: String): String = model.substringAfterLast('/').ifBlank { model }
+internal fun composerModelLabel(sessionModel: String): String {
+    val slash = sessionModel.indexOf('/')
+    if (slash <= 0) return sessionModel
+    val provider = sessionModel.substring(0, slash)
+    if (!provider.startsWith(CUSTOM_PROVIDER_PREFIX) || provider.length == CUSTOM_PROVIDER_PREFIX.length) {
+        return sessionModel
+    }
+    return provider.removePrefix(CUSTOM_PROVIDER_PREFIX) + sessionModel.substring(slash)
+}
+
+private const val CUSTOM_PROVIDER_PREFIX = "custom:"
 
 /**
  * Build a human-readable label from a reasoning effort level.

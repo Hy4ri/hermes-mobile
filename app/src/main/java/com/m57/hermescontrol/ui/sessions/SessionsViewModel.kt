@@ -962,6 +962,8 @@ class SessionsViewModel(
         trackingGeneration++
         trackingJob?.cancel()
         trackingJob = null
+        projectsJob?.cancel()
+        projectsJob = null
         liveStatusRefreshInFlight = false
         liveStatusRefreshPending = false
         liveTrackingState = SessionLiveStatusReducer.clear()

@@ -69,10 +69,11 @@ class SessionsViewModelTest {
     private class FakeProjectsSource : ProjectsSource {
         var projectsToReturn: List<ProjectInfo>? = emptyList()
         var fetchCallCount = 0
+        var projectsDeferred: CompletableDeferred<List<ProjectInfo>?>? = null
 
         override suspend fun fetchProjects(): List<ProjectInfo>? {
             fetchCallCount++
-            return projectsToReturn
+            return projectsDeferred?.await() ?: projectsToReturn
         }
     }
 
@@ -112,6 +113,25 @@ class SessionsViewModelTest {
                 .map { it.name },
         )
         vm.stopLiveStatusTracking()
+    }
+
+    @Test
+    fun `stopping tracking cancels an in-flight project fetch`() {
+        val pending = CompletableDeferred<List<ProjectInfo>?>()
+        val projects = FakeProjectsSource().apply { projectsDeferred = pending }
+        val vm = createViewModel(projectsSource = projects)
+        vm.startLiveStatusTracking()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, projects.fetchCallCount)
+
+        vm.stopLiveStatusTracking()
+        pending.complete(listOf(ProjectInfo(id = "p_late", name = "Late")))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(
+            vm.uiState.value.projects
+                .isEmpty(),
+        )
     }
 
     @Test

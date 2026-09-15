@@ -655,7 +655,11 @@
 <string name="profiles_shared_gateway_title">بوابة مشتركة</string>
 <string name="profiles_shared_gateway_badge">مشترك</string>
 <plurals name="profiles_shared_gateway_count">
+    <item quantity="zero">لا تُخدم أي ملفات شخصية معًا</item>
     <item quantity="one">يُخدم %1$d ملف شخصي معًا</item>
+    <item quantity="two">يُخدم ملفان شخصيان معًا</item>
+    <item quantity="few">تُخدم %1$d ملفات شخصية معًا</item>
+    <item quantity="many">تُخدم %1$d ملفًا شخصيًا معًا</item>
     <item quantity="other">تُخدم %1$d ملفات شخصية معًا</item>
 </plurals>
 <string name="profiles_all_hidden_desc">جميع الملفات الشخصية مخفية حاليًا. انقر أدناه لإظهار الملفات الشخصية المخفية.</string>

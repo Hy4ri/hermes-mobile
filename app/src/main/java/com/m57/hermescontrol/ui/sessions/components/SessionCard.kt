@@ -7,7 +7,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.m57.hermescontrol.R
 import com.m57.hermescontrol.data.model.SessionInfo
@@ -150,6 +151,9 @@ fun highlightText(
 
 private val ProjectDotSize = 8.dp
 private val MetaIconSize = 14.dp
+
+// The model gives way to the badges down to this width before they wrap to a second line.
+private val FooterLeadMinWidth = 72.dp
 private val WhitespaceRun = Regex("\\s+")
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -384,9 +388,22 @@ private fun SessionCardHeader(
 }
 
 /**
- * Origin, model and message count, then the hidden badge and live status. The badges wrap to
- * a second line when they don't fit (large font scales), so the model never collapses to "…".
+ * Whether the footer's badges share the first line. The model (the lead) is the part that gives
+ * way: it middle-ellipsizes down to [leadMinWidth] (or its own width when shorter) before the
+ * badges move to a second line. [badgesWidth] includes the gap before the badges; 0 means none.
  */
+internal fun footerFitsOneLine(
+    maxWidth: Int,
+    leadWidth: Int,
+    countWidth: Int,
+    badgesWidth: Int,
+    leadMinWidth: Int,
+): Boolean {
+    if (badgesWidth <= 0) return true
+    return maxWidth - countWidth - badgesWidth >= minOf(leadWidth, leadMinWidth)
+}
+
+/** Origin, model and message count, then the hidden badge and live status. */
 @Composable
 private fun SessionCardFooter(
     session: SessionInfo,
@@ -395,57 +412,118 @@ private fun SessionCardFooter(
     palette: SessionCardPalette,
 ) {
     val spacing = LocalSpacing.current
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val srcIcon = sourceIcon(session.source)
-            if (srcIcon != null && showSource) {
-                Icon(
-                    imageVector = srcIcon,
-                    contentDescription = sourceLabel(session.source),
-                    tint = palette.secondary,
-                    modifier = Modifier.size(MetaIconSize),
-                )
-                Spacer(modifier = Modifier.width(spacing.sm))
+    val messageCount = session.message_count ?: 0
+    val model = session.model?.trim().orEmpty()
+    val srcIcon = sourceIcon(session.source)
+    val hasBadges = session.hidden == true || liveStatus != null
+
+    Layout(
+        contents =
+            listOf(
+                {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (srcIcon != null && showSource) {
+                            Icon(
+                                imageVector = srcIcon,
+                                contentDescription = sourceLabel(session.source),
+                                tint = palette.secondary,
+                                modifier = Modifier.size(MetaIconSize),
+                            )
+                            Spacer(modifier = Modifier.width(spacing.sm))
+                        }
+                        if (model.isNotEmpty()) {
+                            Text(
+                                text = model,
+                                style =
+                                    MaterialTheme.typography.labelMedium.copy(
+                                        textDirection = TextDirection.Content,
+                                    ),
+                                color = palette.secondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.MiddleEllipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            Text(
+                                text = " · ",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = palette.secondary,
+                            )
+                        }
+                    }
+                },
+                {
+                    Text(
+                        text = pluralStringResource(R.plurals.sessions_card_message_count, messageCount, messageCount),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = palette.secondary,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("session_footer_count_${session.id}"),
+                    )
+                },
+                {
+                    if (hasBadges) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (session.hidden == true) {
+                                StatusBadge(
+                                    text = stringResource(R.string.sessions_hidden_badge),
+                                    status = StatusBadgeType.NEUTRAL,
+                                )
+                            }
+                            if (liveStatus != null) {
+                                SessionLiveStatusIndicator(
+                                    liveStatus = liveStatus,
+                                    sessionId = session.id,
+                                )
+                            }
+                        }
+                    }
+                },
+            ),
+    ) { (leadMeasurables, countMeasurables, badgeMeasurables), constraints ->
+        val maxWidth = constraints.maxWidth
+        val loose = Constraints(maxWidth = maxWidth)
+        val gap = spacing.sm.roundToPx()
+        val lineGap = spacing.xs.roundToPx()
+
+        val count = countMeasurables.first().measure(loose)
+        val badges = badgeMeasurables.firstOrNull()?.measure(loose)
+        val lead = leadMeasurables.firstOrNull()
+        val leadNatural = lead?.maxIntrinsicWidth(Constraints.Infinity) ?: 0
+        val badgesSpace = badges?.let { it.width + gap } ?: 0
+        val oneLine =
+            footerFitsOneLine(
+                maxWidth = maxWidth,
+                leadWidth = leadNatural,
+                countWidth = count.width,
+                badgesWidth = badgesSpace,
+                leadMinWidth = FooterLeadMinWidth.roundToPx(),
+            )
+        val leadRoom = (maxWidth - count.width - if (oneLine) badgesSpace else 0).coerceAtLeast(0)
+        val leadPlaceable = lead?.measure(Constraints(maxWidth = minOf(leadNatural, leadRoom)))
+
+        val firstLineHeight =
+            maxOf(leadPlaceable?.height ?: 0, count.height, if (oneLine) badges?.height ?: 0 else 0)
+        val height = firstLineHeight + if (!oneLine && badges != null) lineGap + badges.height else 0
+        val width = if (constraints.hasBoundedWidth) maxWidth else constraints.minWidth
+
+        layout(width, height) {
+            var x = 0
+            leadPlaceable?.let {
+                it.placeRelative(x, (firstLineHeight - it.height) / 2)
+                x += it.width
             }
-            val messageCount = session.message_count ?: 0
-            val model = session.model?.trim().orEmpty()
-            if (model.isNotEmpty()) {
-                Text(
-                    text = model,
-                    style = MaterialTheme.typography.labelMedium.copy(textDirection = TextDirection.Content),
-                    color = palette.secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Text(
-                    text = " · ",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = palette.secondary,
-                )
+            count.placeRelative(x, (firstLineHeight - count.height) / 2)
+            x += count.width
+            badges?.let {
+                if (oneLine) {
+                    it.placeRelative(x + gap, (firstLineHeight - it.height) / 2)
+                } else {
+                    it.placeRelative(0, firstLineHeight + lineGap)
+                }
             }
-            Text(
-                text = pluralStringResource(R.plurals.sessions_card_message_count, messageCount, messageCount),
-                style = MaterialTheme.typography.labelMedium,
-                color = palette.secondary,
-                maxLines = 1,
-            )
-        }
-        if (session.hidden == true) {
-            StatusBadge(
-                text = stringResource(R.string.sessions_hidden_badge),
-                status = StatusBadgeType.NEUTRAL,
-            )
-        }
-        if (liveStatus != null) {
-            SessionLiveStatusIndicator(
-                liveStatus = liveStatus,
-                sessionId = session.id,
-            )
         }
     }
 }

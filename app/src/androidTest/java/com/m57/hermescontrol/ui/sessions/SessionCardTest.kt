@@ -1,21 +1,31 @@
 package com.m57.hermescontrol.ui.sessions
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.m57.hermescontrol.data.model.SessionInfo
+import com.m57.hermescontrol.data.model.SessionLiveStatus
 import com.m57.hermescontrol.theme.HermesControlTheme
 import com.m57.hermescontrol.ui.sessions.components.SessionCard
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,32 +46,70 @@ class SessionCardTest {
     private fun setCard(
         session: SessionInfo,
         project: SessionProject?,
+        liveStatus: SessionLiveStatus? = null,
+        fontScale: Float = 1f,
     ) {
         composeTestRule.setContent {
-            HermesControlTheme {
-                SessionCard(
-                    session = session,
-                    displayTitle = session.title ?: "Untitled",
-                    branchStem = null,
-                    query = "",
-                    isSelecting = false,
-                    isSelected = false,
-                    isDeleting = false,
-                    isPinned = false,
-                    project = project,
-                    nowMillis = nowMillis,
-                    highlightBackground = Color.Unspecified,
-                    highlightForeground = Color.Unspecified,
-                    onCardClick = { clicks++ },
-                    onToggleSelection = {},
-                    onSelect = {},
-                    onRename = {},
-                    onTogglePin = {},
-                    onToggleHide = {},
-                    onDelete = {},
-                )
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                HermesControlTheme {
+                    Box(modifier = Modifier.width(360.dp)) {
+                        SessionCard(
+                            session = session,
+                            displayTitle = session.title ?: "Untitled",
+                            branchStem = null,
+                            query = "",
+                            isSelecting = false,
+                            isSelected = false,
+                            isDeleting = false,
+                            isPinned = false,
+                            liveStatus = liveStatus,
+                            project = project,
+                            nowMillis = nowMillis,
+                            highlightBackground = Color.Unspecified,
+                            highlightForeground = Color.Unspecified,
+                            onCardClick = { clicks++ },
+                            onToggleSelection = {},
+                            onSelect = {},
+                            onRename = {},
+                            onTogglePin = {},
+                            onToggleHide = {},
+                            onDelete = {},
+                        )
+                    }
+                }
             }
         }
+    }
+
+    private fun longModelSession() =
+        SessionInfo(
+            id = "long",
+            title = "Draft the release notes",
+            model = "openrouter/anthropic/a-very-long-model-identifier-name",
+            message_count = 128,
+            hidden = true,
+        )
+
+    private fun bounds(tag: String) =
+        composeTestRule.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
+
+    @Test
+    fun longModel_shrinksInsteadOfWrappingTheBadges() {
+        setCard(session = longModelSession(), project = null, liveStatus = SessionLiveStatus.WORKING)
+
+        val count = bounds("session_footer_count_long")
+        val badge = bounds("session_live_status_long")
+        val countCenter = (count.top + count.bottom) / 2
+        val badgeCenter = (badge.top + badge.bottom) / 2
+        assertEquals("badges share the model's line", countCenter.value, badgeCenter.value, 1f)
+    }
+
+    @Test
+    fun largeFont_wrapsTheBadgesToASecondLine() {
+        setCard(session = longModelSession(), project = null, liveStatus = SessionLiveStatus.WORKING, fontScale = 2f)
+
+        assertTrue(bounds("session_live_status_long").top >= bounds("session_footer_count_long").bottom)
     }
 
     @Test
